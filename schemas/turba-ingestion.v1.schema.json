@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-ingestion.v1.schema.json",
+  "title": "Turba ingestion feed",
+  "type": "object",
+  "required": ["schemaVersion", "runs"],
+  "properties": {
+    "schemaVersion": {
+      "const": "turba.ingestion.v1"
+    },
+    "entities": {
+      "type": "object",
+      "properties": {
+        "models": { "type": "object" },
+        "users": { "type": "object" },
+        "teams": { "type": "object" },
+        "clusters": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string" },
+          "refs": { "type": "object" },
+          "status": { "type": "string" },
+          "allocation": { "type": "object" },
+          "utilization": { "type": "object" },
+          "communication": { "type": "object" },
+          "inputPipeline": { "type": "object" },
+          "memory": { "type": "object" },
+          "scheduler": { "type": "object" },
+          "reliability": { "type": "object" },
+          "configuration": { "type": "object" },
+          "work": { "type": "object" },
+          "baseline": { "type": "object" },
+          "placement": { "type": ["object", "array"] },
+          "traceAttribution": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "sourceAdapters": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

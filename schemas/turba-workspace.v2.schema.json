@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-workspace.v2.schema.json",
+  "title": "Turba browser workspace",
+  "type": "object",
+  "required": [
+    "storageSchemaVersion",
+    "ingestionSchemaVersion",
+    "savedAt",
+    "ingestion",
+    "baselines",
+    "snapshots"
+  ],
+  "properties": {
+    "storageSchemaVersion": {
+      "const": "turba.workspace.v2"
+    },
+    "ingestionSchemaVersion": {
+      "const": "turba.ingestion.v1"
+    },
+    "savedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "lastAnalysisAt": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "ingestion": {
+      "$ref": "./turba-ingestion.v1.schema.json"
+    },
+    "baselines": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    },
+    "snapshots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capturedAt", "scope", "key", "label", "metrics"],
+        "properties": {
+          "capturedAt": { "type": "string", "format": "date-time" },
+          "source": { "type": "string" },
+          "scope": {
+            "enum": ["job", "model", "user", "team", "cluster"]
+          },
+          "key": { "type": "string", "minLength": 1 },
+          "label": { "type": "string" },
+          "window": { "type": "string" },
+          "rate": { "type": "number" },
+          "primaryBottleneck": { "type": "string" },
+          "metrics": {
+            "type": "object",
+            "additionalProperties": { "type": "number" }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

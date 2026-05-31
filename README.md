@@ -1,6 +1,8 @@
 # Turba Analytics
 
-<img width="1672" height="941" alt="563c2b1f-be98-4d96-a8e4-96865748791b" src="https://github.com/user-attachments/assets/621b5f25-70bd-4356-adae-462581c1346a" />
+![Turba Analytics desktop screenshot](build/turba-analytics-desktop.png)
+
+Screenshot artifact from `build/`; regenerate locally after material layout changes.
 
 Focused MVP for answering where AI infrastructure performance and money are being lost, and why.
 
@@ -34,14 +36,33 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 
 External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example.
 
+## Operator docs
+
+- [Data contract](docs/data-contract.md)
+- [Operator walkthrough](docs/operator-walkthrough.md)
+- [Telemetry integration](docs/telemetry-integration.md)
+- [Visual QA checklist](docs/visual-qa.md)
+- [Deployment](docs/deployment.md)
+- [Ingestion JSON Schema](schemas/turba-ingestion.v1.schema.json)
+- [Workspace JSON Schema](schemas/turba-workspace.v2.schema.json)
+
+## Deployment
+
+CI runs on pushes and pull requests through `.github/workflows/ci.yml`. GitHub Pages deployment is available through `.github/workflows/pages.yml`; enable Pages with GitHub Actions as the source.
+
 ## Tests
+
+Run `node tests/run-all.js` to execute the full syntax and fixture test suite.
 
 Run `node tests/analytics-core.test.js` to validate core efficiency, bottleneck, what-if, fingerprint, regression, and trend calculations.
 Run `node tests/nccl-trace-parser.test.js` to validate NCCL operation and topology-tier attribution.
 Run `node tests/external-ingestion-fixture.test.js` to validate the external source bundle fixture.
 Run `node tests/workspace-export-fixture.test.js` to validate exported workspace shape.
+Run `node tests/schemas.test.js` to validate schema files and fixture alignment.
+Run `node tests/import-validation-copy.test.js` to validate import validation messages and helpers.
 Run `node tests/static-page-wiring.test.js` to validate static DOM IDs, script order, and dashboard control wiring.
+Run `node tests/docs-and-workflows.test.js` to validate docs, screenshots, and GitHub workflow entry points.
 
 ## Current status
 
-The original prototype backlog is implemented. Further work should be driven by live operator workflows and production telemetry shape.
+The original prototype backlog is implemented. Real production telemetry requires an operator-provided export from Prometheus, DCGM, Kubernetes, and NCCL traces. Browser visual QA should be completed locally with the checklist in `docs/visual-qa.md`.

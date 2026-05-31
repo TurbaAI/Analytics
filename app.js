@@ -1393,6 +1393,8 @@ function dateIso(value) {
 }
 
 async function ingestJsonPayload(payload, sourceLabel) {
+  validateImportPayloadRoot(payload);
+
   if (isValidWorkspaceStore(payload)) {
     restoreWorkspaceStore(payload, restoredSourceLabel(sourceLabel));
     return;
@@ -1403,6 +1405,7 @@ async function ingestJsonPayload(payload, sourceLabel) {
 }
 
 function buildIngestionFromExternalPayload(payload) {
+  validateSourceArrays(payload);
   const feed = extractIngestionFeed(payload);
   const sources = extractSourceExports(payload);
   const ncclTraces = extractNcclTraces(payload);
@@ -1410,6 +1413,8 @@ function buildIngestionFromExternalPayload(payload) {
   if (!isIngestionFeed(feed)) {
     throw new Error("Expected a turba.ingestion.v1 feed or source bundle.");
   }
+
+  validateIngestionFeed(feed);
 
   if (!hasSourceExports(sources) && ncclTraces.length === 0) {
     return feed;
@@ -1430,6 +1435,71 @@ function extractIngestionFeed(payload) {
   }
 
   return activeIngestion;
+}
+
+function validateImportPayloadRoot(payload) {
+  if (!isPlainObject(payload)) {
+    throw new Error("Import must be a JSON object.");
+  }
+
+  if (payload.storageSchemaVersion && payload.storageSchemaVersion !== STORAGE_SCHEMA.version) {
+    throw new Error(`Unsupported workspace schema: ${payload.storageSchemaVersion}. Expected ${STORAGE_SCHEMA.version}.`);
+  }
+
+  if (payload.storageSchemaVersion && !isValidWorkspaceStore(payload)) {
+    throw new Error("Workspace export is missing ingestion, baselines, or schema metadata.");
+  }
+
+  if (payload.schemaVersion && payload.schemaVersion !== INGESTION_SCHEMA.version) {
+    throw new Error(`Unsupported ingestion schema: ${payload.schemaVersion}. Expected ${INGESTION_SCHEMA.version}.`);
+  }
+
+  if (payload.ingestion?.schemaVersion && payload.ingestion.schemaVersion !== INGESTION_SCHEMA.version) {
+    throw new Error(`Unsupported ingestion schema: ${payload.ingestion.schemaVersion}. Expected ${INGESTION_SCHEMA.version}.`);
+  }
+
+  if ("runs" in payload && !Array.isArray(payload.runs)) {
+    throw new Error("The runs field must be an array.");
+  }
+}
+
+function validateIngestionFeed(feed) {
+  if (!Array.isArray(feed.runs) || feed.runs.length === 0) {
+    throw new Error("Ingestion feed has no runs.");
+  }
+
+  feed.runs.forEach((run, index) => {
+    if (!isPlainObject(run)) {
+      throw new Error(`Run ${index + 1} must be an object.`);
+    }
+    if (!run.id) {
+      throw new Error(`Run ${index + 1} is missing id.`);
+    }
+  });
+}
+
+function validateSourceArrays(payload) {
+  const roots = [
+    { label: "sources", value: payload.sources },
+    { label: "sourceExports", value: payload.sourceExports },
+    { label: "root", value: payload }
+  ].filter((root) => isPlainObject(root.value));
+
+  roots.forEach((root) => {
+    ["prometheus", "dcgm", "kubernetes"].forEach((key) => {
+      if (key in root.value && !Array.isArray(root.value[key])) {
+        const prefix = root.label === "root" ? key : `${root.label}.${key}`;
+        throw new Error(`${prefix} must be an array.`);
+      }
+    });
+
+    ["ncclTraces", "traces", "nccl"].forEach((key) => {
+      if (key in root.value && !Array.isArray(root.value[key])) {
+        const prefix = root.label === "root" ? key : `${root.label}.${key}`;
+        throw new Error(`${prefix} must be an array.`);
+      }
+    });
+  });
 }
 
 function extractSourceExports(payload) {
@@ -1485,10 +1555,10 @@ async function handleFileIngest(event) {
 
   try {
     setIngestStatus("Reading file", "watch");
-    const payload = JSON.parse(await file.text());
+    const payload = parseImportJson(await file.text(), "File is not valid JSON.");
     await ingestJsonPayload(payload, `Imported ${file.name}`);
   } catch (error) {
-    setIngestStatus(error.message || "Import failed", "poor");
+    setIngestStatus(importErrorMessage(error, "Import failed"), "poor");
   } finally {
     event.target.value = "";
   }
@@ -1504,15 +1574,36 @@ async function handleApiIngest() {
 
   try {
     setIngestStatus("Fetching API", "watch");
-    const response = await window.fetch(url);
+    const requestUrl = parseImportUrl(url);
+    const response = await window.fetch(requestUrl);
     if (!response.ok) {
       throw new Error(`API ${response.status}`);
     }
 
-    await ingestJsonPayload(await response.json(), "Fetched API feed");
+    await ingestJsonPayload(parseImportJson(await response.text(), "API did not return valid JSON."), "Fetched API feed");
   } catch (error) {
-    setIngestStatus(error.message || "Fetch failed", "poor");
+    setIngestStatus(importErrorMessage(error, "Fetch failed"), "poor");
   }
+}
+
+function parseImportJson(text, message) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(message);
+  }
+}
+
+function parseImportUrl(value) {
+  try {
+    return new URL(value, window.location.href).href;
+  } catch {
+    throw new Error("API URL is not valid.");
+  }
+}
+
+function importErrorMessage(error, fallback) {
+  return error?.message || fallback;
 }
 
 function exportWorkspace() {
