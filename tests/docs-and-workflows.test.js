@@ -13,6 +13,7 @@ const readme = read("README.md");
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
+  "docs/demo-script.md",
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   ".github/workflows/ci.yml",
@@ -29,6 +30,7 @@ const readme = read("README.md");
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
+  "docs/demo-script.md",
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "node tests/run-all.js",
@@ -56,5 +58,9 @@ assert.ok(telemetry.includes("Prometheus"));
 assert.ok(telemetry.includes("DCGM"));
 assert.ok(telemetry.includes("Kubernetes"));
 assert.ok(telemetry.includes("NCCL"));
+
+const demoScript = read("docs/demo-script.md");
+assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
+assert.ok(demoScript.includes("Do Not Claim"));
 
 console.log("docs and workflows tests passed");

@@ -43,6 +43,7 @@ External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` 
 - [Telemetry integration](docs/telemetry-integration.md)
 - [Visual QA checklist](docs/visual-qa.md)
 - [Deployment](docs/deployment.md)
+- [Demo script](docs/demo-script.md)
 - [Ingestion JSON Schema](schemas/turba-ingestion.v1.schema.json)
 - [Workspace JSON Schema](schemas/turba-workspace.v2.schema.json)
 
