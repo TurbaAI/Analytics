@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://turba.analytics/schemas/turba-ingestion.v1.schema.json",
-  "title": "Turba ingestion feed",
+  "title": "turbalance ingestion feed",
   "type": "object",
   "required": ["schemaVersion", "runs"],
   "properties": {

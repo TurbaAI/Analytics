@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://turba.analytics/schemas/turba-workspace.v2.schema.json",
-  "title": "Turba browser workspace",
+  "title": "turbalance browser workspace",
   "type": "object",
   "required": [
     "storageSchemaVersion",

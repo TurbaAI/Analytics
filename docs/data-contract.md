@@ -1,6 +1,6 @@
-# Turba Data Contract
+# turbalance Data Contract
 
-Turba Analytics accepts JSON imports through the dashboard import control, API fetch control, or workspace restore flow. The app is static, so every import is handled in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
+turbalance Analytics accepts JSON imports through the dashboard import control, API fetch control, or workspace restore flow. The app is static, so every import is handled in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
 
 Machine-readable schema references live in `schemas/turba-ingestion.v1.schema.json`, `schemas/turba-source-bundle.v1.schema.json`, and `schemas/turba-workspace.v2.schema.json`.
 
@@ -8,7 +8,7 @@ Machine-readable schema references live in `schemas/turba-ingestion.v1.schema.js
 
 ### Full Ingestion Feed
 
-Use this shape when the upstream system can emit normalized Turba runs directly.
+Use this shape when the upstream system can emit normalized turbalance runs directly.
 
 ```json
 {

@@ -32,7 +32,7 @@ Recommended labels or annotations:
 - `turba.ai/support-ticket`
 - `turba.ai/priority`
 
-The `runId` must match the normalized Turba run ID. The app uses that ID to merge provider metadata with Prometheus, DCGM, Kubernetes, and NCCL trace data.
+The `runId` must match the normalized turbalance run ID. The app uses that ID to merge provider metadata with Prometheus, DCGM, Kubernetes, and NCCL trace data.
 
 ## Slurm Join Keys
 

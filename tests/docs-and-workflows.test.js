@@ -18,6 +18,8 @@ const readme = read("README.md");
   "docs/deployment.md",
   "docs/demo-script.md",
   "docs/demo-release-checklist.md",
+  "assets/turbalance-mark.png",
+  "assets/turbalance-analytics-logo.png",
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
@@ -26,8 +28,8 @@ const readme = read("README.md");
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
-  "build/turba-analytics-desktop.png",
-  "build/turba-analytics-mobile.png"
+  "build/turbalance-analytics-desktop.png",
+  "build/turbalance-analytics-mobile.png"
 ].forEach((relativePath) => {
   assert.ok(exists(relativePath), `${relativePath} should exist`);
 });
@@ -51,7 +53,7 @@ const readme = read("README.md");
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/source-bundle-validation.test.js",
-  "build/turba-analytics-desktop.png"
+  "build/turbalance-analytics-desktop.png"
 ].forEach((text) => {
   assert.ok(readme.includes(text), `README should reference ${text}`);
 });
@@ -63,7 +65,7 @@ assert.ok(ci.includes("node tests/run-all.js"));
 assert.ok(pages.includes("node tests/run-all.js"));
 assert.ok(pages.includes("actions/deploy-pages@v4"));
 assert.ok(pages.includes("cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/"));
-assert.ok(pages.includes("cp -R build fixtures docs schemas scripts site/"));
+assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts site/"));
 
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));
@@ -114,6 +116,6 @@ const demoRelease = read("docs/demo-release-checklist.md");
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("turba-source-bundle.v1.schema.json"));
-assert.ok(demoRelease.includes("build/turba-analytics-desktop.png"));
+assert.ok(demoRelease.includes("build/turbalance-analytics-desktop.png"));
 
 console.log("docs and workflows tests passed");

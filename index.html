@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Turba Analytics</title>
+    <title>turbalance Analytics</title>
+    <link rel="icon" href="assets/turbalance-mark.png">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">TA</span>
-        <div>
-          <strong>Turba Analytics</strong>
+      <div class="brand" aria-label="turbalance Analytics">
+        <span class="brand-copy">
+          <img class="brand-wordmark" src="assets/turbalance-analytics-logo.png" alt="turbalance Analytics">
           <span>Infrastructure loss attribution</span>
-        </div>
+        </span>
       </div>
 
       <div class="top-actions">
@@ -78,7 +78,7 @@
         </label>
         <label class="api-label" for="apiInput">
           API URL
-          <input id="apiInput" type="url" placeholder="https://example.com/turba-feed.json">
+          <input id="apiInput" type="url" placeholder="https://example.com/turbalance-feed.json">
         </label>
         <button id="fetchApiButton" class="secondary-button" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -131,7 +131,10 @@
         <section class="operator-loop" aria-live="polite">
           <section class="diagnosis-band">
             <div class="diagnosis-copy">
-              <p class="eyebrow" id="selectedMeta">H100 cluster</p>
+              <div class="diagnosis-kicker">
+                <img class="diagnosis-mark" src="assets/turbalance-mark.png" alt="" aria-hidden="true">
+                <p class="eyebrow" id="selectedMeta">H100 cluster</p>
+              </div>
               <h2 id="diagnosisHeadline">Select an analysis target</h2>
               <p id="diagnosisNarrative"></p>
             </div>

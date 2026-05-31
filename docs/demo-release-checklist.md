@@ -1,6 +1,6 @@
 # Demo Release Checklist
 
-Use this checklist before sharing a Turba Analytics demo build with neo-cloud provider operators.
+Use this checklist before sharing a turbalance Analytics demo build with neo-cloud provider operators.
 
 ## Build Readiness
 
@@ -21,7 +21,7 @@ Use this checklist before sharing a Turba Analytics demo build with neo-cloud pr
 ## Visual Readiness
 
 1. Run the checks in `docs/visual-qa.md` on desktop and mobile widths.
-2. Regenerate `build/turba-analytics-desktop.png` and `build/turba-analytics-mobile.png` after layout changes.
+2. Regenerate `build/turbalance-analytics-desktop.png` and `build/turbalance-analytics-mobile.png` after layout changes.
 3. Confirm no text overlap in provider lens, provider portfolio tables, trend metrics, and mobile controls.
 
 ## Talk Track Readiness

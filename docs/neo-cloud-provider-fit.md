@@ -1,10 +1,10 @@
 # Neo-Cloud Provider Fit
 
-Turba Analytics now treats GPU neo-cloud operators as a first-class user group. The goal is to help teams that sell scarce accelerator capacity protect customer trust, recover useful GPU-hours, and explain why a tenant's expensive run was slow or wasteful.
+turbalance Analytics now treats GPU neo-cloud operators as a first-class user group. The goal is to help teams that sell scarce accelerator capacity protect customer trust, recover useful GPU-hours, and explain why a tenant's expensive run was slow or wasteful.
 
 ## Why This Matters
 
-Provider documentation for GPU clouds shows the same operational pattern Turba targets:
+Provider documentation for GPU clouds shows the same operational pattern turbalance targets:
 
 - GPU capacity is sold through on-demand usage, reserved clusters, or committed capacity measured in GPU-hours.
 - Large AI clusters often combine Kubernetes or Slurm job identity with hardware, network, and infrastructure telemetry.
@@ -80,6 +80,6 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 
 `fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, and source telemetry.
 
-`fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing Turba feed.
+`fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing turbalance feed.
 
 For a pilot walkthrough, use `docs/neo-cloud-pilot-validation.md`.

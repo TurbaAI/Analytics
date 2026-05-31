@@ -18,6 +18,9 @@ const selectorMatches = [
 const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((match) => match[1]);
 
 assert.equal(ids.length, idSet.size, "HTML ids should be unique");
+assert.ok(html.includes("assets/turbalance-mark.png"));
+assert.ok(html.includes("assets/turbalance-analytics-logo.png"));
+assert.ok(html.includes("<title>turbalance Analytics</title>"));
 assert.deepEqual(scripts, [
   "analytics-core.js",
   "nccl-trace-parser.js",

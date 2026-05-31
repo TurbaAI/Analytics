@@ -1,6 +1,6 @@
-# Turba Analytics
+# turbalance Analytics
 
-![Turba Analytics desktop screenshot](build/turba-analytics-desktop.png)
+![turbalance Analytics desktop screenshot](build/turbalance-analytics-desktop.png)
 
 Screenshot artifact from `build/`; regenerate locally after material layout changes.
 

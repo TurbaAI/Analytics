@@ -1,6 +1,6 @@
 # Deployment
 
-Turba Analytics is a static prototype. It can be hosted from any static file server that serves these files from one directory:
+turbalance Analytics is a static prototype. It can be hosted from any static file server that serves these files from one directory:
 
 - `index.html`
 - `styles.css`

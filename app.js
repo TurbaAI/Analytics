@@ -2128,7 +2128,7 @@ function cloneJson(value) {
 }
 
 function resetWorkspace() {
-  const confirmed = window.confirm("Reset the local Turba workspace to the sample feed?");
+  const confirmed = window.confirm("Reset the local turbalance workspace to the sample feed?");
   if (!confirmed) return;
 
   activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));

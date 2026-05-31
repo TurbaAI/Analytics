@@ -26,4 +26,4 @@ Use `fixtures/neo-cloud-provider-bundle.json` as the first pilot dataset. It has
 ## Current Blockers
 
 - GitHub Pages still needs Pages enabled in repository settings with GitHub Actions as the source.
-- Browser visual QA for local URLs is blocked in the current Codex environment, so screenshots must be regenerated in a local browser.
+- Screenshot artifacts have been regenerated for the current branded layout; repeat visual QA after future layout changes.
