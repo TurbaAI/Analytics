@@ -33,6 +33,48 @@
     };
   }
 
+  function summarizeProviderEconomics(summary, options = {}) {
+    const provider = summary.provider || {};
+    const slo = summary.slo || {};
+    const allocatedGpuHours = numeric(summary.allocatedGpuHours);
+    const usefulGpuHours = numeric(summary.usefulGpuHours, allocatedGpuHours * numeric(summary.usefulCompute) / 100);
+    const wastedGpuHours = numeric(summary.wastedGpuHours, Math.max(0, allocatedGpuHours - usefulGpuHours));
+    const listGpuHourRate = firstPositive(provider.listGpuHourRate, options.listGpuHourRate, options.rate);
+    const floorGpuHourCost = firstFinite(provider.floorGpuHourCost, options.floorGpuHourCost);
+    const hasFloorCost = Number.isFinite(floorGpuHourCost);
+    const billableGpuHours = firstPositive(provider.billableGpuHours, allocatedGpuHours);
+    const sellableGpuHours = firstPositive(provider.sellableGpuHours, allocatedGpuHours);
+    const committedGpuHours = numeric(provider.committedGpuHours);
+    const burstGpuHours = numeric(provider.burstGpuHours);
+    const queueWaitMinutes = numeric(summary.queueWaitMinutes);
+    const targetStartMinutes = numeric(slo.targetStartMinutes);
+    const targetEfficiency = numeric(slo.targetEfficiency);
+    const revenue = billableGpuHours * listGpuHourRate;
+    const sellableWasteValue = wastedGpuHours * listGpuHourRate;
+    const directCost = hasFloorCost ? allocatedGpuHours * floorGpuHourCost : 0;
+    const grossMargin = hasFloorCost ? revenue - directCost : 0;
+
+    return {
+      listGpuHourRate,
+      floorGpuHourCost: hasFloorCost ? floorGpuHourCost : 0,
+      hasFloorCost,
+      billableGpuHours,
+      sellableGpuHours,
+      committedGpuHours,
+      burstGpuHours,
+      revenue,
+      sellableWasteValue,
+      directCost,
+      grossMargin,
+      grossMarginPct: revenue > 0 && hasFloorCost ? (grossMargin / revenue) * 100 : 0,
+      reservationBurnPct: committedGpuHours > 0 ? (allocatedGpuHours / committedGpuHours) * 100 : 0,
+      sellableWastePct: sellableGpuHours > 0 ? (wastedGpuHours / sellableGpuHours) * 100 : 0,
+      queueSloPct: targetStartMinutes > 0 ? (queueWaitMinutes / targetStartMinutes) * 100 : 0,
+      queueSloGapMinutes: targetStartMinutes > 0 ? queueWaitMinutes - targetStartMinutes : 0,
+      efficiencyGap: targetEfficiency > 0 ? Math.max(0, targetEfficiency - numeric(summary.usefulCompute)) : 0
+    };
+  }
+
   function applyPlacementWhatIf(summary, samePod) {
     if (!samePod || summary.crossPodTraffic < 8) {
       return { ...summary, whatIfActive: false };
@@ -408,6 +450,16 @@
     return Number.isFinite(numberValue) ? numberValue : fallback;
   }
 
+  function firstPositive(...values) {
+    const value = values.map(Number).find((numberValue) => Number.isFinite(numberValue) && numberValue > 0);
+    return value || 0;
+  }
+
+  function firstFinite(...values) {
+    const value = values.map(Number).find((numberValue) => Number.isFinite(numberValue));
+    return value === undefined ? Number.NaN : value;
+  }
+
   function round(value) {
     return Math.round(numeric(value));
   }
@@ -463,6 +515,7 @@
     regressionRows,
     round,
     scoreComponents,
+    summarizeProviderEconomics,
     summarizeTrend,
     titleCase
   };

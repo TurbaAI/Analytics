@@ -47,6 +47,10 @@ selectorMatches.forEach((selector) => {
   "exportWorkspaceButton",
   "resetWorkspaceButton",
   "copyReport",
+  "providerBadge",
+  "providerContext",
+  "providerStats",
+  "providerActions",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -58,5 +62,8 @@ assert.equal((html.match(/data-trend-metric="/g) || []).length, 4);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
+assert.ok(app.includes("renderProviderLens"));
+assert.ok(app.includes("summarizeProviderEconomics"));
+assert.ok(app.includes("importProviderSamples"));
 
 console.log("static page wiring tests passed");

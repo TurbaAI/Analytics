@@ -20,6 +20,34 @@
           "turba_all_to_all_time_ratio": 0.02
         }
       }
+    ],
+    "provider": [
+      {
+        "runId": "run-7421",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-apex-frontier",
+        "reservationWindow": "2026-Q2",
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "ctr-apex-2026-q2",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 240,
+          "billableGpuHours": 2227,
+          "sellableGpuHours": 2227
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 55,
+          "supportTicketId": "CS-1842"
+        }
+      }
     ]
   },
   "ncclTraces": [

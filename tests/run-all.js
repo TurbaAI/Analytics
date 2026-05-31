@@ -11,6 +11,7 @@ const checks = [
   { label: "analytics core", args: ["tests/analytics-core.test.js"] },
   { label: "NCCL trace parser", args: ["tests/nccl-trace-parser.test.js"] },
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },
+  { label: "neo-cloud provider fixture", args: ["tests/neo-cloud-provider-fixture.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "schemas", args: ["tests/schemas.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },

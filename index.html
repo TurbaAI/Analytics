@@ -26,7 +26,7 @@
           </select>
         </label>
         <label class="rate-label" for="rateInput">
-          $ / GPU-hour
+          List $ / GPU-hour
           <input id="rateInput" type="number" min="0" step="0.1" value="6.20">
         </label>
         <label class="toggle" for="samePodToggle">
@@ -236,6 +236,19 @@
                 </div>
               </div>
               <div id="bottleneckBars" class="bar-list"></div>
+            </section>
+
+            <section class="panel provider-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Neo-cloud</p>
+                  <h2>Provider lens</h2>
+                </div>
+                <span id="providerBadge">Tenant</span>
+              </div>
+              <div id="providerContext" class="provider-context"></div>
+              <div id="providerStats" class="provider-stats"></div>
+              <div id="providerActions" class="provider-actions"></div>
             </section>
 
             <section class="panel efficiency-panel">

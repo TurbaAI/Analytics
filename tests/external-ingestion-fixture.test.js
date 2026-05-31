@@ -9,6 +9,9 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
 assert.equal(fixture.sources.prometheus.length, 1);
 assert.equal(fixture.sources.prometheus[0].runId, "run-7421");
 assert.equal(fixture.sources.prometheus[0].metrics.turba_useful_compute_ratio, 0.52);
+assert.equal(fixture.sources.provider.length, 1);
+assert.equal(fixture.sources.provider[0].commercial.billingModel, "reserved-cluster");
+assert.equal(fixture.sources.provider[0].slo.supportTicketId, "CS-1842");
 assert.equal(fixture.ncclTraces.length, 1);
 
 const topologyIndex = {

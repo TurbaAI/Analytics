@@ -68,6 +68,59 @@ Expected fields:
 - allocated nodes and partial nodes
 - cross-rack and cross-pod traffic estimates when available
 
+## Provider Commercial Overlay
+
+Neo-cloud provider billing, reservation, and support context should use `sources.provider`. This source is intentionally separate from Prometheus, DCGM, Kubernetes, and NCCL traces so operators can import redacted tenant metadata without exposing live billing systems to the browser prototype.
+
+Expected fields:
+
+- `runId`
+- `tenant`, `account`, and `reservation`, or equivalent values under `refs`
+- `providerExportId`
+- `billingAccountId`
+- `reservationWindow`
+- `commercial.billingModel`
+- `commercial.customerTier`
+- `commercial.contractId`
+- `commercial.listGpuHourRate`
+- `commercial.floorGpuHourCost`
+- `commercial.committedGpuHours`
+- `commercial.burstGpuHours`
+- `commercial.billableGpuHours`
+- `commercial.sellableGpuHours`
+- `slo.priority`
+- `slo.targetStartMinutes`
+- `slo.targetEfficiency`
+- `slo.supportTicketId`
+
+```json
+{
+  "sources": {
+    "provider": [
+      {
+        "runId": "run-7421",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "billableGpuHours": 2227
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 55,
+          "supportTicketId": "CS-1842"
+        }
+      }
+    ]
+  }
+}
+```
+
 ## NCCL Traces
 
 NCCL trace exports should use `ncclTraces`.
@@ -86,9 +139,10 @@ The parser attributes collective time by operation and topology tier: same node,
 
 1. Export a normalized `turba.ingestion.v1` feed for run identity, allocation, baselines, work counters, and placement.
 2. Export source metric bundles for Prometheus, DCGM, Kubernetes, and NCCL traces.
-3. Import the feed first.
-4. Import source bundles to overlay source-measured metrics.
-5. Click Analyze after each import to capture trend snapshots.
-6. Export the resulting workspace for review, sharing, or archive.
+3. Export a provider overlay for tenant, reservation, commercial, and support/SLO metadata when the operator is a GPU cloud or neo-cloud provider.
+4. Import the feed first.
+5. Import source bundles to overlay source-measured metrics and provider metadata.
+6. Click Analyze after each import to capture trend snapshots.
+7. Export the resulting workspace for review, sharing, or archive.
 
-No live cluster credentials, tokens, or sensitive customer metadata are required by the prototype. Redact or hash user, team, namespace, and run labels before sharing workspace exports outside the operator group.
+No live cluster credentials, tokens, or sensitive customer metadata are required by the prototype. Redact or hash user, team, namespace, tenant, account, reservation, contract, support-ticket, and run labels before sharing workspace exports outside the operator group.

@@ -17,6 +17,9 @@ Use this shape when the upstream system can emit normalized Turba runs directly.
     "models": { "llama-70b": { "label": "Llama 70B" } },
     "users": { "maya": { "label": "maya" } },
     "teams": { "frontier": { "label": "Frontier" } },
+    "tenants": { "apex-ai": { "label": "Apex AI" } },
+    "accounts": { "acct-apex-frontier": { "label": "Apex frontier platform" } },
+    "reservations": { "rsv-h100-frontier-q2": { "label": "H100 Frontier Q2" } },
     "clusters": {
       "h100-prod-west": { "label": "h100-prod-west", "gpuModel": "H100 SXM" }
     }
@@ -41,7 +44,8 @@ Use this shape when the upstream system exports source-shaped metrics and the da
   "sources": {
     "prometheus": [],
     "dcgm": [],
-    "kubernetes": []
+    "kubernetes": [],
+    "provider": []
   },
   "ncclTraces": []
 }
@@ -73,7 +77,7 @@ Each run should include:
 
 - `id`: stable run identifier
 - `name`: operator-facing run name
-- `refs`: model, user, team, and cluster keys
+- `refs`: model, user, team, cluster, tenant, account, and reservation keys
 - `status`: run state shown in inventory
 - `allocation`: duration, GPU count, and allocated GPU-hours
 - `utilization`: GPU utilization and useful compute signals
@@ -86,8 +90,51 @@ Each run should include:
 - `work`: tokens, steps, or inference requests
 - `baseline`: comparison values used by regression checks
 - `placement`: allocated node list and partial node list
+- `commercial`: provider-side billing and commitment context
+- `slo`: queue, efficiency, priority, and support-ticket targets
 
 Percent-like values are expressed as `0` to `100` in normalized ingestion feeds. Source adapters accept source-native ratios where documented, such as Prometheus `0.52` for `52%`.
+
+## Neo-Cloud Provider Overlay
+
+Neo-cloud operators can import tenant and commercial metadata directly on each run or through `sources.provider`.
+
+```json
+{
+  "sources": {
+    "provider": [
+      {
+        "runId": "run-7421",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-apex-frontier",
+        "reservationWindow": "2026-Q2",
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "ctr-apex-2026-q2",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 240,
+          "billableGpuHours": 2227,
+          "sellableGpuHours": 2227
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 55,
+          "supportTicketId": "CS-1842"
+        }
+      }
+    ]
+  }
+}
+```
+
+Provider fields are optional. If `commercial.floorGpuHourCost` is omitted, the app still reports sellable waste value and hides gross-margin math. If `refs.reservation` is present, committed reservation totals are deduplicated across grouped views.
 
 ## Validation Behavior
 
@@ -99,6 +146,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

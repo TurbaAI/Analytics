@@ -608,6 +608,10 @@ input[type="url"] {
   grid-column: span 5;
 }
 
+.provider-panel {
+  grid-column: span 7;
+}
+
 .efficiency-panel {
   grid-column: span 5;
 }
@@ -965,6 +969,94 @@ input[type="url"] {
   font-size: 0.78rem;
 }
 
+.provider-context,
+.provider-stats {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.provider-context {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.provider-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.provider-context div,
+.provider-stats div {
+  min-width: 0;
+  min-height: 84px;
+  padding: 14px;
+  background: var(--surface);
+}
+
+.provider-context span,
+.provider-context strong,
+.provider-stats span,
+.provider-stats strong,
+.provider-stats small {
+  display: block;
+}
+
+.provider-context span,
+.provider-stats span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.provider-context strong,
+.provider-stats strong {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  font-size: 1.05rem;
+  line-height: 1.15;
+}
+
+.provider-stats strong {
+  font-size: 1.22rem;
+}
+
+.provider-stats small {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.provider-stats div[data-grade="good"] strong {
+  color: var(--green);
+}
+
+.provider-stats div[data-grade="watch"] strong {
+  color: var(--amber);
+}
+
+.provider-stats div[data-grade="poor"] strong {
+  color: var(--red);
+}
+
+.provider-actions {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.provider-action {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--blue);
+  color: #39454e;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
 .topology-frame {
   padding: 12px;
 }
@@ -1152,6 +1244,7 @@ input[type="url"] {
 
   .truth-panel,
   .bottleneck-panel,
+  .provider-panel,
   .efficiency-panel,
   .topology-panel,
   .workload-panel,
@@ -1229,6 +1322,11 @@ input[type="url"] {
   .trace-summary,
   .trend-stats,
   .trend-list {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-context,
+  .provider-stats {
     grid-template-columns: 1fr;
   }
 

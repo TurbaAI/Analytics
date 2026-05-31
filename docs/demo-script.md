@@ -7,6 +7,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 1. Open the deployed Pages URL or local `index.html`.
 2. Confirm the status chips show the sample feed and local storage state.
 3. Keep `fixtures/external-source-bundle.json` ready for import.
+4. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
 
 ## Flow
 
@@ -18,14 +19,16 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 6. Scroll to topology and connect cross-pod placement to NCCL trace attribution.
 7. Toggle `Same-pod what-if` and describe the estimated improvement range.
 8. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
-9. Import `fixtures/external-source-bundle.json`.
-10. Click Analyze and show the trend panel updating from persisted snapshots.
-11. Export the workspace, then re-import it to demonstrate browser-to-browser handoff.
-12. Copy the customer report as the final operator summary.
+9. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
+10. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
+11. Import `fixtures/external-source-bundle.json`.
+12. Click Analyze and show the trend panel updating from persisted snapshots.
+13. Export the workspace, then re-import it to demonstrate browser-to-browser handoff.
+14. Copy the customer report as the final operator summary.
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need an exported telemetry bundle from Prometheus, DCGM, Kubernetes, and NCCL traces for production validation.
+Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, NCCL traces, and provider billing/SLO systems for production validation.
 
 ## Do Not Claim
 

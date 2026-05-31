@@ -29,17 +29,20 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - File and API JSON ingestion for external `turba.ingestion.v1` feeds, source metric bundles, and NCCL traces
 - Persisted analysis snapshots with trend views for efficiency, waste, NCCL time, and cost
 - Workspace export, restore, and sample reset controls for browser-local state
+- Neo-cloud provider lens for tenant, account, reservation, billing model, SLO, sellable waste, commit burn, and gross-margin context
+- Provider source overlays through `sources.provider` for commercial and support metadata without requiring live billing credentials
 
 ## Data contract
 
 `app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
 
-External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example.
+External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example.
 
 ## Operator docs
 
 - [Data contract](docs/data-contract.md)
 - [Operator walkthrough](docs/operator-walkthrough.md)
+- [Neo-cloud provider fit](docs/neo-cloud-provider-fit.md)
 - [Telemetry integration](docs/telemetry-integration.md)
 - [Visual QA checklist](docs/visual-qa.md)
 - [Deployment](docs/deployment.md)
@@ -58,6 +61,7 @@ Run `node tests/run-all.js` to execute the full syntax and fixture test suite.
 Run `node tests/analytics-core.test.js` to validate core efficiency, bottleneck, what-if, fingerprint, regression, and trend calculations.
 Run `node tests/nccl-trace-parser.test.js` to validate NCCL operation and topology-tier attribution.
 Run `node tests/external-ingestion-fixture.test.js` to validate the external source bundle fixture.
+Run `node tests/neo-cloud-provider-fixture.test.js` to validate provider overlays, SLO fields, and provider economics.
 Run `node tests/workspace-export-fixture.test.js` to validate exported workspace shape.
 Run `node tests/schemas.test.js` to validate schema files and fixture alignment.
 Run `node tests/import-validation-copy.test.js` to validate import validation messages and helpers.

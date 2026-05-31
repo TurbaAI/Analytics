@@ -10,6 +10,7 @@ const readme = read("README.md");
 [
   "docs/data-contract.md",
   "docs/operator-walkthrough.md",
+  "docs/neo-cloud-provider-fit.md",
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
@@ -27,6 +28,7 @@ const readme = read("README.md");
 [
   "docs/data-contract.md",
   "docs/operator-walkthrough.md",
+  "docs/neo-cloud-provider-fit.md",
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
@@ -34,6 +36,7 @@ const readme = read("README.md");
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "node tests/run-all.js",
+  "tests/neo-cloud-provider-fixture.test.js",
   "build/turba-analytics-desktop.png"
 ].forEach((text) => {
   assert.ok(readme.includes(text), `README should reference ${text}`);
@@ -51,6 +54,8 @@ assert.ok(pages.includes("cp -R build fixtures docs schemas site/"));
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));
 assert.ok(dataContract.includes("turba.workspace.v2"));
+assert.ok(dataContract.includes("sources.provider"));
+assert.ok(dataContract.includes("Neo-Cloud Provider Overlay"));
 assert.ok(dataContract.includes("Validation Behavior"));
 
 const telemetry = read("docs/telemetry-integration.md");
@@ -58,6 +63,15 @@ assert.ok(telemetry.includes("Prometheus"));
 assert.ok(telemetry.includes("DCGM"));
 assert.ok(telemetry.includes("Kubernetes"));
 assert.ok(telemetry.includes("NCCL"));
+assert.ok(telemetry.includes("Provider Commercial Overlay"));
+assert.ok(telemetry.includes("sources.provider"));
+
+const providerFit = read("docs/neo-cloud-provider-fit.md");
+assert.ok(providerFit.includes("Neo-Cloud Provider Fit"));
+assert.ok(providerFit.includes("Sellable waste value"));
+assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
+assert.ok(providerFit.includes("CoreWeave"));
+assert.ok(providerFit.includes("Lambda"));
 
 const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));

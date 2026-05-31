@@ -1,0 +1,292 @@
+{
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "entities": {
+      "models": {
+        "llama-70b": { "label": "Llama 70B" },
+        "mixtral-8x7b": { "label": "Mixtral 8x7B" }
+      },
+      "users": {
+        "tenant-admin": { "label": "tenant-admin" },
+        "serving-sre": { "label": "serving-sre" }
+      },
+      "teams": {
+        "frontier-training": { "label": "Frontier Training" },
+        "production-inference": { "label": "Production Inference" }
+      },
+      "tenants": {
+        "apex-ai": { "label": "Apex AI" },
+        "vectorcart": { "label": "VectorCart" }
+      },
+      "accounts": {
+        "acct-apex-frontier": { "label": "Apex frontier platform" },
+        "acct-vectorcart-prod": { "label": "VectorCart production" }
+      },
+      "reservations": {
+        "rsv-h100-frontier-q2": { "label": "H100 Frontier Q2" },
+        "rsv-inference-prod-q2": { "label": "Inference Prod Q2" }
+      },
+      "clusters": {
+        "h100-prod-west": { "label": "h100-prod-west", "gpuModel": "H100 SXM" },
+        "h100-prod-east": { "label": "h100-prod-east", "gpuModel": "H100 PCIe" }
+      }
+    },
+    "runs": [
+      {
+        "id": "provider-run-9001",
+        "name": "apex-70b-pretrain-9001",
+        "refs": {
+          "model": "llama-70b",
+          "user": "tenant-admin",
+          "team": "frontier-training",
+          "cluster": "h100-prod-west",
+          "tenant": "apex-ai",
+          "account": "acct-apex-frontier",
+          "reservation": "rsv-h100-frontier-q2"
+        },
+        "status": "Running",
+        "allocation": {
+          "durationHours": 8.8,
+          "gpus": 256,
+          "allocatedGpuHours": 2253
+        },
+        "utilization": {
+          "gpuUtil": 66,
+          "usefulCompute": 43,
+          "smOccupancy": 58,
+          "tensorCoreUtil": 51
+        },
+        "communication": {
+          "ncclTime": 27,
+          "networkWait": 13,
+          "crossRackTraffic": 72,
+          "crossPodTraffic": 44,
+          "allToAllTime": 3
+        },
+        "inputPipeline": {
+          "dataloaderStall": 4,
+          "storageWait": 3,
+          "cpuPrep": 4
+        },
+        "memory": {
+          "hbmCapacity": 73,
+          "hbmBandwidth": 68,
+          "memoryFragmentation": 12,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 49,
+          "idleGpus": 0,
+          "partialNodes": 4,
+          "queueWaitMinutes": 31
+        },
+        "reliability": {
+          "noiseEvents": 1,
+          "contentionPct": 13,
+          "stepRegularity": 88,
+          "latencyTail": 0
+        },
+        "configuration": {
+          "precisionLoss": 6,
+          "batchInefficiency": 8
+        },
+        "work": {
+          "tokensM": 810,
+          "steps": 14600,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "stepTime": 1.74,
+          "currentStepTime": 2.08,
+          "ncclTime": 21,
+          "gpuEfficiency": 58,
+          "queueWaitMinutes": 18,
+          "costPerMillionTokens": 18.4
+        },
+        "placement": {
+          "nodes": [
+            "A1-01", "A1-02", "A1-03", "A1-04",
+            "A2-01", "A2-02", "A2-03", "A2-04",
+            "B1-01", "B1-02", "B1-03", "B1-04",
+            "B2-01", "B2-02", "B2-03", "B2-04",
+            "C1-01", "C1-02", "C1-03", "C1-04",
+            "C2-01", "C2-02", "C2-03", "C2-04"
+          ],
+          "partialNodes": ["C2-02", "C2-03", "C2-04"]
+        }
+      },
+      {
+        "id": "provider-svc-4102",
+        "name": "vectorcart-batch-serving-4102",
+        "refs": {
+          "model": "mixtral-8x7b",
+          "user": "serving-sre",
+          "team": "production-inference",
+          "cluster": "h100-prod-east",
+          "tenant": "vectorcart",
+          "account": "acct-vectorcart-prod",
+          "reservation": "rsv-inference-prod-q2"
+        },
+        "status": "Running",
+        "allocation": {
+          "durationHours": 12.5,
+          "gpus": 64,
+          "allocatedGpuHours": 800
+        },
+        "utilization": {
+          "gpuUtil": 54,
+          "usefulCompute": 39,
+          "smOccupancy": 47,
+          "tensorCoreUtil": 41
+        },
+        "communication": {
+          "ncclTime": 5,
+          "networkWait": 9,
+          "crossRackTraffic": 29,
+          "crossPodTraffic": 0,
+          "allToAllTime": 14
+        },
+        "inputPipeline": {
+          "dataloaderStall": 3,
+          "storageWait": 5,
+          "cpuPrep": 8
+        },
+        "memory": {
+          "hbmCapacity": 91,
+          "hbmBandwidth": 84,
+          "memoryFragmentation": 38,
+          "kvCachePressure": 89
+        },
+        "scheduler": {
+          "placementQuality": 76,
+          "idleGpus": 8,
+          "partialNodes": 2,
+          "queueWaitMinutes": 12
+        },
+        "reliability": {
+          "noiseEvents": 2,
+          "contentionPct": 17,
+          "stepRegularity": 49,
+          "latencyTail": 81
+        },
+        "configuration": {
+          "precisionLoss": 5,
+          "batchInefficiency": 24
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 58
+        },
+        "baseline": {
+          "stepTime": 0,
+          "currentStepTime": 0,
+          "ncclTime": 6,
+          "gpuEfficiency": 49,
+          "queueWaitMinutes": 7,
+          "costPerMillionTokens": 0
+        },
+        "placement": {
+          "nodes": ["B1-01", "B1-02", "B1-03", "B1-04", "B2-01", "B2-02", "B2-03", "B2-04"],
+          "partialNodes": ["B2-03"]
+        }
+      }
+    ]
+  },
+  "sources": {
+    "provider": [
+      {
+        "runId": "provider-run-9001",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-apex-frontier",
+        "reservationWindow": "2026-Q2",
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "ctr-apex-2026-q2",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 320,
+          "billableGpuHours": 2253,
+          "sellableGpuHours": 2253
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 56,
+          "supportTicketId": "CS-2044"
+        }
+      },
+      {
+        "runId": "provider-svc-4102",
+        "tenant": "vectorcart",
+        "account": "acct-vectorcart-prod",
+        "reservation": "rsv-inference-prod-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-vectorcart-prod",
+        "reservationWindow": "2026-Q2",
+        "commercial": {
+          "billingModel": "committed-plus-burst",
+          "customerTier": "enterprise",
+          "contractId": "ctr-vectorcart-2026-q2",
+          "listGpuHourRate": 5.9,
+          "floorGpuHourCost": 3.4,
+          "committedGpuHours": 1800,
+          "burstGpuHours": 260,
+          "billableGpuHours": 800,
+          "sellableGpuHours": 800
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 8,
+          "targetEfficiency": 52,
+          "supportTicketId": "CS-2091"
+        }
+      }
+    ],
+    "prometheus": [
+      {
+        "runId": "provider-run-9001",
+        "metrics": {
+          "turba_gpu_utilization_ratio": 0.66,
+          "turba_useful_compute_ratio": 0.43,
+          "turba_nccl_time_ratio": 0.27,
+          "turba_network_wait_ratio": 0.13,
+          "turba_dataloader_stall_ratio": 0.04,
+          "turba_storage_wait_ratio": 0.03,
+          "turba_cpu_prep_ratio": 0.04,
+          "turba_queue_wait_minutes": 31,
+          "turba_step_regularity_ratio": 0.88,
+          "turba_latency_tail_ratio": 0,
+          "turba_tokens_million_total": 810,
+          "turba_training_steps_total": 14600,
+          "turba_inference_requests_million_total": 0,
+          "turba_all_to_all_time_ratio": 0.03
+        }
+      },
+      {
+        "runId": "provider-svc-4102",
+        "metrics": {
+          "turba_gpu_utilization_ratio": 0.54,
+          "turba_useful_compute_ratio": 0.39,
+          "turba_nccl_time_ratio": 0.05,
+          "turba_network_wait_ratio": 0.09,
+          "turba_dataloader_stall_ratio": 0.03,
+          "turba_storage_wait_ratio": 0.05,
+          "turba_cpu_prep_ratio": 0.08,
+          "turba_queue_wait_minutes": 12,
+          "turba_step_regularity_ratio": 0.49,
+          "turba_latency_tail_ratio": 0.81,
+          "turba_tokens_million_total": 0,
+          "turba_training_steps_total": 0,
+          "turba_inference_requests_million_total": 58,
+          "turba_all_to_all_time_ratio": 0.14
+        }
+      }
+    ]
+  }
+}

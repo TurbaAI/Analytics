@@ -52,6 +52,27 @@ approximately(finalized.wastedGpuHours, 1313.93);
 approximately(finalized.costPerUsefulGpuHour, 15.12);
 approximately(finalized.costPerMillionTokens, 20.01);
 
+const providerEconomics = analytics.summarizeProviderEconomics({
+  ...finalized,
+  provider: {
+    listGpuHourRate: 6.8,
+    floorGpuHourCost: 3.9,
+    committedGpuHours: 6500,
+    burstGpuHours: 240,
+    billableGpuHours: 2227,
+    sellableGpuHours: 2227
+  },
+  slo: {
+    targetStartMinutes: 20,
+    targetEfficiency: 55
+  }
+});
+approximately(providerEconomics.sellableWasteValue, 8934.72);
+approximately(providerEconomics.grossMarginPct, 42.65);
+approximately(providerEconomics.reservationBurnPct, 34.26);
+approximately(providerEconomics.queueSloPct, 120);
+approximately(providerEconomics.efficiencyGap, 14);
+
 const classifier = analytics.classifyBottlenecks(finalized);
 assert.equal(classifier.primary.short, "Communication");
 assert.equal(classifier.secondary.short, "Placement");

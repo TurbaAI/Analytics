@@ -27,13 +27,26 @@ Use the regression panel to compare current step time, NCCL time, GPU efficiency
 
 The trend panel uses persisted analysis snapshots. A snapshot is captured when the workspace is seeded, reset, imported, restored, or manually analyzed. Use the trend metric selector to compare efficiency, wasted GPU-hours, NCCL time, or cost per useful GPU-hour.
 
+## Use The Neo-Cloud Provider Lens
+
+The provider lens appears for every selected scope. When tenant or commercial metadata is present, it ties efficiency loss to provider-side business context.
+
+1. Read tenant, account, reservation, and billing model context.
+2. Compare sellable waste value against wasted GPU-hours.
+3. Check commit burn to see whether the selected work is consuming reserved capacity faster than expected.
+4. Check queue SLO status before deciding whether an escalation is a customer-code issue, placement issue, or capacity issue.
+5. Use the provider actions as the support, scheduler, or QBR follow-up.
+
+For tenant escalations, start with `Job` scope and copy the outcome report into the support case. For capacity planning, switch to `Cluster` or `Team` scope and rank by waste, placement quality, and queue pressure.
+
 ## Import And Restore Data
 
 - Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
 - Use export to download the current workspace, including baselines and trend snapshots.
 - Use reset to return browser-local state to the sample feed.
+- Use `fixtures/neo-cloud-provider-bundle.json` to exercise tenant, reservation, SLO, and commercial overlays.
 
 ## Report The Outcome
 
-Use the customer report panel as the concise operator summary. The copy button places the report text on the clipboard.
+Use the customer report panel as the concise operator summary. The copy button places the report text on the clipboard. When provider metadata exists, the report includes sellable waste value and reservation context.

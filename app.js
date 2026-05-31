@@ -44,7 +44,9 @@ const INGESTION_SCHEMA = {
     "configuration",
     "work",
     "baseline",
-    "placement"
+    "placement",
+    "commercial",
+    "slo"
   ]
 };
 
@@ -77,6 +79,24 @@ const SAMPLE_INGESTION = {
       research: { label: "Research" },
       evaluation: { label: "Evaluation" }
     },
+    tenants: {
+      "apex-ai": { label: "Apex AI" },
+      "northstar-labs": { label: "Northstar Labs" },
+      "vectorcart": { label: "VectorCart" },
+      "meridian-research": { label: "Meridian Research" }
+    },
+    accounts: {
+      "acct-apex-frontier": { label: "Apex frontier platform" },
+      "acct-northstar-tuning": { label: "Northstar tuning" },
+      "acct-vectorcart-prod": { label: "VectorCart production" },
+      "acct-meridian-research": { label: "Meridian research" }
+    },
+    reservations: {
+      "rsv-h100-frontier-q2": { label: "H100 Frontier Q2" },
+      "rsv-applied-flex-q2": { label: "Applied Flex Q2" },
+      "rsv-inference-prod-q2": { label: "Inference Prod Q2" },
+      "rsv-a100-research-q2": { label: "A100 Research Q2" }
+    },
     clusters: {
       "h100-prod-west": { label: "h100-prod-west", gpuModel: "H100 SXM" },
       "h100-prod-east": { label: "h100-prod-east", gpuModel: "H100 PCIe" },
@@ -91,7 +111,10 @@ const SAMPLE_INGESTION = {
         model: "llama-70b",
         user: "maya",
         team: "frontier",
-        cluster: "h100-prod-west"
+        cluster: "h100-prod-west",
+        tenant: "apex-ai",
+        account: "acct-apex-frontier",
+        reservation: "rsv-h100-frontier-q2"
       },
       status: "Running",
       allocation: {
@@ -144,6 +167,23 @@ const SAMPLE_INGESTION = {
         steps: 12800,
         inferenceRequestsM: 0
       },
+      commercial: {
+        billingModel: "reserved-cluster",
+        customerTier: "strategic",
+        contractId: "ctr-apex-2026-q2",
+        listGpuHourRate: 6.8,
+        floorGpuHourCost: 3.9,
+        committedGpuHours: 6500,
+        burstGpuHours: 240,
+        billableGpuHours: 2227,
+        sellableGpuHours: 2227
+      },
+      slo: {
+        priority: "p1",
+        targetStartMinutes: 20,
+        targetEfficiency: 55,
+        supportTicketId: "CS-1842"
+      },
       baseline: {
         stepTime: 1.82,
         currentStepTime: 2.11,
@@ -171,7 +211,10 @@ const SAMPLE_INGESTION = {
         model: "mistral-7b",
         user: "liam",
         team: "applied-ai",
-        cluster: "h100-prod-west"
+        cluster: "h100-prod-west",
+        tenant: "northstar-labs",
+        account: "acct-northstar-tuning",
+        reservation: "rsv-applied-flex-q2"
       },
       status: "Completed",
       allocation: {
@@ -224,6 +267,23 @@ const SAMPLE_INGESTION = {
         steps: 4200,
         inferenceRequestsM: 0
       },
+      commercial: {
+        billingModel: "committed-capacity",
+        customerTier: "growth",
+        contractId: "ctr-northstar-2026-q2",
+        listGpuHourRate: 6.5,
+        floorGpuHourCost: 3.7,
+        committedGpuHours: 1000,
+        burstGpuHours: 0,
+        billableGpuHours: 234,
+        sellableGpuHours: 234
+      },
+      slo: {
+        priority: "p2",
+        targetStartMinutes: 15,
+        targetEfficiency: 50,
+        supportTicketId: "CS-1775"
+      },
       baseline: {
         stepTime: 0.92,
         currentStepTime: 1.08,
@@ -244,7 +304,10 @@ const SAMPLE_INGESTION = {
         model: "mixtral-8x7b",
         user: "nora",
         team: "inference",
-        cluster: "h100-prod-east"
+        cluster: "h100-prod-east",
+        tenant: "vectorcart",
+        account: "acct-vectorcart-prod",
+        reservation: "rsv-inference-prod-q2"
       },
       status: "Running",
       allocation: {
@@ -297,6 +360,23 @@ const SAMPLE_INGESTION = {
         steps: 0,
         inferenceRequestsM: 42
       },
+      commercial: {
+        billingModel: "committed-plus-burst",
+        customerTier: "enterprise",
+        contractId: "ctr-vectorcart-2026-q2",
+        listGpuHourRate: 5.9,
+        floorGpuHourCost: 3.4,
+        committedGpuHours: 1800,
+        burstGpuHours: 260,
+        billableGpuHours: 778,
+        sellableGpuHours: 778
+      },
+      slo: {
+        priority: "p1",
+        targetStartMinutes: 8,
+        targetEfficiency: 52,
+        supportTicketId: "CS-1901"
+      },
       baseline: {
         stepTime: 0,
         currentStepTime: 0,
@@ -317,7 +397,10 @@ const SAMPLE_INGESTION = {
         model: "vit-g",
         user: "sana",
         team: "research",
-        cluster: "a100-research"
+        cluster: "a100-research",
+        tenant: "meridian-research",
+        account: "acct-meridian-research",
+        reservation: "rsv-a100-research-q2"
       },
       status: "Completed",
       allocation: {
@@ -370,6 +453,23 @@ const SAMPLE_INGESTION = {
         steps: 22600,
         inferenceRequestsM: 0
       },
+      commercial: {
+        billingModel: "reserved-cluster",
+        customerTier: "research",
+        contractId: "ctr-meridian-2026-q2",
+        listGpuHourRate: 2.8,
+        floorGpuHourCost: 1.7,
+        committedGpuHours: 1200,
+        burstGpuHours: 0,
+        billableGpuHours: 602,
+        sellableGpuHours: 602
+      },
+      slo: {
+        priority: "p3",
+        targetStartMinutes: 20,
+        targetEfficiency: 70,
+        supportTicketId: ""
+      },
       baseline: {
         stepTime: 0.38,
         currentStepTime: 0.39,
@@ -390,7 +490,10 @@ const SAMPLE_INGESTION = {
         model: "llama-13b",
         user: "omar",
         team: "evaluation",
-        cluster: "h100-prod-west"
+        cluster: "h100-prod-west",
+        tenant: "apex-ai",
+        account: "acct-apex-frontier",
+        reservation: "rsv-h100-frontier-q2"
       },
       status: "Completed",
       allocation: {
@@ -442,6 +545,23 @@ const SAMPLE_INGESTION = {
         tokensM: 36,
         steps: 900,
         inferenceRequestsM: 0
+      },
+      commercial: {
+        billingModel: "reserved-cluster",
+        customerTier: "strategic",
+        contractId: "ctr-apex-2026-q2",
+        listGpuHourRate: 6.8,
+        floorGpuHourCost: 3.9,
+        committedGpuHours: 6500,
+        burstGpuHours: 80,
+        billableGpuHours: 77,
+        sellableGpuHours: 77
+      },
+      slo: {
+        priority: "p2",
+        targetStartMinutes: 20,
+        targetEfficiency: 38,
+        supportTicketId: "CS-1843"
       },
       baseline: {
         stepTime: 1.2,
@@ -983,6 +1103,8 @@ function captureAnalysisSnapshot(sourceLabel, capturedAt = new Date()) {
 }
 
 function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
+  const provider = providerEconomics(summary);
+
   return {
     capturedAt,
     source: sourceLabel || "Analysis",
@@ -1000,6 +1122,9 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       wastedGpuHours: summary.wastedGpuHours,
       wasteDollars: summary.wasteDollars,
       costPerUsefulGpuHour: summary.costPerUsefulGpuHour,
+      sellableWasteValue: provider.sellableWasteValue,
+      reservationBurnPct: provider.reservationBurnPct,
+      queueSloPct: provider.queueSloPct,
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
       placementQuality: summary.placementQuality,
@@ -1089,6 +1214,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
   if (sources.kubernetes?.length) {
     mergeImportedSections(importedByRun, importKubernetesSamples(sources.kubernetes), "kubernetes");
     adapters.push("kubernetes");
+  }
+  if (sources.provider?.length) {
+    mergeImportedSections(importedByRun, importProviderSamples(sources.provider), "provider");
+    adapters.push("provider");
   }
   if (ncclTraces.length) {
     mergeImportedSections(importedByRun, importNcclTraceSamples(ncclTraces, NODE_INDEX), "nccl-trace");
@@ -1201,6 +1330,27 @@ function importKubernetesSamples(samples = []) {
   }));
 }
 
+function importProviderSamples(samples = []) {
+  return samples.map((sample) => ({
+    runId: sample.runId,
+    sections: {
+      refs: compactObject({
+        ...(sample.refs || {}),
+        tenant: sample.tenant || sample.refs?.tenant,
+        account: sample.account || sample.refs?.account,
+        reservation: sample.reservation || sample.refs?.reservation
+      }),
+      commercial: { ...(sample.commercial || {}) },
+      slo: { ...(sample.slo || {}) },
+      sourceContext: compactObject({
+        providerExportId: sample.providerExportId,
+        billingAccountId: sample.billingAccountId,
+        reservationWindow: sample.reservationWindow
+      })
+    }
+  }));
+}
+
 function importNcclTraceSamples(samples = [], topologyIndex = {}) {
   if (!ncclParser) return [];
 
@@ -1259,6 +1409,12 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function compactObject(object) {
+  return Object.fromEntries(
+    Object.entries(object).filter(([, value]) => value !== undefined && value !== null && value !== "")
+  );
+}
+
 function ratioPercent(value) {
   return numeric(value) * 100;
 }
@@ -1285,12 +1441,17 @@ function normalizeRun(run, entities) {
     user: entityLabel(entities.users, refs.user),
     team: entityLabel(entities.teams, refs.team),
     cluster: entityLabel(entities.clusters, refs.cluster),
+    tenant: entityLabel(entities.tenants, refs.tenant),
+    account: entityLabel(entities.accounts, refs.account),
+    reservation: entityLabel(entities.reservations, refs.reservation),
     gpuModel: allocation.gpuModel || cluster.gpuModel || "Unknown GPU",
     status: run.status,
     durationHours: numeric(allocation.durationHours),
     gpus: numeric(allocation.gpus),
     allocatedGpuHours,
     ...normalizeMetrics(run),
+    commercial: normalizeCommercial(run.commercial, allocatedGpuHours),
+    slo: normalizeSlo(run.slo),
     baseline: normalizeBaseline(run.baseline),
     placement: normalizePlacement(run.placement),
     traceAttribution: normalizeTraceAttribution(run.traceAttribution),
@@ -1361,6 +1522,29 @@ function normalizeBaseline(baseline) {
   };
 }
 
+function normalizeCommercial(commercial = {}, allocatedGpuHours = 0) {
+  return {
+    billingModel: String(commercial.billingModel || "unclassified"),
+    customerTier: String(commercial.customerTier || "standard"),
+    contractId: String(commercial.contractId || ""),
+    listGpuHourRate: optionalMetric(commercial, "listGpuHourRate"),
+    floorGpuHourCost: optionalMetric(commercial, "floorGpuHourCost"),
+    committedGpuHours: metric(commercial, "committedGpuHours"),
+    burstGpuHours: metric(commercial, "burstGpuHours"),
+    billableGpuHours: metric(commercial, "billableGpuHours") || numeric(allocatedGpuHours),
+    sellableGpuHours: metric(commercial, "sellableGpuHours") || numeric(allocatedGpuHours)
+  };
+}
+
+function normalizeSlo(slo = {}) {
+  return {
+    priority: String(slo.priority || "p3"),
+    targetStartMinutes: metric(slo, "targetStartMinutes"),
+    targetEfficiency: metric(slo, "targetEfficiency"),
+    supportTicketId: String(slo.supportTicketId || "")
+  };
+}
+
 function normalizePlacement(placement) {
   if (Array.isArray(placement)) {
     return placement;
@@ -1375,6 +1559,11 @@ function entityLabel(collection, key) {
 
 function metric(section, key) {
   return numeric(section?.[key]);
+}
+
+function optionalMetric(section, key) {
+  if (!section || !(key in section)) return Number.NaN;
+  return numeric(section[key], Number.NaN);
 }
 
 function numeric(value, fallback = 0) {
@@ -1486,7 +1675,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "provider"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -1508,7 +1697,8 @@ function extractSourceExports(payload) {
   return {
     prometheus: Array.isArray(sourceRoot.prometheus) ? sourceRoot.prometheus : [],
     dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
-    kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : []
+    kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : [],
+    provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : []
   };
 }
 
@@ -1530,7 +1720,10 @@ function isIngestionFeed(value) {
 }
 
 function hasSourceExports(sources) {
-  return sources.prometheus.length > 0 || sources.dcgm.length > 0 || sources.kubernetes.length > 0;
+  return sources.prometheus.length > 0
+    || sources.dcgm.length > 0
+    || sources.kubernetes.length > 0
+    || sources.provider.length > 0;
 }
 
 function firstArray(...values) {
@@ -1709,6 +1902,7 @@ function render() {
   const classifier = classifyBottlenecks(summary);
   const components = scoreComponents(summary);
   const fingerprint = fingerprintWorkload(summary);
+  const provider = providerEconomics(summary);
 
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
@@ -1716,6 +1910,7 @@ function render() {
   renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
+  renderProviderLens(summary, provider, classifier);
   renderComponents(components);
   renderTopology(summary);
   renderFingerprint(fingerprint);
@@ -1772,6 +1967,9 @@ function summarizeEntry(entry) {
     users: unique(items.map((job) => job.user)),
     models: unique(items.map((job) => job.model)),
     clusters: unique(items.map((job) => job.cluster)),
+    tenants: knownLabels(items.map((job) => job.tenant), "Unassigned tenant"),
+    accounts: knownLabels(items.map((job) => job.account), "Unassigned account"),
+    reservations: knownLabels(items.map((job) => job.reservation), "No reservation"),
     gpuModels: unique(items.map((job) => job.gpuModel)),
     gpus: sum(items, "gpus"),
     allocatedGpuHours,
@@ -1812,6 +2010,8 @@ function summarizeEntry(entry) {
       queueWaitMinutes: weightedBaseline("queueWaitMinutes"),
       costPerMillionTokens: weightedBaseline("costPerMillionTokens")
     },
+    provider: summarizeProviderFields(items),
+    slo: summarizeSloFields(items),
     placement: mergePlacement(items),
     traceAttribution: mergeTraceAttribution(items),
     sourceItems: items
@@ -2232,6 +2432,141 @@ function renderBottleneck(summary, classifier) {
   });
 }
 
+function renderProviderLens(summary, provider, classifier) {
+  const badge = document.querySelector("#providerBadge");
+  const context = document.querySelector("#providerContext");
+  const stats = document.querySelector("#providerStats");
+  const actions = document.querySelector("#providerActions");
+  const providerData = summary.provider || {};
+  const sloData = summary.slo || {};
+
+  badge.textContent = listLabel(providerData.customerTiers, 1);
+  context.replaceChildren(
+    providerContextItem("Tenant", listLabel(providerData.tenants)),
+    providerContextItem("Account", listLabel(providerData.accounts)),
+    providerContextItem("Reservation", listLabel(providerData.reservations)),
+    providerContextItem("Billing", listLabel(providerData.billingModels))
+  );
+
+  stats.replaceChildren(
+    providerStat({
+      label: "Sellable waste",
+      value: currency.format(provider.sellableWasteValue),
+      note: `${number.format(summary.wastedGpuHours)} GPU-hours not useful`,
+      grade: inverseGrade(provider.sellableWastePct, 22, 42).key
+    }),
+    providerStat({
+      label: "Commit burn",
+      value: provider.committedGpuHours > 0 ? pct(provider.reservationBurnPct) : "n/a",
+      note: provider.committedGpuHours > 0
+        ? `${number.format(summary.allocatedGpuHours)} / ${number.format(provider.committedGpuHours)} committed GPU-hours`
+        : "No commitment metadata",
+      grade: provider.committedGpuHours > 0 ? grade(Math.min(provider.reservationBurnPct, 100), 35, 65).key : "watch"
+    }),
+    providerStat({
+      label: "Queue SLO",
+      value: provider.queueSloPct > 0 ? pct(provider.queueSloPct) : "n/a",
+      note: queueSloNote(provider),
+      grade: provider.queueSloPct > 0 ? inverseGrade(provider.queueSloPct, 100, 140).key : "watch"
+    }),
+    providerStat({
+      label: "Gross margin",
+      value: provider.hasFloorCost ? pct(provider.grossMarginPct) : "n/a",
+      note: provider.hasFloorCost ? `${currency.format(provider.grossMargin)} after floor cost` : "Floor cost missing",
+      grade: provider.hasFloorCost ? grade(provider.grossMarginPct, 22, 38).key : "watch"
+    })
+  );
+
+  actions.replaceChildren(
+    ...providerActionsFor(summary, provider, classifier, sloData).map(providerAction)
+  );
+}
+
+function providerContextItem(label, value) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+
+  labelEl.textContent = label;
+  valueEl.textContent = value;
+  item.append(labelEl, valueEl);
+
+  return item;
+}
+
+function providerStat({ label, value, note, grade: gradeKey }) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  const noteEl = document.createElement("small");
+
+  item.dataset.grade = gradeKey;
+  labelEl.textContent = label;
+  valueEl.textContent = value;
+  noteEl.textContent = note;
+  item.append(labelEl, valueEl, noteEl);
+
+  return item;
+}
+
+function providerAction(text) {
+  const item = document.createElement("div");
+  item.className = "provider-action";
+  item.textContent = text;
+  return item;
+}
+
+function providerActionsFor(summary, provider, classifier, sloData) {
+  const tenant = listLabel(summary.provider?.tenants, 1);
+  const reservation = listLabel(summary.provider?.reservations, 1);
+  const priority = listLabel(sloData.priorities, 1).toUpperCase();
+  const actions = [];
+
+  if (provider.queueSloGapMinutes > 0) {
+    actions.push(`${priority} start-risk: queue wait is ${round(provider.queueSloGapMinutes)} minutes over target for ${tenant}.`);
+  }
+
+  if (provider.sellableWasteValue > 0) {
+    actions.push(`Customer-success QBR: ${currency.format(provider.sellableWasteValue)} of sellable GPU time is tied to non-useful work in ${reservation}.`);
+  }
+
+  if (classifier.primary.short === "Communication" || classifier.primary.short === "Placement") {
+    actions.push(`Scheduler action: repack ${reservation} into fewer locality groups before the next reserved burst.`);
+  } else if (classifier.primary.short === "Noisy neighbor") {
+    actions.push(`Tenant trust: isolate ${tenant} during congestion windows and compare contention against ticket timing.`);
+  } else {
+    actions.push(`Capacity planning: use the efficiency gap to decide whether this demand should renew, retune, or move to a different pool.`);
+  }
+
+  if (provider.efficiencyGap > 0) {
+    actions.push(`Renewal risk: useful compute is ${round(provider.efficiencyGap)} points below the target efficiency in the contract/SLO overlay.`);
+  }
+
+  return actions.slice(0, 3);
+}
+
+function queueSloNote(provider) {
+  if (provider.queueSloPct <= 0) return "No start target";
+  if (provider.queueSloGapMinutes > 0) return `${round(provider.queueSloGapMinutes)} minutes over target`;
+  return `${round(Math.abs(provider.queueSloGapMinutes))} minutes inside target`;
+}
+
+function listLabel(values = [], max = 2) {
+  const labels = values.filter(Boolean);
+  if (labels.length <= max) return labels.join(", ") || "n/a";
+  return `${labels.slice(0, max).join(", ")} +${labels.length - max}`;
+}
+
+function hasProviderContext(summary) {
+  return (summary.sourceItems || []).some((job) => (
+    Boolean(job.source?.refs?.tenant || job.source?.refs?.account || job.source?.refs?.reservation)
+    || Boolean(job.commercial?.contractId)
+    || Boolean(job.slo?.supportTicketId)
+    || Number.isFinite(job.commercial?.listGpuHourRate)
+    || Number.isFinite(job.commercial?.floorGpuHourCost)
+  ));
+}
+
 function renderComponents(components) {
   const list = document.querySelector("#componentScores");
   list.replaceChildren();
@@ -2466,12 +2801,24 @@ function renderRegression(summary) {
 function renderReport(summary, classifier) {
   const primary = classifier.primary.name.replace("-bound", "").toLowerCase();
   const secondary = classifier.secondary.name.replace("-bound", "").toLowerCase();
+  const provider = providerEconomics(summary);
+  const tenant = listLabel(summary.provider?.tenants, 1);
+  const reservation = listLabel(summary.provider?.reservations, 1);
   const workMetric = summary.tokensM > 0
     ? `${currency.format(summary.costPerMillionTokens)} per million training tokens`
     : summary.inferenceRequestsM > 0
       ? `${currency.format(summary.costPerMillionRequests)} per million inference requests`
       : `${currency.format(summary.costPerStep)} per training step`;
-  const report = `${summary.label} achieved ${pct(summary.usefulCompute)} accelerator efficiency in ${state.window.toLowerCase()}, consuming ${number.format(summary.allocatedGpuHours)} GPU-hours with ${number.format(summary.usefulGpuHours)} useful GPU-hours. Estimated waste is ${number.format(summary.wastedGpuHours)} GPU-hours (${currency.format(summary.wasteDollars)}), mostly from ${primary} with ${secondary} as the secondary bottleneck. Current useful-work cost is ${workMetric}. ${recommendationFor(summary, classifier)}`;
+  const providerLine = hasProviderContext(summary)
+    ? `Provider lens: ${tenant} shows ${currency.format(provider.sellableWasteValue)} of sellable waste value on ${reservation}.`
+    : "";
+  const report = [
+    `${summary.label} achieved ${pct(summary.usefulCompute)} accelerator efficiency in ${state.window.toLowerCase()}, consuming ${number.format(summary.allocatedGpuHours)} GPU-hours with ${number.format(summary.usefulGpuHours)} useful GPU-hours.`,
+    `Estimated waste is ${number.format(summary.wastedGpuHours)} GPU-hours (${currency.format(summary.wasteDollars)}), mostly from ${primary} with ${secondary} as the secondary bottleneck.`,
+    `Current useful-work cost is ${workMetric}.`,
+    providerLine,
+    recommendationFor(summary, classifier)
+  ].filter(Boolean).join(" ");
 
   document.querySelector("#customerReport").textContent = report;
 }
@@ -2518,6 +2865,10 @@ function scoreComponents(summary) {
   return analytics.scoreComponents(summary, state.rate, (value) => currency.format(value));
 }
 
+function providerEconomics(summary) {
+  return analytics.summarizeProviderEconomics(summary, { rate: state.rate });
+}
+
 function fingerprintWorkload(summary) {
   return analytics.fingerprintWorkload(summary);
 }
@@ -2556,6 +2907,80 @@ function makePlacement(nodes, partialNodes = []) {
     gpus: 8,
     partial: partialNodes.includes(node)
   }));
+}
+
+function summarizeProviderFields(items) {
+  return {
+    tenants: knownLabels(items.map((job) => job.tenant), "Unassigned tenant"),
+    accounts: knownLabels(items.map((job) => job.account), "Unassigned account"),
+    reservations: knownLabels(items.map((job) => job.reservation), "No reservation"),
+    billingModels: knownLabels(items.map((job) => job.commercial?.billingModel), "Unclassified"),
+    customerTiers: knownLabels(items.map((job) => job.commercial?.customerTier), "Standard"),
+    contracts: knownLabels(items.map((job) => job.commercial?.contractId), "No contract"),
+    listGpuHourRate: weightedOptionalAverage(items, (job) => job.commercial?.listGpuHourRate, "allocatedGpuHours"),
+    floorGpuHourCost: weightedOptionalAverage(items, (job) => job.commercial?.floorGpuHourCost, "allocatedGpuHours"),
+    committedGpuHours: sumUniqueCommercialHours(items, "committedGpuHours"),
+    burstGpuHours: sumCommercialHours(items, "burstGpuHours"),
+    billableGpuHours: sumCommercialHours(items, "billableGpuHours"),
+    sellableGpuHours: sumCommercialHours(items, "sellableGpuHours")
+  };
+}
+
+function summarizeSloFields(items) {
+  return {
+    priorities: knownLabels(items.map((job) => job.slo?.priority), "p3"),
+    supportTickets: knownLabels(items.map((job) => job.slo?.supportTicketId), "No ticket"),
+    targetStartMinutes: weightedOptionalAverage(items, (job) => job.slo?.targetStartMinutes, "allocatedGpuHours"),
+    targetEfficiency: weightedOptionalAverage(items, (job) => job.slo?.targetEfficiency, "allocatedGpuHours")
+  };
+}
+
+function sumCommercialHours(items, field) {
+  return items.reduce((total, job) => total + numeric(job.commercial?.[field]), 0);
+}
+
+function sumUniqueCommercialHours(items, field) {
+  const keyedHours = new Map();
+  let unkeyedHours = 0;
+
+  items.forEach((job) => {
+    const value = numeric(job.commercial?.[field]);
+    if (value <= 0) return;
+
+    const reservationKey = job.source?.refs?.reservation || job.commercial?.contractId;
+    if (!reservationKey) {
+      unkeyedHours += value;
+      return;
+    }
+
+    keyedHours.set(reservationKey, Math.max(keyedHours.get(reservationKey) || 0, value));
+  });
+
+  return Array.from(keyedHours.values()).reduce((total, value) => total + value, unkeyedHours);
+}
+
+function weightedOptionalAverage(items, getter, weightKey) {
+  const weightedItems = items
+    .map((item) => ({
+      value: Number(getter(item)),
+      weight: Number(item[weightKey]) || 0
+    }))
+    .filter((item) => Number.isFinite(item.value) && item.value > 0 && item.weight > 0);
+
+  const totalWeight = weightedItems.reduce((total, item) => total + item.weight, 0);
+  if (totalWeight === 0) return Number.NaN;
+
+  return weightedItems.reduce((total, item) => total + item.value * item.weight, 0) / totalWeight;
+}
+
+function knownLabels(values, fallback) {
+  const labels = unique(
+    values
+      .map((value) => String(value || "").trim())
+      .filter((value) => value && value !== "Unknown")
+  );
+
+  return labels.length > 0 ? labels : [fallback];
 }
 
 function mergePlacement(items) {
