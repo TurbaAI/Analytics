@@ -773,11 +773,14 @@ const SAMPLE_SOURCE_EXPORTS = {
 const analytics = window.TurbaAnalytics;
 const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
+const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster"];
+const SNAPSHOT_LIMIT = 360;
 
-const DEFAULT_INGESTION = applySampleImporters(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
+const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
-const activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
-const jobs = normalizeIngestion(activeIngestion);
+let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
+let jobs = normalizeIngestion(activeIngestion);
+let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 
 const state = {
   scope: "job",
@@ -785,11 +788,19 @@ const state = {
   window: "Last 24 hours",
   rate: 6.2,
   samePod: false,
+  trendMetric: "usefulCompute",
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   analyzing: false,
   storageLabel: workspaceStore.storageLabel,
-  storageTone: workspaceStore.storageTone
+  storageTone: workspaceStore.storageTone,
+  ingestLabel: "Sample feed",
+  ingestTone: "good"
 };
+
+if (snapshotHistory.length === 0) {
+  captureAnalysisSnapshot("Seeded sample", state.lastAnalysis);
+  persistWorkspaceStore();
+}
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -806,6 +817,37 @@ const number = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
+const TREND_METRIC_DEFS = {
+  usefulCompute: {
+    label: "Useful compute",
+    unit: "points",
+    higherIsBetter: true,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  wastedGpuHours: {
+    label: "Wasted GPU-hours",
+    unit: "GPU-hours",
+    higherIsBetter: false,
+    format: (value) => number.format(value),
+    formatDelta: (value) => signedNumber(value)
+  },
+  ncclTime: {
+    label: "NCCL time",
+    unit: "points",
+    higherIsBetter: false,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  costPerUsefulGpuHour: {
+    label: "Cost / useful GPU-hour",
+    unit: "USD",
+    higherIsBetter: false,
+    format: (value) => currency.format(value),
+    formatDelta: (value) => signedCurrency(value)
+  }
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
   render();
@@ -817,6 +859,7 @@ function loadWorkspaceStore(defaultIngestion) {
   if (isValidWorkspaceStore(persisted)) {
     return {
       ...persisted,
+      snapshots: normalizeSnapshotStore(persisted.snapshots),
       storageLabel: "Loaded locally",
       storageTone: "good"
     };
@@ -838,7 +881,8 @@ function loadWorkspaceStore(defaultIngestion) {
 function persistWorkspaceStore() {
   const nextStore = createWorkspaceStore(activeIngestion, {
     savedAt: new Date(),
-    lastAnalysisAt: state.lastAnalysis
+    lastAnalysisAt: state.lastAnalysis,
+    snapshots: snapshotHistory
   });
   const saved = writeWorkspaceStore(nextStore);
 
@@ -851,14 +895,46 @@ function persistWorkspaceStore() {
   state.storageTone = workspaceStore.storageTone;
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt }) {
+function replaceActiveIngestion(nextIngestion, label) {
+  activeIngestion = applyPersistedBaselines(nextIngestion, buildBaselineStore(nextIngestion.runs));
+  jobs = normalizeIngestion(activeIngestion);
+  state.selectedKey = jobs[0]?.id || "";
+  state.scope = "job";
+  state.ingestLabel = label;
+  state.ingestTone = "good";
+  state.lastAnalysis = new Date();
+  captureAnalysisSnapshot(label, state.lastAnalysis);
+  persistWorkspaceStore();
+  render();
+}
+
+function restoreWorkspaceStore(store, label) {
+  activeIngestion = applyPersistedBaselines(store.ingestion, store.baselines);
+  jobs = normalizeIngestion(activeIngestion);
+  snapshotHistory = normalizeSnapshotStore(store.snapshots);
+  state.selectedKey = jobs[0]?.id || "";
+  state.scope = "job";
+  state.ingestLabel = label;
+  state.ingestTone = "good";
+  state.lastAnalysis = safeDate(store.lastAnalysisAt, new Date());
+
+  if (snapshotHistory.length === 0) {
+    captureAnalysisSnapshot(label, state.lastAnalysis);
+  }
+
+  persistWorkspaceStore();
+  render();
+}
+
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [] }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
     savedAt: dateIso(savedAt),
     lastAnalysisAt: dateIso(lastAnalysisAt),
     ingestion,
-    baselines: buildBaselineStore(ingestion.runs)
+    baselines: buildBaselineStore(ingestion.runs),
+    snapshots: normalizeSnapshotStore(snapshots)
   };
 }
 
@@ -891,6 +967,93 @@ function isValidWorkspaceStore(store) {
   );
 }
 
+function captureAnalysisSnapshot(sourceLabel, capturedAt = new Date()) {
+  const capturedAtIso = dateIso(capturedAt);
+  const records = [];
+
+  SNAPSHOT_SCOPES.forEach((scope) => {
+    buildEntries(scope).forEach((entry) => {
+      const summary = summarizeEntry(entry);
+      const classifier = classifyBottlenecks(summary);
+      records.push(snapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso));
+    });
+  });
+
+  snapshotHistory = normalizeSnapshotStore([...snapshotHistory, ...records]).slice(-SNAPSHOT_LIMIT);
+}
+
+function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
+  return {
+    capturedAt,
+    source: sourceLabel || "Analysis",
+    scope: summary.scope,
+    key: summary.key,
+    label: summary.label,
+    window: state.window,
+    rate: state.rate,
+    primaryBottleneck: classifier.primary.short,
+    metrics: {
+      usefulCompute: summary.usefulCompute,
+      gpuUtil: summary.gpuUtil,
+      allocatedGpuHours: summary.allocatedGpuHours,
+      usefulGpuHours: summary.usefulGpuHours,
+      wastedGpuHours: summary.wastedGpuHours,
+      wasteDollars: summary.wasteDollars,
+      costPerUsefulGpuHour: summary.costPerUsefulGpuHour,
+      ncclTime: summary.ncclTime,
+      networkWait: summary.networkWait,
+      placementQuality: summary.placementQuality,
+      crossPodTraffic: summary.crossPodTraffic,
+      queueWaitMinutes: summary.queueWaitMinutes
+    }
+  };
+}
+
+function normalizeSnapshotStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map(normalizeSnapshotRecord)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.capturedAt) - new Date(b.capturedAt))
+    .slice(-SNAPSHOT_LIMIT);
+}
+
+function normalizeSnapshotRecord(record) {
+  const capturedAt = validDateIso(record?.capturedAt);
+  const scope = String(record?.scope || "");
+  const key = String(record?.key || "");
+
+  if (!capturedAt || !SNAPSHOT_SCOPES.includes(scope) || !key) {
+    return null;
+  }
+
+  return {
+    capturedAt,
+    source: String(record.source || "Analysis"),
+    scope,
+    key,
+    label: String(record.label || key),
+    window: String(record.window || "Last 24 hours"),
+    rate: numeric(record.rate),
+    primaryBottleneck: String(record.primaryBottleneck || "Unknown"),
+    metrics: normalizeSnapshotMetrics(record.metrics)
+  };
+}
+
+function normalizeSnapshotMetrics(metrics = {}) {
+  return Object.fromEntries(
+    Object.entries(metrics)
+      .map(([key, value]) => [key, numeric(value, Number.NaN)])
+      .filter(([, value]) => Number.isFinite(value))
+  );
+}
+
+function validDateIso(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
+}
+
 function buildBaselineStore(runs = []) {
   return runs.reduce((baselines, run) => {
     if (run.id && isPlainObject(run.baseline)) {
@@ -911,17 +1074,30 @@ function applyPersistedBaselines(feed, baselines = {}) {
   };
 }
 
-function applySampleImporters(feed, sources, ncclTraces = []) {
+function applySourceImports(feed, sources = {}, ncclTraces = []) {
   const importedByRun = new Map();
+  const adapters = [];
 
-  mergeImportedSections(importedByRun, importPrometheusSamples(sources.prometheus), "prometheus");
-  mergeImportedSections(importedByRun, importDcgmSamples(sources.dcgm), "dcgm");
-  mergeImportedSections(importedByRun, importKubernetesSamples(sources.kubernetes), "kubernetes");
-  mergeImportedSections(importedByRun, importNcclTraceSamples(ncclTraces, NODE_INDEX), "nccl-trace");
+  if (sources.prometheus?.length) {
+    mergeImportedSections(importedByRun, importPrometheusSamples(sources.prometheus), "prometheus");
+    adapters.push("prometheus");
+  }
+  if (sources.dcgm?.length) {
+    mergeImportedSections(importedByRun, importDcgmSamples(sources.dcgm), "dcgm");
+    adapters.push("dcgm");
+  }
+  if (sources.kubernetes?.length) {
+    mergeImportedSections(importedByRun, importKubernetesSamples(sources.kubernetes), "kubernetes");
+    adapters.push("kubernetes");
+  }
+  if (ncclTraces.length) {
+    mergeImportedSections(importedByRun, importNcclTraceSamples(ncclTraces, NODE_INDEX), "nccl-trace");
+    adapters.push("nccl-trace");
+  }
 
   return {
     ...feed,
-    sourceAdapters: [...Object.keys(sources), "nccl-trace"],
+    sourceAdapters: unique([...(feed.sourceAdapters || []), ...adapters]),
     runs: feed.runs.map((run) => {
       const imported = importedByRun.get(run.id);
       if (!imported) return run;
@@ -1216,6 +1392,167 @@ function dateIso(value) {
   return safeDate(value, new Date()).toISOString();
 }
 
+async function ingestJsonPayload(payload, sourceLabel) {
+  if (isValidWorkspaceStore(payload)) {
+    restoreWorkspaceStore(payload, restoredSourceLabel(sourceLabel));
+    return;
+  }
+
+  const nextIngestion = buildIngestionFromExternalPayload(payload);
+  replaceActiveIngestion(nextIngestion, sourceLabel);
+}
+
+function buildIngestionFromExternalPayload(payload) {
+  const feed = extractIngestionFeed(payload);
+  const sources = extractSourceExports(payload);
+  const ncclTraces = extractNcclTraces(payload);
+
+  if (!isIngestionFeed(feed)) {
+    throw new Error("Expected a turba.ingestion.v1 feed or source bundle.");
+  }
+
+  if (!hasSourceExports(sources) && ncclTraces.length === 0) {
+    return feed;
+  }
+
+  return applySourceImports(feed, sources, ncclTraces);
+}
+
+function extractIngestionFeed(payload) {
+  if (isIngestionFeed(payload)) return payload;
+  if (isIngestionFeed(payload?.ingestion)) return payload.ingestion;
+  if (Array.isArray(payload?.runs)) {
+    return {
+      schemaVersion: INGESTION_SCHEMA.version,
+      entities: payload.entities || activeIngestion.entities,
+      runs: payload.runs
+    };
+  }
+
+  return activeIngestion;
+}
+
+function extractSourceExports(payload) {
+  const sourceRoot = payload?.sources || payload?.sourceExports || payload || {};
+
+  return {
+    prometheus: Array.isArray(sourceRoot.prometheus) ? sourceRoot.prometheus : [],
+    dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
+    kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : []
+  };
+}
+
+function extractNcclTraces(payload) {
+  const sourceRoot = payload?.sources || payload?.sourceExports || {};
+
+  return firstArray(
+    payload?.ncclTraces,
+    payload?.traces,
+    payload?.nccl,
+    sourceRoot.ncclTraces,
+    sourceRoot.traces,
+    sourceRoot.nccl
+  );
+}
+
+function isIngestionFeed(value) {
+  return Boolean(value?.schemaVersion === INGESTION_SCHEMA.version && Array.isArray(value.runs));
+}
+
+function hasSourceExports(sources) {
+  return sources.prometheus.length > 0 || sources.dcgm.length > 0 || sources.kubernetes.length > 0;
+}
+
+function firstArray(...values) {
+  return values.find((value) => Array.isArray(value)) || [];
+}
+
+function restoredSourceLabel(sourceLabel) {
+  return sourceLabel
+    .replace(/^Imported /, "Restored ")
+    .replace(/^Fetched /, "Restored ");
+}
+
+function setIngestStatus(label, tone = "good") {
+  state.ingestLabel = label;
+  state.ingestTone = tone;
+  renderIngestState();
+}
+
+async function handleFileIngest(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  try {
+    setIngestStatus("Reading file", "watch");
+    const payload = JSON.parse(await file.text());
+    await ingestJsonPayload(payload, `Imported ${file.name}`);
+  } catch (error) {
+    setIngestStatus(error.message || "Import failed", "poor");
+  } finally {
+    event.target.value = "";
+  }
+}
+
+async function handleApiIngest() {
+  const input = document.querySelector("#apiInput");
+  const url = input.value.trim();
+  if (!url) {
+    setIngestStatus("API URL required", "watch");
+    return;
+  }
+
+  try {
+    setIngestStatus("Fetching API", "watch");
+    const response = await window.fetch(url);
+    if (!response.ok) {
+      throw new Error(`API ${response.status}`);
+    }
+
+    await ingestJsonPayload(await response.json(), "Fetched API feed");
+  } catch (error) {
+    setIngestStatus(error.message || "Fetch failed", "poor");
+  }
+}
+
+function exportWorkspace() {
+  const exportedAt = new Date();
+  const store = createWorkspaceStore(activeIngestion, {
+    savedAt: exportedAt,
+    lastAnalysisAt: state.lastAnalysis,
+    snapshots: snapshotHistory
+  });
+  const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = `turba-workspace-${fileDateStamp(exportedAt)}.json`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  setIngestStatus("Workspace exported", "good");
+}
+
+function resetWorkspace() {
+  const confirmed = window.confirm("Reset the local Turba workspace to the sample feed?");
+  if (!confirmed) return;
+
+  activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));
+  jobs = normalizeIngestion(activeIngestion);
+  snapshotHistory = [];
+  state.scope = "job";
+  state.selectedKey = jobs.find((job) => job.id === "run-7421")?.id || jobs[0]?.id || "";
+  state.samePod = false;
+  state.ingestLabel = "Sample feed";
+  state.ingestTone = "good";
+  state.lastAnalysis = new Date();
+  captureAnalysisSnapshot("Reset sample", state.lastAnalysis);
+  persistWorkspaceStore();
+  render();
+}
+
 function bindEvents() {
   document.querySelectorAll("#scopeControls button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1240,23 +1577,36 @@ function bindEvents() {
     render();
   });
 
+  document.querySelectorAll("#trendMetricControls button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.trendMetric = button.dataset.trendMetric;
+      render();
+    });
+  });
+
   document.querySelector("#analyzeButton").addEventListener("click", () => {
     state.analyzing = true;
     renderAnalysisStamp();
     window.setTimeout(() => {
       state.analyzing = false;
       state.lastAnalysis = new Date();
+      captureAnalysisSnapshot("Manual analysis", state.lastAnalysis);
       persistWorkspaceStore();
       render();
     }, 520);
   });
 
   document.querySelector("#copyReport").addEventListener("click", copyReport);
+  document.querySelector("#ingestFile").addEventListener("change", handleFileIngest);
+  document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
+  document.querySelector("#exportWorkspaceButton").addEventListener("click", exportWorkspace);
+  document.querySelector("#resetWorkspaceButton").addEventListener("click", resetWorkspace);
 }
 
 function render() {
   renderScopeControls();
   renderAnalysisStamp();
+  renderIngestState();
 
   const entries = buildEntries(state.scope);
   if (!entries.some((entry) => entry.key === state.selectedKey)) {
@@ -1264,8 +1614,7 @@ function render() {
   }
 
   const activeEntry = entries.find((entry) => entry.key === state.selectedKey);
-  const rawSummary = summarizeEntry(activeEntry);
-  const summary = finalizeSummary(applyPlacementWhatIf(rawSummary));
+  const summary = displaySummary(activeEntry);
   const classifier = classifyBottlenecks(summary);
   const components = scoreComponents(summary);
   const fingerprint = fingerprintWorkload(summary);
@@ -1273,6 +1622,7 @@ function render() {
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
   renderMetricRibbon(summary);
+  renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
   renderComponents(components);
@@ -1280,6 +1630,14 @@ function render() {
   renderFingerprint(fingerprint);
   renderRegression(summary);
   renderReport(summary, classifier);
+}
+
+function renderIngestState() {
+  const ingestEl = document.querySelector("#ingestState");
+  if (!ingestEl) return;
+
+  ingestEl.textContent = state.ingestLabel;
+  ingestEl.dataset.status = state.ingestTone;
 }
 
 function buildEntries(scope) {
@@ -1301,6 +1659,10 @@ function buildEntries(scope) {
     const bWaste = summarizeEntry(b).wastedGpuHours;
     return bWaste - aWaste;
   });
+}
+
+function displaySummary(entry) {
+  return finalizeSummary(applyPlacementWhatIf(summarizeEntry(entry)));
 }
 
 function summarizeEntry(entry) {
@@ -1479,6 +1841,228 @@ function renderMetricRibbon(summary) {
   document.querySelector("#wastedGpuHours").textContent = number.format(summary.wastedGpuHours);
   document.querySelector("#wasteDollars").textContent = currency.format(summary.wasteDollars);
   document.querySelector("#costPerUseful").textContent = currency.format(summary.costPerUsefulGpuHour);
+}
+
+function renderTrend(summary) {
+  const metricKey = TREND_METRIC_DEFS[state.trendMetric] ? state.trendMetric : "usefulCompute";
+  const metric = TREND_METRIC_DEFS[metricKey];
+  const points = trendPointsFor(summary, metricKey);
+  const trend = analytics.summarizeTrend(points, metric);
+
+  renderTrendControls(metricKey);
+  renderTrendStats(trend, metric);
+  renderTrendChart(points, metric);
+  renderTrendList(points, metric);
+
+  const badge = document.querySelector("#trendBadge");
+  if (badge) {
+    badge.textContent = `${trend.count} ${trend.count === 1 ? "point" : "points"}`;
+  }
+}
+
+function renderTrendControls(metricKey) {
+  document.querySelectorAll("#trendMetricControls button").forEach((button) => {
+    button.setAttribute("aria-selected", String(button.dataset.trendMetric === metricKey));
+  });
+}
+
+function trendPointsFor(summary, metricKey) {
+  return snapshotHistory
+    .filter((record) => (
+      record.scope === summary.scope
+      && record.key === summary.key
+      && Number.isFinite(record.metrics?.[metricKey])
+    ))
+    .map((record) => ({
+      ...record,
+      value: record.metrics[metricKey]
+    }))
+    .slice(-12);
+}
+
+function renderTrendStats(trend, metric) {
+  const latest = document.querySelector("#trendLatest");
+  const delta = document.querySelector("#trendDelta");
+  const best = document.querySelector("#trendBest");
+
+  if (!latest || !delta || !best) return;
+
+  if (trend.count === 0) {
+    latest.textContent = "-";
+    delta.textContent = "-";
+    best.textContent = "-";
+    delta.dataset.direction = "flat";
+    return;
+  }
+
+  latest.textContent = metric.format(trend.latest.value);
+  delta.textContent = metric.formatDelta(trend.delta);
+  delta.dataset.direction = trend.direction;
+  best.textContent = metric.format(trend.best.value);
+}
+
+function renderTrendChart(points, metric) {
+  const svg = document.querySelector("#trendChart");
+  if (!svg) return;
+
+  const width = 760;
+  const height = 260;
+  const margin = { top: 22, right: 24, bottom: 42, left: 62 };
+  const chartWidth = width - margin.left - margin.right;
+  const chartHeight = height - margin.top - margin.bottom;
+
+  svg.replaceChildren();
+  const title = svgNode("title", { id: "trendTitle" });
+  title.textContent = `${metric.label} trend`;
+  const desc = svgNode("desc", { id: "trendDesc" });
+  desc.textContent = "Recent persisted analysis snapshots for the selected scope.";
+  svg.append(title, desc);
+
+  const values = points.map((point) => point.value);
+  const extent = trendExtent(values, metric);
+  drawTrendGrid(svg, extent, metric, margin, chartWidth, chartHeight);
+
+  if (points.length === 0) {
+    const empty = svgNode("text", {
+      x: width / 2,
+      y: height / 2,
+      class: "trend-empty"
+    });
+    empty.textContent = "No snapshots";
+    svg.append(empty);
+    return;
+  }
+
+  const coordinates = points.map((point, index) => ({
+    point,
+    x: margin.left + (points.length === 1 ? chartWidth / 2 : (index / (points.length - 1)) * chartWidth),
+    y: margin.top + ((extent.max - point.value) / (extent.max - extent.min)) * chartHeight
+  }));
+
+  if (coordinates.length > 1) {
+    svg.append(svgNode("path", {
+      d: trendAreaPath(coordinates, margin.top + chartHeight),
+      class: "trend-area"
+    }));
+    svg.append(svgNode("path", {
+      d: trendLinePath(coordinates),
+      class: "trend-line"
+    }));
+  }
+
+  coordinates.forEach((coordinate) => {
+    const dot = svgNode("circle", {
+      cx: coordinate.x,
+      cy: coordinate.y,
+      r: 5,
+      class: "trend-dot"
+    });
+    const dotTitle = svgNode("title");
+    dotTitle.textContent = `${formatSnapshotTime(coordinate.point.capturedAt)} ${metric.format(coordinate.point.value)}`;
+    dot.append(dotTitle);
+    svg.append(dot);
+  });
+
+  drawTrendDateLabels(svg, coordinates, margin.top + chartHeight + 28);
+}
+
+function drawTrendGrid(svg, extent, metric, margin, chartWidth, chartHeight) {
+  const ticks = 4;
+
+  for (let index = 0; index <= ticks; index += 1) {
+    const ratio = index / ticks;
+    const y = margin.top + ratio * chartHeight;
+    const value = extent.max - ratio * (extent.max - extent.min);
+    svg.append(svgNode("line", {
+      x1: margin.left,
+      y1: y,
+      x2: margin.left + chartWidth,
+      y2: y,
+      class: "trend-grid-line"
+    }));
+
+    const label = svgNode("text", {
+      x: margin.left - 10,
+      y: y + 4,
+      class: "trend-axis-label",
+      "text-anchor": "end"
+    });
+    label.textContent = metric.format(value);
+    svg.append(label);
+  }
+}
+
+function drawTrendDateLabels(svg, coordinates, y) {
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+
+  [first, last].filter(Boolean).forEach((coordinate, index) => {
+    if (index === 1 && first === last) return;
+
+    const label = svgNode("text", {
+      x: coordinate.x,
+      y,
+      class: "trend-axis-label",
+      "text-anchor": index === 0 ? "start" : "end"
+    });
+    label.textContent = formatSnapshotTime(coordinate.point.capturedAt);
+    svg.append(label);
+  });
+}
+
+function renderTrendList(points, metric) {
+  const list = document.querySelector("#trendList");
+  if (!list) return;
+
+  list.replaceChildren();
+  points.slice(-5).reverse().forEach((point) => {
+    const item = document.createElement("div");
+    item.className = "trend-row";
+
+    const value = document.createElement("strong");
+    value.textContent = metric.format(point.value);
+
+    const source = document.createElement("span");
+    source.textContent = `${formatSnapshotTime(point.capturedAt)} | ${point.source}`;
+
+    const bottleneck = document.createElement("span");
+    bottleneck.textContent = point.primaryBottleneck;
+
+    item.append(value, source, bottleneck);
+    list.append(item);
+  });
+}
+
+function trendExtent(values, metric) {
+  if (values.length === 0) {
+    return metric.unit === "points" ? { min: 0, max: 100 } : { min: 0, max: 1 };
+  }
+
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const range = maxValue - minValue;
+  const padding = range > 0 ? range * 0.18 : Math.max(5, Math.abs(maxValue) * 0.12);
+  const min = metric.unit === "points" ? Math.max(0, minValue - padding) : Math.max(0, minValue - padding);
+  const max = metric.unit === "points" ? Math.min(100, maxValue + padding) : maxValue + padding;
+
+  if (max <= min) {
+    return { min: Math.max(0, min - 5), max: min + 5 };
+  }
+
+  return { min, max };
+}
+
+function trendLinePath(coordinates) {
+  return coordinates
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(" ");
+}
+
+function trendAreaPath(coordinates, baselineY) {
+  const line = trendLinePath(coordinates);
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  return `${line} L ${last.x.toFixed(1)} ${baselineY.toFixed(1)} L ${first.x.toFixed(1)} ${baselineY.toFixed(1)} Z`;
 }
 
 function renderTruthTable(summary) {
@@ -2030,6 +2614,31 @@ function formatAnalysisTime(date) {
     minute: "2-digit",
     timeZoneName: "short"
   }).format(date);
+}
+
+function formatSnapshotTime(value) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function signedNumber(value) {
+  const rounded = Math.round(numeric(value));
+  const prefix = rounded > 0 ? "+" : "";
+  return `${prefix}${number.format(rounded)}`;
+}
+
+function signedCurrency(value) {
+  const amount = numeric(value);
+  if (Math.abs(amount) < 0.5) return "$0";
+  return amount > 0 ? `+${currency.format(amount)}` : `-${currency.format(Math.abs(amount))}`;
+}
+
+function fileDateStamp(date) {
+  return date.toISOString().replace(/[:.]/g, "-");
 }
 
 function deltaText(delta) {

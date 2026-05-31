@@ -87,6 +87,25 @@ assert.equal(regressions[0].grade.key, "poor");
 assert.equal(regressions[2].text, "15% drop");
 assert.equal(regressions[4].note, "$20 per million tokens");
 
+const efficiencyTrend = analytics.summarizeTrend([
+  { capturedAt: "2026-05-28T10:00:00.000Z", value: 41 },
+  { capturedAt: "2026-05-29T10:00:00.000Z", value: 49 },
+  { capturedAt: "2026-05-30T10:00:00.000Z", value: 47 }
+]);
+assert.equal(efficiencyTrend.count, 3);
+assert.equal(efficiencyTrend.delta, 6);
+assert.equal(efficiencyTrend.best.value, 49);
+assert.equal(efficiencyTrend.direction, "improved");
+
+const costTrend = analytics.summarizeTrend([
+  { value: 18.4 },
+  { value: 16.2 },
+  { value: 15.1 }
+], { higherIsBetter: false });
+assert.equal(costTrend.best.value, 15.1);
+assert.equal(costTrend.direction, "improved");
+
+assert.equal(analytics.summarizeTrend([]).direction, "flat");
 assert.deepEqual(analytics.grade(72, 55, 72), { key: "good", label: "Healthy" });
 assert.deepEqual(analytics.inverseGrade(32, 18, 32), { key: "poor", label: "Lossy" });
 assert.equal(analytics.clamp(140), 100);

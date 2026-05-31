@@ -57,6 +57,43 @@
     };
   }
 
+  function summarizeTrend(points = [], options = {}) {
+    const clean = points
+      .map((point) => ({ ...point, value: numeric(point.value, Number.NaN) }))
+      .filter((point) => Number.isFinite(point.value));
+
+    if (clean.length === 0) {
+      return {
+        count: 0,
+        first: null,
+        latest: null,
+        best: null,
+        delta: 0,
+        direction: "flat"
+      };
+    }
+
+    const higherIsBetter = options.higherIsBetter !== false;
+    const first = clean[0];
+    const latest = clean[clean.length - 1];
+    const best = clean.reduce((candidate, point) => {
+      if (higherIsBetter) return point.value > candidate.value ? point : candidate;
+      return point.value < candidate.value ? point : candidate;
+    }, first);
+    const delta = latest.value - first.value;
+    const meaningfulDelta = Math.abs(delta) >= numeric(options.flatThreshold, 0.01);
+    const improved = higherIsBetter ? delta > 0 : delta < 0;
+
+    return {
+      count: clean.length,
+      first,
+      latest,
+      best,
+      delta,
+      direction: meaningfulDelta ? (improved ? "improved" : "regressed") : "flat"
+    };
+  }
+
   function classifyBottlenecks(summary) {
     const communicationScore = clamp(summary.ncclTime * 1.55 + summary.networkWait * 1.25 + summary.crossRackTraffic * 0.1 + summary.crossPodTraffic * 0.26);
     const inputScore = clamp(summary.dataloaderStall * 2.1 + summary.storageWait * 2 + summary.cpuPrep * 1.35);
@@ -426,6 +463,7 @@
     regressionRows,
     round,
     scoreComponents,
+    summarizeTrend,
     titleCase
   };
 });

@@ -61,6 +61,51 @@
         </div>
       </section>
 
+      <section class="ingest-strip" aria-label="External ingestion">
+        <input id="ingestFile" class="visually-hidden" type="file" accept="application/json,.json">
+        <label class="secondary-button" for="ingestFile" title="Import JSON">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12"></path>
+            <path d="m7 8 5-5 5 5"></path>
+            <path d="M5 21h14"></path>
+            <path d="M5 15v4"></path>
+            <path d="M19 15v4"></path>
+          </svg>
+          <span>Import JSON</span>
+        </label>
+        <label class="api-label" for="apiInput">
+          API URL
+          <input id="apiInput" type="url" placeholder="https://example.com/turba-feed.json">
+        </label>
+        <button id="fetchApiButton" class="secondary-button" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M21 12a9 9 0 0 1-9 9"></path>
+            <path d="M3 12a9 9 0 0 1 9-9"></path>
+            <path d="M12 3v5h5"></path>
+            <path d="M12 21v-5H7"></path>
+          </svg>
+          <span>Fetch</span>
+        </button>
+        <div class="workspace-actions" aria-label="Workspace actions">
+          <button id="exportWorkspaceButton" class="icon-button" type="button" title="Export workspace" aria-label="Export workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12"></path>
+              <path d="m7 10 5 5 5-5"></path>
+              <path d="M5 21h14"></path>
+              <path d="M5 15v4"></path>
+              <path d="M19 15v4"></path>
+            </svg>
+          </button>
+          <button id="resetWorkspaceButton" class="icon-button" type="button" title="Reset workspace" aria-label="Reset workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 13a8 8 0 1 0 2.35-5.66"></path>
+              <path d="M4 4v6h6"></path>
+            </svg>
+          </button>
+        </div>
+        <span id="ingestState" data-status="good">Sample feed</span>
+      </section>
+
       <div class="workspace">
         <aside class="inventory" aria-label="Job inventory">
           <div class="section-heading">
@@ -118,6 +163,45 @@
           </section>
 
           <div class="analysis-grid">
+            <section class="panel trend-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Snapshots</p>
+                  <h2>Trend view</h2>
+                </div>
+                <span id="trendBadge">0 points</span>
+              </div>
+              <div class="trend-body">
+                <div class="trend-toolbar">
+                  <div class="segmented trend-metrics" id="trendMetricControls" role="tablist" aria-label="Trend metric">
+                    <button type="button" data-trend-metric="usefulCompute" aria-selected="true">Efficiency</button>
+                    <button type="button" data-trend-metric="wastedGpuHours" aria-selected="false">Waste</button>
+                    <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
+                    <button type="button" data-trend-metric="costPerUsefulGpuHour" aria-selected="false">Cost</button>
+                  </div>
+                  <div class="trend-stats" aria-label="Trend summary">
+                    <div>
+                      <span>Latest</span>
+                      <strong id="trendLatest">-</strong>
+                    </div>
+                    <div>
+                      <span>Delta</span>
+                      <strong id="trendDelta">-</strong>
+                    </div>
+                    <div>
+                      <span>Best</span>
+                      <strong id="trendBest">-</strong>
+                    </div>
+                  </div>
+                </div>
+                <svg id="trendChart" class="trend-chart" viewBox="0 0 760 260" role="img" aria-labelledby="trendTitle trendDesc">
+                  <title id="trendTitle">Persisted analysis trend</title>
+                  <desc id="trendDesc">Recent persisted analysis snapshots for the selected scope.</desc>
+                </svg>
+                <div id="trendList" class="trend-list" aria-label="Recent snapshots"></div>
+              </div>
+            </section>
+
             <section class="panel truth-panel">
               <div class="panel-heading">
                 <div>

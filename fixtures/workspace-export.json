@@ -1,0 +1,134 @@
+{
+  "storageSchemaVersion": "turba.workspace.v2",
+  "ingestionSchemaVersion": "turba.ingestion.v1",
+  "savedAt": "2026-05-31T12:00:00.000Z",
+  "lastAnalysisAt": "2026-05-31T12:00:00.000Z",
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "entities": {
+      "models": {
+        "llama-70b": { "label": "Llama 70B" }
+      },
+      "users": {
+        "maya": { "label": "maya" }
+      },
+      "teams": {
+        "frontier": { "label": "Frontier" }
+      },
+      "clusters": {
+        "h100-prod-west": { "label": "h100-prod-west", "gpuModel": "H100 SXM" }
+      }
+    },
+    "runs": [
+      {
+        "id": "run-export-fixture",
+        "name": "workspace-export-fixture",
+        "refs": {
+          "model": "llama-70b",
+          "user": "maya",
+          "team": "frontier",
+          "cluster": "h100-prod-west"
+        },
+        "status": "Completed",
+        "allocation": {
+          "durationHours": 2,
+          "gpus": 8,
+          "allocatedGpuHours": 16
+        },
+        "utilization": {
+          "gpuUtil": 70,
+          "usefulCompute": 58,
+          "smOccupancy": 64,
+          "tensorCoreUtil": 61
+        },
+        "communication": {
+          "ncclTime": 14,
+          "networkWait": 6,
+          "crossRackTraffic": 18,
+          "crossPodTraffic": 0,
+          "allToAllTime": 1
+        },
+        "inputPipeline": {
+          "dataloaderStall": 5,
+          "storageWait": 3,
+          "cpuPrep": 4
+        },
+        "memory": {
+          "hbmCapacity": 62,
+          "hbmBandwidth": 57,
+          "memoryFragmentation": 8,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 84,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 6
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 4,
+          "stepRegularity": 94,
+          "latencyTail": 0
+        },
+        "configuration": {
+          "precisionLoss": 3,
+          "batchInefficiency": 7
+        },
+        "work": {
+          "tokensM": 90,
+          "steps": 1200,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "stepTime": 1.2,
+          "currentStepTime": 1.28,
+          "ncclTime": 12,
+          "gpuEfficiency": 61,
+          "queueWaitMinutes": 5,
+          "costPerMillionTokens": 1.1
+        },
+        "placement": {
+          "nodes": ["A1-01"],
+          "partialNodes": []
+        }
+      }
+    ]
+  },
+  "baselines": {
+    "run-export-fixture": {
+      "stepTime": 1.2,
+      "currentStepTime": 1.28,
+      "ncclTime": 12,
+      "gpuEfficiency": 61,
+      "queueWaitMinutes": 5,
+      "costPerMillionTokens": 1.1
+    }
+  },
+  "snapshots": [
+    {
+      "capturedAt": "2026-05-31T12:00:00.000Z",
+      "source": "Fixture export",
+      "scope": "job",
+      "key": "run-export-fixture",
+      "label": "workspace-export-fixture",
+      "window": "Last 24 hours",
+      "rate": 6.2,
+      "primaryBottleneck": "Communication",
+      "metrics": {
+        "usefulCompute": 58,
+        "gpuUtil": 70,
+        "allocatedGpuHours": 16,
+        "usefulGpuHours": 9.28,
+        "wastedGpuHours": 6.72,
+        "wasteDollars": 41.664,
+        "costPerUsefulGpuHour": 10.6896551724,
+        "ncclTime": 14,
+        "networkWait": 6,
+        "placementQuality": 84,
+        "crossPodTraffic": 0,
+        "queueWaitMinutes": 6
+      }
+    }
+  ]
+}
