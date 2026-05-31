@@ -1,0 +1,94 @@
+const assert = require("node:assert/strict");
+const analytics = require("../analytics-core.js");
+
+const baseSummary = {
+  allocatedGpuHours: 2227,
+  gpuUtil: 62,
+  usefulCompute: 41,
+  smOccupancy: 55,
+  tensorCoreUtil: 47,
+  ncclTime: 29,
+  networkWait: 12,
+  dataloaderStall: 5,
+  storageWait: 3,
+  cpuPrep: 4,
+  hbmCapacity: 71,
+  hbmBandwidth: 64,
+  memoryFragmentation: 14,
+  placementQuality: 53,
+  crossRackTraffic: 68,
+  crossPodTraffic: 41,
+  idleGpus: 0,
+  partialNodes: 3,
+  queueWaitMinutes: 24,
+  noiseEvents: 1,
+  contentionPct: 14,
+  precisionLoss: 7,
+  batchInefficiency: 10,
+  allToAllTime: 2,
+  stepRegularity: 91,
+  kvCachePressure: 0,
+  latencyTail: 0,
+  tokensM: 690,
+  steps: 12800,
+  inferenceRequestsM: 0,
+  baseline: {
+    stepTime: 1.82,
+    currentStepTime: 2.11,
+    ncclTime: 22,
+    gpuEfficiency: 56,
+    queueWaitMinutes: 18,
+    costPerMillionTokens: 19.2
+  }
+};
+
+function approximately(actual, expected, epsilon = 0.01) {
+  assert.ok(Math.abs(actual - expected) <= epsilon, `${actual} should be within ${epsilon} of ${expected}`);
+}
+
+const finalized = analytics.finalizeSummary(baseSummary, 6.2);
+approximately(finalized.usefulGpuHours, 913.07);
+approximately(finalized.wastedGpuHours, 1313.93);
+approximately(finalized.costPerUsefulGpuHour, 15.12);
+approximately(finalized.costPerMillionTokens, 20.01);
+
+const classifier = analytics.classifyBottlenecks(finalized);
+assert.equal(classifier.primary.short, "Communication");
+assert.equal(classifier.secondary.short, "Placement");
+assert.equal(classifier.improvementRange, "18 to 30%");
+
+const whatIf = analytics.finalizeSummary(analytics.applyPlacementWhatIf(finalized, true), 6.2);
+assert.equal(whatIf.whatIfActive, true);
+assert.ok(whatIf.usefulCompute > finalized.usefulCompute);
+assert.ok(whatIf.crossPodTraffic < finalized.crossPodTraffic);
+assert.ok(whatIf.wastedGpuHours < finalized.wastedGpuHours);
+
+const noWhatIf = analytics.applyPlacementWhatIf(finalized, false);
+assert.equal(noWhatIf.whatIfActive, false);
+assert.equal(noWhatIf.crossPodTraffic, finalized.crossPodTraffic);
+
+const inferenceFingerprint = analytics.fingerprintWorkload({
+  ...finalized,
+  inferenceRequestsM: 42,
+  latencyTail: 74,
+  kvCachePressure: 87
+});
+assert.equal(inferenceFingerprint.name, "Inference batch serving");
+
+const componentScores = analytics.scoreComponents(finalized, 6.2, (value) => `$${Math.round(value)}`);
+assert.equal(componentScores.length, 6);
+assert.equal(componentScores[0].name, "Compute efficiency");
+assert.equal(componentScores[5].note, "$15 per useful GPU-hour");
+
+const regressions = analytics.regressionRows(finalized, (value) => `$${Math.round(value)}`);
+assert.equal(regressions.length, 5);
+assert.equal(regressions[0].name, "Step time");
+assert.equal(regressions[0].grade.key, "poor");
+assert.equal(regressions[2].text, "15% drop");
+assert.equal(regressions[4].note, "$20 per million tokens");
+
+assert.deepEqual(analytics.grade(72, 55, 72), { key: "good", label: "Healthy" });
+assert.deepEqual(analytics.inverseGrade(32, 18, 32), { key: "poor", label: "Lossy" });
+assert.equal(analytics.clamp(140), 100);
+
+console.log("analytics-core tests passed");

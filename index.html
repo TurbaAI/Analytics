@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Turba Analytics</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">TA</span>
+        <div>
+          <strong>Turba Analytics</strong>
+          <span>Infrastructure loss attribution</span>
+        </div>
+      </div>
+
+      <div class="top-actions">
+        <label class="select-label" for="windowSelect">
+          Window
+          <select id="windowSelect">
+            <option>Last 24 hours</option>
+            <option>Last 7 days</option>
+            <option>Current billing cycle</option>
+          </select>
+        </label>
+        <label class="rate-label" for="rateInput">
+          $ / GPU-hour
+          <input id="rateInput" type="number" min="0" step="0.1" value="6.20">
+        </label>
+        <label class="toggle" for="samePodToggle">
+          <input id="samePodToggle" type="checkbox">
+          <span>Same-pod what-if</span>
+        </label>
+        <button id="analyzeButton" class="primary-button" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 13.5a8 8 0 1 0 2.35-5.66"></path>
+            <path d="M4 4v6h6"></path>
+            <path d="M9 12h6"></path>
+            <path d="M12 9v6"></path>
+          </svg>
+          <span>Analyze</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="shell">
+      <section class="scope-strip" aria-label="Analysis scope">
+        <div class="segmented" id="scopeControls" role="tablist">
+          <button type="button" data-scope="job" aria-selected="true">Job</button>
+          <button type="button" data-scope="model" aria-selected="false">Model</button>
+          <button type="button" data-scope="user" aria-selected="false">User</button>
+          <button type="button" data-scope="team" aria-selected="false">Team</button>
+          <button type="button" data-scope="cluster" aria-selected="false">Cluster</button>
+        </div>
+        <div class="analysis-stamp">
+          <span id="analysisState">Ready</span>
+          <span id="storageState" data-status="good">Local seed</span>
+          <time id="analysisTime" datetime="2026-05-30T22:01:00-07:00">May 30, 2026 22:01 PDT</time>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <aside class="inventory" aria-label="Job inventory">
+          <div class="section-heading">
+            <div>
+              <p>Inventory</p>
+              <h1 id="inventoryTitle">Jobs</h1>
+            </div>
+            <span id="inventoryCount">0</span>
+          </div>
+          <div id="entityList" class="entity-list"></div>
+        </aside>
+
+        <section class="operator-loop" aria-live="polite">
+          <section class="diagnosis-band">
+            <div class="diagnosis-copy">
+              <p class="eyebrow" id="selectedMeta">H100 cluster</p>
+              <h2 id="diagnosisHeadline">Select an analysis target</h2>
+              <p id="diagnosisNarrative"></p>
+            </div>
+            <div class="score-dial" aria-label="Job efficiency score">
+              <svg id="scoreDial" viewBox="0 0 120 120" role="img" aria-labelledby="scoreTitle scoreDesc">
+                <title id="scoreTitle">Job efficiency score</title>
+                <desc id="scoreDesc">Useful accelerator time divided by allocated accelerator time.</desc>
+                <circle cx="60" cy="60" r="48" class="dial-bg"></circle>
+                <circle cx="60" cy="60" r="48" class="dial-value"></circle>
+              </svg>
+              <div>
+                <strong id="scoreValue">0%</strong>
+                <span>Efficiency score</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="metric-ribbon" aria-label="Cost per useful work">
+            <div>
+              <span>Allocated GPU-hours</span>
+              <strong id="allocatedGpuHours">0</strong>
+            </div>
+            <div>
+              <span>Useful GPU-hours</span>
+              <strong id="usefulGpuHours">0</strong>
+            </div>
+            <div>
+              <span>Wasted GPU-hours</span>
+              <strong id="wastedGpuHours">0</strong>
+            </div>
+            <div>
+              <span>Waste estimate</span>
+              <strong id="wasteDollars">$0</strong>
+            </div>
+            <div>
+              <span>Cost / useful GPU-hour</span>
+              <strong id="costPerUseful">$0</strong>
+            </div>
+          </section>
+
+          <div class="analysis-grid">
+            <section class="panel truth-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Cluster Utilization</p>
+                  <h2>Truth table</h2>
+                </div>
+                <span id="truthBadge">Live</span>
+              </div>
+              <div id="truthTable" class="truth-table"></div>
+            </section>
+
+            <section class="panel bottleneck-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Attribution</p>
+                  <h2>Bottleneck classifier</h2>
+                </div>
+                <span id="bottleneckBadge">Primary</span>
+              </div>
+              <div class="bottleneck-summary">
+                <div>
+                  <span>Primary</span>
+                  <strong id="primaryBottleneck">-</strong>
+                </div>
+                <div>
+                  <span>Secondary</span>
+                  <strong id="secondaryBottleneck">-</strong>
+                </div>
+                <div>
+                  <span>Improvement estimate</span>
+                  <strong id="improvementEstimate">0%</strong>
+                </div>
+              </div>
+              <div id="bottleneckBars" class="bar-list"></div>
+            </section>
+
+            <section class="panel efficiency-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Job Efficiency</p>
+                  <h2>Component score</h2>
+                </div>
+              </div>
+              <div id="componentScores" class="component-list"></div>
+            </section>
+
+            <section class="panel topology-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Topology</p>
+                  <h2>Placement view</h2>
+                </div>
+                <span id="topologyScore">0</span>
+              </div>
+              <div class="topology-frame">
+                <svg id="topologyMap" viewBox="0 0 760 390" role="img" aria-labelledby="topologyTitle topologyDesc">
+                  <title id="topologyTitle">Cluster topology placement map</title>
+                  <desc id="topologyDesc">Racks and pods used by the selected workload with highlighted cross-pod traffic.</desc>
+                </svg>
+              </div>
+              <div id="traceAttribution" class="trace-list" aria-label="NCCL trace tier attribution"></div>
+            </section>
+
+            <section class="panel workload-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Fingerprint</p>
+                  <h2>Workload pattern</h2>
+                </div>
+                <span id="fingerprintName">-</span>
+              </div>
+              <div id="fingerprintSignals" class="signal-list"></div>
+            </section>
+
+            <section class="panel regression-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Baseline</p>
+                  <h2>Regression check</h2>
+                </div>
+                <span id="regressionBadge">Stable</span>
+              </div>
+              <div id="regressionList" class="regression-list"></div>
+            </section>
+
+            <section class="panel report-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Outcome</p>
+                  <h2>Customer report</h2>
+                </div>
+                <button id="copyReport" class="icon-button" type="button" title="Copy report" aria-label="Copy report">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                    <path d="M5 15V7a2 2 0 0 1 2-2h8"></path>
+                  </svg>
+                </button>
+              </div>
+              <p id="customerReport"></p>
+            </section>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script src="analytics-core.js"></script>
+    <script src="nccl-trace-parser.js"></script>
+    <script src="nccl-trace-fixtures.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
