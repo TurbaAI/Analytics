@@ -24,10 +24,11 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Topology tier metadata surfaced in the placement panel
 - File and API JSON ingestion for external `turba.ingestion.v1` feeds, source metric bundles, and NCCL traces
 - Persisted analysis snapshots with trend views for efficiency, waste, NCCL time, and cost
+- Workspace export, restore, and sample reset controls for browser-local state
 
 ## Data contract
 
-`app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
+`app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
 
 External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example.
 
@@ -36,6 +37,8 @@ External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` 
 Run `node tests/analytics-core.test.js` to validate core efficiency, bottleneck, what-if, fingerprint, regression, and trend calculations.
 Run `node tests/nccl-trace-parser.test.js` to validate NCCL operation and topology-tier attribution.
 Run `node tests/external-ingestion-fixture.test.js` to validate the external source bundle fixture.
+Run `node tests/workspace-export-fixture.test.js` to validate exported workspace shape.
+Run `node tests/static-page-wiring.test.js` to validate static DOM IDs, script order, and dashboard control wiring.
 
 ## Current status
 
