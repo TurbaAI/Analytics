@@ -72,6 +72,8 @@ Expected fields:
 
 Neo-cloud provider billing, reservation, and support context should use `sources.provider`. This source is intentionally separate from Prometheus, DCGM, Kubernetes, and NCCL traces so operators can import redacted tenant metadata without exposing live billing systems to the browser prototype.
 
+Use `fixtures/provider-overlay-template.json` as the minimal export template.
+
 Expected fields:
 
 - `runId`

@@ -19,12 +19,14 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 6. Scroll to topology and connect cross-pod placement to NCCL trace attribution.
 7. Toggle `Same-pod what-if` and describe the estimated improvement range.
 8. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
-9. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
-10. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
-11. Import `fixtures/external-source-bundle.json`.
-12. Click Analyze and show the trend panel updating from persisted snapshots.
-13. Export the workspace, then re-import it to demonstrate browser-to-browser handoff.
-14. Copy the customer report as the final operator summary.
+9. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
+10. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
+11. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
+12. Import `fixtures/external-source-bundle.json`.
+13. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
+14. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+15. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+16. Copy the customer report as the final operator summary.
 
 ## Close
 

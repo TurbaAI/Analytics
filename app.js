@@ -893,7 +893,7 @@ const SAMPLE_SOURCE_EXPORTS = {
 const analytics = window.TurbaAnalytics;
 const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
-const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster"];
+const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
@@ -965,6 +965,34 @@ const TREND_METRIC_DEFS = {
     higherIsBetter: false,
     format: (value) => currency.format(value),
     formatDelta: (value) => signedCurrency(value)
+  },
+  sellableWasteValue: {
+    label: "Sellable waste value",
+    unit: "USD",
+    higherIsBetter: false,
+    format: (value) => currency.format(value),
+    formatDelta: (value) => signedCurrency(value)
+  },
+  reservationBurnPct: {
+    label: "Commit burn",
+    unit: "percent",
+    higherIsBetter: false,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  queueSloPct: {
+    label: "Queue SLO",
+    unit: "percent",
+    higherIsBetter: false,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  grossMarginPct: {
+    label: "Gross margin",
+    unit: "percent",
+    higherIsBetter: true,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
   }
 };
 
@@ -1125,6 +1153,7 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       sellableWasteValue: provider.sellableWasteValue,
       reservationBurnPct: provider.reservationBurnPct,
       queueSloPct: provider.queueSloPct,
+      grossMarginPct: provider.grossMarginPct,
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
       placementQuality: summary.placementQuality,
@@ -1799,24 +1828,266 @@ function importErrorMessage(error, fallback) {
   return error?.message || fallback;
 }
 
-function exportWorkspace() {
+function exportWorkspace({ redacted = false } = {}) {
   const exportedAt = new Date();
-  const store = createWorkspaceStore(activeIngestion, {
+  const rawStore = createWorkspaceStore(activeIngestion, {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory
   });
+  const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
   const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
   const url = window.URL.createObjectURL(blob);
   const anchor = document.createElement("a");
 
   anchor.href = url;
-  anchor.download = `turba-workspace-${fileDateStamp(exportedAt)}.json`;
+  anchor.download = `turba-workspace${redacted ? "-redacted" : ""}-${fileDateStamp(exportedAt)}.json`;
   document.body.append(anchor);
   anchor.click();
   anchor.remove();
   window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
-  setIngestStatus("Workspace exported", "good");
+  setIngestStatus(redacted ? "Redacted workspace exported" : "Workspace exported", "good");
+}
+
+const ENTITY_REDACTION_PREFIXES = {
+  models: "model",
+  users: "user",
+  teams: "team",
+  clusters: "cluster",
+  tenants: "tenant",
+  accounts: "account",
+  reservations: "reservation"
+};
+
+const REF_COLLECTIONS = {
+  model: "models",
+  user: "users",
+  team: "teams",
+  cluster: "clusters",
+  tenant: "tenants",
+  account: "accounts",
+  reservation: "reservations"
+};
+
+function redactWorkspaceStore(store) {
+  const plan = buildRedactionPlan(store);
+  const redacted = cloneJson(store);
+
+  redacted.ingestion = redactIngestion(redacted.ingestion, plan);
+  redacted.baselines = redactBaselineStore(redacted.baselines, plan);
+  redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
+  redacted.redaction = {
+    redactedAt: dateIso(new Date()),
+    strategy: "deterministic surrogate IDs",
+    fields: [
+      "run ids",
+      "model/user/team/cluster/tenant/account/reservation refs",
+      "commercial contract ids",
+      "support ticket ids",
+      "provider source context"
+    ]
+  };
+
+  return redacted;
+}
+
+function buildRedactionPlan(store) {
+  const ingestion = store.ingestion || {};
+  const runs = Array.isArray(ingestion.runs) ? ingestion.runs : [];
+  const entities = ingestion.entities || {};
+  const plan = {
+    entities: {},
+    runs: buildValueMap(runs.map((run) => run.id), "run"),
+    contracts: buildValueMap(runs.map((run) => run.commercial?.contractId), "contract"),
+    tickets: buildValueMap(runs.map((run) => run.slo?.supportTicketId), "ticket"),
+    namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
+    podSelectors: buildValueMap(runs.map((run) => run.sourceContext?.podSelector), "pod-selector"),
+    providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
+    billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
+    reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window")
+  };
+
+  Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
+    plan.entities[collection] = buildEntityValueMap(
+      entities[collection] || {},
+      runs.map((run) => run.refs?.[singularCollection(collection)]),
+      prefix
+    );
+  });
+
+  return plan;
+}
+
+function redactIngestion(ingestion, plan) {
+  return {
+    ...ingestion,
+    entities: redactEntities(ingestion.entities || {}, plan),
+    runs: (ingestion.runs || []).map((run) => redactRun(run, plan))
+  };
+}
+
+function redactEntities(entities, plan) {
+  const nextEntities = { ...entities };
+
+  Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
+    if (!entities[collection]) return;
+
+    nextEntities[collection] = Object.fromEntries(
+      Object.entries(entities[collection]).map(([key, value]) => {
+        const redactedKey = mappedValue(plan.entities[collection], key, prefix);
+        return [
+          redactedKey,
+          {
+            ...value,
+            label: redactedLabel(redactedKey)
+          }
+        ];
+      })
+    );
+  });
+
+  return nextEntities;
+}
+
+function redactRun(run, plan) {
+  const redactedRunId = mappedValue(plan.runs, run.id, "run");
+
+  return {
+    ...run,
+    id: redactedRunId,
+    name: redactedLabel(redactedRunId),
+    refs: redactRefs(run.refs || {}, plan),
+    commercial: redactCommercial(run.commercial || {}, plan),
+    slo: redactSlo(run.slo || {}, plan),
+    sourceContext: redactSourceContext(run.sourceContext || {}, plan)
+  };
+}
+
+function redactRefs(refs, plan) {
+  return Object.fromEntries(
+    Object.entries(refs).map(([key, value]) => {
+      const collection = REF_COLLECTIONS[key];
+      return [key, collection ? mappedValue(plan.entities[collection], value, key) : value];
+    })
+  );
+}
+
+function redactCommercial(commercial, plan) {
+  return {
+    ...commercial,
+    contractId: mappedValue(plan.contracts, commercial.contractId, "contract")
+  };
+}
+
+function redactSlo(slo, plan) {
+  return {
+    ...slo,
+    supportTicketId: mappedValue(plan.tickets, slo.supportTicketId, "ticket")
+  };
+}
+
+function redactSourceContext(context, plan) {
+  return compactObject({
+    ...context,
+    namespace: mappedValue(plan.namespaces, context.namespace, "namespace"),
+    podSelector: mappedValue(plan.podSelectors, context.podSelector, "pod-selector"),
+    providerExportId: mappedValue(plan.providerExports, context.providerExportId, "provider-export"),
+    billingAccountId: mappedValue(plan.billingAccounts, context.billingAccountId, "billing-account"),
+    reservationWindow: mappedValue(plan.reservationWindows, context.reservationWindow, "reservation-window")
+  });
+}
+
+function redactBaselineStore(baselines = {}, plan) {
+  return Object.fromEntries(
+    Object.entries(baselines).map(([runId, baseline]) => [
+      mappedValue(plan.runs, runId, "run"),
+      baseline
+    ])
+  );
+}
+
+function redactSnapshots(snapshots = [], plan) {
+  return snapshots.map((snapshot) => {
+    const key = redactSnapshotKey(snapshot.scope, snapshot.key, plan);
+    return {
+      ...snapshot,
+      key,
+      label: key === snapshot.key ? snapshot.label : redactedLabel(key)
+    };
+  });
+}
+
+function redactSnapshotKey(scope, key, plan) {
+  if (scope === "job") return mappedValue(plan.runs, key, "run");
+
+  const collection = REF_COLLECTIONS[scope];
+  if (!collection) return key;
+
+  return mappedValue(plan.entities[collection], key, scope);
+}
+
+function buildValueMap(values, prefix) {
+  const map = new Map();
+  values
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      if (!map.has(value)) {
+        map.set(value, `${prefix}-${map.size + 1}`);
+      }
+    });
+  return map;
+}
+
+function buildEntityValueMap(entityMap, refValues, prefix) {
+  const map = new Map();
+  let index = 0;
+  const addAlias = (value, redactedValue) => {
+    const stringValue = String(value || "").trim();
+    if (stringValue && !map.has(stringValue)) {
+      map.set(stringValue, redactedValue);
+    }
+  };
+
+  Object.entries(entityMap).forEach(([key, value]) => {
+    index += 1;
+    const redactedValue = `${prefix}-${index}`;
+    addAlias(key, redactedValue);
+    addAlias(value?.label, redactedValue);
+  });
+
+  refValues
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      if (!map.has(value)) {
+        index += 1;
+        map.set(value, `${prefix}-${index}`);
+      }
+    });
+
+  return map;
+}
+
+function mappedValue(map, value, prefix) {
+  const stringValue = String(value || "").trim();
+  if (!stringValue) return "";
+  return map.get(stringValue) || `${prefix}-unmapped`;
+}
+
+function redactedLabel(key) {
+  const [prefix, suffix] = String(key).split("-");
+  return `${titleCase(prefix)} ${suffix || ""}`.trim();
+}
+
+function singularCollection(collection) {
+  return collection.endsWith("ies")
+    ? `${collection.slice(0, -3)}y`
+    : collection.replace(/s$/, "");
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function resetWorkspace() {
@@ -1884,6 +2155,7 @@ function bindEvents() {
   document.querySelector("#ingestFile").addEventListener("change", handleFileIngest);
   document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
   document.querySelector("#exportWorkspaceButton").addEventListener("click", exportWorkspace);
+  document.querySelector("#exportRedactedWorkspaceButton").addEventListener("click", () => exportWorkspace({ redacted: true }));
   document.querySelector("#resetWorkspaceButton").addEventListener("click", resetWorkspace);
 }
 
@@ -1930,7 +2202,7 @@ function buildEntries(scope) {
   const groups = new Map();
 
   jobs.forEach((job) => {
-    const key = scope === "job" ? job.id : job[scope];
+    const key = scope === "job" ? job.id : (job[scope] || "Unknown");
     const label = scope === "job" ? job.name : key;
 
     if (!groups.has(key)) {
@@ -3096,7 +3368,10 @@ function pluralTitle(scope) {
     model: "Models",
     user: "Users",
     team: "Teams",
-    cluster: "Clusters"
+    cluster: "Clusters",
+    tenant: "Tenants",
+    account: "Accounts",
+    reservation: "Reservations"
   };
   return titles[scope] || "Inventory";
 }
@@ -3107,7 +3382,10 @@ function scopeLabel(scope) {
     model: "Model",
     user: "User",
     team: "Team",
-    cluster: "Cluster"
+    cluster: "Cluster",
+    tenant: "Tenant",
+    account: "Account",
+    reservation: "Reservation"
   };
   return labels[scope] || "Scope";
 }
@@ -3115,7 +3393,11 @@ function scopeLabel(scope) {
 function inventoryMeta(summary) {
   if (summary.scope === "job") {
     const job = summary.jobs[0];
-    return `${job.team} | ${job.gpus} GPUs | ${job.status}`;
+    return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${job.status}`;
+  }
+
+  if (summary.scope === "tenant" || summary.scope === "account" || summary.scope === "reservation") {
+    return `${summary.count} jobs | ${number.format(summary.allocatedGpuHours)} GPU-hours | ${listLabel(summary.provider.billingModels, 1)}`;
   }
 
   return `${summary.count} jobs | ${number.format(summary.allocatedGpuHours)} GPU-hours | ${summary.clusters.join(", ")}`;

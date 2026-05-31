@@ -6,7 +6,7 @@ Open `index.html` in a browser. The app loads a seeded workspace into browser-lo
 
 ## Find The Loss
 
-1. Pick a scope from `Job`, `Model`, `User`, `Team`, or `Cluster`.
+1. Pick a scope from `Job`, `Model`, `User`, `Team`, `Cluster`, `Tenant`, `Account`, or `Reservation`.
 2. Select a row in the inventory.
 3. Read the diagnosis headline, efficiency score, and metric ribbon.
 4. Use the truth table to separate utilization, communication, input, placement, and resource-stranding symptoms.
@@ -25,7 +25,7 @@ Use the regression panel to compare current step time, NCCL time, GPU efficiency
 
 ## Track Trends
 
-The trend panel uses persisted analysis snapshots. A snapshot is captured when the workspace is seeded, reset, imported, restored, or manually analyzed. Use the trend metric selector to compare efficiency, wasted GPU-hours, NCCL time, or cost per useful GPU-hour.
+The trend panel uses persisted analysis snapshots. A snapshot is captured when the workspace is seeded, reset, imported, restored, or manually analyzed. Use the trend metric selector to compare efficiency, wasted GPU-hours, NCCL time, cost per useful GPU-hour, sellable waste, commit burn, queue SLO, or gross margin.
 
 ## Use The Neo-Cloud Provider Lens
 
@@ -44,6 +44,7 @@ For tenant escalations, start with `Job` scope and copy the outcome report into 
 - Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
 - Use export to download the current workspace, including baselines and trend snapshots.
+- Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, and source-context identifiers with deterministic surrogate IDs.
 - Use reset to return browser-local state to the sample feed.
 - Use `fixtures/neo-cloud-provider-bundle.json` to exercise tenant, reservation, SLO, and commercial overlays.
 

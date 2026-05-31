@@ -53,6 +53,9 @@
           <button type="button" data-scope="user" aria-selected="false">User</button>
           <button type="button" data-scope="team" aria-selected="false">Team</button>
           <button type="button" data-scope="cluster" aria-selected="false">Cluster</button>
+          <button type="button" data-scope="tenant" aria-selected="false">Tenant</button>
+          <button type="button" data-scope="account" aria-selected="false">Account</button>
+          <button type="button" data-scope="reservation" aria-selected="false">Reservation</button>
         </div>
         <div class="analysis-stamp">
           <span id="analysisState">Ready</span>
@@ -94,6 +97,13 @@
               <path d="M5 21h14"></path>
               <path d="M5 15v4"></path>
               <path d="M19 15v4"></path>
+            </svg>
+          </button>
+          <button id="exportRedactedWorkspaceButton" class="icon-button" type="button" title="Export redacted workspace" aria-label="Export redacted workspace">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 5 6v5c0 4.2 2.8 7.9 7 10 4.2-2.1 7-5.8 7-10V6l-7-3z"></path>
+              <path d="M9 12h6"></path>
+              <path d="M12 9v6"></path>
             </svg>
           </button>
           <button id="resetWorkspaceButton" class="icon-button" type="button" title="Reset workspace" aria-label="Reset workspace">
@@ -178,6 +188,10 @@
                     <button type="button" data-trend-metric="wastedGpuHours" aria-selected="false">Waste</button>
                     <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
                     <button type="button" data-trend-metric="costPerUsefulGpuHour" aria-selected="false">Cost</button>
+                    <button type="button" data-trend-metric="sellableWasteValue" aria-selected="false">Sellable</button>
+                    <button type="button" data-trend-metric="reservationBurnPct" aria-selected="false">Commit</button>
+                    <button type="button" data-trend-metric="queueSloPct" aria-selected="false">Queue</button>
+                    <button type="button" data-trend-metric="grossMarginPct" aria-selected="false">Margin</button>
                   </div>
                   <div class="trend-stats" aria-label="Trend summary">
                     <div>

@@ -79,3 +79,7 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 ## Example Fixture
 
 `fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, and source telemetry.
+
+`fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing Turba feed.
+
+For a pilot walkthrough, use `docs/neo-cloud-pilot-validation.md`.

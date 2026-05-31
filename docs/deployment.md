@@ -24,6 +24,8 @@ The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the 
 
 Enable Pages in repository settings with GitHub Actions as the source.
 
+If the Pages workflow fails at `Configure Pages`, the repository setting is not enabled yet. Enable Pages from GitHub repository settings, then rerun the latest `Deploy GitHub Pages` workflow.
+
 ## Local Static Server
 
 For a local server:

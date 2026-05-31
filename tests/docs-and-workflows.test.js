@@ -11,12 +11,15 @@ const readme = read("README.md");
   "docs/data-contract.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
+  "docs/provider-export-template.md",
+  "docs/neo-cloud-pilot-validation.md",
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
   "docs/demo-script.md",
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
+  "fixtures/provider-overlay-template.json",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
   "build/turba-analytics-desktop.png",
@@ -29,6 +32,8 @@ const readme = read("README.md");
   "docs/data-contract.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
+  "docs/provider-export-template.md",
+  "docs/neo-cloud-pilot-validation.md",
   "docs/telemetry-integration.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
@@ -70,11 +75,25 @@ const providerFit = read("docs/neo-cloud-provider-fit.md");
 assert.ok(providerFit.includes("Neo-Cloud Provider Fit"));
 assert.ok(providerFit.includes("Sellable waste value"));
 assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
+assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerFit.includes("CoreWeave"));
 assert.ok(providerFit.includes("Lambda"));
 
+const providerTemplate = read("docs/provider-export-template.md");
+assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
+assert.ok(providerTemplate.includes("Kubernetes Join Keys"));
+assert.ok(providerTemplate.includes("Slurm Join Keys"));
+assert.ok(providerTemplate.includes("redacted workspace export"));
+
+const pilotValidation = read("docs/neo-cloud-pilot-validation.md");
+assert.ok(pilotValidation.includes("Tenant"));
+assert.ok(pilotValidation.includes("Reservation"));
+assert.ok(pilotValidation.includes("redacted workspace"));
+assert.ok(pilotValidation.includes("GitHub Pages"));
+
 const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
+assert.ok(demoScript.includes("redacted workspace"));
 assert.ok(demoScript.includes("Do Not Claim"));
 
 console.log("docs and workflows tests passed");

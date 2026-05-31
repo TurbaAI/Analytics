@@ -10,6 +10,7 @@ const workspaceSchema = readJson("schemas/turba-workspace.v2.schema.json");
 const workspaceFixture = readJson("fixtures/workspace-export.json");
 const sourceFixture = readJson("fixtures/external-source-bundle.json");
 const providerFixture = readJson("fixtures/neo-cloud-provider-bundle.json");
+const providerTemplate = readJson("fixtures/provider-overlay-template.json");
 
 assert.equal(ingestionSchema.properties.schemaVersion.const, "turba.ingestion.v1");
 assert.equal(workspaceSchema.properties.storageSchemaVersion.const, "turba.workspace.v2");
@@ -34,5 +35,7 @@ assert.ok(ingestionSchema.properties.runs.items.properties.commercial);
 assert.ok(ingestionSchema.properties.runs.items.properties.slo);
 assert.equal(providerFixture.ingestion.schemaVersion, ingestionSchema.properties.schemaVersion.const);
 assert.ok(Array.isArray(providerFixture.sources.provider));
+assert.ok(Array.isArray(providerTemplate.sources.provider));
+assert.equal(providerTemplate.sources.provider[0].runId, "replace-with-run-id");
 
 console.log("schema tests passed");

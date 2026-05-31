@@ -51,7 +51,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template.
 
 ### Workspace Export
 
@@ -70,6 +70,8 @@ Use this shape for browser-to-browser handoff or backup/restore.
 ```
 
 `fixtures/workspace-export.json` is the canonical workspace-export fixture.
+
+The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, billing account, and provider export identifiers with deterministic surrogate IDs.
 
 ## Run Sections
 

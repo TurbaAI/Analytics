@@ -646,17 +646,19 @@ input[type="url"] {
 
 .trend-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, max-content) minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
   gap: 16px;
   align-items: center;
 }
 
 .trend-metrics {
   min-height: 38px;
+  overflow-x: auto;
+  width: 100%;
 }
 
 .trend-metrics button {
-  min-width: 86px;
+  min-width: 82px;
 }
 
 .trend-stats {

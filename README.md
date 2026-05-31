@@ -31,18 +31,22 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Workspace export, restore, and sample reset controls for browser-local state
 - Neo-cloud provider lens for tenant, account, reservation, billing model, SLO, sellable waste, commit burn, and gross-margin context
 - Provider source overlays through `sources.provider` for commercial and support metadata without requiring live billing credentials
+- First-class tenant, account, and reservation scopes for provider operations
+- Redacted workspace export for tenant-safe support, QBR, and capacity-planning handoff
 
 ## Data contract
 
 `app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
 
-External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example.
+External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example; `fixtures/provider-overlay-template.json` is a provider export template.
 
 ## Operator docs
 
 - [Data contract](docs/data-contract.md)
 - [Operator walkthrough](docs/operator-walkthrough.md)
 - [Neo-cloud provider fit](docs/neo-cloud-provider-fit.md)
+- [Provider export template](docs/provider-export-template.md)
+- [Neo-cloud pilot validation](docs/neo-cloud-pilot-validation.md)
 - [Telemetry integration](docs/telemetry-integration.md)
 - [Visual QA checklist](docs/visual-qa.md)
 - [Deployment](docs/deployment.md)

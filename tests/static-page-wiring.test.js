@@ -45,6 +45,7 @@ selectorMatches.forEach((selector) => {
   "apiInput",
   "fetchApiButton",
   "exportWorkspaceButton",
+  "exportRedactedWorkspaceButton",
   "resetWorkspaceButton",
   "copyReport",
   "providerBadge",
@@ -57,13 +58,16 @@ selectorMatches.forEach((selector) => {
   assert.ok(idSet.has(id), `${id} should exist in index.html`);
 });
 
-assert.equal((html.match(/data-scope="/g) || []).length, 5);
-assert.equal((html.match(/data-trend-metric="/g) || []).length, 4);
+assert.equal((html.match(/data-scope="/g) || []).length, 8);
+assert.equal((html.match(/data-trend-metric="/g) || []).length, 8);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
 assert.ok(app.includes("renderProviderLens"));
 assert.ok(app.includes("summarizeProviderEconomics"));
 assert.ok(app.includes("importProviderSamples"));
+assert.ok(app.includes("redactWorkspaceStore"));
+assert.ok(app.includes("exportWorkspace({ redacted: true })"));
+assert.ok(app.includes('"tenant", "account", "reservation"'));
 
 console.log("static page wiring tests passed");
