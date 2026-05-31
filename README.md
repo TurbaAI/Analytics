@@ -1,5 +1,7 @@
 # Turba Analytics
 
+<img width="1672" height="941" alt="563c2b1f-be98-4d96-a8e4-96865748791b" src="https://github.com/user-attachments/assets/621b5f25-70bd-4356-adae-462581c1346a" />
+
 Focused MVP for answering where AI infrastructure performance and money are being lost, and why.
 
 Open `index.html` in a browser. The current build is a static prototype with synthetic job data and no backend dependency.
