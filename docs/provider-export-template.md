@@ -2,6 +2,14 @@
 
 Use `fixtures/provider-overlay-template.json` as the starting shape for a neo-cloud provider overlay. Import it after a normalized `turba.ingestion.v1` feed, or wrap both in one source bundle.
 
+For a runnable example, use `scripts/build-provider-overlay.js` with the sample inputs in `fixtures/provider-export-inputs/`:
+
+```sh
+node scripts/build-provider-overlay.js fixtures/provider-export-inputs > provider-overlay.json
+```
+
+The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard.
+
 ## Source Mapping
 
 Map commercial, scheduler, and support systems into `sources.provider`:
@@ -40,3 +48,7 @@ Recommended fields or derived values:
 ## Redaction
 
 Prefer surrogate IDs before import when sharing outside the provider operator group. The app also includes a redacted workspace export that rewrites run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, and provider source-context identifiers while preserving numeric metrics.
+
+## Validation
+
+Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.

@@ -2,7 +2,7 @@
 
 Turba Analytics accepts JSON imports through the dashboard import control, API fetch control, or workspace restore flow. The app is static, so every import is handled in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
 
-Machine-readable schema references live in `schemas/turba-ingestion.v1.schema.json` and `schemas/turba-workspace.v2.schema.json`.
+Machine-readable schema references live in `schemas/turba-ingestion.v1.schema.json`, `schemas/turba-source-bundle.v1.schema.json`, and `schemas/turba-workspace.v2.schema.json`.
 
 ## Supported Payloads
 
@@ -51,7 +51,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
 
 ### Workspace Export
 
@@ -137,6 +137,8 @@ Neo-cloud operators can import tenant and commercial metadata directly on each r
 ```
 
 Provider fields are optional. If `commercial.floorGpuHourCost` is omitted, the app still reports sellable waste value and hides gross-margin math. If `refs.reservation` is present, committed reservation totals are deduplicated across grouped views.
+
+`scripts/build-provider-overlay.js` is a dependency-free exporter example that joins `fixtures/provider-export-inputs/` by `runId` and emits a valid `sources.provider` overlay.
 
 ## Validation Behavior
 

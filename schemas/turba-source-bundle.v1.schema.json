@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-source-bundle.v1.schema.json",
+  "title": "Turba source metric bundle",
+  "type": "object",
+  "anyOf": [
+    { "required": ["ingestion"] },
+    { "required": ["sources"] },
+    { "required": ["sourceExports"] },
+    { "required": ["runs"] },
+    { "required": ["ncclTraces"] },
+    { "required": ["traces"] },
+    { "required": ["nccl"] }
+  ],
+  "properties": {
+    "ingestion": {
+      "$ref": "./turba-ingestion.v1.schema.json"
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "sources": {
+      "$ref": "#/$defs/sourceExports"
+    },
+    "sourceExports": {
+      "$ref": "#/$defs/sourceExports"
+    },
+    "ncclTraces": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    },
+    "traces": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    },
+    "nccl": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "sourceExports": {
+      "type": "object",
+      "properties": {
+        "prometheus": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metricSample" }
+        },
+        "dcgm": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metricSample" }
+        },
+        "kubernetes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/kubernetesSample" }
+        },
+        "provider": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/providerSample" }
+        },
+        "ncclTraces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        },
+        "traces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        },
+        "nccl": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        }
+      },
+      "additionalProperties": {
+        "type": "array"
+      }
+    },
+    "metricSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "kubernetesSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "namespace": { "type": "string" },
+        "podSelector": { "type": "string" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "traceSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "rankCount": { "type": "number", "minimum": 0 },
+        "events": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "providerSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "tenant": { "type": "string" },
+        "account": { "type": "string" },
+        "reservation": { "type": "string" },
+        "providerExportId": { "type": "string" },
+        "billingAccountId": { "type": "string" },
+        "reservationWindow": { "type": "string" },
+        "sourceContext": {
+          "type": "object",
+          "properties": {
+            "namespace": { "type": "string" },
+            "podSelector": { "type": "string" },
+            "slurmJobId": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "commercial": {
+          "$ref": "#/$defs/commercial"
+        },
+        "slo": {
+          "$ref": "#/$defs/slo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "commercial": {
+      "type": "object",
+      "properties": {
+        "billingModel": { "type": "string" },
+        "customerTier": { "type": "string" },
+        "contractId": { "type": "string" },
+        "listGpuHourRate": { "type": "number", "minimum": 0 },
+        "floorGpuHourCost": { "type": "number", "minimum": 0 },
+        "committedGpuHours": { "type": "number", "minimum": 0 },
+        "burstGpuHours": { "type": "number", "minimum": 0 },
+        "billableGpuHours": { "type": "number", "minimum": 0 },
+        "sellableGpuHours": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "slo": {
+      "type": "object",
+      "properties": {
+        "priority": { "type": "string" },
+        "targetStartMinutes": { "type": "number", "minimum": 0 },
+        "targetEfficiency": { "type": "number", "minimum": 0, "maximum": 100 },
+        "supportTicketId": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

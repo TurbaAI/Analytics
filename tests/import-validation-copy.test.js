@@ -12,6 +12,8 @@ const app = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
   "The runs field must be an array.",
   "Ingestion feed has no runs.",
   "Run ${index + 1} is missing id.",
+  "${prefix}[${index + 1}] must be an object.",
+  "${prefix}[${index + 1}] is missing runId.",
   "File is not valid JSON.",
   "API did not return valid JSON.",
   "API URL is not valid."
@@ -25,6 +27,8 @@ assert.ok(app.includes("allowCurrentFeed ? activeIngestion : null"));
   "validateImportPayloadRoot",
   "validateIngestionFeed",
   "validateSourceArrays",
+  "validateSourceSamples",
+  "validateRunIdSamples",
   "parseImportJson",
   "parseImportUrl",
   "importErrorMessage"

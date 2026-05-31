@@ -52,6 +52,8 @@ selectorMatches.forEach((selector) => {
   "providerContext",
   "providerStats",
   "providerActions",
+  "providerSummaryBadge",
+  "providerSummaryTables",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -64,6 +66,7 @@ assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
 assert.ok(app.includes("renderProviderLens"));
+assert.ok(app.includes("renderProviderSummaryTables"));
 assert.ok(app.includes("summarizeProviderEconomics"));
 assert.ok(app.includes("importProviderSamples"));
 assert.ok(app.includes("redactWorkspaceStore"));

@@ -8,6 +8,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 2. Confirm the status chips show the sample feed and local storage state.
 3. Keep `fixtures/external-source-bundle.json` ready for import.
 4. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
+5. Keep a generated provider overlay from `node scripts/build-provider-overlay.js fixtures/provider-export-inputs` ready if the audience wants exporter mechanics.
 
 ## Flow
 
@@ -21,12 +22,13 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 8. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
 9. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
 10. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
-11. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
-12. Import `fixtures/external-source-bundle.json`.
-13. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
-14. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-15. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-16. Copy the customer report as the final operator summary.
+11. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
+12. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
+13. Import `fixtures/external-source-bundle.json`.
+14. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
+15. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+16. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+17. Copy the customer report as the final operator summary.
 
 ## Close
 

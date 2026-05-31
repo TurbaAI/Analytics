@@ -12,9 +12,11 @@ const checks = [
   { label: "NCCL trace parser", args: ["tests/nccl-trace-parser.test.js"] },
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },
   { label: "neo-cloud provider fixture", args: ["tests/neo-cloud-provider-fixture.test.js"] },
+  { label: "provider exporter", args: ["tests/provider-exporter.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },
   { label: "schemas", args: ["tests/schemas.test.js"] },
+  { label: "source bundle validation", args: ["tests/source-bundle-validation.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },
   { label: "static page wiring", args: ["tests/static-page-wiring.test.js"] },
   { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] }

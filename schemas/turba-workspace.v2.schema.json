@@ -42,7 +42,7 @@
           "capturedAt": { "type": "string", "format": "date-time" },
           "source": { "type": "string" },
           "scope": {
-            "enum": ["job", "model", "user", "team", "cluster"]
+            "enum": ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"]
           },
           "key": { "type": "string", "minLength": 1 },
           "label": { "type": "string" },

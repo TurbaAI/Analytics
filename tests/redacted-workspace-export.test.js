@@ -68,6 +68,7 @@ const store = {
         sourceContext: {
           namespace: "secret-namespace",
           podSelector: "job-name=secret",
+          slurmJobId: "secret-slurm",
           providerExportId: "secret-export",
           billingAccountId: "secret-billing",
           reservationWindow: "secret-window"
@@ -121,6 +122,7 @@ const serialized = JSON.stringify(redacted);
   "secret-contract",
   "secret-ticket",
   "secret-namespace",
+  "secret-slurm",
   "secret-billing",
   "secret-export"
 ].forEach((secret) => {

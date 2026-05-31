@@ -1,0 +1,18 @@
+[
+  {
+    "job_id": "provider-run-9001",
+    "account": "acct-apex-frontier",
+    "reservation": "rsv-h100-frontier-q2",
+    "qos": "p1",
+    "elapsedGpuHours": 1184,
+    "targetStartMinutes": 20
+  },
+  {
+    "job_id": "provider-run-9002",
+    "account": "acct-helix-platform",
+    "reservation": "rsv-a100-batch-q2",
+    "qos": "p2",
+    "elapsedGpuHours": 612,
+    "targetStartMinutes": 45
+  }
+]

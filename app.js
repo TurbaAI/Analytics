@@ -1372,6 +1372,7 @@ function importProviderSamples(samples = []) {
       commercial: { ...(sample.commercial || {}) },
       slo: { ...(sample.slo || {}) },
       sourceContext: compactObject({
+        ...(sample.sourceContext || {}),
         providerExportId: sample.providerExportId,
         billingAccountId: sample.billingAccountId,
         reservationWindow: sample.reservationWindow
@@ -1624,6 +1625,7 @@ async function ingestJsonPayload(payload, sourceLabel) {
 
 function buildIngestionFromExternalPayload(payload) {
   validateSourceArrays(payload);
+  validateSourceSamples(payload);
   const sources = extractSourceExports(payload);
   const ncclTraces = extractNcclTraces(payload);
   const feed = extractIngestionFeed(payload, hasSourceExports(sources) || ncclTraces.length > 0);
@@ -1717,6 +1719,39 @@ function validateSourceArrays(payload) {
         throw new Error(`${prefix} must be an array.`);
       }
     });
+  });
+}
+
+function validateSourceSamples(payload) {
+  const roots = [
+    { label: "sources", value: payload.sources },
+    { label: "sourceExports", value: payload.sourceExports },
+    { label: "root", value: payload }
+  ].filter((root) => isPlainObject(root.value));
+
+  roots.forEach((root) => {
+    ["prometheus", "dcgm", "kubernetes", "provider"].forEach((key) => {
+      validateRunIdSamples(root, key);
+    });
+
+    ["ncclTraces", "traces", "nccl"].forEach((key) => {
+      validateRunIdSamples(root, key);
+    });
+  });
+}
+
+function validateRunIdSamples(root, key) {
+  const samples = root.value[key];
+  if (!Array.isArray(samples)) return;
+
+  const prefix = root.label === "root" ? key : `${root.label}.${key}`;
+  samples.forEach((sample, index) => {
+    if (!isPlainObject(sample)) {
+      throw new Error(`${prefix}[${index + 1}] must be an object.`);
+    }
+    if (!sample.runId) {
+      throw new Error(`${prefix}[${index + 1}] is missing runId.`);
+    }
   });
 }
 
@@ -1902,6 +1937,7 @@ function buildRedactionPlan(store) {
     tickets: buildValueMap(runs.map((run) => run.slo?.supportTicketId), "ticket"),
     namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
     podSelectors: buildValueMap(runs.map((run) => run.sourceContext?.podSelector), "pod-selector"),
+    slurmJobIds: buildValueMap(runs.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
     providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
     billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
     reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window")
@@ -1991,6 +2027,7 @@ function redactSourceContext(context, plan) {
     ...context,
     namespace: mappedValue(plan.namespaces, context.namespace, "namespace"),
     podSelector: mappedValue(plan.podSelectors, context.podSelector, "pod-selector"),
+    slurmJobId: mappedValue(plan.slurmJobIds, context.slurmJobId, "slurm-job"),
     providerExportId: mappedValue(plan.providerExports, context.providerExportId, "provider-export"),
     billingAccountId: mappedValue(plan.billingAccounts, context.billingAccountId, "billing-account"),
     reservationWindow: mappedValue(plan.reservationWindows, context.reservationWindow, "reservation-window")
@@ -2183,6 +2220,7 @@ function render() {
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
   renderProviderLens(summary, provider, classifier);
+  renderProviderSummaryTables();
   renderComponents(components);
   renderTopology(summary);
   renderFingerprint(fingerprint);
@@ -2786,6 +2824,139 @@ function providerAction(text) {
   item.className = "provider-action";
   item.textContent = text;
   return item;
+}
+
+function renderProviderSummaryTables() {
+  const container = document.querySelector("#providerSummaryTables");
+  const badge = document.querySelector("#providerSummaryBadge");
+  if (!container || !badge) return;
+
+  const rows = providerPortfolioRows();
+  const queueMisses = rows
+    .filter((row) => row.queueSloPct > 100)
+    .sort((a, b) => b.queueSloPct - a.queueSloPct)
+    .slice(0, 4);
+  const marginRows = rows
+    .filter((row) => row.hasFloorCost)
+    .sort((a, b) => a.grossMarginPct - b.grossMarginPct)
+    .slice(0, 4);
+  const noiseRows = rows
+    .filter((row) => row.noiseEvents > 0 || row.contentionPct > 0)
+    .sort((a, b) => (b.noiseEvents * 100 + b.contentionPct) - (a.noiseEvents * 100 + a.contentionPct))
+    .slice(0, 4);
+
+  badge.textContent = `${rows.length} ${rows.length === 1 ? "group" : "groups"}`;
+  container.replaceChildren(
+    providerSummaryTable({
+      title: "Top sellable waste",
+      rows: [...rows].sort((a, b) => b.sellableWasteValue - a.sellableWasteValue).slice(0, 4),
+      empty: "No sellable waste",
+      value: (row) => currency.format(row.sellableWasteValue),
+      note: (row) => `${number.format(row.wastedGpuHours)} wasted GPU-hours`
+    }),
+    providerSummaryTable({
+      title: "Queue SLO misses",
+      rows: queueMisses,
+      empty: "No queue misses",
+      value: (row) => pct(row.queueSloPct),
+      note: (row) => `${round(row.queueSloGapMinutes)} minutes over target`
+    }),
+    providerSummaryTable({
+      title: "Margin pressure",
+      rows: marginRows,
+      empty: "No floor cost metadata",
+      value: (row) => pct(row.grossMarginPct),
+      note: (row) => `${currency.format(row.grossMargin)} after floor cost`
+    }),
+    providerSummaryTable({
+      title: "Noisy neighbor",
+      rows: noiseRows,
+      empty: "No contention events",
+      value: (row) => `${number.format(row.noiseEvents)}`,
+      note: (row) => `${pct(row.contentionPct)} contention`
+    })
+  );
+}
+
+function providerPortfolioRows() {
+  return ["tenant", "account", "reservation"].flatMap((scope) => (
+    buildEntries(scope).map((entry) => {
+      const summary = summarizeEntry(entry);
+      const provider = providerEconomics(summary);
+      const classifier = classifyBottlenecks(summary);
+
+      return {
+        key: entry.key,
+        label: entry.label,
+        scope,
+        jobCount: summary.count,
+        bottleneck: classifier.primary.short,
+        allocatedGpuHours: summary.allocatedGpuHours,
+        wastedGpuHours: summary.wastedGpuHours,
+        noiseEvents: summary.noiseEvents,
+        contentionPct: summary.contentionPct,
+        sellableWasteValue: provider.sellableWasteValue,
+        queueSloPct: provider.queueSloPct,
+        queueSloGapMinutes: provider.queueSloGapMinutes,
+        grossMarginPct: provider.grossMarginPct,
+        grossMargin: provider.grossMargin,
+        hasFloorCost: provider.hasFloorCost
+      };
+    })
+  ));
+}
+
+function providerSummaryTable({ title, rows, empty, value, note }) {
+  const table = document.createElement("section");
+  table.className = "provider-summary-table";
+
+  const heading = document.createElement("h3");
+  heading.textContent = title;
+
+  const list = document.createElement("div");
+  list.className = "provider-summary-list";
+
+  if (rows.length === 0) {
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "provider-summary-empty";
+    emptyEl.textContent = empty;
+    list.append(emptyEl);
+  } else {
+    rows.forEach((row) => {
+      list.append(providerSummaryRow(row, value(row), note(row)));
+    });
+  }
+
+  table.append(heading, list);
+  return table;
+}
+
+function providerSummaryRow(row, value, note) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "provider-summary-row";
+  button.setAttribute("aria-selected", String(row.scope === state.scope && row.key === state.selectedKey));
+  button.addEventListener("click", () => {
+    state.scope = row.scope;
+    state.selectedKey = row.key;
+    render();
+  });
+
+  const copy = document.createElement("div");
+  copy.className = "provider-summary-copy";
+  const label = document.createElement("strong");
+  const meta = document.createElement("span");
+  const metric = document.createElement("strong");
+
+  metric.className = "summary-value";
+  label.textContent = row.label;
+  meta.textContent = `${scopeLabel(row.scope)} | ${row.jobCount} ${row.jobCount === 1 ? "job" : "jobs"} | ${row.bottleneck} | ${note}`;
+  metric.textContent = value;
+
+  copy.append(label, meta);
+  button.append(copy, metric);
+
+  return button;
 }
 
 function providerActionsFor(summary, provider, classifier, sloData) {

@@ -74,6 +74,14 @@ Neo-cloud provider billing, reservation, and support context should use `sources
 
 Use `fixtures/provider-overlay-template.json` as the minimal export template.
 
+Use `scripts/build-provider-overlay.js` as a concrete exporter example:
+
+```sh
+node scripts/build-provider-overlay.js fixtures/provider-export-inputs > provider-overlay.json
+```
+
+Validate the result against `schemas/turba-source-bundle.v1.schema.json` before sharing it with a pilot team.
+
 Expected fields:
 
 - `runId`

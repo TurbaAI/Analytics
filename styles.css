@@ -612,6 +612,10 @@ input[type="url"] {
   grid-column: span 7;
 }
 
+.provider-summary-panel {
+  grid-column: span 12;
+}
+
 .efficiency-panel {
   grid-column: span 5;
 }
@@ -1059,6 +1063,96 @@ input[type="url"] {
   overflow-wrap: anywhere;
 }
 
+.provider-summary-tables {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+
+.provider-summary-table {
+  min-width: 0;
+  background: var(--surface);
+}
+
+.provider-summary-table h3 {
+  margin: 0;
+  padding: 13px 14px 11px;
+  border-bottom: 1px solid var(--line);
+  color: #33414a;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.provider-summary-list {
+  display: grid;
+}
+
+.provider-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  color: #2f3c44;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.provider-summary-row:last-child {
+  border-bottom: 0;
+}
+
+.provider-summary-row:hover,
+.provider-summary-row[aria-selected="true"] {
+  background: #f4f8f7;
+}
+
+.provider-summary-row strong,
+.provider-summary-row span {
+  display: block;
+}
+
+.provider-summary-copy {
+  min-width: 0;
+}
+
+.provider-summary-row strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.18;
+}
+
+.provider-summary-row span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.provider-summary-row .summary-value {
+  min-width: 72px;
+  color: #223039;
+  font-size: 1rem;
+  text-align: right;
+}
+
+.provider-summary-empty {
+  min-height: 76px;
+  padding: 16px 14px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .topology-frame {
   padding: 12px;
 }
@@ -1247,6 +1341,7 @@ input[type="url"] {
   .truth-panel,
   .bottleneck-panel,
   .provider-panel,
+  .provider-summary-panel,
   .efficiency-panel,
   .topology-panel,
   .workload-panel,
@@ -1322,6 +1417,7 @@ input[type="url"] {
   .metric-ribbon,
   .bottleneck-summary,
   .trace-summary,
+  .provider-summary-tables,
   .trend-stats,
   .trend-list {
     grid-template-columns: 1fr;
