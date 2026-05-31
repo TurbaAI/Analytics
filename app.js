@@ -1406,9 +1406,9 @@ async function ingestJsonPayload(payload, sourceLabel) {
 
 function buildIngestionFromExternalPayload(payload) {
   validateSourceArrays(payload);
-  const feed = extractIngestionFeed(payload);
   const sources = extractSourceExports(payload);
   const ncclTraces = extractNcclTraces(payload);
+  const feed = extractIngestionFeed(payload, hasSourceExports(sources) || ncclTraces.length > 0);
 
   if (!isIngestionFeed(feed)) {
     throw new Error("Expected a turba.ingestion.v1 feed or source bundle.");
@@ -1423,7 +1423,7 @@ function buildIngestionFromExternalPayload(payload) {
   return applySourceImports(feed, sources, ncclTraces);
 }
 
-function extractIngestionFeed(payload) {
+function extractIngestionFeed(payload, allowCurrentFeed = false) {
   if (isIngestionFeed(payload)) return payload;
   if (isIngestionFeed(payload?.ingestion)) return payload.ingestion;
   if (Array.isArray(payload?.runs)) {
@@ -1434,7 +1434,7 @@ function extractIngestionFeed(payload) {
     };
   }
 
-  return activeIngestion;
+  return allowCurrentFeed ? activeIngestion : null;
 }
 
 function validateImportPayloadRoot(payload) {

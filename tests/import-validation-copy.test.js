@@ -19,6 +19,8 @@ const app = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
   assert.ok(app.includes(message), `Expected validation copy: ${message}`);
 });
 
+assert.ok(app.includes("allowCurrentFeed ? activeIngestion : null"));
+
 [
   "validateImportPayloadRoot",
   "validateIngestionFeed",
