@@ -2577,18 +2577,23 @@ function startMachineDemoRefresh() {
 
 function shouldOfferMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
-  return params.get("demo") === "machine" || isNucMachineDemoHost();
+  return params.get("demo") === "machine" || isKnownMachineDemoHost();
 }
 
 function shouldAutoLoadMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("demo") === "sample") return false;
   if (params.get("demo") === "machine" || params.get("source") === "machine") return true;
-  return isNucMachineDemoHost();
+  return isKnownMachineDemoHost();
 }
 
-function isNucMachineDemoHost() {
-  return ["192.168.10.101", "nuc14e"].includes(window.location.hostname.toLowerCase());
+function isKnownMachineDemoHost() {
+  return [
+    "192.168.10.101",
+    "nuc14e",
+    "100.96.89.98",
+    "dgx-pat"
+  ].includes(window.location.hostname.toLowerCase());
 }
 
 function machineDemoBundleUrl() {
