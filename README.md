@@ -285,6 +285,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - [Operations](docs/operations.md)
 - [Visual QA checklist](docs/visual-qa.md)
 - [Deployment](docs/deployment.md)
+- [Demo logistics](docs/demo-logistics.md)
 - [Demo script](docs/demo-script.md)
 - [Demo release checklist](docs/demo-release-checklist.md)
 - [Ingestion JSON Schema](schemas/turba-ingestion.v1.schema.json)
@@ -304,6 +305,7 @@ Focused test entry points:
 - `tests/analytics-core.test.js`: core efficiency, bottleneck, what-if, fingerprint, regression, trend, provider economics, scheduler simulation, and opportunity calculations
 - `tests/provider-image.test.js`: provider ingestion Dockerfile and build/publish dry-run
 - `tests/provider-config-generator.test.js`: provider pilot config generator and strict readiness handoff
+- `tests/prepare-demo.test.js`: demo artifact generator, source validation, readiness report, and hardware/scheduler notes
 - `tests/provider-readiness.test.js`: provider config/source-contract readiness gate
 - `tests/provider-go-live-gates.test.js`: end-to-end dry-run go-live orchestration and evidence artifacts
 - `tests/sandbox-go-live.test.js`: strict sandbox source gateway and go-live runner dry-run checks
@@ -339,6 +341,7 @@ Focused test entry points:
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
+- `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
 - `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
 - `scripts/run-sandbox-go-live.js`: starts a disposable local registry, mock source gateway, ingestion container, and strict zero-warning sandbox go-live gate
@@ -363,6 +366,14 @@ Pilot configs:
 - `ops/pilot-provider.sandbox.json`, `ops/source-contracts.sandbox.json`, and `ops/source-approvals.sandbox.json` are strict local/SSH sandbox configs. They target a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness gates can run without placeholder warnings.
 
 Use `git diff --check` before committing to catch whitespace issues.
+
+Demo prep:
+
+```sh
+node scripts/prepare-demo.js --out-dir build/demo
+```
+
+This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
 ## Deployment
 

@@ -4,15 +4,15 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 ## Setup
 
-1. Open the deployed Pages URL or local `index.html`.
-2. Confirm the status chips show the sample feed and local storage state.
-3. Keep `fixtures/external-source-bundle.json` ready for import.
-4. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
-5. Keep a generated provider overlay from `node scripts/build-provider-overlay.js fixtures/provider-export-inputs` ready if the audience wants exporter mechanics.
-6. Keep a generated scheduler overlay from `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs` ready if the audience wants scheduler-event evidence mechanics.
-7. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
-8. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
-9. Keep a generated all-lanes provider pilot bundle from `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` ready if the audience wants the full exporter flow.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo`.
+2. Open the deployed Pages URL or local `index.html`.
+3. Confirm the status chips show the sample feed and local storage state.
+4. Keep `fixtures/external-source-bundle.json` ready for import.
+5. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
+6. Keep generated overlays from `build/demo/provider-overlay.json`, `build/demo/scheduler-overlay.json`, and `build/demo/ebpf-overlay.json` ready if the audience wants exporter mechanics. The manual commands are `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`, `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`, and `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
+7. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
+8. Keep the generated all-lanes provider pilot bundle from `build/demo/provider-pilot-bundle.json` ready if the audience wants the full exporter flow. The manual command is `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
+9. Keep `build/demo/demo-readiness.md` ready for hardware, caveats, generated artifacts, and NVIDIA SM scheduler positioning.
 10. Keep the backend ingestion service ready if the audience wants signed upload, JWKS/JWT tenant mapping, tenant provisioning, token/key rotation, metrics, audit export, and retention mechanics.
 
 ## Flow
@@ -43,6 +43,10 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 ## Close
 
 Position the product as a browser-first operator review surface with an optional controlled ingestion service: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
+
+If asked about hardware, use `docs/demo-logistics.md`: a laptop or small VM is enough for the demo; one Linux NVIDIA GPU node is enough for integration smoke testing; two to four or more GPU nodes are better for realistic placement and topology behavior.
+
+If asked about rewriting NVIDIA's SM scheduler, be direct: turbalance should not claim to replace low-level SM scheduling. It should influence supported higher-level controls such as placement, batching, MPS/MIG policy, admission, topology, and workload configuration.
 
 ## Do Not Claim
 

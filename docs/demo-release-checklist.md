@@ -4,12 +4,13 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 
 ## Build Readiness
 
-1. Run `node tests/run-all.js`.
-2. Run `node scripts/validate-source-bundle.js --require-source-export`.
-3. Run `node scripts/run-screenshot-qa.js` in an environment with Playwright when screenshots must be verified.
-4. Confirm `.github/workflows/ci.yml` is green for the latest commit.
-5. Confirm GitHub Pages is enabled with GitHub Actions as the source.
-6. Rerun `.github/workflows/pages.yml` and confirm the deployment URL is live.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo`.
+2. Run `node tests/run-all.js`.
+3. Run `node scripts/validate-source-bundle.js --require-source-export`.
+4. Run `node scripts/run-screenshot-qa.js` in an environment with Playwright when screenshots must be verified.
+5. Confirm `.github/workflows/ci.yml` is green for the latest commit.
+6. Confirm GitHub Pages is enabled with GitHub Actions as the source.
+7. Rerun `.github/workflows/pages.yml` and confirm the deployment URL is live.
 
 ## Data Readiness
 
@@ -25,10 +26,11 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 10. Generate a scheduler overlay with `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`.
 11. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
 12. Generate a full provider pilot bundle with `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
-13. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json` with `node scripts/validate-source-bundle.js --require-source-export`.
-14. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
-15. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload, JWKS/JWT auth, tenant provisioning, token/key rotation, metrics, audit export, and retention smoke tests.
-16. If demoing managed retention, run `node scripts/run-retention-job.js --json` against the pilot data directory.
+13. Confirm `build/demo/provider-pilot-bundle.json`, `build/demo/source-bundle-validation.json`, `build/demo/provider-readiness.json`, and `build/demo/demo-readiness.md` exist from `scripts/prepare-demo.js`.
+14. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json` with `node scripts/validate-source-bundle.js --require-source-export`.
+15. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
+16. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload, JWKS/JWT auth, tenant provisioning, token/key rotation, metrics, audit export, and retention smoke tests.
+17. If demoing managed retention, run `node scripts/run-retention-job.js --json` against the pilot data directory.
 
 ## Visual Readiness
 
@@ -40,5 +42,6 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 ## Talk Track Readiness
 
 1. Follow `docs/demo-script.md`.
-2. Use `docs/neo-cloud-pilot-validation.md` for provider pilot acceptance criteria.
-3. Do not claim live cluster connectivity, live billing-system connectivity, current screenshots, or a live Pages URL unless each item has been verified for the latest commit.
+2. Use `docs/demo-logistics.md` for the hardware and NVIDIA SM scheduler answer.
+3. Use `docs/neo-cloud-pilot-validation.md` for provider pilot acceptance criteria.
+4. Do not claim live cluster connectivity, live billing-system connectivity, current screenshots, or a live Pages URL unless each item has been verified for the latest commit.

@@ -18,6 +18,7 @@ const readme = read("README.md");
   "docs/operations.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
+  "docs/demo-logistics.md",
   "docs/demo-script.md",
   "docs/demo-release-checklist.md",
   "assets/turbalance-mark.png",
@@ -54,6 +55,7 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
+  "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
   "scripts/run-sandbox-go-live.js",
@@ -98,6 +100,7 @@ const readme = read("README.md");
   "docs/operations.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
+  "docs/demo-logistics.md",
   "docs/demo-script.md",
   "docs/demo-release-checklist.md",
   "schemas/turba-ingestion.v1.schema.json",
@@ -109,6 +112,7 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
+  "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
   "scripts/run-sandbox-go-live.js",
@@ -136,6 +140,7 @@ const readme = read("README.md");
   "node tests/run-all.js",
   "tests/provider-image.test.js",
   "tests/provider-config-generator.test.js",
+  "tests/prepare-demo.test.js",
   "tests/provider-readiness.test.js",
   "tests/provider-go-live-gates.test.js",
   "tests/sandbox-go-live.test.js",
@@ -332,6 +337,9 @@ assert.ok(pilotValidation.includes("evidence pack"));
 assert.ok(pilotValidation.includes("GitHub Pages"));
 
 const demoScript = read("docs/demo-script.md");
+assert.ok(demoScript.includes("scripts/prepare-demo.js"));
+assert.ok(demoScript.includes("docs/demo-logistics.md"));
+assert.ok(demoScript.includes("SM scheduler"));
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
 assert.ok(demoScript.includes("build-ebpf-overlay.js"));
@@ -346,6 +354,8 @@ assert.ok(demoScript.includes("redacted workspace"));
 assert.ok(demoScript.includes("Do Not Claim"));
 
 const demoRelease = read("docs/demo-release-checklist.md");
+assert.ok(demoRelease.includes("scripts/prepare-demo.js"));
+assert.ok(demoRelease.includes("docs/demo-logistics.md"));
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
@@ -361,5 +371,13 @@ assert.ok(demoRelease.includes("Scheduler Simulator"));
 assert.ok(demoRelease.includes("evidence pack"));
 assert.ok(demoRelease.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(demoRelease.includes("build/turbalance-analytics-desktop.png"));
+
+const demoLogistics = read("docs/demo-logistics.md");
+assert.ok(demoLogistics.includes("Hardware Needed"));
+assert.ok(demoLogistics.includes("NVIDIA SM Scheduler Position"));
+assert.ok(demoLogistics.includes("scripts/prepare-demo.js"));
+assert.ok(demoLogistics.includes("fixtures/neo-cloud-provider-bundle.json"));
+assert.ok(demoLogistics.includes("MPS/MIG"));
+assert.ok(demoLogistics.includes("one Linux NVIDIA GPU node"));
 
 console.log("docs and workflows tests passed");

@@ -10,6 +10,7 @@ const checks = [
   { label: "syntax nccl-trace-fixtures.js", args: ["--check", "nccl-trace-fixtures.js"] },
   { label: "provider image", args: ["tests/provider-image.test.js"] },
   { label: "provider config generator", args: ["tests/provider-config-generator.test.js"] },
+  { label: "demo prep", args: ["tests/prepare-demo.test.js"] },
   { label: "provider readiness", args: ["tests/provider-readiness.test.js"] },
   { label: "provider go-live gates", args: ["tests/provider-go-live-gates.test.js"] },
   { label: "sandbox go-live", args: ["tests/sandbox-go-live.test.js"] },
