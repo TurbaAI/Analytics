@@ -11,6 +11,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 5. Keep a generated provider overlay from `node scripts/build-provider-overlay.js fixtures/provider-export-inputs` ready if the audience wants exporter mechanics.
 6. Keep a generated scheduler overlay from `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs` ready if the audience wants scheduler-event evidence mechanics.
 7. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
+8. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
 
 ## Flow
 
@@ -22,23 +23,24 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 6. Scroll to topology and connect cross-pod placement to NCCL trace attribution.
 7. Toggle `Same-pod what-if` and describe the estimated improvement range.
 8. Use `Capacity what-if` to compare recommended, repack, locality, and queue-SLO scheduler scenarios, including event evidence when available.
-9. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
-10. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
-11. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
-12. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
-13. Open the Opportunity Engine action center and show how FinOps, topology, scheduler, inference, eBPF, fleet, energy, and evidence-pack actions are ranked together.
-14. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data, including imported `sources.opportunities` rows.
-15. Import `fixtures/external-source-bundle.json`.
-16. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
-17. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
-18. Export the evidence pack to show a customer/provider Markdown handoff with scheduler what-if, ranked actions, and redacted source context.
-19. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-20. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-21. Copy the customer report as the final operator summary.
+9. Open the Grafana Handoff panel and show dashboard or Explore links when an overlay is attached.
+10. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
+11. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
+12. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
+13. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
+14. Open the Opportunity Engine action center and show how FinOps, topology, scheduler, inference, eBPF, fleet, energy, and evidence-pack actions are ranked together.
+15. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data, including imported `sources.grafana` and `sources.opportunities` rows.
+16. Import `fixtures/external-source-bundle.json`.
+17. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
+18. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
+19. Export the evidence pack to show a customer/provider Markdown handoff with scheduler what-if, Grafana handoff rows, ranked actions, and redacted source context.
+20. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+21. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+22. Copy the customer report as the final operator summary.
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
+Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
 
 ## Do Not Claim
 

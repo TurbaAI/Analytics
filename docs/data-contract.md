@@ -46,6 +46,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
     "dcgm": [],
     "kubernetes": [],
     "scheduler": [],
+    "grafana": [],
     "ebpf": [],
     "provider": [],
     "opportunities": []
@@ -54,7 +55,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `grafana/turbalance-provider-overview.json` is a ready-to-import Grafana dashboard template for provider pilots. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
 
 ### Workspace Export
 
@@ -74,9 +75,9 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 `fixtures/workspace-export.json` is the canonical workspace-export fixture.
 
-The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, scheduler queue/admission context, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
+The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, scheduler queue/admission context, Grafana dashboard/link context, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
 
-The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, scheduler/capacity what-if estimates, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
+The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, scheduler/capacity what-if estimates, Grafana handoff links, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
 
 ## Run Sections
 
@@ -98,6 +99,7 @@ Each run should include:
 - `baseline`: comparison values used by regression checks
 - `placement`: allocated node list and partial node list
 - `schedulerEvidence`: optional queue, admission, placement retry, locality, preemption, and backfill evidence
+- `grafanaContext`: optional dashboard, datasource, Explore, variable, and time-range handoff context
 - `commercial`: provider-side billing and commitment context
 - `slo`: queue, efficiency, priority, and support-ticket targets
 - `opportunities`: optional upstream ranked actions, if a source system already emits recommendations
@@ -171,6 +173,42 @@ The importer maps this into normalized scheduler metrics, preserves aggregate `s
 The Scheduler Simulator is computed locally from normalized allocation, scheduler, communication, provider, SLO, and optional scheduler-event fields. The dashboard compares repacking partial nodes, reserving locality groups, and protecting priority queue admission by projected GPU-hour recovery, dollar upside, queue minutes saved, useful compute, and placement fit.
 
 Simulator estimates are directional. Use source overlays and trace evidence to validate the selected action before changing scheduler policy.
+
+## Grafana Handoff Overlay
+
+Grafana links should use `sources.grafana` when an observability system can provide dashboard or Explore URLs by `runId`. The app does not call Grafana APIs directly; it preserves operator-provided links, dashboard metadata, datasource metadata, variables, and time range in a local `grafanaContext`.
+
+```json
+{
+  "sources": {
+    "grafana": [
+      {
+        "runId": "run-7421",
+        "grafanaBaseUrl": "https://grafana.provider.example",
+        "instanceName": "provider-observability-prod",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "datasourceUid": "prometheus-h100-prod",
+        "datasourceName": "Prometheus h100-prod-west",
+        "timeRange": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "run-7421",
+          "tenant": "apex-ai",
+          "reservation": "rsv-h100-frontier-q2"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1"
+      }
+    ]
+  }
+}
+```
+
+Evidence packs and redacted workspaces replace Grafana base URLs, dashboard IDs, datasource IDs, variable values, and full dashboard/Explore URLs with deterministic surrogate IDs.
 
 ## eBPF Host Overlay
 
@@ -280,6 +318,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

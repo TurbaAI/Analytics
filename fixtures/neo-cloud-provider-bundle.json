@@ -306,6 +306,80 @@
         ]
       }
     ],
+    "grafana": [
+      {
+        "runId": "provider-run-9001",
+        "grafanaBaseUrl": "https://grafana.provider.example",
+        "instanceName": "provider-observability-prod",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-h100-prod",
+        "datasourceName": "Prometheus h100-prod-west",
+        "timeRange": {
+          "from": "now-12h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "provider-run-9001",
+          "tenant": "apex-ai",
+          "reservation": "rsv-h100-frontier-q2",
+          "cluster": "h100-prod-west"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-run-9001&var-tenant=apex-ai&var-reservation=rsv-h100-frontier-q2&from=now-12h&to=now",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_nccl_time_ratio%7Brun_id%3D%5C%22provider-run-9001%5C%22%7D%22%7D%5D%7D",
+        "links": [
+          {
+            "label": "Apex provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-run-9001&var-tenant=apex-ai&var-reservation=rsv-h100-frontier-q2&from=now-12h&to=now"
+          },
+          {
+            "label": "Explore NCCL pressure",
+            "type": "explore",
+            "url": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_nccl_time_ratio%7Brun_id%3D%5C%22provider-run-9001%5C%22%7D%22%7D%5D%7D"
+          }
+        ]
+      },
+      {
+        "runId": "provider-svc-4102",
+        "grafanaBaseUrl": "https://grafana.provider.example",
+        "instanceName": "provider-observability-prod",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-h100-prod",
+        "datasourceName": "Prometheus h100-prod-east",
+        "timeRange": {
+          "from": "now-12h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "provider-svc-4102",
+          "tenant": "vectorcart",
+          "reservation": "rsv-inference-prod-q2",
+          "cluster": "h100-prod-east"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-svc-4102&var-tenant=vectorcart&var-reservation=rsv-inference-prod-q2&from=now-12h&to=now",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_latency_tail_ratio%7Brun_id%3D%5C%22provider-svc-4102%5C%22%7D%22%7D%5D%7D",
+        "links": [
+          {
+            "label": "VectorCart provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-svc-4102&var-tenant=vectorcart&var-reservation=rsv-inference-prod-q2&from=now-12h&to=now"
+          },
+          {
+            "label": "Explore tail latency",
+            "type": "explore",
+            "url": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_latency_tail_ratio%7Brun_id%3D%5C%22provider-svc-4102%5C%22%7D%22%7D%5D%7D"
+          }
+        ]
+      }
+    ],
     "ebpf": [
       {
         "runId": "provider-run-9001",

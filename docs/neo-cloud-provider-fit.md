@@ -43,6 +43,7 @@ The app converts those fields into:
 - Opportunity Engine actions: ranked FinOps, topology, scheduler, inference, eBPF, fleet, energy, and customer evidence-pack opportunities.
 - Scheduler Simulator scenarios: repack partial nodes, reserve locality groups, or protect queue-SLO admission windows with projected recovery and dollar upside.
 - Scheduler event overlays: queue, priority, admission, placement-retry, locality-miss, preemption, and backfill evidence through `sources.scheduler`.
+- Grafana handoff overlays: dashboard and Explore links through `sources.grafana` plus the importable `grafana/turbalance-provider-overview.json` dashboard template.
 - Renewal and support actions: concise operator actions tied to the tenant, reservation, bottleneck, and ticket context.
 
 An optional Linux eBPF overlay adds host-side evidence for provider pilots:
@@ -91,7 +92,7 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 1. Use the action center to rank opportunities by impact, risk, and confidence.
 2. Treat Opportunity Engine dollar values as prioritization estimates because categories can overlap.
 3. Compare the top scheduler-related action with the Scheduler Simulator scenario that best matches the same evidence.
-4. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
+4. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, Grafana dashboards for fast drill-down, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
 5. Export an evidence pack when the action needs a concise customer-success, support, or QBR handoff.
 6. Export a redacted workspace when the reviewer needs the full metric workspace and trend history.
 
@@ -108,5 +109,7 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 `scripts/build-scheduler-overlay.js` is the minimal scheduler-event exporter example for integrating queue, admission, placement retry, locality, preemption, and backfill evidence by `runId`.
 
 `scripts/build-ebpf-overlay.js` is the minimal eBPF host-summary exporter example for integrating Linux scheduling, network, storage, and noisy-neighbor evidence by `runId`.
+
+`grafana/turbalance-provider-overview.json` is the starter dashboard for provider pilots that want the turbalance handoff panel to point at a consistent Grafana view.
 
 For a pilot walkthrough, use `docs/neo-cloud-pilot-validation.md`.

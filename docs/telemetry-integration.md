@@ -38,6 +38,52 @@ Expected query classes:
 - queue wait minutes
 - training tokens, steps, or inference request counts
 
+## Grafana Handoff Overlay
+
+Grafana support is a handoff layer. Export `sources.grafana` records with the exact dashboard and Explore URLs that correspond to a normalized run, tenant, account, or reservation. The browser does not need Grafana credentials; it only renders operator-provided links and includes redacted link references in evidence packs.
+
+`grafana/turbalance-provider-overview.json` is a ready-to-import dashboard template that expects Prometheus-style `turba_*` metrics with `tenant`, `reservation`, and `run_id` labels.
+
+Expected fields:
+
+- `runId`
+- `grafanaBaseUrl`
+- `instanceName`
+- `orgId`
+- `dashboardUid`
+- `dashboardSlug`
+- `dashboardTitle`
+- `folder`
+- `datasourceUid`
+- `datasourceName`
+- `timeRange.from` and `timeRange.to`
+- `variables`
+- `dashboardUrl`
+- `exploreUrl`
+- `links`
+
+```json
+{
+  "sources": {
+    "grafana": [
+      {
+        "runId": "run-7421",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "datasourceUid": "prometheus-h100-prod",
+        "variables": {
+          "tenant": "apex-ai",
+          "reservation": "rsv-h100-frontier-q2",
+          "run": "run-7421"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1"
+      }
+    ]
+  }
+}
+```
+
 ## DCGM
 
 DCGM exports should use `sources.dcgm`.
@@ -291,10 +337,10 @@ The parser attributes collective time by operation and topology tier: same node,
 ## Production Intake Flow
 
 1. Export a normalized `turba.ingestion.v1` feed for run identity, allocation, baselines, work counters, and placement.
-2. Export source metric bundles for Prometheus, DCGM, Kubernetes, Linux eBPF summaries, opportunity overlays, and NCCL traces.
+2. Export source metric bundles for Prometheus, DCGM, Kubernetes, Grafana handoff links, Linux eBPF summaries, opportunity overlays, and NCCL traces.
 3. Export a provider overlay for tenant, reservation, commercial, and support/SLO metadata when the operator is a GPU cloud or neo-cloud provider.
 4. Import the feed first.
-5. Import source bundles to overlay source-measured metrics and provider metadata.
+5. Import source bundles to overlay source-measured metrics, Grafana handoff links, and provider metadata.
 6. Click Analyze after each import to capture trend snapshots.
 7. Export the resulting workspace for review, sharing, or archive.
 

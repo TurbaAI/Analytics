@@ -17,16 +17,19 @@ assert.equal(fixture.ingestion.entities.reservations["rsv-h100-frontier-q2"].lab
 assert.ok(Array.isArray(fixture.sources.provider));
 assert.ok(Array.isArray(fixture.sources.prometheus));
 assert.ok(Array.isArray(fixture.sources.scheduler));
+assert.ok(Array.isArray(fixture.sources.grafana));
 assert.ok(Array.isArray(fixture.sources.ebpf));
 assert.ok(Array.isArray(fixture.sources.opportunities));
 assert.equal(fixture.sources.provider.length, 2);
 assert.equal(fixture.sources.scheduler.length, 2);
+assert.equal(fixture.sources.grafana.length, 2);
 assert.equal(fixture.sources.ebpf.length, 2);
 assert.equal(fixture.sources.opportunities.length, 2);
 
 const providerRun = fixture.ingestion.runs.find((run) => run.id === "provider-run-9001");
 const providerOverlay = fixture.sources.provider.find((sample) => sample.runId === "provider-run-9001");
 const schedulerOverlay = fixture.sources.scheduler.find((sample) => sample.runId === "provider-run-9001");
+const grafanaOverlay = fixture.sources.grafana.find((sample) => sample.runId === "provider-run-9001");
 const ebpfOverlay = fixture.sources.ebpf.find((sample) => sample.runId === "provider-run-9001");
 const opportunityOverlay = fixture.sources.opportunities.find((sample) => sample.runId === "provider-run-9001");
 
@@ -39,6 +42,8 @@ assert.equal(providerOverlay.slo.supportTicketId, "CS-2044");
 assert.equal(schedulerOverlay.schedulerExportId, "sched-2026-05-week-4");
 assert.equal(schedulerOverlay.placementRetries, 8);
 assert.equal(schedulerOverlay.localityMisses, 4);
+assert.equal(grafanaOverlay.dashboardUid, "turbalance-provider-overview");
+assert.equal(grafanaOverlay.links[0].type, "dashboard");
 assert.equal(ebpfOverlay.ebpfExportId, "ebpf-2026-05-week-4");
 assert.equal(ebpfOverlay.network.tcpRetransmitPct, 3.2);
 assert.equal(ebpfOverlay.storage.blockIoLatencyMsP95, 7);

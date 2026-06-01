@@ -14,7 +14,7 @@ For scheduler-event evidence, use `scripts/build-scheduler-overlay.js` with the 
 node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs > scheduler-overlay.json
 ```
 
-The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
+The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, Grafana exports can add `sources.grafana` for dashboard handoff links, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
 
 ## Source Mapping
 
@@ -27,6 +27,7 @@ Map commercial, scheduler, and support systems into `sources.provider`:
 - SLO policy: `slo.targetStartMinutes`, `slo.targetEfficiency`
 - Tenant/account catalog: `tenant`, `account`, `reservation`
 - Scheduler/admission system: `sources.scheduler[].queueName`, `priorityClass`, `requestedGpuShape`, `queueWaitMinutes`, `placementRetries`, `localityMisses`, `preemptionCount`, and `events`
+- Grafana: `sources.grafana[].dashboardUrl`, `exploreUrl`, `dashboardUid`, `datasourceUid`, `variables`, and `timeRange`
 - Opportunity system: `sources.opportunities[].category`, `impactDollars`, `impactGpuHours`, `riskScore`, `confidence`, `evidence`, and `recommendation`
 
 ## Kubernetes Join Keys
@@ -55,10 +56,12 @@ Recommended fields or derived values:
 
 ## Redaction
 
-Prefer surrogate IDs before import when sharing outside the provider operator group. The app also includes a redacted workspace export that rewrites run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, scheduler queue/admission identifiers, provider source-context identifiers, and imported opportunity free text while preserving numeric metrics.
+Prefer surrogate IDs before import when sharing outside the provider operator group. The app also includes a redacted workspace export that rewrites run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, scheduler queue/admission identifiers, Grafana dashboard/link identifiers, provider source-context identifiers, and imported opportunity free text while preserving numeric metrics.
 
 ## Validation
 
-Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.provider`, `sources.opportunities`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.
+Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.provider`, `sources.opportunities`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.
+
+Use `grafana/turbalance-provider-overview.json` as a starter dashboard when the operator wants a consistent Grafana target for `sources.grafana` handoff links.
 
 For Linux host-side evidence, use `sources.ebpf` separately from the provider commercial overlay. `scripts/build-ebpf-overlay.js` emits a summary overlay for CPU scheduling, socket/network, storage, and noisy-neighbor evidence by `runId`; keep raw eBPF event streams outside the browser prototype.

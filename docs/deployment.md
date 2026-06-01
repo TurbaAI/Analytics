@@ -12,6 +12,7 @@ turbalance Analytics is a static prototype. It can be hosted from any static fil
 - `fixtures/`
 - `docs/`
 - `schemas/`
+- `grafana/`
 
 ## GitHub Pages
 

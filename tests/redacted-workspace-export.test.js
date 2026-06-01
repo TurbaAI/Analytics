@@ -74,6 +74,28 @@ const store = {
           localityPreference: "secret-locality",
           eventCount: 4
         },
+        grafanaContext: {
+          grafanaBaseUrl: "https://secret-grafana.example",
+          instanceName: "secret-grafana-instance",
+          orgId: "secret-org",
+          dashboardUid: "secret-dashboard-uid",
+          dashboardSlug: "secret-dashboard-slug",
+          dashboardTitle: "Secret Dashboard",
+          folder: "Secret Folder",
+          datasourceUid: "secret-datasource-uid",
+          datasourceName: "Secret Prometheus",
+          timeRange: { from: "now-6h", to: "now" },
+          variables: { run: "secret-run", tenant: "secret-tenant" },
+          dashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-dashboard-slug?var-run=secret-run",
+          exploreUrl: "https://secret-grafana.example/explore?left=secret-run",
+          links: [
+            {
+              label: "Secret dashboard link",
+              type: "dashboard",
+              url: "https://secret-grafana.example/d/secret-dashboard-uid/secret-dashboard-slug?var-run=secret-run"
+            }
+          ]
+        },
         opportunities: [
           {
             id: "secret-opportunity",
@@ -107,7 +129,18 @@ const store = {
           priorityClass: "secret-priority",
           admissionClass: "secret-admission",
           requestedGpuShape: "secret-shape",
-          localityPreference: "secret-locality"
+          localityPreference: "secret-locality",
+          grafanaBaseUrl: "https://secret-grafana.example",
+          grafanaInstance: "secret-grafana-instance",
+          grafanaOrgId: "secret-org",
+          grafanaDashboardUid: "secret-dashboard-uid",
+          grafanaDashboardSlug: "secret-dashboard-slug",
+          grafanaDashboardTitle: "Secret Dashboard",
+          grafanaFolder: "Secret Folder",
+          grafanaDatasourceUid: "secret-datasource-uid",
+          grafanaDatasourceName: "Secret Prometheus",
+          grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-dashboard-slug?var-run=secret-run",
+          grafanaExploreUrl: "https://secret-grafana.example/explore?left=secret-run"
         }
       }
     ]
@@ -178,7 +211,17 @@ const serialized = JSON.stringify(redacted);
   "secret-priority",
   "secret-admission",
   "secret-shape",
-  "secret-locality"
+  "secret-locality",
+  "https://secret-grafana.example",
+  "secret-grafana-instance",
+  "secret-org",
+  "secret-dashboard-uid",
+  "secret-dashboard-slug",
+  "Secret Dashboard",
+  "Secret Folder",
+  "secret-datasource-uid",
+  "Secret Prometheus",
+  "Secret dashboard link"
 ].forEach((secret) => {
   assert.ok(!serialized.includes(secret), `${secret} should be redacted`);
 });
@@ -190,7 +233,11 @@ assert.equal(redacted.ingestion.runs[0].commercial.contractId, "contract-1");
 assert.equal(redacted.ingestion.runs[0].slo.supportTicketId, "ticket-1");
 assert.equal(redacted.ingestion.runs[0].schedulerEvidence.schedulerName, "scheduler-1");
 assert.equal(redacted.ingestion.runs[0].schedulerEvidence.queueName, "queue-1");
+assert.equal(redacted.ingestion.runs[0].grafanaContext.dashboardUid, "grafana-dashboard-1");
+assert.equal(redacted.ingestion.runs[0].grafanaContext.datasourceUid, "grafana-datasource-1");
+assert.equal(redacted.ingestion.runs[0].grafanaContext.links[0].url, "grafana-url-1");
 assert.equal(redacted.ingestion.runs[0].sourceContext.schedulerExportId, "scheduler-export-1");
+assert.equal(redacted.ingestion.runs[0].sourceContext.grafanaBaseUrl, "grafana-base-1");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].category, "Redacted Opportunity");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].title, "Redacted imported opportunity");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].impactDollars, 1200);

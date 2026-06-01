@@ -46,6 +46,7 @@ const INGESTION_SCHEMA = {
     "baseline",
     "placement",
     "schedulerEvidence",
+    "grafanaContext",
     "commercial",
     "slo",
     "opportunities"
@@ -634,6 +635,44 @@ const SAMPLE_SOURCE_EXPORTS = {
         { type: "queued", timestamp: "2026-05-30T11:04:00-07:00" },
         { type: "preempted_lower_priority", timestamp: "2026-05-30T11:08:00-07:00" },
         { type: "admitted", timestamp: "2026-05-30T11:11:00-07:00" }
+      ]
+    }
+  ],
+  grafana: [
+    {
+      runId: "run-7421",
+      grafanaBaseUrl: "https://grafana.provider.example",
+      instanceName: "provider-observability-prod",
+      orgId: "1",
+      dashboardUid: "turbalance-provider-overview",
+      dashboardSlug: "turbalance-provider-overview",
+      dashboardTitle: "turbalance Provider Overview",
+      folder: "AI Infrastructure",
+      datasourceUid: "prometheus-h100-prod",
+      datasourceName: "Prometheus h100-prod-west",
+      timeRange: {
+        from: "now-6h",
+        to: "now"
+      },
+      variables: {
+        run: "run-7421",
+        tenant: "apex-ai",
+        cluster: "h100-prod-west",
+        reservation: "rsv-h100-frontier-q2"
+      },
+      dashboardUrl: "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421&var-tenant=apex-ai&var-cluster=h100-prod-west&from=now-6h&to=now",
+      exploreUrl: "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_useful_compute_ratio%7Brun_id%3D%5C%22run-7421%5C%22%7D%22%7D%5D%7D",
+      links: [
+        {
+          label: "Provider overview",
+          type: "dashboard",
+          url: "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421&var-tenant=apex-ai&var-cluster=h100-prod-west&from=now-6h&to=now"
+        },
+        {
+          label: "Explore useful compute",
+          type: "explore",
+          url: "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_useful_compute_ratio%7Brun_id%3D%5C%22run-7421%5C%22%7D%22%7D%5D%7D"
+        }
       ]
     }
   ],
@@ -1317,6 +1356,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
     mergeImportedSections(importedByRun, importSchedulerSamples(sources.scheduler), "scheduler");
     adapters.push("scheduler");
   }
+  if (sources.grafana?.length) {
+    mergeImportedSections(importedByRun, importGrafanaSamples(sources.grafana), "grafana");
+    adapters.push("grafana");
+  }
   if (sources.ebpf?.length) {
     mergeImportedSections(importedByRun, importEbpfSamples(sources.ebpf), "ebpf");
     adapters.push("ebpf");
@@ -1605,6 +1648,73 @@ function importSchedulerSamples(samples = []) {
       })
     };
   });
+}
+
+function importGrafanaSamples(samples = []) {
+  return samples.map((sample) => {
+    const links = grafanaLinksFromSample(sample);
+    const timeRange = isPlainObject(sample.timeRange) ? compactObject({
+      from: sample.timeRange.from,
+      to: sample.timeRange.to
+    }) : {};
+    const variables = isPlainObject(sample.variables) ? { ...sample.variables } : {};
+
+    return {
+      runId: sample.runId,
+      sections: compactSections({
+        grafanaContext: compactObject({
+          grafanaBaseUrl: sample.grafanaBaseUrl || sample.baseUrl,
+          instanceName: sample.instanceName || sample.grafanaInstance,
+          orgId: sample.orgId,
+          dashboardUid: sample.dashboardUid,
+          dashboardSlug: sample.dashboardSlug,
+          dashboardTitle: sample.dashboardTitle,
+          folder: sample.folder,
+          datasourceUid: sample.datasourceUid,
+          datasourceName: sample.datasourceName,
+          timeRange: Object.keys(timeRange).length > 0 ? timeRange : undefined,
+          variables: Object.keys(variables).length > 0 ? variables : undefined,
+          dashboardUrl: sample.dashboardUrl,
+          exploreUrl: sample.exploreUrl,
+          links: links.length > 0 ? links : undefined
+        }),
+        sourceContext: compactObject({
+          ...(sample.sourceContext || {}),
+          grafanaBaseUrl: sample.grafanaBaseUrl || sample.baseUrl,
+          grafanaInstance: sample.instanceName || sample.grafanaInstance,
+          grafanaOrgId: sample.orgId,
+          grafanaDashboardUid: sample.dashboardUid,
+          grafanaDashboardSlug: sample.dashboardSlug,
+          grafanaDashboardTitle: sample.dashboardTitle,
+          grafanaFolder: sample.folder,
+          grafanaDatasourceUid: sample.datasourceUid,
+          grafanaDatasourceName: sample.datasourceName,
+          grafanaDashboardUrl: sample.dashboardUrl,
+          grafanaExploreUrl: sample.exploreUrl
+        })
+      })
+    };
+  });
+}
+
+function grafanaLinksFromSample(sample) {
+  const directLinks = [
+    sample.dashboardUrl ? { label: sample.dashboardTitle || "Dashboard", type: "dashboard", url: sample.dashboardUrl } : null,
+    sample.exploreUrl ? { label: "Explore", type: "explore", url: sample.exploreUrl } : null
+  ].filter(Boolean);
+  const suppliedLinks = Array.isArray(sample.links) ? sample.links : [];
+
+  return uniqueBy(
+    [...directLinks, ...suppliedLinks]
+      .filter(isPlainObject)
+      .map((link) => compactObject({
+        label: String(link.label || link.title || link.type || "Grafana link"),
+        type: String(link.type || "dashboard"),
+        url: String(link.url || "")
+      }))
+      .filter((link) => link.url),
+    (link) => link.url
+  );
 }
 
 function importEbpfSamples(samples = []) {
@@ -1961,6 +2071,7 @@ function normalizeRun(run, entities) {
     placement: normalizePlacement(run.placement),
     traceAttribution: normalizeTraceAttribution(run.traceAttribution),
     schedulerEvidence: normalizeSchedulerEvidence(run.schedulerEvidence),
+    grafanaContext: normalizeGrafanaContext(run.grafanaContext),
     importedOpportunities: normalizeImportedOpportunities(run.opportunities),
     source: {
       schemaVersion: INGESTION_SCHEMA.version,
@@ -1998,6 +2109,43 @@ function normalizeSchedulerEvidence(evidence = {}) {
       pendingGpuHoursAhead: optionalMetric(evidence, "pendingGpuHoursAhead"),
       gpusPerNode: optionalMetric(evidence, "gpusPerNode")
     })
+  });
+}
+
+function normalizeGrafanaContext(context = {}) {
+  if (!isPlainObject(context)) return {};
+
+  const links = Array.isArray(context.links)
+    ? context.links
+      .filter(isPlainObject)
+      .map((link) => compactObject({
+        label: String(link.label || link.title || link.type || "Grafana link"),
+        type: String(link.type || "dashboard"),
+        url: String(link.url || "")
+      }))
+      .filter((link) => link.url)
+    : [];
+  const timeRange = isPlainObject(context.timeRange) ? compactObject({
+    from: String(context.timeRange.from || ""),
+    to: String(context.timeRange.to || "")
+  }) : {};
+  const variables = isPlainObject(context.variables) ? { ...context.variables } : {};
+
+  return compactObject({
+    grafanaBaseUrl: String(context.grafanaBaseUrl || context.baseUrl || ""),
+    instanceName: String(context.instanceName || context.grafanaInstance || ""),
+    orgId: String(context.orgId || ""),
+    dashboardUid: String(context.dashboardUid || ""),
+    dashboardSlug: String(context.dashboardSlug || ""),
+    dashboardTitle: String(context.dashboardTitle || ""),
+    folder: String(context.folder || ""),
+    datasourceUid: String(context.datasourceUid || ""),
+    datasourceName: String(context.datasourceName || ""),
+    timeRange: Object.keys(timeRange).length > 0 ? timeRange : undefined,
+    variables: Object.keys(variables).length > 0 ? variables : undefined,
+    dashboardUrl: String(context.dashboardUrl || ""),
+    exploreUrl: String(context.exploreUrl || ""),
+    links: links.length > 0 ? links : undefined
   });
 }
 
@@ -2232,7 +2380,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -2256,7 +2404,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -2289,6 +2437,7 @@ function extractSourceExports(payload) {
     dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
     kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : [],
     scheduler: Array.isArray(sourceRoot.scheduler) ? sourceRoot.scheduler : [],
+    grafana: Array.isArray(sourceRoot.grafana) ? sourceRoot.grafana : [],
     ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
     provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : [],
     opportunities: Array.isArray(sourceRoot.opportunities) ? sourceRoot.opportunities : []
@@ -2317,6 +2466,7 @@ function hasSourceExports(sources) {
     || sources.dcgm.length > 0
     || sources.kubernetes.length > 0
     || sources.scheduler.length > 0
+    || sources.grafana.length > 0
     || sources.ebpf.length > 0
     || sources.provider.length > 0
     || sources.opportunities.length > 0;
@@ -2476,6 +2626,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
   const simulatorRows = (schedulerSimulator?.scenarios || []).slice(0, 3);
   const recommendedScenario = schedulerSimulator?.recommended || simulatorRows[0];
   const schedulerEvidence = schedulerEvidenceSummaryLine(summary);
+  const grafanaRows = redactedGrafanaRows(summary, plan).slice(0, 6);
   const sourceRows = redactedSourceRows(summary, plan).slice(0, 10);
   const lines = [
     "# turbalance Evidence Pack",
@@ -2539,6 +2690,22 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
       markdownCell(scenario.action)
     ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
     "",
+    "## Grafana Handoff",
+    "",
+    ...(grafanaRows.length > 0 ? [
+      "| Run | Dashboard | Datasource | Link | Time Range |",
+      "| --- | --- | --- | --- | --- |",
+      ...grafanaRows.map((row) => [
+        markdownCell(row.run),
+        markdownCell(row.dashboard),
+        markdownCell(row.datasource),
+        markdownCell(row.link),
+        markdownCell(row.timeRange)
+      ].join(" | ").replace(/^/, "| ").replace(/$/, " |"))
+    ] : [
+      "No Grafana handoff links attached for this selection."
+    ]),
+    "",
     "## Redacted Source Context",
     "",
     "| Run | Adapters | Tenant | Account | Reservation | Context |",
@@ -2554,7 +2721,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
     "",
     "## Handling Notes",
     "",
-    "- This pack preserves numeric evidence and recommendations while redacting run, tenant, account, reservation, provider, scheduler, Kubernetes, and eBPF source identifiers.",
+    "- This pack preserves numeric evidence and recommendations while redacting run, tenant, account, reservation, provider, scheduler, Kubernetes, Grafana, and eBPF source identifiers.",
     "- Opportunity dollar values are prioritization estimates; categories can overlap and should not be summed as audited accounting.",
     "- Validate the top action against the underlying source system before making a customer or capacity commitment.",
     ""
@@ -2608,6 +2775,26 @@ function redactedSourceRows(summary, plan) {
       reservation: refs.reservation || "n/a",
       context: contextPairs.length > 0 ? contextPairs.join("; ") : "no source context"
     };
+  });
+}
+
+function redactedGrafanaRows(summary, plan) {
+  return (summary.sourceItems || []).flatMap((job) => {
+    const context = redactGrafanaContext(job.grafanaContext || {}, plan);
+    if (!context || Object.keys(context).length === 0) return [];
+
+    const links = context.links?.length ? context.links : [
+      context.dashboardUrl ? { label: context.dashboardTitle || "Dashboard", type: "dashboard", url: context.dashboardUrl } : null,
+      context.exploreUrl ? { label: "Explore", type: "explore", url: context.exploreUrl } : null
+    ].filter(Boolean);
+
+    return links.map((link) => ({
+      run: mappedValue(plan.runs, job.id, "run"),
+      dashboard: context.dashboardTitle || context.dashboardUid || "n/a",
+      datasource: context.datasourceName || context.datasourceUid || "n/a",
+      link: `${link.label || titleCase(link.type || "link")}: ${link.url}`,
+      timeRange: grafanaTimeRangeLabel(context.timeRange)
+    }));
   });
 }
 
@@ -2688,6 +2875,7 @@ function redactWorkspaceStore(store) {
     "support ticket ids",
     "provider and eBPF source context",
     "scheduler source context",
+    "Grafana dashboard and Explore links",
     "imported opportunity free text"
     ]
   };
@@ -2717,6 +2905,23 @@ function buildRedactionPlan(store) {
     billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
     reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
     schedulerExports: buildValueMap(runs.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
+    grafanaBaseUrls: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaBaseUrl, run.grafanaContext?.grafanaBaseUrl]), "grafana-base"),
+    grafanaInstances: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaInstance, run.grafanaContext?.instanceName]), "grafana-instance"),
+    grafanaOrgIds: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaOrgId, run.grafanaContext?.orgId]), "grafana-org"),
+    grafanaDashboardUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardUid, run.grafanaContext?.dashboardUid]), "grafana-dashboard"),
+    grafanaDashboardSlugs: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardSlug, run.grafanaContext?.dashboardSlug]), "grafana-slug"),
+    grafanaDashboardTitles: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardTitle, run.grafanaContext?.dashboardTitle]), "grafana-title"),
+    grafanaFolders: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaFolder, run.grafanaContext?.folder]), "grafana-folder"),
+    grafanaDatasourceUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceUid, run.grafanaContext?.datasourceUid]), "grafana-datasource"),
+    grafanaDatasourceNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceName, run.grafanaContext?.datasourceName]), "grafana-datasource-name"),
+    grafanaUrls: buildValueMap(flattenRunValues(runs, (run) => [
+      run.sourceContext?.grafanaDashboardUrl,
+      run.sourceContext?.grafanaExploreUrl,
+      run.grafanaContext?.dashboardUrl,
+      run.grafanaContext?.exploreUrl,
+      ...((run.grafanaContext?.links || []).map((link) => link?.url))
+    ]), "grafana-url"),
+    grafanaVariableValues: buildValueMap(flattenRunValues(runs, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
     schedulerNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
     schedulerQueues: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
     priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
@@ -2778,6 +2983,7 @@ function redactRun(run, plan) {
     commercial: redactCommercial(run.commercial || {}, plan),
     slo: redactSlo(run.slo || {}, plan),
     schedulerEvidence: redactSchedulerEvidence(run.schedulerEvidence || {}, plan),
+    grafanaContext: redactGrafanaContext(run.grafanaContext || {}, plan),
     opportunities: redactOpportunities(run.opportunities || []),
     sourceContext: redactSourceContext(run.sourceContext || {}, plan)
   };
@@ -2844,6 +3050,41 @@ function redactSchedulerEvidence(evidence = {}, plan) {
   });
 }
 
+function redactGrafanaContext(context = {}, plan) {
+  if (!isPlainObject(context)) return {};
+
+  const variables = isPlainObject(context.variables)
+    ? Object.fromEntries(Object.entries(context.variables).map(([key, value]) => [
+      key,
+      mappedValue(plan.grafanaVariableValues, value, "grafana-var")
+    ]))
+    : undefined;
+  const links = Array.isArray(context.links)
+    ? context.links.map((link) => compactObject({
+      ...link,
+      label: link.label ? `${titleCase(link.type || "grafana")} link` : undefined,
+      url: mappedValue(plan.grafanaUrls, link.url, "grafana-url")
+    }))
+    : undefined;
+
+  return compactObject({
+    ...context,
+    grafanaBaseUrl: mappedValue(plan.grafanaBaseUrls, context.grafanaBaseUrl, "grafana-base"),
+    instanceName: mappedValue(plan.grafanaInstances, context.instanceName, "grafana-instance"),
+    orgId: mappedValue(plan.grafanaOrgIds, context.orgId, "grafana-org"),
+    dashboardUid: mappedValue(plan.grafanaDashboardUids, context.dashboardUid, "grafana-dashboard"),
+    dashboardSlug: mappedValue(plan.grafanaDashboardSlugs, context.dashboardSlug, "grafana-slug"),
+    dashboardTitle: mappedValue(plan.grafanaDashboardTitles, context.dashboardTitle, "grafana-title"),
+    folder: mappedValue(plan.grafanaFolders, context.folder, "grafana-folder"),
+    datasourceUid: mappedValue(plan.grafanaDatasourceUids, context.datasourceUid, "grafana-datasource"),
+    datasourceName: mappedValue(plan.grafanaDatasourceNames, context.datasourceName, "grafana-datasource-name"),
+    dashboardUrl: mappedValue(plan.grafanaUrls, context.dashboardUrl, "grafana-url"),
+    exploreUrl: mappedValue(plan.grafanaUrls, context.exploreUrl, "grafana-url"),
+    variables,
+    links
+  });
+}
+
 function redactSourceContext(context, plan) {
   return compactObject({
     ...context,
@@ -2865,7 +3106,18 @@ function redactSourceContext(context, plan) {
     priorityClass: mappedValue(plan.priorityClasses, context.priorityClass, "priority"),
     admissionClass: mappedValue(plan.admissionClasses, context.admissionClass, "admission"),
     requestedGpuShape: mappedValue(plan.requestedGpuShapes, context.requestedGpuShape, "shape"),
-    localityPreference: mappedValue(plan.localityPreferences, context.localityPreference, "locality")
+    localityPreference: mappedValue(plan.localityPreferences, context.localityPreference, "locality"),
+    grafanaBaseUrl: mappedValue(plan.grafanaBaseUrls, context.grafanaBaseUrl, "grafana-base"),
+    grafanaInstance: mappedValue(plan.grafanaInstances, context.grafanaInstance, "grafana-instance"),
+    grafanaOrgId: mappedValue(plan.grafanaOrgIds, context.grafanaOrgId, "grafana-org"),
+    grafanaDashboardUid: mappedValue(plan.grafanaDashboardUids, context.grafanaDashboardUid, "grafana-dashboard"),
+    grafanaDashboardSlug: mappedValue(plan.grafanaDashboardSlugs, context.grafanaDashboardSlug, "grafana-slug"),
+    grafanaDashboardTitle: mappedValue(plan.grafanaDashboardTitles, context.grafanaDashboardTitle, "grafana-title"),
+    grafanaFolder: mappedValue(plan.grafanaFolders, context.grafanaFolder, "grafana-folder"),
+    grafanaDatasourceUid: mappedValue(plan.grafanaDatasourceUids, context.grafanaDatasourceUid, "grafana-datasource"),
+    grafanaDatasourceName: mappedValue(plan.grafanaDatasourceNames, context.grafanaDatasourceName, "grafana-datasource-name"),
+    grafanaDashboardUrl: mappedValue(plan.grafanaUrls, context.grafanaDashboardUrl, "grafana-url"),
+    grafanaExploreUrl: mappedValue(plan.grafanaUrls, context.grafanaExploreUrl, "grafana-url")
   });
 }
 
@@ -3075,6 +3327,7 @@ function render() {
   renderDiagnosis(summary, classifier);
   renderMetricRibbon(summary);
   renderSchedulerSimulator(schedulerSimulator);
+  renderGrafanaHandoff(summary);
   renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
@@ -3183,6 +3436,7 @@ function summarizeEntry(entry) {
     provider: summarizeProviderFields(items),
     slo: summarizeSloFields(items),
     schedulerEvidence: summarizeSchedulerEvidence(items),
+    grafana: summarizeGrafanaContext(items),
     placement: mergePlacement(items),
     traceAttribution: mergeTraceAttribution(items),
     importedOpportunities: mergeImportedOpportunities(items),
@@ -3417,6 +3671,82 @@ function simulatorMiniMetric(value, label) {
   labelEl.textContent = label;
   item.append(valueEl, labelEl);
   return item;
+}
+
+function renderGrafanaHandoff(summary) {
+  const badge = document.querySelector("#grafanaBadge");
+  const context = document.querySelector("#grafanaContext");
+  const links = document.querySelector("#grafanaLinks");
+  if (!badge || !context || !links) return;
+
+  const grafana = summary.grafana || {};
+  const sourceCount = numeric(grafana.sourceCount);
+  const linkItems = grafana.links || [];
+
+  badge.textContent = sourceCount > 0
+    ? `${linkItems.length} ${linkItems.length === 1 ? "link" : "links"}`
+    : "No overlay";
+
+  context.replaceChildren(
+    grafanaContextItem("Dashboard", listLabel(grafana.dashboards, 2)),
+    grafanaContextItem("Datasource", listLabel(grafana.datasources, 2)),
+    grafanaContextItem("Window", grafanaTimeRangeLabel(grafana.timeRange)),
+    grafanaContextItem("Variables", grafana.variableKeys?.length ? grafana.variableKeys.slice(0, 4).join(", ") : "n/a")
+  );
+
+  links.replaceChildren();
+  if (linkItems.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "grafana-empty";
+    empty.textContent = "No Grafana links attached";
+    links.append(empty);
+    return;
+  }
+
+  linkItems.slice(0, 5).forEach((link) => {
+    links.append(grafanaLinkItem(link));
+  });
+}
+
+function grafanaContextItem(label, value) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = value || "n/a";
+  item.append(labelEl, valueEl);
+  return item;
+}
+
+function grafanaLinkItem(link) {
+  const item = document.createElement("a");
+  item.className = "grafana-link";
+  item.href = safeExternalUrl(link.url) || "#";
+  item.target = "_blank";
+  item.rel = "noopener noreferrer";
+  item.dataset.type = String(link.type || "dashboard").toLowerCase();
+
+  const title = document.createElement("strong");
+  const meta = document.createElement("span");
+  title.textContent = link.label || "Grafana link";
+  meta.textContent = titleCase(link.type || "dashboard");
+  item.append(title, meta);
+
+  return item;
+}
+
+function grafanaTimeRangeLabel(timeRange = {}) {
+  if (!timeRange.from && !timeRange.to) return "n/a";
+  return `${timeRange.from || "start"} to ${timeRange.to || "now"}`;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(String(value || ""), window.location.href);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
 }
 
 function renderTrend(summary) {
@@ -4494,6 +4824,31 @@ function summarizeSchedulerEvidence(items) {
   };
 }
 
+function summarizeGrafanaContext(items) {
+  const contexts = items
+    .map((job) => job.grafanaContext)
+    .filter((context) => isPlainObject(context) && Object.keys(context).length > 0);
+
+  if (contexts.length === 0) {
+    return { sourceCount: 0, links: [] };
+  }
+
+  const links = uniqueBy(contexts.flatMap((context) => context.links || []), (link) => link.url);
+  const variableKeys = unique(contexts.flatMap((context) => Object.keys(context.variables || {}))).sort();
+  const timeRange = contexts.find((context) => context.timeRange)?.timeRange || {};
+
+  return {
+    sourceCount: contexts.length,
+    dashboards: knownLabels(contexts.map((context) => context.dashboardTitle || context.dashboardUid), "Unlabeled dashboard"),
+    datasources: knownLabels(contexts.map((context) => context.datasourceName || context.datasourceUid), "Unlabeled datasource"),
+    instances: knownLabels(contexts.map((context) => context.instanceName || context.grafanaBaseUrl), "Unlabeled Grafana"),
+    folders: knownLabels(contexts.map((context) => context.folder), "No folder"),
+    variableKeys,
+    timeRange,
+    links
+  };
+}
+
 function sumCommercialHours(items, field) {
   return items.reduce((total, job) => total + numeric(job.commercial?.[field]), 0);
 }
@@ -4630,6 +4985,16 @@ function sum(items, key) {
 
 function unique(values) {
   return Array.from(new Set(values));
+}
+
+function uniqueBy(values, keyFn) {
+  const seen = new Set();
+  return values.filter((value) => {
+    const key = keyFn(value);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function clamp(value, min = 0, max = 100) {

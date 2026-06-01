@@ -54,6 +54,11 @@ assert.throws(
 );
 
 assert.throws(
+  () => context.buildIngestionFromExternalPayload({ sources: { grafana: [{}] } }),
+  /sources\.grafana\[1\] is missing runId\./
+);
+
+assert.throws(
   () => context.buildIngestionFromExternalPayload({ sources: { opportunities: [{}] } }),
   /sources\.opportunities\[1\] is missing runId\./
 );
@@ -67,6 +72,7 @@ const providerTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, "../fix
 const sourceBundle = context.buildIngestionFromExternalPayload(providerTemplate);
 assert.ok(sourceBundle.sourceAdapters.includes("provider"));
 assert.ok(sourceBundle.sourceAdapters.includes("scheduler"));
+assert.ok(sourceBundle.sourceAdapters.includes("grafana"));
 assert.ok(sourceBundle.sourceAdapters.includes("opportunities"));
 
 const opportunityBundle = context.buildIngestionFromExternalPayload({
@@ -180,5 +186,43 @@ assert.equal(schedulerRun.schedulerEvidence.eventCount, 2);
 assert.equal(schedulerRun.schedulerEvidence.placementRetries, 3);
 assert.equal(schedulerRun.sourceContext.schedulerExportId, "sched-test");
 assert.equal(schedulerRun.sourceContext.queueName, "training");
+
+const grafanaBundle = context.buildIngestionFromExternalPayload({
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    runs: [
+      {
+        id: "run-grafana",
+        name: "grafana import",
+        allocation: { allocatedGpuHours: 10 }
+      }
+    ]
+  },
+  sources: {
+    grafana: [
+      {
+        runId: "run-grafana",
+        grafanaBaseUrl: "https://grafana.example",
+        instanceName: "grafana-prod",
+        orgId: "1",
+        dashboardUid: "turbalance-provider-overview",
+        dashboardTitle: "turbalance Provider Overview",
+        datasourceUid: "prometheus-main",
+        datasourceName: "Prometheus Main",
+        timeRange: { from: "now-6h", to: "now" },
+        variables: { run: "run-grafana", tenant: "tenant-a" },
+        dashboardUrl: "https://grafana.example/d/turbalance-provider-overview/turbalance-provider-overview?var-run=run-grafana",
+        exploreUrl: "https://grafana.example/explore?orgId=1"
+      }
+    ]
+  }
+});
+const grafanaRun = grafanaBundle.runs[0];
+assert.ok(grafanaBundle.sourceAdapters.includes("grafana"));
+assert.equal(grafanaRun.grafanaContext.dashboardUid, "turbalance-provider-overview");
+assert.equal(grafanaRun.grafanaContext.datasourceName, "Prometheus Main");
+assert.equal(grafanaRun.grafanaContext.links.length, 2);
+assert.equal(grafanaRun.sourceContext.grafanaInstance, "grafana-prod");
+assert.equal(grafanaRun.sourceContext.grafanaDatasourceUid, "prometheus-main");
 
 console.log("source bundle validation tests passed");

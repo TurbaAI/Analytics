@@ -57,6 +57,43 @@
         ]
       }
     ],
+    "grafana": [
+      {
+        "runId": "replace-with-run-id",
+        "grafanaBaseUrl": "https://grafana.example.invalid",
+        "instanceName": "grafana-instance-1",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-datasource-1",
+        "datasourceName": "Prometheus redacted",
+        "timeRange": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "replace-with-run-id",
+          "tenant": "tenant-surrogate-1",
+          "reservation": "reservation-surrogate-1"
+        },
+        "dashboardUrl": "https://grafana.example.invalid/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=replace-with-run-id",
+        "exploreUrl": "https://grafana.example.invalid/explore?orgId=1",
+        "links": [
+          {
+            "label": "Provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.example.invalid/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=replace-with-run-id"
+          },
+          {
+            "label": "Explore query",
+            "type": "explore",
+            "url": "https://grafana.example.invalid/explore?orgId=1"
+          }
+        ]
+      }
+    ],
     "opportunities": [
       {
         "runId": "replace-with-run-id",

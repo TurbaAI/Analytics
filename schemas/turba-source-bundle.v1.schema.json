@@ -9,6 +9,7 @@
     { "required": ["sourceExports"] },
     { "required": ["runs"] },
     { "required": ["scheduler"] },
+    { "required": ["grafana"] },
     { "required": ["opportunities"] },
     { "required": ["ncclTraces"] },
     { "required": ["traces"] },
@@ -39,6 +40,10 @@
     "scheduler": {
       "type": "array",
       "items": { "$ref": "#/$defs/schedulerSample" }
+    },
+    "grafana": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/grafanaSample" }
     },
     "ncclTraces": {
       "type": "array",
@@ -73,6 +78,10 @@
         "scheduler": {
           "type": "array",
           "items": { "$ref": "#/$defs/schedulerSample" }
+        },
+        "grafana": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/grafanaSample" }
         },
         "ebpf": {
           "type": "array",
@@ -196,6 +205,58 @@
         "events": {
           "type": "array",
           "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "grafanaSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "grafanaBaseUrl": { "type": "string" },
+        "baseUrl": { "type": "string" },
+        "instanceName": { "type": "string" },
+        "grafanaInstance": { "type": "string" },
+        "orgId": { "type": ["string", "number"] },
+        "dashboardUid": { "type": "string" },
+        "dashboardSlug": { "type": "string" },
+        "dashboardTitle": { "type": "string" },
+        "folder": { "type": "string" },
+        "datasourceUid": { "type": "string" },
+        "datasourceName": { "type": "string" },
+        "dashboardUrl": { "type": "string" },
+        "exploreUrl": { "type": "string" },
+        "timeRange": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string" },
+            "to": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "title": { "type": "string" },
+              "type": { "type": "string" },
+              "url": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

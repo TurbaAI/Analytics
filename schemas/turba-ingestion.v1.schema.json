@@ -44,6 +44,7 @@
           "baseline": { "type": "object" },
           "placement": { "type": ["object", "array"] },
           "schedulerEvidence": { "type": "object" },
+          "grafanaContext": { "type": "object" },
           "traceAttribution": { "type": "object" },
           "sourceContext": { "type": "object" },
           "opportunities": {

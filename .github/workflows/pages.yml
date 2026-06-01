@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p site
           cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/
-          cp -R assets build fixtures docs schemas scripts site/
+          cp -R assets build fixtures docs schemas scripts grafana site/
           touch site/.nojekyll
 
       - name: Configure Pages

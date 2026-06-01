@@ -63,7 +63,31 @@ const store = {
           schedulerExportId: "secret-scheduler",
           schedulerName: "secret-scheduler-name",
           queueName: "secret-queue",
-          priorityClass: "secret-priority"
+          priorityClass: "secret-priority",
+          grafanaBaseUrl: "https://secret-grafana.example",
+          grafanaInstance: "secret-grafana-instance",
+          grafanaDashboardUid: "secret-dashboard-uid",
+          grafanaDatasourceUid: "secret-datasource-uid",
+          grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
+        },
+        grafanaContext: {
+          grafanaBaseUrl: "https://secret-grafana.example",
+          instanceName: "secret-grafana-instance",
+          orgId: "secret-org",
+          dashboardUid: "secret-dashboard-uid",
+          dashboardTitle: "Secret Dashboard",
+          datasourceUid: "secret-datasource-uid",
+          datasourceName: "Secret Prometheus",
+          timeRange: { from: "now-6h", to: "now" },
+          variables: { run: "secret-run", tenant: "secret-tenant" },
+          dashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run",
+          links: [
+            {
+              label: "Secret dashboard",
+              type: "dashboard",
+              url: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
+            }
+          ]
         }
       }
     ]
@@ -106,8 +130,32 @@ const markdown = context.buildEvidencePackMarkdown({
             schedulerExportId: "secret-scheduler",
             schedulerName: "secret-scheduler-name",
             queueName: "secret-queue",
-            priorityClass: "secret-priority"
+            priorityClass: "secret-priority",
+            grafanaBaseUrl: "https://secret-grafana.example",
+            grafanaInstance: "secret-grafana-instance",
+            grafanaDashboardUid: "secret-dashboard-uid",
+            grafanaDatasourceUid: "secret-datasource-uid",
+            grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
           }
+        },
+        grafanaContext: {
+          grafanaBaseUrl: "https://secret-grafana.example",
+          instanceName: "secret-grafana-instance",
+          orgId: "secret-org",
+          dashboardUid: "secret-dashboard-uid",
+          dashboardTitle: "Secret Dashboard",
+          datasourceUid: "secret-datasource-uid",
+          datasourceName: "Secret Prometheus",
+          timeRange: { from: "now-6h", to: "now" },
+          variables: { run: "secret-run", tenant: "secret-tenant" },
+          dashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run",
+          links: [
+            {
+              label: "Secret dashboard",
+              type: "dashboard",
+              url: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
+            }
+          ]
         }
       }
     ]
@@ -164,6 +212,10 @@ assert.ok(markdown.includes("Repack topology-sensitive workload"));
 assert.ok(markdown.includes("## Scheduler / Capacity What-If"));
 assert.ok(markdown.includes("Reserve locality group"));
 assert.ok(markdown.includes("4 events"));
+assert.ok(markdown.includes("## Grafana Handoff"));
+assert.ok(markdown.includes("grafana-title-1"));
+assert.ok(markdown.includes("grafana-datasource-name-1"));
+assert.ok(markdown.includes("grafana-url-1"));
 assert.ok(markdown.includes("## Redacted Source Context"));
 assert.ok(markdown.includes("run-1"));
 assert.ok(markdown.includes("tenant-1"));
@@ -173,6 +225,8 @@ assert.ok(markdown.includes("host-1"));
 assert.ok(markdown.includes("ebpf-export-1"));
 assert.ok(markdown.includes("scheduler-export-1"));
 assert.ok(markdown.includes("queue-1"));
+assert.ok(markdown.includes("grafana-base-1"));
+assert.ok(markdown.includes("grafana-dashboard-1"));
 
 [
   "secret-run",
@@ -187,7 +241,14 @@ assert.ok(markdown.includes("queue-1"));
   "secret-scheduler",
   "secret-scheduler-name",
   "secret-queue",
-  "secret-priority"
+  "secret-priority",
+  "https://secret-grafana.example",
+  "secret-grafana-instance",
+  "secret-org",
+  "secret-dashboard-uid",
+  "Secret Dashboard",
+  "secret-datasource-uid",
+  "Secret Prometheus"
 ].forEach((secret) => {
   assert.ok(!markdown.includes(secret), `${secret} should not appear in evidence pack`);
 });

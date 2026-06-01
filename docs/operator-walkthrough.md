@@ -27,6 +27,10 @@ Use the Scheduler Simulator before choosing a capacity action. The `Recommended`
 
 When a scheduler overlay is present, use its queue, admission, placement-retry, locality-miss, preemption, and backfill evidence to explain why the simulator prefers one move. Treat the scenarios as directional planning estimates. Validate the selected move against topology, NCCL attribution, provider SLO context, and imported opportunity evidence before changing production policy.
 
+## Open Grafana Evidence
+
+When a Grafana overlay is present, use the Observability links panel to open the matching provider dashboard or Explore query for the selected scope. The panel keeps dashboard, datasource, variables, and time range beside the scheduler and opportunity evidence so operators can validate a recommendation against live telemetry without adding Grafana credentials to the prototype.
+
 ## Compare Against Baseline
 
 Use the regression panel to compare current step time, NCCL time, GPU efficiency, queue wait, and cost against the persisted baseline for each run.
@@ -35,7 +39,7 @@ Use the regression panel to compare current step time, NCCL time, GPU efficiency
 
 Use the Opportunity Engine action center after the first diagnosis. It ranks FinOps, topology, scheduler, inference, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack actions by estimated impact, risk, and confidence. Treat dollar values as prioritization estimates because categories can overlap.
 
-Use the evidence-pack export button in the action center when a selected job, tenant, account, reservation, or cluster needs a support, QBR, or capacity-planning handoff. The exported Markdown includes the executive summary, scheduler what-if table, ranked actions, impact, evidence, recommendations, and redacted source context.
+Use the evidence-pack export button in the action center when a selected job, tenant, account, reservation, or cluster needs a support, QBR, or capacity-planning handoff. The exported Markdown includes the executive summary, scheduler what-if table, Grafana handoff rows, ranked actions, impact, evidence, recommendations, and redacted source context.
 
 ## Track Trends
 
@@ -55,10 +59,10 @@ For tenant escalations, start with `Job` scope and copy the outcome report into 
 
 ## Import And Restore Data
 
-- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, eBPF host overlay, opportunity overlay, or `turba.workspace.v2` file.
+- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, Grafana handoff overlay, eBPF host overlay, opportunity overlay, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
 - Use export to download the current workspace, including baselines and trend snapshots.
-- Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, source-context identifiers, and imported opportunity free text with deterministic surrogate IDs.
+- Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, Grafana link context, source-context identifiers, and imported opportunity free text with deterministic surrogate IDs.
 - Use evidence-pack export for a selected-scope Markdown handoff that keeps numeric evidence and recommendations while redacting source identifiers.
 - Use reset to return browser-local state to the sample feed.
 - Use `fixtures/neo-cloud-provider-bundle.json` to exercise tenant, reservation, SLO, and commercial overlays.

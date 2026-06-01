@@ -78,6 +78,44 @@
         ]
       }
     ],
+    "grafana": [
+      {
+        "runId": "run-7421",
+        "grafanaBaseUrl": "https://grafana.provider.example",
+        "instanceName": "provider-observability-prod",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-h100-prod",
+        "datasourceName": "Prometheus h100-prod-west",
+        "timeRange": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "run-7421",
+          "tenant": "apex-ai",
+          "cluster": "h100-prod-west",
+          "reservation": "rsv-h100-frontier-q2"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421&var-tenant=apex-ai&from=now-6h&to=now",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_useful_compute_ratio%7Brun_id%3D%5C%22run-7421%5C%22%7D%22%7D%5D%7D",
+        "links": [
+          {
+            "label": "Provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=run-7421&var-tenant=apex-ai&from=now-6h&to=now"
+          },
+          {
+            "label": "Explore useful compute",
+            "type": "explore",
+            "url": "https://grafana.provider.example/explore?orgId=1&left=%7B%22datasource%22:%22prometheus-h100-prod%22,%22queries%22:%5B%7B%22expr%22:%22turba_useful_compute_ratio%7Brun_id%3D%5C%22run-7421%5C%22%7D%22%7D%5D%7D"
+          }
+        ]
+      }
+    ],
     "opportunities": [
       {
         "runId": "run-7421",
