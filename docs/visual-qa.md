@@ -8,6 +8,8 @@ node scripts/run-screenshot-qa.js
 
 The script writes desktop and mobile captures under `build/qa/` and checks for missing panels, empty render targets, and horizontal overflow. If Playwright is unavailable, it skips by default; set `TURBALANCE_SCREENSHOT_QA_REQUIRED=1` when CI must fail instead.
 
+The dedicated `.github/workflows/visual-qa.yml` workflow installs Playwright and Chromium before running the same script with `TURBALANCE_SCREENSHOT_QA_REQUIRED=1`, then uploads the generated screenshots as workflow artifacts.
+
 Use this checklist in a local browser before sharing the prototype.
 
 ## Desktop

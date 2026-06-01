@@ -65,8 +65,8 @@ The original prototype backlog is implemented. The repo includes:
 - Importers for Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, provider commercial overlays, upstream opportunities, and NCCL traces
 - Neo-cloud provider workflows for tenant/account/reservation views, queue SLOs, sellable waste, commit burn, margin pressure, and portfolio risk
 - Scheduler/capacity scenario simulation and an Opportunity Engine for ranked actions
-- Tests, fixtures, exporter examples, GitHub Actions CI, and GitHub Pages packaging
-- Optional backend ingestion service with bearer, HS256 JWT, and RS256/JWKS auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, Prometheus metrics, source-bundle validation, and retention cleanup
+- Tests, fixtures, exporter examples, GitHub Actions CI, Playwright visual QA workflow, and GitHub Pages packaging
+- Optional backend ingestion service with bearer, HS256 JWT, and RS256/JWKS auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, Prometheus metrics, source-bundle validation, object/SQLite storage mode, secret-file support, provider export jobs, and retention cleanup
 
 Real production use still requires operator-provided exports from the relevant systems. Automated screenshot QA runs when Playwright is available and skips cleanly otherwise; browser visual QA should still be completed locally before a customer-facing demo.
 
@@ -222,7 +222,7 @@ The service provides:
 - `POST /v1/tokens/rotate`: admin tenant token rotation
 - `POST /v1/upload-keys/rotate`: admin signed-upload key rotation
 
-All accepted uploads are validated with `lib/source-bundle-validator.js`, JWT/JWKS verification lives in `server/ingestion-oidc.js`, uploads are stored through the file storage adapter in `server/ingestion-storage.js`, and audit rows are logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
+All accepted uploads are validated with `lib/source-bundle-validator.js`, JWT/JWKS verification lives in `server/ingestion-oidc.js`, secret-file loading lives in `server/ingestion-secrets.js`, uploads are stored through `server/ingestion-storage.js`, and audit rows are logged to the configured control plane. See `docs/backend-ingestion.md` for the full API.
 
 ## Privacy And Redaction
 
@@ -250,7 +250,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/`: sample source bundles, workspace exports, provider overlays, scheduler events, eBPF inputs, and exporter inputs
 - `grafana/`: Grafana dashboard templates, including `grafana/turbalance-provider-overview.json`
 - `lib/`: shared validation helpers used by CLI tooling and the ingestion backend
-- `ops/`: Kubernetes and Prometheus operation templates, including `ops/kubernetes/ingestion-retention-cronjob.yaml`, `ops/kubernetes/ingestion-service-monitor.yaml`, and `ops/kubernetes/ingestion-prometheus-rules.yaml`
+- `ops/`: Kubernetes and Prometheus operation templates, including `ops/kubernetes/ingestion-deployment.yaml`, `ops/kubernetes/ingestion-retention-cronjob.yaml`, `ops/kubernetes/provider-export-cronjob.yaml`, `ops/kubernetes/ingestion-service-monitor.yaml`, and `ops/kubernetes/ingestion-prometheus-rules.yaml`
 - `schemas/`: JSON Schemas for ingestion, source bundles, and workspaces
 - `scripts/`: dependency-free exporter examples
 - `server/`: optional controlled ingestion service and swappable file storage adapter
@@ -305,9 +305,12 @@ Focused test entry points:
 - `tests/scheduler-exporter.test.js`: scheduler exporter example
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
+- `tests/provider-pilot-export-job.test.js`: provider pilot export job wrapper for bundle generation and optional ingestion upload
 - `tests/ingestion-oidc.test.js`: RS256/JWKS JWT validation, tenant mapping, and role mapping
+- `tests/ingestion-secrets.test.js`: secret-file loading for tenant tokens, upload keys, and JWT secrets
 - `tests/ingestion-storage.test.js`: file storage adapter uploads, audit rows, control JSON, and deletes
 - `tests/ingestion-server.test.js`: signed upload, direct ingest, role-aware auth, JWKS auth, tenant provisioning, key rotation, metrics, audit export, and retention service behavior
+- `tests/provision-tenant.test.js`: admin tenant bootstrap CLI and token issuance
 - `tests/retention-job.test.js`: standalone retention job behavior
 - `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
@@ -317,6 +320,8 @@ Focused test entry points:
 - `tests/import-validation-copy.test.js`: import validation messages and helpers
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
+- `scripts/provision-tenant.js`: admin helper for pilot tenant creation and ingest-token rotation
+- `scripts/run-provider-pilot-export-job.js`: provider pilot export job for mounted source exports and optional ingestion upload
 - `scripts/run-retention-job.js`: standalone retention job for cron or Kubernetes CronJob wiring
 - `scripts/run-screenshot-qa.js`: desktop and mobile screenshot QA when Playwright is installed; skips by default when browser automation is unavailable
 
@@ -335,20 +340,19 @@ Enable GitHub Pages with GitHub Actions as the source before relying on the Page
 
 ## Production Readiness Boundary
 
-This repo is ready as a static pilot/demo surface, an integration contract for exported telemetry, and a local controlled-ingestion service for early pilots. It is not yet a managed multi-tenant SaaS.
+This repo is ready as a static pilot/demo surface, an integration contract for exported telemetry, and a controlled-ingestion reference implementation for early pilots. It is not yet a managed multi-tenant SaaS.
 
 Current boundaries:
 
-- Optional file-backed backend service and local control plane, not a horizontally scalable managed ingestion plane
-- Bearer-token, HS256 JWT, and RS256/JWKS validation for pilot ingress, not a full customer IAM provisioning product
-- No direct cluster, billing, support, or Grafana API calls
-- Screenshot QA requires Playwright availability in the runtime
+- Optional backend service with file mode and object/SQLite reference mode, not a horizontally scalable managed ingestion plane
+- Bearer-token, HS256 JWT, RS256/JWKS, OIDC discovery, tenant mapping, tenant bootstrap CLI, and secret-file support, not a full customer IAM provisioning product
+- Provider exporter jobs expect source exports mounted or staged by source-system owners; they do not yet run privileged live collectors against production systems
+- Dedicated Visual QA workflow installs Playwright in CI; local screenshot QA still skips when Playwright is unavailable
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
 
 Expected production next steps:
 
-- Move file-backed ingestion storage/control JSON to object storage plus a database-backed control plane
-- Add customer IAM provisioning workflows and production secret-management integration
-- Replace file-backed retention/metrics templates with managed deployment manifests tied to the chosen cloud and object/database backend
-- Run screenshot QA in a CI image with Playwright browsers installed when visual artifacts must be regenerated
-- Connect live exporter jobs for provider pilots once each source system owner approves the export contract
+- Replace the local object/SQLite reference mode with the chosen cloud object store and managed database implementation
+- Add customer IAM provisioning automation and production secret-manager bindings for the selected provider
+- Replace placeholder Kubernetes image, PVC, Secret, and ConfigMap names with the pilot provider's managed deployment primitives
+- Replace mounted/staged source-export jobs with approved source-specific collectors where each provider permits direct API access

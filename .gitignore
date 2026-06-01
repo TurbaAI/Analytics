@@ -3,4 +3,6 @@
 .env.*
 node_modules/
 .turbalance-data/
+.turbalance-objects/
+.turbalance-control/
 build/qa/

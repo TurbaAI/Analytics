@@ -28,12 +28,33 @@ spec:
               envFrom:
                 - configMapRef:
                     name: turbalance-ingestion-config
-                - secretRef:
-                    name: turbalance-ingestion-secrets
+              env:
+                - name: TURBALANCE_TENANT_TOKENS_FILE
+                  value: /var/run/turbalance-secrets/tenant-tokens
+                - name: TURBALANCE_UPLOAD_SECRET_FILE
+                  value: /var/run/turbalance-secrets/upload-secret
+                - name: TURBALANCE_JWT_SECRET_FILE
+                  value: /var/run/turbalance-secrets/jwt-secret
               volumeMounts:
                 - name: turbalance-data
                   mountPath: /app/.turbalance-data
+                - name: turbalance-objects
+                  mountPath: /app/.turbalance-objects
+                - name: turbalance-control
+                  mountPath: /app/.turbalance-control
+                - name: secrets
+                  mountPath: /var/run/turbalance-secrets
+                  readOnly: true
           volumes:
             - name: turbalance-data
               persistentVolumeClaim:
                 claimName: turbalance-ingestion-data
+            - name: turbalance-objects
+              persistentVolumeClaim:
+                claimName: turbalance-ingestion-objects
+            - name: turbalance-control
+              persistentVolumeClaim:
+                claimName: turbalance-ingestion-control
+            - name: secrets
+              secret:
+                secretName: turbalance-ingestion-secrets

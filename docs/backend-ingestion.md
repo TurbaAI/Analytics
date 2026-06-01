@@ -28,13 +28,24 @@ The service listens on `127.0.0.1:8787` by default. Set `TURBALANCE_INGEST_HOST`
 - Retention: uploads older than `TURBALANCE_RETENTION_DAYS` or beyond `TURBALANCE_MAX_UPLOADS_PER_TENANT` are removed; set `TURBALANCE_RETENTION_INTERVAL_SECONDS` to run this automatically
 - Metrics: `/metrics` exposes Prometheus-style counters and gauges for auth failures, accepted/rejected ingests, retention runs, tenant/key changes, and configured control-plane size
 - Size limit: `TURBALANCE_MAX_UPLOAD_BYTES`, default 25 MiB
-- Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; the current adapter is file-backed and intentionally small enough to replace with object storage and a database later
+- Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; `TURBALANCE_STORAGE_MODE=file` is the default, while `TURBALANCE_STORAGE_MODE=object-sqlite` stores upload payloads as object-style files and control/audit state in SQLite
 
 Token entries use `tenant:token:role:subject`. `role` and `subject` are optional. Example:
 
 ```sh
 TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token:operator:pilot-operator,tenant-a:viewer-token:viewer:security-review,admin:admin-token:admin:platform-admin"
 ```
+
+Production-style secret mounts are supported:
+
+```sh
+TURBALANCE_TENANT_TOKENS_FILE="/var/run/turbalance-secrets/tenant-tokens"
+TURBALANCE_UPLOAD_SECRET_FILE="/var/run/turbalance-secrets/upload-secret"
+TURBALANCE_UPLOAD_SECRETS_FILE="/var/run/turbalance-secrets/upload-secrets"
+TURBALANCE_JWT_SECRET_FILE="/var/run/turbalance-secrets/jwt-secret"
+```
+
+The Kubernetes templates in `ops/kubernetes/` use those file-based secret hooks.
 
 For gateway-issued pilot JWTs, set:
 
@@ -44,7 +55,7 @@ TURBALANCE_JWT_ISSUER="https://sso.example.com" \
 TURBALANCE_JWT_AUDIENCE="turbalance-ingestion"
 ```
 
-JWT claims must include `tenantId` or `tenant`, plus optional `role`. This is a pilot-friendly gateway/JWT mode; JWKS support validates signatures and claims, while full OIDC discovery lifecycle and customer IAM provisioning remain production integration work.
+JWT claims must include `tenantId` or `tenant`, plus optional `role`. This is a pilot-friendly gateway/JWT mode; JWKS support validates signatures and claims, while full customer IAM lifecycle automation remains production integration work.
 
 For RS256/JWKS validation, set one JWKS source:
 
@@ -72,6 +83,27 @@ TURBALANCE_OIDC_DISCOVERY_URL="https://issuer.example.com/.well-known/openid-con
 ```
 
 The backend fetches `jwks_uri` from the discovery document and caches discovery responses for `TURBALANCE_OIDC_DISCOVERY_CACHE_MS`, default 300000 ms. Fetch and cache counters are exported through `/metrics`.
+
+## Storage Modes
+
+Default local file mode:
+
+```sh
+TURBALANCE_STORAGE_MODE=file
+TURBALANCE_DATA_DIR=".turbalance-data"
+```
+
+Object/SQLite reference mode:
+
+```sh
+TURBALANCE_STORAGE_MODE=object-sqlite
+TURBALANCE_DATA_DIR=".turbalance-data"
+TURBALANCE_OBJECT_DIR=".turbalance-objects"
+TURBALANCE_OBJECT_BUCKET="turbalance-ingestion"
+TURBALANCE_CONTROL_DB=".turbalance-control/ingestion-control.sqlite"
+```
+
+This is the local shape used by the Kubernetes reference manifests: payloads live behind object-style keys and control/audit rows live in SQLite. Replace those paths with the provider's managed object store and database adapter before running a horizontally scaled service.
 
 ## API
 
@@ -142,6 +174,25 @@ This script is meant for cron, Kubernetes CronJob, or provider-managed scheduled
 
 Kubernetes templates for this job and Prometheus monitoring live under `ops/kubernetes/`; see `docs/operations.md`.
 
+### Provider Export Job
+
+Build a full provider pilot bundle from mounted source exports and optionally post it to ingestion:
+
+```sh
+node scripts/run-provider-pilot-export-job.js \
+  --input-dir fixtures/provider-pilot-export-inputs \
+  --out provider-pilot-bundle.json
+```
+
+For direct upload:
+
+```sh
+TURBALANCE_INGEST_URL="http://127.0.0.1:8787/v1/ingestion" \
+TURBALANCE_INGEST_TOKEN="tenant-token" \
+TURBALANCE_INGEST_TENANT="tenant-a" \
+node scripts/run-provider-pilot-export-job.js --input-dir fixtures/provider-pilot-export-inputs
+```
+
 ### Metrics
 
 ```sh
@@ -166,6 +217,20 @@ List tenants and redacted token summaries:
 curl -sS http://127.0.0.1:8787/v1/tenants \
   -H "Authorization: Bearer admin-token"
 ```
+
+For pilot bootstrap, the helper CLI creates or updates the tenant and rotates a tenant-scoped token in one step:
+
+```sh
+node scripts/provision-tenant.js \
+  --url http://127.0.0.1:8787 \
+  --admin-token admin-token \
+  --tenant tenant-b \
+  --display-name "Tenant B" \
+  --role ingest \
+  --subject provider-exporter
+```
+
+The command prints the generated token once. Store it in the pilot provider's secret manager or a mounted Kubernetes secret before wiring exporter jobs.
 
 ### Token Rotation
 

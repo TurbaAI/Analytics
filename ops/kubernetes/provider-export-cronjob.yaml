@@ -1,0 +1,47 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbalance-provider-export
+  labels:
+    app.kubernetes.io/name: turbalance-ingestion
+    app.kubernetes.io/component: exporter
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: turbalance-ingestion
+            app.kubernetes.io/component: exporter
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: exporter
+              image: ghcr.io/your-org/turbalance-ingestion:latest
+              imagePullPolicy: IfNotPresent
+              command: ["node", "scripts/run-provider-pilot-export-job.js"]
+              env:
+                - name: TURBALANCE_EXPORT_INPUT_DIR
+                  value: /var/run/turbalance-provider-exports
+                - name: TURBALANCE_INGEST_URL
+                  value: http://turbalance-ingestion:8787/v1/ingestion
+                - name: TURBALANCE_INGEST_TENANT
+                  value: tenant-a
+                - name: TURBALANCE_INGEST_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: turbalance-ingestion-secrets
+                      key: exporter-token
+              volumeMounts:
+                - name: provider-exports
+                  mountPath: /var/run/turbalance-provider-exports
+                  readOnly: true
+          volumes:
+            - name: provider-exports
+              configMap:
+                name: turbalance-provider-export-inputs

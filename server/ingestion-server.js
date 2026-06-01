@@ -7,7 +7,8 @@ const path = require("node:path");
 const { URL } = require("node:url");
 const { validateSourceBundle } = require("../lib/source-bundle-validator.js");
 const { authenticateJwtWithJwks, loadJwks, loadOidcDiscovery, parseMapping } = require("./ingestion-oidc.js");
-const { createFileStorage } = require("./ingestion-storage.js");
+const { readSecretValue } = require("./ingestion-secrets.js");
+const { createStorageFromEnv } = require("./ingestion-storage.js");
 
 const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const ROLE_PERMISSIONS = {
@@ -500,17 +501,32 @@ async function audit(config, event) {
 
 function normalizeConfig(options = {}) {
   const dataDir = path.resolve(options.dataDir || process.env.TURBALANCE_DATA_DIR || path.join(__dirname, "..", ".turbalance-data"));
-  const storage = options.storage || createFileStorage({ dataDir });
+  const storage = createStorageFromEnv({ ...options, dataDir });
   storage.initialize();
   const persistedUploadKeys = readControlArray(storage, "upload-keys");
   const uploadKeys = parseUploadKeys({
     uploadKeys: options.uploadKeys,
-    uploadSecret: options.uploadSecret,
+    uploadSecret: readSecretValue({
+      value: options.uploadSecret,
+      env: "TURBALANCE_UPLOAD_SECRET",
+      fileEnv: "TURBALANCE_UPLOAD_SECRET_FILE",
+      fallback: "dev-upload-secret-change-me"
+    }),
+    uploadSecrets: readSecretValue({
+      value: options.uploadSecrets,
+      env: "TURBALANCE_UPLOAD_SECRETS",
+      fileEnv: "TURBALANCE_UPLOAD_SECRETS_FILE"
+    }),
     persistedUploadKeys
   });
   const activeUploadKeyId = activeUploadKeyIdFor(options, uploadKeys, persistedUploadKeys);
   const tokens = new Map();
-  mergeTokenMap(tokens, parseTenantTokens(options.tenantTokens || process.env.TURBALANCE_TENANT_TOKENS || "demo:dev-token"));
+  mergeTokenMap(tokens, parseTenantTokens(readSecretValue({
+    value: options.tenantTokens,
+    env: "TURBALANCE_TENANT_TOKENS",
+    fileEnv: "TURBALANCE_TENANT_TOKENS_FILE",
+    fallback: "demo:dev-token"
+  })));
   mergeTokenMap(tokens, tokensFromControlRecords(readControlArray(storage, "tokens")));
   const tenants = loadTenantRegistry(storage, tokens, options.tenants);
   const metrics = createMetrics();
@@ -522,7 +538,11 @@ function normalizeConfig(options = {}) {
     activeUploadKeyId,
     tokens,
     tenants,
-    jwtSecret: options.jwtSecret || process.env.TURBALANCE_JWT_SECRET || "",
+    jwtSecret: readSecretValue({
+      value: options.jwtSecret,
+      env: "TURBALANCE_JWT_SECRET",
+      fileEnv: "TURBALANCE_JWT_SECRET_FILE"
+    }),
     jwtIssuer: options.jwtIssuer || process.env.TURBALANCE_JWT_ISSUER || "",
     jwtAudience: options.jwtAudience || process.env.TURBALANCE_JWT_AUDIENCE || "",
     jwtJwks: loadJwks({ jwks: options.jwtJwks, jwksPath: options.jwtJwksPath }),
@@ -568,9 +588,8 @@ function parseTenantTokens(value) {
   return tokens;
 }
 
-function parseUploadKeys({ uploadKeys, uploadSecret, persistedUploadKeys }) {
+function parseUploadKeys({ uploadKeys, uploadSecret, uploadSecrets, persistedUploadKeys }) {
   const keys = new Map();
-  const envKeys = process.env.TURBALANCE_UPLOAD_SECRETS;
 
   addUploadKey(keys, "default", uploadSecret || process.env.TURBALANCE_UPLOAD_SECRET || "dev-upload-secret-change-me", "fallback");
 
@@ -582,7 +601,7 @@ function parseUploadKeys({ uploadKeys, uploadSecret, persistedUploadKeys }) {
     Object.entries(uploadKeys).forEach(([keyId, secret]) => addUploadKey(keys, keyId, secret, "option"));
   }
 
-  String(envKeys || "")
+  String(uploadSecrets || "")
     .split(",")
     .map((entry) => entry.trim())
     .filter(Boolean)

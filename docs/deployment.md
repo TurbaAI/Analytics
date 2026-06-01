@@ -25,7 +25,17 @@ TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 node server/ingestion-server.js
 ```
 
-See `docs/backend-ingestion.md` for signed upload, role-aware auth, HS256/JWKS/OIDC discovery gateway mode, tenant provisioning, key rotation, audit export, metrics, tenancy, and retention details. Use `scripts/run-retention-job.js` and `ops/kubernetes/` when retention should run as a cron, Kubernetes CronJob, or provider-managed scheduled task instead of an in-process interval.
+See `docs/backend-ingestion.md` for signed upload, role-aware auth, HS256/JWKS/OIDC discovery gateway mode, tenant provisioning, key rotation, audit export, metrics, storage modes, secret-file hooks, tenancy, and retention details. Use `scripts/run-retention-job.js` and `ops/kubernetes/` when retention should run as a cron, Kubernetes CronJob, or provider-managed scheduled task instead of an in-process interval.
+
+The Kubernetes reference deployment uses:
+
+- `ops/kubernetes/ingestion-configmap.yaml`
+- `ops/kubernetes/ingestion-secret.example.yaml`
+- `ops/kubernetes/ingestion-deployment.yaml`
+- `ops/kubernetes/ingestion-retention-cronjob.yaml`
+- `ops/kubernetes/provider-export-cronjob.yaml`
+- `ops/kubernetes/ingestion-service-monitor.yaml`
+- `ops/kubernetes/ingestion-prometheus-rules.yaml`
 
 ## GitHub Pages
 
@@ -39,6 +49,8 @@ The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the 
 6. deploys it with GitHub Pages
 
 Enable Pages in repository settings with GitHub Actions as the source.
+
+`.github/workflows/visual-qa.yml` is the dedicated Playwright visual QA workflow for screenshot regeneration and artifact upload.
 
 If the Pages workflow fails at `Configure Pages`, the repository setting is not enabled yet. Enable Pages from GitHub repository settings, then rerun the latest `Deploy GitHub Pages` workflow.
 
