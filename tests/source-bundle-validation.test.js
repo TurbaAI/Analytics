@@ -49,6 +49,11 @@ assert.throws(
 );
 
 assert.throws(
+  () => context.buildIngestionFromExternalPayload({ sources: { opportunities: [{}] } }),
+  /sources\.opportunities\[1\] is missing runId\./
+);
+
+assert.throws(
   () => context.buildIngestionFromExternalPayload({ ncclTraces: [{ events: [] }] }),
   /ncclTraces\[1\] is missing runId\./
 );
@@ -56,6 +61,35 @@ assert.throws(
 const providerTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/provider-overlay-template.json"), "utf8"));
 const sourceBundle = context.buildIngestionFromExternalPayload(providerTemplate);
 assert.ok(sourceBundle.sourceAdapters.includes("provider"));
+assert.ok(sourceBundle.sourceAdapters.includes("opportunities"));
+
+const opportunityBundle = context.buildIngestionFromExternalPayload({
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    runs: [
+      {
+        id: "run-opportunity",
+        name: "opportunity import",
+        allocation: { allocatedGpuHours: 10 }
+      }
+    ]
+  },
+  sources: {
+    opportunities: [
+      {
+        runId: "run-opportunity",
+        category: "Inference Economics",
+        title: "Tune batch sizing",
+        impactDollars: 120,
+        impactGpuHours: 20,
+        riskScore: 66,
+        confidence: 80
+      }
+    ]
+  }
+});
+assert.ok(opportunityBundle.sourceAdapters.includes("opportunities"));
+assert.equal(opportunityBundle.runs[0].opportunities[0].title, "Tune batch sizing");
 
 const ebpfBundle = context.buildIngestionFromExternalPayload({
   ingestion: {

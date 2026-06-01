@@ -137,6 +137,46 @@ Expected fields:
 
 The browser adapter converts those summaries into the existing dashboard lanes: network wait, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events.
 
+## Opportunity Overlay
+
+The dashboard computes ranked opportunities locally, but upstream systems can contribute recommendation rows with `sources.opportunities`. Use this when an external scheduler simulator, inference tuner, support workflow, or capacity-planning tool already knows the action it wants an operator to validate.
+
+Expected fields:
+
+- `runId`
+- `opportunityId` or `id`
+- `category`
+- `title`
+- `impactDollars`
+- `impactGpuHours`
+- `riskScore`
+- `confidence`
+- `evidence`
+- `recommendation`
+- `owner`
+- `sourceSignals`
+
+```json
+{
+  "sources": {
+    "opportunities": [
+      {
+        "runId": "run-7421",
+        "category": "Scheduler + Capacity",
+        "title": "Protect reserved runs with locality-aware admission",
+        "impactDollars": 2800,
+        "impactGpuHours": 410,
+        "riskScore": 72,
+        "confidence": 84,
+        "evidence": "Queue pressure and cross-pod placement align with support timing.",
+        "recommendation": "Pin the next reserved burst to a contiguous pod.",
+        "owner": "Scheduler team"
+      }
+    ]
+  }
+}
+```
+
 ## Provider Commercial Overlay
 
 Neo-cloud provider billing, reservation, and support context should use `sources.provider`. This source is intentionally separate from Prometheus, DCGM, Kubernetes, and NCCL traces so operators can import redacted tenant metadata without exposing live billing systems to the browser prototype.
@@ -217,7 +257,7 @@ The parser attributes collective time by operation and topology tier: same node,
 ## Production Intake Flow
 
 1. Export a normalized `turba.ingestion.v1` feed for run identity, allocation, baselines, work counters, and placement.
-2. Export source metric bundles for Prometheus, DCGM, Kubernetes, Linux eBPF summaries, and NCCL traces.
+2. Export source metric bundles for Prometheus, DCGM, Kubernetes, Linux eBPF summaries, opportunity overlays, and NCCL traces.
 3. Export a provider overlay for tenant, reservation, commercial, and support/SLO metadata when the operator is a GPU cloud or neo-cloud provider.
 4. Import the feed first.
 5. Import source bundles to overlay source-measured metrics and provider metadata.

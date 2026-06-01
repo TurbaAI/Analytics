@@ -8,6 +8,7 @@
     { "required": ["sources"] },
     { "required": ["sourceExports"] },
     { "required": ["runs"] },
+    { "required": ["opportunities"] },
     { "required": ["ncclTraces"] },
     { "required": ["traces"] },
     { "required": ["nccl"] }
@@ -29,6 +30,10 @@
     },
     "sourceExports": {
       "$ref": "#/$defs/sourceExports"
+    },
+    "opportunities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/opportunitySample" }
     },
     "ncclTraces": {
       "type": "array",
@@ -67,6 +72,10 @@
         "provider": {
           "type": "array",
           "items": { "$ref": "#/$defs/providerSample" }
+        },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/opportunitySample" }
         },
         "ncclTraces": {
           "type": "array",
@@ -202,6 +211,57 @@
         },
         "slo": {
           "$ref": "#/$defs/slo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "opportunitySample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "opportunityId": { "type": "string" },
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "action": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/opportunitySampleItem" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "opportunitySampleItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "action": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

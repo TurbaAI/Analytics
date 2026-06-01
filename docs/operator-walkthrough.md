@@ -25,9 +25,13 @@ When an eBPF host overlay is present, treat higher network wait, storage wait, C
 
 Use the regression panel to compare current step time, NCCL time, GPU efficiency, queue wait, and cost against the persisted baseline for each run.
 
+## Prioritize Opportunities
+
+Use the Opportunity Engine action center after the first diagnosis. It ranks FinOps, topology, scheduler, inference, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack actions by estimated impact, risk, and confidence. Treat dollar values as prioritization estimates because categories can overlap.
+
 ## Track Trends
 
-The trend panel uses persisted analysis snapshots. A snapshot is captured when the workspace is seeded, reset, imported, restored, or manually analyzed. Use the trend metric selector to compare efficiency, wasted GPU-hours, NCCL time, cost per useful GPU-hour, sellable waste, commit burn, queue SLO, or gross margin.
+The trend panel uses persisted analysis snapshots. A snapshot is captured when the workspace is seeded, reset, imported, restored, or manually analyzed. Use the trend metric selector to compare efficiency, wasted GPU-hours, NCCL time, cost per useful GPU-hour, sellable waste, opportunity impact, commit burn, queue SLO, or gross margin.
 
 ## Use The Neo-Cloud Provider Lens
 
@@ -43,10 +47,10 @@ For tenant escalations, start with `Job` scope and copy the outcome report into 
 
 ## Import And Restore Data
 
-- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, eBPF host overlay, or `turba.workspace.v2` file.
+- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, eBPF host overlay, opportunity overlay, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
 - Use export to download the current workspace, including baselines and trend snapshots.
-- Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, and source-context identifiers with deterministic surrogate IDs.
+- Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, source-context identifiers, and imported opportunity free text with deterministic surrogate IDs.
 - Use reset to return browser-local state to the sample feed.
 - Use `fixtures/neo-cloud-provider-bundle.json` to exercise tenant, reservation, SLO, and commercial overlays.
 

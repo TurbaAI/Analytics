@@ -24,17 +24,18 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 9. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
 10. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
 11. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
-12. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
-13. Import `fixtures/external-source-bundle.json`.
-14. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
-15. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
-16. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-17. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-18. Copy the customer report as the final operator summary.
+12. Open the Opportunity Engine action center and show how FinOps, topology, scheduler, inference, eBPF, fleet, energy, and evidence-pack actions are ranked together.
+13. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data, including imported `sources.opportunities` rows.
+14. Import `fixtures/external-source-bundle.json`.
+15. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
+16. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
+17. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+18. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+19. Copy the customer report as the final operator summary.
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, Linux eBPF summaries, NCCL traces, and provider billing/SLO systems for production validation.
+Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
 
 ## Do Not Claim
 

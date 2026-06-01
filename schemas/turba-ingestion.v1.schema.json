@@ -45,6 +45,10 @@
           "placement": { "type": ["object", "array"] },
           "traceAttribution": { "type": "object" },
           "sourceContext": { "type": "object" },
+          "opportunities": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/opportunity" }
+          },
           "commercial": {
             "type": "object",
             "properties": {
@@ -79,5 +83,27 @@
       "items": { "type": "string" }
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$defs": {
+    "opportunity": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
 }

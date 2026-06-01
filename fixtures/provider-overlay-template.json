@@ -27,6 +27,21 @@
           "supportTicketId": "ticket-surrogate-1"
         }
       }
+    ],
+    "opportunities": [
+      {
+        "runId": "replace-with-run-id",
+        "opportunityId": "opportunity-surrogate-1",
+        "category": "Scheduler + Capacity",
+        "title": "Replace with ranked provider action",
+        "impactDollars": 0,
+        "impactGpuHours": 0,
+        "riskScore": 0,
+        "confidence": 0,
+        "evidence": "Replace with redacted source evidence.",
+        "recommendation": "Replace with the provider action to validate.",
+        "owner": "provider-team"
+      }
     ]
   }
 }

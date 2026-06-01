@@ -46,7 +46,8 @@ const INGESTION_SCHEMA = {
     "baseline",
     "placement",
     "commercial",
-    "slo"
+    "slo",
+    "opportunities"
   ]
 };
 
@@ -973,6 +974,13 @@ const TREND_METRIC_DEFS = {
     format: (value) => currency.format(value),
     formatDelta: (value) => signedCurrency(value)
   },
+  opportunityImpactDollars: {
+    label: "Opportunity impact",
+    unit: "USD",
+    higherIsBetter: false,
+    format: (value) => currency.format(value),
+    formatDelta: (value) => signedCurrency(value)
+  },
   reservationBurnPct: {
     label: "Commit burn",
     unit: "percent",
@@ -1132,6 +1140,7 @@ function captureAnalysisSnapshot(sourceLabel, capturedAt = new Date()) {
 
 function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
   const provider = providerEconomics(summary);
+  const opportunityEngine = generateOpportunities(summary, classifier, provider);
 
   return {
     capturedAt,
@@ -1151,6 +1160,9 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       wasteDollars: summary.wasteDollars,
       costPerUsefulGpuHour: summary.costPerUsefulGpuHour,
       sellableWasteValue: provider.sellableWasteValue,
+      opportunityImpactDollars: opportunityEngine.totalImpactDollars,
+      opportunityGpuHours: opportunityEngine.totalImpactGpuHours,
+      opportunityCount: opportunityEngine.opportunities.length,
       reservationBurnPct: provider.reservationBurnPct,
       queueSloPct: provider.queueSloPct,
       grossMarginPct: provider.grossMarginPct,
@@ -1251,6 +1263,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
   if (sources.provider?.length) {
     mergeImportedSections(importedByRun, importProviderSamples(sources.provider), "provider");
     adapters.push("provider");
+  }
+  if (sources.opportunities?.length) {
+    mergeImportedSections(importedByRun, importOpportunitySamples(sources.opportunities), "opportunities");
+    adapters.push("opportunities");
   }
   if (ncclTraces.length) {
     mergeImportedSections(importedByRun, importNcclTraceSamples(ncclTraces, NODE_INDEX), "nccl-trace");
@@ -1507,6 +1523,38 @@ function importProviderSamples(samples = []) {
   }));
 }
 
+function importOpportunitySamples(samples = []) {
+  const grouped = new Map();
+
+  samples.forEach((sample) => {
+    if (!sample.runId) return;
+
+    const existing = grouped.get(sample.runId) || [];
+    const opportunities = Array.isArray(sample.opportunities) ? sample.opportunities : [sample];
+    opportunities.forEach((opportunity, index) => {
+      existing.push(compactObject({
+        id: opportunity.id || sample.opportunityId || `source-opportunity-${existing.length + index + 1}`,
+        category: opportunity.category || sample.category,
+        title: opportunity.title || sample.title || sample.name,
+        impactDollars: firstFinite(opportunity.impactDollars, sample.impactDollars),
+        impactGpuHours: firstFinite(opportunity.impactGpuHours, sample.impactGpuHours),
+        riskScore: firstFinite(opportunity.riskScore, opportunity.score, sample.riskScore, sample.score),
+        confidence: firstFinite(opportunity.confidence, sample.confidence),
+        evidence: opportunity.evidence || sample.evidence,
+        recommendation: opportunity.recommendation || opportunity.action || sample.recommendation || sample.action,
+        owner: opportunity.owner || sample.owner,
+        sourceSignals: isPlainObject(opportunity.sourceSignals) ? opportunity.sourceSignals : sample.sourceSignals
+      }));
+    });
+    grouped.set(sample.runId, existing);
+  });
+
+  return Array.from(grouped.entries()).map(([runId, opportunities]) => ({
+    runId,
+    sections: { opportunities }
+  }));
+}
+
 function importNcclTraceSamples(samples = [], topologyIndex = {}) {
   if (!ncclParser) return [];
 
@@ -1656,6 +1704,7 @@ function normalizeRun(run, entities) {
     baseline: normalizeBaseline(run.baseline),
     placement: normalizePlacement(run.placement),
     traceAttribution: normalizeTraceAttribution(run.traceAttribution),
+    importedOpportunities: normalizeImportedOpportunities(run.opportunities),
     source: {
       schemaVersion: INGESTION_SCHEMA.version,
       runId: run.id,
@@ -1676,6 +1725,26 @@ function normalizeTraceAttribution(traceAttribution) {
     byOperation: Array.isArray(traceAttribution?.byOperation) ? traceAttribution.byOperation : [],
     hottestTier: traceAttribution?.hottestTier || null
   };
+}
+
+function normalizeImportedOpportunities(opportunities) {
+  if (!Array.isArray(opportunities)) return [];
+
+  return opportunities
+    .filter(isPlainObject)
+    .map((opportunity, index) => compactObject({
+      id: String(opportunity.id || `opportunity-${index + 1}`),
+      category: String(opportunity.category || "Imported Opportunity"),
+      title: String(opportunity.title || opportunity.name || "Imported recommendation"),
+      impactDollars: optionalMetric(opportunity, "impactDollars"),
+      impactGpuHours: optionalMetric(opportunity, "impactGpuHours"),
+      riskScore: optionalMetric(opportunity, "riskScore"),
+      confidence: optionalMetric(opportunity, "confidence"),
+      evidence: String(opportunity.evidence || ""),
+      recommendation: String(opportunity.recommendation || opportunity.action || ""),
+      owner: String(opportunity.owner || ""),
+      sourceSignals: isPlainObject(opportunity.sourceSignals) ? opportunity.sourceSignals : {}
+    }));
 }
 
 function normalizeMetrics(run) {
@@ -1877,7 +1946,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider", "opportunities"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -1901,7 +1970,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider", "opportunities"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -1934,7 +2003,8 @@ function extractSourceExports(payload) {
     dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
     kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : [],
     ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
-    provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : []
+    provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : [],
+    opportunities: Array.isArray(sourceRoot.opportunities) ? sourceRoot.opportunities : []
   };
 }
 
@@ -1960,7 +2030,8 @@ function hasSourceExports(sources) {
     || sources.dcgm.length > 0
     || sources.kubernetes.length > 0
     || sources.ebpf.length > 0
-    || sources.provider.length > 0;
+    || sources.provider.length > 0
+    || sources.opportunities.length > 0;
 }
 
 function firstArray(...values) {
@@ -2090,9 +2161,10 @@ function redactWorkspaceStore(store) {
     fields: [
       "run ids",
       "model/user/team/cluster/tenant/account/reservation refs",
-      "commercial contract ids",
-      "support ticket ids",
-      "provider and eBPF source context"
+    "commercial contract ids",
+    "support ticket ids",
+    "provider and eBPF source context",
+    "imported opportunity free text"
     ]
   };
 
@@ -2174,6 +2246,7 @@ function redactRun(run, plan) {
     refs: redactRefs(run.refs || {}, plan),
     commercial: redactCommercial(run.commercial || {}, plan),
     slo: redactSlo(run.slo || {}, plan),
+    opportunities: redactOpportunities(run.opportunities || []),
     sourceContext: redactSourceContext(run.sourceContext || {}, plan)
   };
 }
@@ -2199,6 +2272,24 @@ function redactSlo(slo, plan) {
     ...slo,
     supportTicketId: mappedValue(plan.tickets, slo.supportTicketId, "ticket")
   };
+}
+
+function redactOpportunities(opportunities = []) {
+  if (!Array.isArray(opportunities)) return [];
+
+  return opportunities.map((opportunity, index) => compactObject({
+    id: opportunity.id ? `opportunity-${index + 1}` : undefined,
+    category: opportunity.category ? "Redacted Opportunity" : undefined,
+    title: opportunity.title ? "Redacted imported opportunity" : undefined,
+    impactDollars: opportunity.impactDollars,
+    impactGpuHours: opportunity.impactGpuHours,
+    riskScore: opportunity.riskScore,
+    confidence: opportunity.confidence,
+    evidence: opportunity.evidence ? "Redacted imported opportunity evidence." : undefined,
+    recommendation: opportunity.recommendation ? "Review the redacted opportunity in the original workspace." : undefined,
+    owner: opportunity.owner ? "redacted-owner" : undefined,
+    sourceSignals: opportunity.sourceSignals || {}
+  }));
 }
 
 function redactSourceContext(context, plan) {
@@ -2397,6 +2488,7 @@ function render() {
   const components = scoreComponents(summary);
   const fingerprint = fingerprintWorkload(summary);
   const provider = providerEconomics(summary);
+  const opportunityEngine = generateOpportunities(summary, classifier, provider);
 
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
@@ -2406,6 +2498,7 @@ function render() {
   renderBottleneck(summary, classifier);
   renderProviderLens(summary, provider, classifier);
   renderProviderSummaryTables();
+  renderOpportunityCenter(opportunityEngine);
   renderComponents(components);
   renderTopology(summary);
   renderFingerprint(fingerprint);
@@ -2509,6 +2602,7 @@ function summarizeEntry(entry) {
     slo: summarizeSloFields(items),
     placement: mergePlacement(items),
     traceAttribution: mergeTraceAttribution(items),
+    importedOpportunities: mergeImportedOpportunities(items),
     sourceItems: items
   };
 
@@ -3144,6 +3238,106 @@ function providerSummaryRow(row, value, note) {
   return button;
 }
 
+function renderOpportunityCenter(engine) {
+  const badge = document.querySelector("#opportunityBadge");
+  const stats = document.querySelector("#opportunityStats");
+  const list = document.querySelector("#opportunityList");
+  if (!badge || !stats || !list) return;
+
+  const opportunities = engine.opportunities || [];
+  badge.textContent = `${opportunities.length} ${opportunities.length === 1 ? "open" : "open"}`;
+  badge.dataset.severity = engine.highestSeverity;
+  stats.replaceChildren(
+    opportunityStat("Recoverable value", currency.format(engine.totalImpactDollars), engine.highestSeverity),
+    opportunityStat("GPU-hour upside", number.format(engine.totalImpactGpuHours), engine.highestSeverity),
+    opportunityStat("Top severity", titleCase(engine.highestSeverity), engine.highestSeverity),
+    opportunityStat("Confidence", opportunities[0] ? pct(opportunities[0].confidence) : "n/a", confidenceTone(opportunities[0]?.confidence))
+  );
+
+  list.replaceChildren();
+  if (opportunities.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "opportunity-empty";
+    empty.textContent = "No ranked opportunities";
+    list.append(empty);
+    return;
+  }
+
+  opportunities.slice(0, 5).forEach((opportunity) => {
+    list.append(opportunityRow(opportunity));
+  });
+}
+
+function opportunityStat(label, value, tone) {
+  const item = document.createElement("div");
+  item.dataset.tone = tone;
+
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+
+  labelEl.textContent = label;
+  valueEl.textContent = value;
+  item.append(labelEl, valueEl);
+
+  return item;
+}
+
+function opportunityRow(opportunity) {
+  const row = document.createElement("article");
+  row.className = "opportunity-row";
+  row.dataset.severity = opportunity.severity;
+
+  const head = document.createElement("div");
+  head.className = "opportunity-row-head";
+
+  const copy = document.createElement("div");
+  const category = document.createElement("span");
+  const title = document.createElement("strong");
+  category.className = "opportunity-category";
+  category.textContent = opportunity.category;
+  title.textContent = opportunity.title;
+  copy.append(category, title);
+
+  const impact = document.createElement("strong");
+  impact.className = "opportunity-impact";
+  impact.textContent = opportunity.impactDollars > 0
+    ? currency.format(opportunity.impactDollars)
+    : `${number.format(opportunity.impactGpuHours)} GPU-hours`;
+
+  head.append(copy, impact);
+
+  const meta = document.createElement("div");
+  meta.className = "opportunity-meta";
+  meta.append(
+    opportunityPill(titleCase(opportunity.severity)),
+    opportunityPill(`${pct(opportunity.confidence)} confidence`),
+    opportunityPill(opportunity.owner)
+  );
+
+  const evidence = document.createElement("p");
+  evidence.textContent = opportunity.evidence;
+
+  const recommendation = document.createElement("small");
+  recommendation.textContent = opportunity.recommendation;
+
+  row.append(head, meta, evidence, recommendation);
+  return row;
+}
+
+function opportunityPill(text) {
+  const pill = document.createElement("span");
+  pill.className = "opportunity-pill";
+  pill.textContent = text || "Unassigned";
+  return pill;
+}
+
+function confidenceTone(confidence) {
+  const value = numeric(confidence);
+  if (value >= 74) return "high";
+  if (value >= 58) return "medium";
+  return "low";
+}
+
 function providerActionsFor(summary, provider, classifier, sloData) {
   const tenant = listLabel(summary.provider?.tenants, 1);
   const reservation = listLabel(summary.provider?.reservations, 1);
@@ -3497,6 +3691,14 @@ function providerEconomics(summary) {
   return analytics.summarizeProviderEconomics(summary, { rate: state.rate });
 }
 
+function generateOpportunities(summary, classifier, provider) {
+  return analytics.generateOpportunities(summary, {
+    classifier,
+    provider,
+    rate: state.rate
+  });
+}
+
 function fingerprintWorkload(summary) {
   return analytics.fingerprintWorkload(summary);
 }
@@ -3643,6 +3845,17 @@ function mergeTraceAttribution(items) {
     byOperation: mergeTraceRows(traces, "byOperation", "op", totalDurationMs, totalBytes),
     hottestTier: mergeTraceRows(traces, "byTier", "tier", totalDurationMs, totalBytes)[0] || null
   };
+}
+
+function mergeImportedOpportunities(items) {
+  return items.flatMap((item) => (
+    Array.isArray(item.importedOpportunities)
+      ? item.importedOpportunities.map((opportunity) => ({
+        ...opportunity,
+        sourceRunId: item.id
+      }))
+      : []
+  ));
 }
 
 function mergeTraceRows(traces, listKey, idKey, totalDurationMs, totalBytes) {

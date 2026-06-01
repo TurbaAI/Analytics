@@ -33,6 +33,8 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Neo-cloud provider lens for tenant, account, reservation, billing model, SLO, sellable waste, commit burn, and gross-margin context
 - Provider portfolio risk tables for sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates
 - Provider source overlays through `sources.provider` for commercial and support metadata without requiring live billing credentials
+- Opportunity Engine that ranks FinOps, topology, scheduler, inference, host-kernel, fleet, energy, and customer evidence-pack actions by impact, risk, and confidence
+- Optional `sources.opportunities` overlay for upstream recommendation systems to contribute ranked actions
 - First-class tenant, account, and reservation scopes for provider operations
 - Redacted workspace export for tenant-safe support, QBR, and capacity-planning handoff
 
@@ -40,7 +42,7 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 
 `app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, Linux eBPF, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
 
-External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example; `fixtures/provider-overlay-template.json` is a provider export template. `scripts/build-provider-overlay.js` builds a provider overlay from example Kubernetes, Slurm, billing, and support inputs in `fixtures/provider-export-inputs/`. `scripts/build-ebpf-overlay.js` builds an eBPF host overlay from summarized host samples in `fixtures/ebpf-export-inputs/`.
+External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example; `fixtures/provider-overlay-template.json` is a provider export template. `scripts/build-provider-overlay.js` builds a provider overlay from example Kubernetes, Slurm, billing, and support inputs in `fixtures/provider-export-inputs/`. `scripts/build-ebpf-overlay.js` builds an eBPF host overlay from summarized host samples in `fixtures/ebpf-export-inputs/`.
 
 ## Operator docs
 

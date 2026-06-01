@@ -65,6 +65,20 @@ const store = {
         allocation: { allocatedGpuHours: 10 },
         commercial: { contractId: "secret-contract", listGpuHourRate: 6.8 },
         slo: { supportTicketId: "secret-ticket" },
+        opportunities: [
+          {
+            id: "secret-opportunity",
+            category: "Secret Category",
+            title: "secret opportunity title",
+            impactDollars: 1200,
+            impactGpuHours: 200,
+            riskScore: 77,
+            confidence: 88,
+            evidence: "secret customer evidence",
+            recommendation: "secret remediation",
+            owner: "secret owner"
+          }
+        ],
         sourceContext: {
           namespace: "secret-namespace",
           podSelector: "job-name=secret",
@@ -127,6 +141,11 @@ const serialized = JSON.stringify(redacted);
   "Secret Reservation",
   "secret-contract",
   "secret-ticket",
+  "secret-opportunity",
+  "secret opportunity title",
+  "secret customer evidence",
+  "secret remediation",
+  "secret owner",
   "secret-namespace",
   "secret-slurm",
   "secret-ebpf-export",
@@ -146,6 +165,9 @@ assert.equal(redacted.ingestion.runs[0].id, "run-1");
 assert.equal(redacted.ingestion.runs[0].refs.tenant, "tenant-1");
 assert.equal(redacted.ingestion.runs[0].commercial.contractId, "contract-1");
 assert.equal(redacted.ingestion.runs[0].slo.supportTicketId, "ticket-1");
+assert.equal(redacted.ingestion.runs[0].opportunities[0].category, "Redacted Opportunity");
+assert.equal(redacted.ingestion.runs[0].opportunities[0].title, "Redacted imported opportunity");
+assert.equal(redacted.ingestion.runs[0].opportunities[0].impactDollars, 1200);
 assert.equal(redacted.baselines["run-1"].gpuEfficiency, 55);
 assert.equal(redacted.snapshots[0].key, "tenant-1");
 assert.equal(redacted.snapshots[1].key, "run-1");

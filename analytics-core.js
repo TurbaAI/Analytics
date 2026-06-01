@@ -365,6 +365,304 @@
     ];
   }
 
+  function generateOpportunities(summary, options = {}) {
+    const classifier = options.classifier || classifyBottlenecks(summary);
+    const provider = options.provider || summarizeProviderEconomics(summary, options);
+    const rate = firstPositive(provider.listGpuHourRate, options.rate);
+    const durationHours = numeric(summary.gpus) > 0 ? numeric(summary.allocatedGpuHours) / numeric(summary.gpus) : 0;
+    const candidates = [
+      usefulComputeOpportunity(summary, provider, classifier, rate),
+      topologyOpportunity(summary, classifier, provider, rate),
+      inputPipelineOpportunity(summary, provider, rate),
+      schedulerOpportunity(summary, provider, rate, durationHours),
+      providerSloOpportunity(summary, provider, rate),
+      inferenceOpportunity(summary, provider, rate),
+      hostKernelOpportunity(summary, provider, rate),
+      fleetHealthOpportunity(summary, provider, rate),
+      energyOpportunity(summary, provider, rate, options),
+      evidencePackOpportunity(summary, provider)
+    ];
+
+    const imported = Array.isArray(summary.importedOpportunities)
+      ? summary.importedOpportunities.map((opportunity, index) => normalizeImportedOpportunity(opportunity, summary, index))
+      : [];
+    const opportunities = [...candidates, ...imported]
+      .filter(Boolean)
+      .map((opportunity) => finalizeOpportunity(opportunity, summary))
+      .sort((a, b) => b.priorityScore - a.priorityScore || b.impactDollars - a.impactDollars)
+      .slice(0, numeric(options.limit, 8));
+
+    return {
+      scope: summary.scope,
+      key: summary.key,
+      label: summary.label,
+      totalImpactDollars: opportunities.reduce((total, opportunity) => total + opportunity.impactDollars, 0),
+      totalImpactGpuHours: opportunities.reduce((total, opportunity) => total + opportunity.impactGpuHours, 0),
+      highestSeverity: opportunities[0]?.severity || "low",
+      opportunities
+    };
+  }
+
+  function usefulComputeOpportunity(summary, provider, classifier, rate) {
+    if (numeric(summary.wastedGpuHours) < 8 && numeric(summary.usefulCompute) >= 62) return null;
+
+    const recoverableGpuHours = numeric(summary.wastedGpuHours) * recoveryRatioFor(classifier.primary.short);
+    return {
+      id: "useful-compute-finops",
+      category: "Useful Compute FinOps",
+      title: "Recover non-useful accelerator spend",
+      impactDollars: recoverableGpuHours * rate,
+      impactGpuHours: recoverableGpuHours,
+      riskScore: clamp(100 - numeric(summary.usefulCompute)),
+      confidence: confidenceFromSignals([summary.usefulCompute, summary.gpuUtil, summary.wastedGpuHours, provider.sellableWasteValue]),
+      evidence: `${pct(summary.usefulCompute)} useful compute, ${round(summary.wastedGpuHours)} wasted GPU-hours, ${classifier.primary.short} is primary.`,
+      recommendation: "Rank the largest non-useful GPU-hour pools first, then attach each pool to a placement, input, memory, or configuration fix before buying more capacity.",
+      owner: "FinOps + platform"
+    };
+  }
+
+  function topologyOpportunity(summary, classifier, provider, rate) {
+    const topologyPressure = numeric(summary.ncclTime) + numeric(summary.networkWait) + numeric(summary.crossPodTraffic) * 0.25 + Math.max(0, 100 - numeric(summary.placementQuality)) * 0.18;
+    if (topologyPressure < 26 && classifier.primary.short !== "Communication" && classifier.primary.short !== "Placement") return null;
+
+    const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(topologyPressure / 220, 0.1, 0.42);
+    return {
+      id: "fabric-topology",
+      category: "Fabric + Topology",
+      title: "Repack topology-sensitive workloads",
+      impactDollars: recoverableGpuHours * rate,
+      impactGpuHours: recoverableGpuHours,
+      riskScore: clamp(topologyPressure),
+      confidence: confidenceFromSignals([summary.ncclTime, summary.networkWait, summary.crossPodTraffic, summary.placementQuality, summary.traceAttribution?.eventCount]),
+      evidence: `${pct(summary.ncclTime + summary.networkWait)} time in collectives/network wait with ${pct(summary.crossPodTraffic)} cross-pod traffic.`,
+      recommendation: "Reserve contiguous locality groups for repeat high-value jobs and compare NCCL trace time before and after the scheduler change.",
+      owner: "Scheduler + network"
+    };
+  }
+
+  function inputPipelineOpportunity(summary, provider, rate) {
+    const inputPressure = numeric(summary.dataloaderStall) + numeric(summary.storageWait) + numeric(summary.cpuPrep);
+    if (inputPressure < 18) return null;
+
+    const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(inputPressure / 180, 0.08, 0.36);
+    return {
+      id: "data-pipeline",
+      category: "Data Pipeline",
+      title: "Remove storage and preprocessing stalls",
+      impactDollars: recoverableGpuHours * rate,
+      impactGpuHours: recoverableGpuHours,
+      riskScore: clamp(inputPressure * 1.7),
+      confidence: confidenceFromSignals([summary.dataloaderStall, summary.storageWait, summary.cpuPrep]),
+      evidence: `${pct(inputPressure)} combined dataloader, storage, and CPU-prep pressure.`,
+      recommendation: "Move hot datasets closer to the allocation, prefetch earlier, and compare storage/eBPF latency windows against GPU idle gaps.",
+      owner: "Data platform"
+    };
+  }
+
+  function schedulerOpportunity(summary, provider, rate, durationHours) {
+    const strandedGpuHours = Math.max(0, numeric(summary.idleGpus) * durationHours + numeric(summary.partialNodes) * durationHours * 4);
+    const queuePressure = numeric(summary.queueWaitMinutes) + numeric(summary.partialNodes) * 4 + numeric(summary.idleGpus) * 2;
+    if (queuePressure < 18 && strandedGpuHours < 8) return null;
+
+    const impactGpuHours = Math.max(strandedGpuHours, numeric(summary.wastedGpuHours) * clamp(queuePressure / 240, 0.05, 0.3));
+    return {
+      id: "scheduler-capacity",
+      category: "Scheduler + Capacity",
+      title: "Reclaim fragmented and queue-blocked capacity",
+      impactDollars: impactGpuHours * rate,
+      impactGpuHours,
+      riskScore: clamp(queuePressure * 1.25),
+      confidence: confidenceFromSignals([summary.queueWaitMinutes, summary.partialNodes, summary.idleGpus, summary.placementQuality]),
+      evidence: `${round(summary.queueWaitMinutes)} minute queue wait, ${round(summary.partialNodes)} partial nodes, ${round(summary.idleGpus)} idle GPUs.`,
+      recommendation: "Run a bin-packing what-if for partial nodes, then reserve contiguous capacity for repeated strategic tenants before admitting burst work.",
+      owner: "Capacity planning"
+    };
+  }
+
+  function providerSloOpportunity(summary, provider, rate) {
+    if (provider.queueSloGapMinutes <= 0 && provider.efficiencyGap <= 0) return null;
+
+    const startRiskGpuHours = Math.max(0, provider.queueSloGapMinutes / 60) * numeric(summary.gpus);
+    const efficiencyRiskGpuHours = numeric(summary.allocatedGpuHours) * clamp(provider.efficiencyGap / 120, 0, 0.35);
+    const impactGpuHours = startRiskGpuHours + efficiencyRiskGpuHours;
+    return {
+      id: "provider-slo-risk",
+      category: "Provider SLO + Escalation",
+      title: "Defuse tenant SLO and renewal risk",
+      impactDollars: Math.max(impactGpuHours * rate, provider.sellableWasteValue * 0.2),
+      impactGpuHours,
+      riskScore: clamp(provider.queueSloPct * 0.58 + provider.efficiencyGap * 3),
+      confidence: confidenceFromSignals([provider.queueSloPct, provider.efficiencyGap, summary.slo?.targetStartMinutes, summary.slo?.targetEfficiency]),
+      evidence: provider.queueSloGapMinutes > 0
+        ? `${round(provider.queueSloGapMinutes)} minutes over start target and ${round(provider.efficiencyGap)} efficiency points below target.`
+        : `${round(provider.efficiencyGap)} efficiency points below target.`,
+      recommendation: "Create a tenant-safe evidence pack with queue, efficiency, and bottleneck attribution before the next support or QBR conversation.",
+      owner: "Customer success + platform"
+    };
+  }
+
+  function inferenceOpportunity(summary, provider, rate) {
+    if (numeric(summary.inferenceRequestsM) <= 0) return null;
+
+    const tailPressure = numeric(summary.latencyTail) + numeric(summary.kvCachePressure) * 0.7 + numeric(summary.batchInefficiency) * 0.45;
+    const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(tailPressure / 230, 0.08, 0.38);
+    return {
+      id: "inference-unit-economics",
+      category: "Inference Economics",
+      title: "Lower cost per served request",
+      impactDollars: recoverableGpuHours * rate,
+      impactGpuHours: recoverableGpuHours,
+      riskScore: clamp(tailPressure),
+      confidence: confidenceFromSignals([summary.inferenceRequestsM, summary.latencyTail, summary.kvCachePressure, summary.costPerMillionRequests]),
+      evidence: `${round(summary.inferenceRequestsM)}M requests at ${defaultCurrency(summary.costPerMillionRequests)} per million requests with ${pct(summary.latencyTail)} tail pressure.`,
+      recommendation: "Tune batching, KV-cache placement, and admission control together, then track cost per million requests beside latency tail.",
+      owner: "Inference platform"
+    };
+  }
+
+  function hostKernelOpportunity(summary, provider, rate) {
+    const hostPressure = numeric(summary.contentionPct) + numeric(summary.cpuPrep) * 0.7 + numeric(summary.storageWait) * 0.45 + numeric(summary.networkWait) * 0.45 + numeric(summary.noiseEvents) * 8;
+    if (hostPressure < 22) return null;
+
+    const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(hostPressure / 240, 0.06, 0.34);
+    return {
+      id: "host-kernel-ebpf",
+      category: "Host Kernel + eBPF",
+      title: "Correlate kernel pressure with GPU idle time",
+      impactDollars: recoverableGpuHours * rate,
+      impactGpuHours: recoverableGpuHours,
+      riskScore: clamp(hostPressure),
+      confidence: confidenceFromSignals([summary.contentionPct, summary.cpuPrep, summary.storageWait, summary.networkWait, summary.noiseEvents]),
+      evidence: `${pct(summary.contentionPct)} contention, ${pct(summary.cpuPrep)} CPU-prep pressure, ${round(summary.noiseEvents)} noise events.`,
+      recommendation: "Use eBPF summaries to separate noisy-neighbor, CPU scheduling, socket, and block I/O causes before moving the workload.",
+      owner: "Kernel + SRE"
+    };
+  }
+
+  function fleetHealthOpportunity(summary, provider, rate) {
+    const irregularity = Math.max(0, 100 - numeric(summary.stepRegularity));
+    const fleetRisk = irregularity + numeric(summary.noiseEvents) * 10 + numeric(summary.latencyTail) * 0.35;
+    if (fleetRisk < 24) return null;
+
+    const impactGpuHours = numeric(summary.wastedGpuHours) * clamp(fleetRisk / 260, 0.05, 0.28);
+    return {
+      id: "fleet-health",
+      category: "Fleet Reliability",
+      title: "Prioritize unstable fleet segments",
+      impactDollars: impactGpuHours * rate,
+      impactGpuHours,
+      riskScore: clamp(fleetRisk),
+      confidence: confidenceFromSignals([summary.stepRegularity, summary.noiseEvents, summary.latencyTail]),
+      evidence: `${pct(summary.stepRegularity)} step regularity with ${round(summary.noiseEvents)} contention/noise events.`,
+      recommendation: "Score nodes and reservations by repeated irregularity, then drain or quarantine segments that repeatedly create tenant-visible loss.",
+      owner: "Fleet SRE"
+    };
+  }
+
+  function energyOpportunity(summary, provider, rate, options) {
+    if (numeric(summary.wastedGpuHours) < 20) return null;
+
+    const kwPerGpu = firstPositive(options.kwPerGpu, 0.7);
+    const kgCo2ePerKwh = firstPositive(options.kgCo2ePerKwh, 0.38);
+    const wastedKwh = numeric(summary.wastedGpuHours) * kwPerGpu;
+    const carbonKg = wastedKwh * kgCo2ePerKwh;
+    return {
+      id: "energy-carbon",
+      category: "Energy + Carbon",
+      title: "Turn wasted GPU-hours into energy accountability",
+      impactDollars: numeric(summary.wasteDollars) * 0.04,
+      impactGpuHours: numeric(summary.wastedGpuHours),
+      riskScore: clamp(numeric(summary.wastedGpuHours) / 40),
+      confidence: confidenceFromSignals([summary.wastedGpuHours, kwPerGpu, kgCo2ePerKwh]),
+      evidence: `${round(wastedKwh)} kWh and ${round(carbonKg)} kgCO2e estimated from non-useful GPU-hours.`,
+      recommendation: "Report avoided GPU-hours alongside energy and carbon estimates so sustainability decisions use the same loss ledger as FinOps.",
+      owner: "Sustainability + FinOps",
+      sourceSignals: {
+        wastedKwh,
+        carbonKg
+      }
+    };
+  }
+
+  function evidencePackOpportunity(summary, provider) {
+    if (provider.sellableWasteValue < 1000 && provider.queueSloGapMinutes <= 0 && numeric(summary.noiseEvents) === 0) return null;
+
+    return {
+      id: "redacted-evidence-pack",
+      category: "Customer Evidence Pack",
+      title: "Package tenant-safe proof for support and QBRs",
+      impactDollars: Math.max(provider.sellableWasteValue * 0.08, 0),
+      impactGpuHours: numeric(summary.wastedGpuHours) * 0.08,
+      riskScore: clamp(provider.queueSloPct * 0.35 + provider.sellableWastePct),
+      confidence: confidenceFromSignals([provider.sellableWasteValue, provider.queueSloPct, summary.noiseEvents, summary.sourceItems?.length]),
+      evidence: `${defaultCurrency(provider.sellableWasteValue)} sellable waste value with ${round(summary.sourceItems?.length || summary.count || 1)} supporting run records.`,
+      recommendation: "Export a redacted workspace that preserves metrics, sources, and trend evidence while removing tenant and infrastructure identifiers.",
+      owner: "Customer success"
+    };
+  }
+
+  function normalizeImportedOpportunity(opportunity, summary, index) {
+    if (!opportunity || typeof opportunity !== "object") return null;
+
+    return {
+      id: opportunity.id || `imported-opportunity-${index + 1}`,
+      category: opportunity.category || "Imported Opportunity",
+      title: opportunity.title || opportunity.name || "Imported recommendation",
+      impactDollars: numeric(opportunity.impactDollars),
+      impactGpuHours: numeric(opportunity.impactGpuHours),
+      riskScore: numeric(opportunity.riskScore, numeric(opportunity.score)),
+      confidence: clamp(numeric(opportunity.confidence, 62)),
+      evidence: opportunity.evidence || `${summary.label} includes an upstream opportunity recommendation.`,
+      recommendation: opportunity.recommendation || opportunity.action || "Review the upstream recommendation and attach it to a measurable fix.",
+      owner: opportunity.owner || "Imported source",
+      sourceSignals: opportunity.sourceSignals || {}
+    };
+  }
+
+  function finalizeOpportunity(opportunity, summary) {
+    const impactDollars = Math.max(0, numeric(opportunity.impactDollars));
+    const impactGpuHours = Math.max(0, numeric(opportunity.impactGpuHours));
+    const riskScore = clamp(opportunity.riskScore);
+    const priorityScore = clamp((impactDollars / 180) + (impactGpuHours / 18) + riskScore * 0.72 + numeric(opportunity.confidence) * 0.18, 0, 100);
+
+    return {
+      ...opportunity,
+      id: `${summary.scope || "scope"}:${summary.key || "unknown"}:${opportunity.id}`,
+      scope: summary.scope,
+      key: summary.key,
+      impactDollars,
+      impactGpuHours,
+      riskScore,
+      priorityScore,
+      severity: severityFor(priorityScore),
+      confidence: clamp(opportunity.confidence, 0, 100),
+      sourceSignals: {
+        primaryBottleneck: opportunity.sourceSignals?.primaryBottleneck || "",
+        ...opportunity.sourceSignals
+      }
+    };
+  }
+
+  function recoveryRatioFor(primary) {
+    if (primary === "Communication" || primary === "Placement") return 0.34;
+    if (primary === "Input" || primary === "Scheduler") return 0.28;
+    if (primary === "Memory" || primary === "Noisy neighbor") return 0.22;
+    if (primary === "Config") return 0.3;
+    return 0.14;
+  }
+
+  function confidenceFromSignals(values) {
+    const signalCount = values.filter((value) => Number.isFinite(Number(value))).length;
+    return clamp(48 + signalCount * 9, 45, 91);
+  }
+
+  function severityFor(score) {
+    if (score >= 74) return "critical";
+    if (score >= 58) return "high";
+    if (score >= 38) return "medium";
+    return "low";
+  }
+
   function reasonFor(shortName, summary) {
     switch (shortName) {
       case "Communication":
@@ -509,6 +807,7 @@
     fingerprintWorkload,
     grade,
     gradeColor,
+    generateOpportunities,
     inverseGrade,
     pct,
     recommendationFor,

@@ -49,6 +49,21 @@
         }
       }
     ],
+    "opportunities": [
+      {
+        "runId": "run-7421",
+        "opportunityId": "opp-apex-locality-q2",
+        "category": "Scheduler + Capacity",
+        "title": "Protect Apex frontier runs with locality-aware admission",
+        "impactDollars": 2800,
+        "impactGpuHours": 410,
+        "riskScore": 72,
+        "confidence": 84,
+        "evidence": "Provider export links queue pressure, cross-pod placement, and support timing for the same reservation window.",
+        "recommendation": "Pin the next Apex reserved burst to a contiguous pod and compare NCCL trace share against this run.",
+        "owner": "Scheduler team"
+      }
+    ],
     "ebpf": [
       {
         "runId": "run-7421",

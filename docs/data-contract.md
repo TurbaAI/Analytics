@@ -46,7 +46,8 @@ Use this shape when the upstream system exports source-shaped metrics and the da
     "dcgm": [],
     "kubernetes": [],
     "ebpf": [],
-    "provider": []
+    "provider": [],
+    "opportunities": []
   },
   "ncclTraces": []
 }
@@ -72,7 +73,7 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 `fixtures/workspace-export.json` is the canonical workspace-export fixture.
 
-The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, and provider export identifiers with deterministic surrogate IDs.
+The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
 
 ## Run Sections
 
@@ -95,8 +96,37 @@ Each run should include:
 - `placement`: allocated node list and partial node list
 - `commercial`: provider-side billing and commitment context
 - `slo`: queue, efficiency, priority, and support-ticket targets
+- `opportunities`: optional upstream ranked actions, if a source system already emits recommendations
 
 Percent-like values are expressed as `0` to `100` in normalized ingestion feeds. Source adapters accept source-native ratios where documented, such as Prometheus `0.52` for `52%`.
+
+## Opportunity Overlay
+
+The dashboard computes Opportunity Engine rows from normalized run metrics even when no upstream recommendation feed exists. Source systems can optionally add their own ranked actions through `sources.opportunities` or `run.opportunities`.
+
+```json
+{
+  "sources": {
+    "opportunities": [
+      {
+        "runId": "run-7421",
+        "opportunityId": "opp-apex-locality-q2",
+        "category": "Scheduler + Capacity",
+        "title": "Protect reserved runs with locality-aware admission",
+        "impactDollars": 2800,
+        "impactGpuHours": 410,
+        "riskScore": 72,
+        "confidence": 84,
+        "evidence": "Queue pressure and cross-pod placement align with support timing.",
+        "recommendation": "Pin the next reserved burst to a contiguous pod and compare NCCL trace share.",
+        "owner": "Scheduler team"
+      }
+    ]
+  }
+}
+```
+
+The Opportunity Engine ranks computed and imported actions across Useful Compute FinOps, fabric/topology, scheduler/capacity, provider SLO risk, inference economics, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack categories. Values are directional and may overlap; use them to prioritize action, not as additive accounting totals.
 
 ## eBPF Host Overlay
 
@@ -206,6 +236,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

@@ -57,6 +57,9 @@ selectorMatches.forEach((selector) => {
   "providerActions",
   "providerSummaryBadge",
   "providerSummaryTables",
+  "opportunityBadge",
+  "opportunityStats",
+  "opportunityList",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -64,15 +67,18 @@ selectorMatches.forEach((selector) => {
 });
 
 assert.equal((html.match(/data-scope="/g) || []).length, 8);
-assert.equal((html.match(/data-trend-metric="/g) || []).length, 8);
+assert.equal((html.match(/data-trend-metric="/g) || []).length, 9);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
 assert.ok(app.includes("renderProviderLens"));
 assert.ok(app.includes("renderProviderSummaryTables"));
+assert.ok(app.includes("renderOpportunityCenter"));
 assert.ok(app.includes("summarizeProviderEconomics"));
+assert.ok(app.includes("generateOpportunities"));
 assert.ok(app.includes("importEbpfSamples"));
 assert.ok(app.includes("importProviderSamples"));
+assert.ok(app.includes("importOpportunitySamples"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));
 assert.ok(app.includes('"tenant", "account", "reservation"'));

@@ -314,6 +314,34 @@
         }
       }
     ],
+    "opportunities": [
+      {
+        "runId": "provider-run-9001",
+        "opportunityId": "opp-apex-pod-pack",
+        "category": "Fabric + Topology",
+        "title": "Move Apex pretraining into a single pod admission window",
+        "impactDollars": 3600,
+        "impactGpuHours": 530,
+        "riskScore": 78,
+        "confidence": 86,
+        "evidence": "Cross-pod NCCL trace share, queue miss, and reserved-capacity pressure all align on provider-run-9001.",
+        "recommendation": "Reserve one contiguous pod for the next Apex burst and compare useful compute plus NCCL time within the same contract window.",
+        "owner": "Provider capacity desk"
+      },
+      {
+        "runId": "provider-svc-4102",
+        "opportunityId": "opp-vectorcart-inference-tail",
+        "category": "Inference Economics",
+        "title": "Reduce VectorCart tail latency cost per request",
+        "impactDollars": 2100,
+        "impactGpuHours": 330,
+        "riskScore": 74,
+        "confidence": 82,
+        "evidence": "Inference tail pressure, KV-cache pressure, and eBPF noisy-neighbor signals overlap on the production serving reservation.",
+        "recommendation": "Tune batching and isolate the noisy host before expanding the inference reservation.",
+        "owner": "Inference platform"
+      }
+    ],
     "prometheus": [
       {
         "runId": "provider-run-9001",

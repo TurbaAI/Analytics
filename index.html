@@ -176,6 +176,18 @@
           </section>
 
           <div class="analysis-grid">
+            <section class="panel opportunity-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Opportunity Engine</p>
+                  <h2>Action center</h2>
+                </div>
+                <span id="opportunityBadge">0 open</span>
+              </div>
+              <div id="opportunityStats" class="opportunity-stats"></div>
+              <div id="opportunityList" class="opportunity-list"></div>
+            </section>
+
             <section class="panel trend-panel">
               <div class="panel-heading">
                 <div>
@@ -192,6 +204,7 @@
                     <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
                     <button type="button" data-trend-metric="costPerUsefulGpuHour" aria-selected="false">Cost</button>
                     <button type="button" data-trend-metric="sellableWasteValue" aria-selected="false">Sellable</button>
+                    <button type="button" data-trend-metric="opportunityImpactDollars" aria-selected="false">Opportunity</button>
                     <button type="button" data-trend-metric="reservationBurnPct" aria-selected="false">Commit</button>
                     <button type="button" data-trend-metric="queueSloPct" aria-selected="false">Queue</button>
                     <button type="button" data-trend-metric="grossMarginPct" aria-selected="false">Margin</button>

@@ -84,6 +84,34 @@ assert.ok(whatIf.usefulCompute > finalized.usefulCompute);
 assert.ok(whatIf.crossPodTraffic < finalized.crossPodTraffic);
 assert.ok(whatIf.wastedGpuHours < finalized.wastedGpuHours);
 
+const opportunityEngine = analytics.generateOpportunities({
+  ...finalized,
+  scope: "job",
+  key: "run-7421",
+  label: "llama-70b-pretrain-7421",
+  count: 1,
+  gpus: 192,
+  provider: {
+    listGpuHourRate: 6.8,
+    floorGpuHourCost: 3.9,
+    committedGpuHours: 6500,
+    billableGpuHours: 2227,
+    sellableGpuHours: 2227
+  },
+  slo: {
+    targetStartMinutes: 20,
+    targetEfficiency: 55
+  },
+  sourceItems: [{}],
+  traceAttribution: { eventCount: 3 }
+}, { classifier, provider: providerEconomics, rate: 6.2 });
+assert.ok(opportunityEngine.totalImpactDollars > 10000);
+assert.ok(opportunityEngine.totalImpactGpuHours > 2000);
+assert.equal(opportunityEngine.highestSeverity, "critical");
+assert.equal(opportunityEngine.opportunities[0].category, "Provider SLO + Escalation");
+assert.ok(opportunityEngine.opportunities.some((opportunity) => opportunity.category === "Fabric + Topology"));
+assert.ok(opportunityEngine.opportunities.some((opportunity) => opportunity.category === "Energy + Carbon"));
+
 const noWhatIf = analytics.applyPlacementWhatIf(finalized, false);
 assert.equal(noWhatIf.whatIfActive, false);
 assert.equal(noWhatIf.crossPodTraffic, finalized.crossPodTraffic);

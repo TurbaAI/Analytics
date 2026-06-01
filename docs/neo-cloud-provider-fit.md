@@ -40,6 +40,7 @@ The app converts those fields into:
 - Commit burn: allocated GPU-hours against committed reservation hours.
 - Queue SLO pressure: queue wait compared with the tenant's target start time.
 - Gross margin view: billable GPU-hours minus optional floor GPU-hour cost.
+- Opportunity Engine actions: ranked FinOps, topology, scheduler, inference, eBPF, fleet, energy, and customer evidence-pack opportunities.
 - Renewal and support actions: concise operator actions tied to the tenant, reservation, bottleneck, and ticket context.
 
 An optional Linux eBPF overlay adds host-side evidence for provider pilots:
@@ -64,7 +65,7 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 
 1. Switch to `Cluster` scope.
 2. Sort by wasted GPU-hours and inspect sellable waste value.
-3. Compare high-waste tenants against committed GPU-hour burn.
+3. Open the Opportunity Engine action center and compare high-waste tenants against committed GPU-hour burn.
 4. Use placement and NCCL topology attribution to decide whether to reserve locality groups, repack partial nodes, or move a workload pool.
 
 ### QBR And Renewal
@@ -81,13 +82,20 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 3. Toggle `Same-pod what-if` to estimate locality benefit.
 4. Treat repeated high-value reservations as candidates for scheduler hints or dedicated placement groups.
 
+### Opportunity Review
+
+1. Use the action center to rank opportunities by impact, risk, and confidence.
+2. Treat Opportunity Engine dollar values as prioritization estimates because categories can overlap.
+3. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
+4. Export a redacted workspace when the action needs customer-success, support, or QBR review.
+
 ## Privacy Boundary
 
 Provider overlays should use hashed or surrogate tenant, account, reservation, contract, namespace, and support-ticket IDs unless the workspace stays inside the operator group. The browser prototype does not need cloud credentials, live billing credentials, or raw customer secrets.
 
 ## Example Fixture
 
-`fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, and source telemetry.
+`fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, opportunity overlays, and source telemetry.
 
 `fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing turbalance feed.
 
