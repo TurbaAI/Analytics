@@ -6,3 +6,6 @@ node_modules/
 .turbalance-objects/
 .turbalance-control/
 build/qa/
+build/provider-*/
+build/provider-*.json
+build/provider-*.yaml

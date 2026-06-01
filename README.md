@@ -365,6 +365,7 @@ GitHub Actions:
 
 - `.github/workflows/ci.yml` runs `node tests/run-all.js`, validates source bundles, and runs screenshot QA when browser automation is available.
 - `.github/workflows/pages.yml` runs the full suite, validates source bundles, runs screenshot QA when available, assembles the static site, includes Grafana templates plus backend tooling, and deploys with GitHub Pages.
+- `.github/workflows/sandbox-go-live.yml` runs the Docker-backed strict sandbox go-live gate and uploads the generated readiness, manifest, burn-in, and sandbox reports.
 
 Enable GitHub Pages with GitHub Actions as the source before relying on the Pages deployment URL.
 

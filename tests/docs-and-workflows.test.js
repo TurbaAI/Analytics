@@ -74,6 +74,7 @@ const readme = read("README.md");
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
   ".github/workflows/provider-image.yml",
+  ".github/workflows/sandbox-go-live.yml",
   ".github/workflows/visual-qa.yml",
   "build/turbalance-analytics-desktop.png",
   "build/turbalance-analytics-mobile.png"
@@ -163,6 +164,7 @@ const ci = read(".github/workflows/ci.yml");
 const pages = read(".github/workflows/pages.yml");
 const visualQaWorkflow = read(".github/workflows/visual-qa.yml");
 const providerImageWorkflow = read(".github/workflows/provider-image.yml");
+const sandboxGoLiveWorkflow = read(".github/workflows/sandbox-go-live.yml");
 
 assert.ok(ci.includes("node tests/run-all.js"));
 assert.ok(ci.includes("node scripts/validate-source-bundle.js --require-source-export"));
@@ -175,6 +177,9 @@ assert.ok(visualQaWorkflow.includes("npx playwright install --with-deps chromium
 assert.ok(visualQaWorkflow.includes("TURBALANCE_SCREENSHOT_QA_REQUIRED"));
 assert.ok(providerImageWorkflow.includes("scripts/build-publish-ingestion-image.js"));
 assert.ok(providerImageWorkflow.includes("docker/setup-buildx-action"));
+assert.ok(sandboxGoLiveWorkflow.includes("scripts/run-sandbox-go-live.js"));
+assert.ok(sandboxGoLiveWorkflow.includes("docker/setup-buildx-action"));
+assert.ok(sandboxGoLiveWorkflow.includes("actions/upload-artifact"));
 
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));

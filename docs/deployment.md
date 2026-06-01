@@ -70,6 +70,8 @@ node scripts/run-sandbox-go-live.js \
 
 The runner starts and cleans up a disposable local registry, mock source gateway, and ingestion container. It then pushes the sandbox image, validates source contracts, performs live ingestion burn-in, and writes `sandbox-go-live-report.json` beside the go-live report.
 
+The `.github/workflows/sandbox-go-live.yml` workflow runs the same Docker-backed gate on demand and uploads the generated readiness, manifest, burn-in, and sandbox reports.
+
 Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push, managed manifest rendering, source-contract validation, and burn-in report in one output directory.
 
 ## GitHub Pages
