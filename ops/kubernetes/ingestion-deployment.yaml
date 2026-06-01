@@ -17,9 +17,10 @@ spec:
         app.kubernetes.io/name: turbalance-ingestion
         app.kubernetes.io/component: api
     spec:
+      serviceAccountName: turbalance-ingestion
       containers:
         - name: ingestion
-          image: ghcr.io/your-org/turbalance-ingestion:latest
+          image: registry.provider.example/ai-ops/turbalance-ingestion:2026.06
           imagePullPolicy: IfNotPresent
           command: ["node", "server/ingestion-server.js"]
           ports:
@@ -28,6 +29,8 @@ spec:
           env:
             - name: TURBALANCE_INGEST_HOST
               value: 0.0.0.0
+            - name: TURBALANCE_POSTGRES_URL_FILE
+              value: /var/run/turbalance-secrets/postgres-url
             - name: TURBALANCE_TENANT_TOKENS_FILE
               value: /var/run/turbalance-secrets/tenant-tokens
             - name: TURBALANCE_UPLOAD_SECRET_FILE
@@ -38,12 +41,6 @@ spec:
             - configMapRef:
                 name: turbalance-ingestion-config
           volumeMounts:
-            - name: data
-              mountPath: /app/.turbalance-data
-            - name: objects
-              mountPath: /app/.turbalance-objects
-            - name: control
-              mountPath: /app/.turbalance-control
             - name: secrets
               mountPath: /var/run/turbalance-secrets
               readOnly: true
@@ -58,15 +55,6 @@ spec:
               port: http
             periodSeconds: 30
       volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: turbalance-ingestion-data
-        - name: objects
-          persistentVolumeClaim:
-            claimName: turbalance-ingestion-objects
-        - name: control
-          persistentVolumeClaim:
-            claimName: turbalance-ingestion-control
         - name: secrets
           secret:
             secretName: turbalance-ingestion-secrets

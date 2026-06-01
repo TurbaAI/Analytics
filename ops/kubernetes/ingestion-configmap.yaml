@@ -5,11 +5,9 @@ metadata:
   labels:
     app.kubernetes.io/name: turbalance-ingestion
 data:
-  TURBALANCE_STORAGE_MODE: object-sqlite
-  TURBALANCE_DATA_DIR: /app/.turbalance-data
-  TURBALANCE_OBJECT_DIR: /app/.turbalance-objects
-  TURBALANCE_OBJECT_BUCKET: turbalance-ingestion
-  TURBALANCE_CONTROL_DB: /app/.turbalance-control/ingestion-control.sqlite
+  TURBALANCE_STORAGE_MODE: managed-postgres-s3
+  TURBALANCE_OBJECT_BUCKET: provider-ai-ops-turbalance-ingestion
+  TURBALANCE_OBJECT_PREFIX: pilot/provider-a
   TURBALANCE_RETENTION_DAYS: "30"
   TURBALANCE_MAX_UPLOADS_PER_TENANT: "500"
   TURBALANCE_MAX_UPLOAD_BYTES: "26214400"

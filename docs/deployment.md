@@ -31,11 +31,22 @@ The Kubernetes reference deployment uses:
 
 - `ops/kubernetes/ingestion-configmap.yaml`
 - `ops/kubernetes/ingestion-secret.example.yaml`
+- `ops/kubernetes/ingestion-serviceaccount.yaml`
 - `ops/kubernetes/ingestion-deployment.yaml`
 - `ops/kubernetes/ingestion-retention-cronjob.yaml`
 - `ops/kubernetes/provider-export-cronjob.yaml`
 - `ops/kubernetes/ingestion-service-monitor.yaml`
 - `ops/kubernetes/ingestion-prometheus-rules.yaml`
+
+For a real provider pilot, render managed manifests from `ops/pilot-provider.config.example.json`:
+
+```sh
+node scripts/render-managed-kubernetes.js \
+  --config ops/pilot-provider.config.example.json \
+  --out build/turbalance-managed-kubernetes.yaml
+```
+
+The rendered deployment uses managed Postgres, S3-compatible object storage, ExternalSecret bindings, a provider image, and no PVC-backed local ingestion state.
 
 ## GitHub Pages
 

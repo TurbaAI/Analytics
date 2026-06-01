@@ -9,10 +9,19 @@ Reference manifests:
 ```text
 ops/kubernetes/ingestion-configmap.yaml
 ops/kubernetes/ingestion-secret.example.yaml
+ops/kubernetes/ingestion-serviceaccount.yaml
 ops/kubernetes/ingestion-deployment.yaml
 ```
 
-The deployment uses `TURBALANCE_STORAGE_MODE=object-sqlite`, file-mounted secrets, object-style upload storage under `/app/.turbalance-objects`, and SQLite control/audit state under `/app/.turbalance-control`. Replace the placeholder image, PVCs, and example secret values with the pilot provider's managed image registry, object storage, database, and secret manager.
+The deployment uses `TURBALANCE_STORAGE_MODE=managed-postgres-s3`, file-mounted secrets, S3-compatible object storage, and managed Postgres control/audit state. It does not mount local PVCs for ingestion state.
+
+Render provider-specific names, image, object bucket, Postgres secret, and ExternalSecret bindings from:
+
+```sh
+node scripts/render-managed-kubernetes.js \
+  --config ops/pilot-provider.config.example.json \
+  --out build/turbalance-managed-kubernetes.yaml
+```
 
 ## Retention Job
 
@@ -79,6 +88,20 @@ node scripts/provision-tenant.js \
 
 Store the returned token in the provider's secret manager and mount it into `ops/kubernetes/provider-export-cronjob.yaml` through the `exporter-token` secret key. The CLI is intentionally small; production onboarding should bind it to the provider IAM, ticketing, approval, and audit workflow.
 
+For customer onboarding plus secret-manager binding output:
+
+```sh
+node scripts/provision-customer-iam.js \
+  --url https://ingestion.example.com \
+  --admin-token "$TURBALANCE_ADMIN_TOKEN" \
+  --tenant provider-a \
+  --display-name "Provider A" \
+  --provider aws \
+  --secret-name turbalance/provider-a/exporter-token
+```
+
+Use `--apply-secrets` only from an approved provider automation context with the cloud CLI already authenticated.
+
 ## Metrics
 
 The ingestion backend exposes Prometheus text metrics at `/metrics` for authenticated `viewer`, `operator`, or `admin` callers.
@@ -106,6 +129,19 @@ TURBALANCE_JWT_ROLE_MAP="security-reader:viewer,platform-operator:operator"
 ```
 
 The backend caches discovery and JWKS responses and exposes cache/fetch counters through `/metrics`.
+
+## Source Collectors
+
+Use `scripts/fetch-source-system-export.js` when source owners approve read-only HTTP exports:
+
+```sh
+node scripts/fetch-source-system-export.js \
+  --system kubernetes \
+  --url https://source-gateway.example/kubernetes/jobs \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
+Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`. Prometheus/DCGM collection remains in `scripts/fetch-prometheus-source-export.js` because it uses Prometheus query semantics.
 
 ## Visual QA
 

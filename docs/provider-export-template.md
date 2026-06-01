@@ -33,6 +33,17 @@ node scripts/fetch-prometheus-source-export.js \
   --out-dir fixtures/provider-pilot-export-inputs
 ```
 
+For other approved source systems, use `scripts/fetch-source-system-export.js`:
+
+```sh
+node scripts/fetch-source-system-export.js \
+  --system scheduler-admission \
+  --url https://source-gateway.example/scheduler/export \
+  --out-dir fixtures/provider-pilot-export-inputs
+```
+
+Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`.
+
 ## Source Mapping
 
 Map commercial, scheduler, and support systems into `sources.provider`:

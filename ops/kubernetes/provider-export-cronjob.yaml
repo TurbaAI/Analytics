@@ -19,10 +19,11 @@ spec:
             app.kubernetes.io/name: turbalance-ingestion
             app.kubernetes.io/component: exporter
         spec:
+          serviceAccountName: turbalance-ingestion
           restartPolicy: Never
           containers:
             - name: exporter
-              image: ghcr.io/your-org/turbalance-ingestion:latest
+              image: registry.provider.example/ai-ops/turbalance-ingestion:2026.06
               imagePullPolicy: IfNotPresent
               command: ["node", "scripts/run-provider-pilot-export-job.js"]
               env:
@@ -43,5 +44,4 @@ spec:
                   readOnly: true
           volumes:
             - name: provider-exports
-              configMap:
-                name: turbalance-provider-export-inputs
+              emptyDir: {}

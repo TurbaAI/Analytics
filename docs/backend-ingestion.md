@@ -28,7 +28,7 @@ The service listens on `127.0.0.1:8787` by default. Set `TURBALANCE_INGEST_HOST`
 - Retention: uploads older than `TURBALANCE_RETENTION_DAYS` or beyond `TURBALANCE_MAX_UPLOADS_PER_TENANT` are removed; set `TURBALANCE_RETENTION_INTERVAL_SECONDS` to run this automatically
 - Metrics: `/metrics` exposes Prometheus-style counters and gauges for auth failures, accepted/rejected ingests, retention runs, tenant/key changes, and configured control-plane size
 - Size limit: `TURBALANCE_MAX_UPLOAD_BYTES`, default 25 MiB
-- Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; `TURBALANCE_STORAGE_MODE=file` is the default, while `TURBALANCE_STORAGE_MODE=object-sqlite` stores upload payloads as object-style files and control/audit state in SQLite
+- Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; `TURBALANCE_STORAGE_MODE=file` is the default, `TURBALANCE_STORAGE_MODE=object-sqlite` is the local object/database reference mode, and `TURBALANCE_STORAGE_MODE=managed-postgres-s3` stores payloads in S3-compatible object storage while keeping metadata, audit, and control state in managed Postgres
 
 Token entries use `tenant:token:role:subject`. `role` and `subject` are optional. Example:
 
@@ -43,6 +43,7 @@ TURBALANCE_TENANT_TOKENS_FILE="/var/run/turbalance-secrets/tenant-tokens"
 TURBALANCE_UPLOAD_SECRET_FILE="/var/run/turbalance-secrets/upload-secret"
 TURBALANCE_UPLOAD_SECRETS_FILE="/var/run/turbalance-secrets/upload-secrets"
 TURBALANCE_JWT_SECRET_FILE="/var/run/turbalance-secrets/jwt-secret"
+TURBALANCE_POSTGRES_URL_FILE="/var/run/turbalance-secrets/postgres-url"
 ```
 
 The Kubernetes templates in `ops/kubernetes/` use those file-based secret hooks.
@@ -103,7 +104,18 @@ TURBALANCE_OBJECT_BUCKET="turbalance-ingestion"
 TURBALANCE_CONTROL_DB=".turbalance-control/ingestion-control.sqlite"
 ```
 
-This is the local shape used by the Kubernetes reference manifests: payloads live behind object-style keys and control/audit rows live in SQLite. Replace those paths with the provider's managed object store and database adapter before running a horizontally scaled service.
+This is the local reference shape for testing object/database behavior without provider credentials: payloads live behind object-style keys and control/audit rows live in SQLite.
+
+Managed Postgres plus S3-compatible object storage mode:
+
+```sh
+TURBALANCE_STORAGE_MODE=managed-postgres-s3
+TURBALANCE_OBJECT_BUCKET="provider-ai-ops-turbalance-ingestion"
+TURBALANCE_OBJECT_PREFIX="pilot/provider-a"
+TURBALANCE_POSTGRES_URL_FILE="/var/run/turbalance-secrets/postgres-url"
+```
+
+This mode uses the provider CLI contract (`aws s3 cp/rm` for S3-compatible storage and `psql` for managed Postgres) so pilots can run without adding Node package dependencies. Override `TURBALANCE_AWS_CLI` and `TURBALANCE_PSQL` if the container uses wrapped provider CLIs.
 
 ## API
 

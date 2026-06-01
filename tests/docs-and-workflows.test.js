@@ -27,8 +27,10 @@ const readme = read("README.md");
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
+  "ops/pilot-provider.config.example.json",
   "ops/kubernetes/ingestion-configmap.yaml",
   "ops/kubernetes/ingestion-secret.example.yaml",
+  "ops/kubernetes/ingestion-serviceaccount.yaml",
   "ops/kubernetes/ingestion-deployment.yaml",
   "ops/kubernetes/ingestion-retention-cronjob.yaml",
   "ops/kubernetes/provider-export-cronjob.yaml",
@@ -42,11 +44,14 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
+  "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
   "scripts/provision-tenant.js",
+  "scripts/provision-customer-iam.js",
   "scripts/run-provider-pilot-export-job.js",
   "fixtures/prometheus-collector-queries.json",
   "fixtures/provider-overlay-template.json",
@@ -83,11 +88,14 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
+  "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
   "scripts/provision-tenant.js",
+  "scripts/provision-customer-iam.js",
   "scripts/run-provider-pilot-export-job.js",
   "grafana/turbalance-provider-overview.json",
   "ops/kubernetes/ingestion-deployment.yaml",
@@ -103,13 +111,17 @@ const readme = read("README.md");
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/prometheus-source-exporter.test.js",
+  "tests/source-system-collectors.test.js",
   "tests/provider-pilot-bundler.test.js",
   "tests/provider-pilot-export-job.test.js",
   "tests/ingestion-oidc.test.js",
   "tests/ingestion-secrets.test.js",
   "tests/ingestion-storage.test.js",
+  "tests/managed-storage.test.js",
   "tests/ingestion-server.test.js",
   "tests/provision-tenant.test.js",
+  "tests/provision-customer-iam.test.js",
+  "tests/render-managed-kubernetes.test.js",
   "tests/retention-job.test.js",
   "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
@@ -158,6 +170,8 @@ assert.ok(backendIngestion.includes("server/ingestion-server.js"));
 assert.ok(backendIngestion.includes("server/ingestion-oidc.js") || backendIngestion.includes("RS256/JWKS"));
 assert.ok(backendIngestion.includes("server/ingestion-storage.js"));
 assert.ok(backendIngestion.includes("object-sqlite"));
+assert.ok(backendIngestion.includes("managed-postgres-s3"));
+assert.ok(backendIngestion.includes("TURBALANCE_POSTGRES_URL_FILE"));
 assert.ok(backendIngestion.includes("TURBALANCE_TENANT_TOKENS_FILE"));
 assert.ok(backendIngestion.includes("signed"));
 assert.ok(backendIngestion.includes("JWT"));
@@ -176,14 +190,18 @@ assert.ok(backendIngestion.includes("retention"));
 
 const operations = read("docs/operations.md");
 assert.ok(operations.includes("ops/kubernetes/ingestion-deployment.yaml"));
+assert.ok(operations.includes("ops/kubernetes/ingestion-serviceaccount.yaml"));
 assert.ok(operations.includes("ops/kubernetes/ingestion-retention-cronjob.yaml"));
 assert.ok(operations.includes("ops/kubernetes/provider-export-cronjob.yaml"));
 assert.ok(operations.includes("ops/kubernetes/ingestion-service-monitor.yaml"));
 assert.ok(operations.includes("ops/kubernetes/ingestion-prometheus-rules.yaml"));
 assert.ok(operations.includes("scripts/provision-tenant.js"));
+assert.ok(operations.includes("scripts/provision-customer-iam.js"));
+assert.ok(operations.includes("scripts/render-managed-kubernetes.js"));
+assert.ok(operations.includes("scripts/fetch-source-system-export.js"));
 assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
-assert.ok(operations.includes("object-sqlite"));
+assert.ok(operations.includes("managed-postgres-s3"));
 
 const telemetry = read("docs/telemetry-integration.md");
 assert.ok(telemetry.includes("Prometheus"));
@@ -200,6 +218,7 @@ assert.ok(telemetry.includes("sources.provider"));
 assert.ok(telemetry.includes("sources.scheduler"));
 assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
+assert.ok(telemetry.includes("scripts/fetch-source-system-export.js"));
 assert.ok(telemetry.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(telemetry.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
@@ -228,6 +247,7 @@ const providerTemplate = read("docs/provider-export-template.md");
 assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/build-provider-pilot-bundle.js"));
+assert.ok(providerTemplate.includes("scripts/fetch-source-system-export.js"));
 assert.ok(providerTemplate.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/validate-source-bundle.js"));

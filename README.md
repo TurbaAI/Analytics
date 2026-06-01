@@ -66,7 +66,7 @@ The original prototype backlog is implemented. The repo includes:
 - Neo-cloud provider workflows for tenant/account/reservation views, queue SLOs, sellable waste, commit burn, margin pressure, and portfolio risk
 - Scheduler/capacity scenario simulation and an Opportunity Engine for ranked actions
 - Tests, fixtures, exporter examples, GitHub Actions CI, Playwright visual QA workflow, and GitHub Pages packaging
-- Optional backend ingestion service with bearer, HS256 JWT, and RS256/JWKS auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, Prometheus metrics, source-bundle validation, object/SQLite storage mode, secret-file support, provider export jobs, and retention cleanup
+- Optional backend ingestion service with bearer, HS256 JWT, and RS256/JWKS auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, Prometheus metrics, source-bundle validation, local file/object-SQLite modes, managed Postgres plus S3-compatible object storage mode, secret-file support, provider export jobs, source-system collectors, and retention cleanup
 
 Real production use still requires operator-provided exports from the relevant systems. Automated screenshot QA runs when Playwright is available and skips cleanly otherwise; browser visual QA should still be completed locally before a customer-facing demo.
 
@@ -265,6 +265,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/provider-overlay-template.json`: minimal provider overlay template
 - `fixtures/provider-pilot-export-inputs/`: per-system pilot export inputs for the all-lanes bundle builder
 - `fixtures/prometheus-collector-queries.json`: starter Prometheus/DCGM query map for live source export collection
+- `ops/pilot-provider.config.example.json`: managed deployment render config for a pilot provider
 - `fixtures/workspace-export.json`: canonical workspace export shape
 - `fixtures/provider-export-inputs/kubernetes-jobs.json`: provider exporter Kubernetes sample input
 - `fixtures/scheduler-export-inputs/scheduler-events.json`: scheduler exporter sample input
@@ -306,13 +307,17 @@ Focused test entry points:
 - `tests/scheduler-exporter.test.js`: scheduler exporter example
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
 - `tests/prometheus-source-exporter.test.js`: Prometheus/DCGM HTTP collector with mocked Prometheus API responses
+- `tests/source-system-collectors.test.js`: Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity collector staging
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
 - `tests/provider-pilot-export-job.test.js`: provider pilot export job wrapper for bundle generation and optional ingestion upload
 - `tests/ingestion-oidc.test.js`: RS256/JWKS JWT validation, tenant mapping, and role mapping
 - `tests/ingestion-secrets.test.js`: secret-file loading for tenant tokens, upload keys, and JWT secrets
 - `tests/ingestion-storage.test.js`: file storage adapter uploads, audit rows, control JSON, and deletes
+- `tests/managed-storage.test.js`: managed Postgres plus S3-compatible object storage adapter command contract
 - `tests/ingestion-server.test.js`: signed upload, direct ingest, role-aware auth, JWKS auth, tenant provisioning, key rotation, metrics, audit export, and retention service behavior
 - `tests/provision-tenant.test.js`: admin tenant bootstrap CLI and token issuance
+- `tests/provision-customer-iam.test.js`: tenant bootstrap plus secret-manager binding plan
+- `tests/render-managed-kubernetes.test.js`: managed Kubernetes manifest rendering without PVC-backed local state
 - `tests/retention-job.test.js`: standalone retention job behavior
 - `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
@@ -322,7 +327,10 @@ Focused test entry points:
 - `tests/import-validation-copy.test.js`: import validation messages and helpers
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
+- `scripts/fetch-source-system-export.js`: source-system collector for Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity exports
 - `scripts/fetch-prometheus-source-export.js`: live Prometheus/DCGM collector that emits source bundles or staged provider input files
+- `scripts/provision-customer-iam.js`: customer onboarding helper that provisions a tenant token and secret-manager binding plan
+- `scripts/render-managed-kubernetes.js`: renders provider-specific managed Kubernetes manifests from `ops/pilot-provider.config.example.json`
 - `scripts/provision-tenant.js`: admin helper for pilot tenant creation and ingest-token rotation
 - `scripts/run-provider-pilot-export-job.js`: provider pilot export job for mounted source exports and optional ingestion upload
 - `scripts/run-retention-job.js`: standalone retention job for cron or Kubernetes CronJob wiring
@@ -347,15 +355,15 @@ This repo is ready as a static pilot/demo surface, an integration contract for e
 
 Current boundaries:
 
-- Optional backend service with file mode and object/SQLite reference mode, not a horizontally scalable managed ingestion plane
-- Bearer-token, HS256 JWT, RS256/JWKS, OIDC discovery, tenant mapping, tenant bootstrap CLI, and secret-file support, not a full customer IAM provisioning product
-- Provider exporter jobs can collect approved Prometheus/DCGM snapshots through a read-only Prometheus API and otherwise expect source exports mounted or staged by source-system owners
+- Optional backend service with file mode, object/SQLite reference mode, and a managed Postgres plus S3-compatible object storage mode; the managed mode is the intended pilot deployment shape
+- Bearer-token, HS256 JWT, RS256/JWKS, OIDC discovery, tenant mapping, tenant/customer bootstrap CLIs, and secret-manager binding plans; production IAM approval and break-glass policy still belong to the provider
+- Provider exporter jobs can collect approved Prometheus/DCGM snapshots and approved Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, NCCL trace, and opportunity exports through read-only source APIs
 - Dedicated Visual QA workflow installs Playwright in CI; local screenshot QA still skips when Playwright is unavailable
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
 
-Expected production next steps:
+Remaining provider-specific production steps:
 
-- Replace the local object/SQLite reference mode with the chosen cloud object store and managed database implementation
-- Add customer IAM provisioning automation and production secret-manager bindings for the selected provider
-- Replace placeholder Kubernetes image, PVC, Secret, and ConfigMap names with the pilot provider's managed deployment primitives
-- Add approved source-specific collectors for Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, NCCL trace, and opportunity systems where each provider permits direct API access
+- Build and publish the provider-approved ingestion container image referenced by `ops/pilot-provider.config.example.json`
+- Wire the rendered ExternalSecret resources to the provider's real secret store and IAM roles
+- Validate collector queries and endpoint contracts with each source-system owner before enabling scheduled jobs
+- Run a live pilot burn-in against provider staging data before customer-facing use

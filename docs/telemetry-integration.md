@@ -123,6 +123,15 @@ node scripts/fetch-prometheus-source-export.js \
 
 Set `TURBALANCE_PROMETHEUS_BEARER_TOKEN` or pass `--bearer-token` when the Prometheus gateway requires auth. Keep query files provider-specific: the included fixture is a starter map for DCGM-style metric names, not a promise that every provider exports identical names.
 
+For Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, NCCL trace, and opportunity systems, use `scripts/fetch-source-system-export.js` with a source-owner-approved read-only endpoint:
+
+```sh
+node scripts/fetch-source-system-export.js \
+  --system grafana \
+  --url https://source-gateway.example/grafana/handoffs \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
 ## Kubernetes
 
 Kubernetes exports should use `sources.kubernetes`.
