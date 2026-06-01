@@ -1,8 +1,14 @@
 # turbalance Data Contract
 
-turbalance Analytics accepts JSON imports through the dashboard import control, API fetch control, or workspace restore flow. The app is static, so every import is handled in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
+turbalance Analytics accepts JSON imports through the dashboard import control, API fetch control, workspace restore flow, or optional backend ingestion service. Browser imports are handled locally and persisted to `localStorage` under `turba.analytics.workspace.v2`; backend uploads are stored tenant-by-tenant after validation.
 
 Machine-readable schema references live in `schemas/turba-ingestion.v1.schema.json`, `schemas/turba-source-bundle.v1.schema.json`, and `schemas/turba-workspace.v2.schema.json`.
+
+Preflight source-bundle validation is available in CI and locally:
+
+```sh
+node scripts/validate-source-bundle.js --require-source-export source-bundle.json
+```
 
 ## Supported Payloads
 
@@ -56,6 +62,8 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 ```
 
 `fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `grafana/turbalance-provider-overview.json` is a ready-to-import Grafana dashboard template for provider pilots. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
+
+For all-lanes provider pilots, `scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` emits one bundle that includes Prometheus, DCGM, Kubernetes, scheduler, Grafana, eBPF, provider billing/SLO, opportunity, and NCCL trace exports.
 
 ### Workspace Export
 

@@ -8,7 +8,7 @@ Screenshot artifacts live in `build/`, including `build/turbalance-analytics-des
 
 turbalance Analytics is a static operator review surface for AI infrastructure. It answers a deceptively expensive question: where are accelerator performance and GPU-hour dollars being lost, and what should the operator do next?
 
-The current product is a browser-only prototype with no backend dependency. It loads a seeded workspace, accepts JSON exports from existing systems, normalizes them into a shared analysis model, and presents an operator workflow for diagnosing inefficient training or inference workloads. It is especially shaped for neo-cloud GPU providers, AI platform teams, scheduler owners, capacity planners, support engineers, and customer-success teams that need to turn raw telemetry into explainable action.
+The current product has a browser-first dashboard plus an optional controlled ingestion service. The dashboard loads a seeded workspace, accepts JSON exports from existing systems, normalizes them into a shared analysis model, and presents an operator workflow for diagnosing inefficient training or inference workloads. The backend service adds authenticated tenant-scoped ingest, signed upload URLs, audit logs, and retention controls for pilots that need a safer upload path. turbalance is especially shaped for neo-cloud GPU providers, AI platform teams, scheduler owners, capacity planners, support engineers, and customer-success teams that need to turn raw telemetry into explainable action.
 
 Open `index.html` directly in a browser, or serve the repository with a local static server. All imported data is processed in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
 
@@ -23,7 +23,7 @@ turbalance connects infrastructure telemetry, scheduler evidence, provider comme
 5. Rank opportunities by estimated impact, risk, and confidence.
 6. Export a redacted evidence pack or workspace for support, QBR, renewal, and capacity-planning handoff.
 
-The product is intentionally static. It does not require live cluster credentials, live billing credentials, or direct access to customer systems. Production telemetry is connected by exporting source-shaped JSON from existing observability, scheduler, billing, and support systems.
+The dashboard remains intentionally static. It does not require live cluster credentials, live billing credentials, or direct access to customer systems. Production telemetry is connected by exporting source-shaped JSON from existing observability, scheduler, billing, and support systems, then importing it directly in the browser or sending it through the optional backend ingestion service.
 
 ## Quick Start
 
@@ -66,8 +66,9 @@ The original prototype backlog is implemented. The repo includes:
 - Neo-cloud provider workflows for tenant/account/reservation views, queue SLOs, sellable waste, commit burn, margin pressure, and portfolio risk
 - Scheduler/capacity scenario simulation and an Opportunity Engine for ranked actions
 - Tests, fixtures, exporter examples, GitHub Actions CI, and GitHub Pages packaging
+- Optional backend ingestion service with bearer-token auth, tenant isolation, signed uploads, audit logs, source-bundle validation, and retention cleanup
 
-Real production use still requires operator-provided exports from the relevant systems. Browser visual QA should be completed locally because automated local-browser screenshots are not available in the current environment.
+Real production use still requires operator-provided exports from the relevant systems. Automated screenshot QA runs when Playwright is available and skips cleanly otherwise; browser visual QA should still be completed locally before a customer-facing demo.
 
 ## Feature Map
 
@@ -188,7 +189,35 @@ Exporter examples:
 node scripts/build-provider-overlay.js fixtures/provider-export-inputs > provider-overlay.json
 node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs > scheduler-overlay.json
 node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs > ebpf-overlay.json
+node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs > provider-pilot-bundle.json
 ```
+
+Validate source bundles before import or upload:
+
+```sh
+node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
+```
+
+## Backend Ingestion
+
+Provider pilots can run `server/ingestion-server.js` when uploads need controlled tenancy, signatures, audit logs, and retention policy.
+
+```sh
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token,admin:admin-token:admin" \
+TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
+TURBALANCE_DATA_DIR=".turbalance-data" \
+node server/ingestion-server.js
+```
+
+The service provides:
+
+- `POST /v1/uploads/sign`: authenticated signed upload URL creation
+- `PUT /v1/uploads/:uploadId`: short-lived signed upload path
+- `POST /v1/ingestion`: authenticated direct ingest path
+- `GET /v1/audit`: tenant-scoped audit rows
+- `POST /v1/retention/run`: retention cleanup
+
+All accepted uploads are validated with `lib/source-bundle-validator.js`, stored under tenant-specific directories, and logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
 
 ## Privacy And Redaction
 
@@ -215,8 +244,10 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `docs/`: operator, telemetry, provider, deployment, visual QA, and demo documentation
 - `fixtures/`: sample source bundles, workspace exports, provider overlays, scheduler events, eBPF inputs, and exporter inputs
 - `grafana/`: Grafana dashboard templates, including `grafana/turbalance-provider-overview.json`
+- `lib/`: shared validation helpers used by CLI tooling and the ingestion backend
 - `schemas/`: JSON Schemas for ingestion, source bundles, and workspaces
 - `scripts/`: dependency-free exporter examples
+- `server/`: optional controlled ingestion service
 - `tests/`: syntax, fixture, schema, exporter, redaction, static wiring, and docs tests
 - `.github/workflows/ci.yml`: CI verification
 - `.github/workflows/pages.yml`: GitHub Pages static deployment
@@ -226,6 +257,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/external-source-bundle.json`: canonical external source-bundle example
 - `fixtures/neo-cloud-provider-bundle.json`: provider-focused demo bundle with tenants, reservations, SLOs, Prometheus metrics, scheduler evidence, Grafana links, eBPF evidence, and imported opportunities
 - `fixtures/provider-overlay-template.json`: minimal provider overlay template
+- `fixtures/provider-pilot-export-inputs/`: per-system pilot export inputs for the all-lanes bundle builder
 - `fixtures/workspace-export.json`: canonical workspace export shape
 - `fixtures/provider-export-inputs/kubernetes-jobs.json`: provider exporter Kubernetes sample input
 - `fixtures/scheduler-export-inputs/scheduler-events.json`: scheduler exporter sample input
@@ -234,6 +266,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 ## Operator Documentation
 
 - [Data contract](docs/data-contract.md)
+- [Backend ingestion](docs/backend-ingestion.md)
 - [Operator walkthrough](docs/operator-walkthrough.md)
 - [Neo-cloud provider fit](docs/neo-cloud-provider-fit.md)
 - [Provider export template](docs/provider-export-template.md)
@@ -264,6 +297,9 @@ Focused test entry points:
 - `tests/provider-exporter.test.js`: provider exporter example
 - `tests/scheduler-exporter.test.js`: scheduler exporter example
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
+- `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
+- `tests/ingestion-server.test.js`: signed upload, direct ingest, tenant audit, and retention service behavior
+- `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
 - `tests/evidence-pack-export.test.js`: Markdown evidence-pack redaction
 - `tests/schemas.test.js`: schema files and fixture alignment
@@ -271,36 +307,37 @@ Focused test entry points:
 - `tests/import-validation-copy.test.js`: import validation messages and helpers
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
+- `scripts/run-screenshot-qa.js`: desktop and mobile screenshot QA when Playwright is installed; skips by default when browser automation is unavailable
 
 Use `git diff --check` before committing to catch whitespace issues.
 
 ## Deployment
 
-The app can be hosted by any static file server that serves the root files plus `assets/`, `build/`, `fixtures/`, `docs/`, `schemas/`, `scripts/`, and `grafana/`.
+The app can be hosted by any static file server that serves the root files plus `assets/`, `build/`, `fixtures/`, `docs/`, `schemas/`, `scripts/`, `grafana/`, `lib/`, and `server/`.
 
 GitHub Actions:
 
-- `.github/workflows/ci.yml` runs `node tests/run-all.js` on pushes and pull requests.
-- `.github/workflows/pages.yml` runs the full suite, assembles the static site, includes the Grafana templates, and deploys with GitHub Pages.
+- `.github/workflows/ci.yml` runs `node tests/run-all.js`, validates source bundles, and runs screenshot QA when browser automation is available.
+- `.github/workflows/pages.yml` runs the full suite, validates source bundles, runs screenshot QA when available, assembles the static site, includes Grafana templates plus backend tooling, and deploys with GitHub Pages.
 
 Enable GitHub Pages with GitHub Actions as the source before relying on the Pages deployment URL.
 
 ## Production Readiness Boundary
 
-This repo is ready as a static pilot/demo surface and as an integration contract for exported telemetry. It is not yet a live production service.
+This repo is ready as a static pilot/demo surface, an integration contract for exported telemetry, and a local controlled-ingestion service for early pilots. It is not yet a managed multi-tenant SaaS.
 
 Current boundaries:
 
-- No backend service
-- No authentication or multi-user workspace service
+- Optional file-backed backend service, not a horizontally scalable managed ingestion plane
+- Bearer-token tenant auth for pilot ingestion, not enterprise SSO or user-level RBAC
 - No direct cluster, billing, support, or Grafana API calls
-- No automatic screenshot regeneration in this environment
+- Screenshot QA requires Playwright availability in the runtime
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
 
 Expected production next steps:
 
-- Add a controlled backend ingestion service or signed upload path
-- Validate source-bundle exports against schemas in CI or pre-import tooling
-- Add customer-specific auth, tenancy, audit logs, and retention policy
-- Wire automated screenshot QA where browser automation is available
-- Connect provider pilot exports from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana, Linux eBPF summaries, NCCL traces, billing/SLO systems, and optional opportunity systems
+- Move file-backed ingestion storage to object storage plus a database-backed control plane
+- Add customer SSO, tenant provisioning, user-level RBAC, key rotation, and audit export
+- Add retention jobs as managed scheduled tasks
+- Run screenshot QA in a CI image with Playwright browsers installed when visual artifacts must be regenerated
+- Connect live exporter jobs for provider pilots once each source system owner approves the export contract

@@ -31,11 +31,17 @@ jobs:
       - name: Run full suite
         run: node tests/run-all.js
 
+      - name: Validate source bundles
+        run: node scripts/validate-source-bundle.js --require-source-export
+
+      - name: Run screenshot QA when browser automation is available
+        run: node scripts/run-screenshot-qa.js
+
       - name: Assemble static site
         run: |
           mkdir -p site
           cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/
-          cp -R assets build fixtures docs schemas scripts grafana site/
+          cp -R assets build fixtures docs schemas scripts grafana lib server site/
           touch site/.nojekyll
 
       - name: Configure Pages

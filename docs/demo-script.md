@@ -12,6 +12,8 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 6. Keep a generated scheduler overlay from `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs` ready if the audience wants scheduler-event evidence mechanics.
 7. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
 8. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
+9. Keep a generated all-lanes provider pilot bundle from `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` ready if the audience wants the full exporter flow.
+10. Keep the backend ingestion service ready if the audience wants signed upload, tenant audit, and retention mechanics.
 
 ## Flow
 
@@ -40,10 +42,10 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
+Position the product as a browser-first operator review surface with an optional controlled ingestion service: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
 
 ## Do Not Claim
 
 - Do not claim live cluster connectivity.
-- Do not claim screenshots are current unless they were regenerated after the latest layout changes.
+- Do not claim screenshots are current unless they were regenerated or `scripts/run-screenshot-qa.js` passed in a Playwright-enabled environment after the latest layout changes.
 - Do not claim Pages is live until repository settings show GitHub Actions as the Pages source and the deploy workflow succeeds.

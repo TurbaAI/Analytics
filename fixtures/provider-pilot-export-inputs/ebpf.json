@@ -1,0 +1,34 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "ebpfExportId": "ebpf-2026-05-week-4",
+    "collector": "bpftrace-summary",
+    "kernelRelease": "6.8.0-provider",
+    "host": "h100-a1-01.internal",
+    "node": "A1-01",
+    "namespace": "frontier-training",
+    "podName": "apex-70b-pretrain-9001-worker-0",
+    "containerName": "trainer",
+    "cgroupPath": "/kubepods.slice/frontier-training/apex-70b-pretrain-9001",
+    "cpu": {
+      "offCpuTimePct": 9,
+      "cpuThrottlePct": 6,
+      "softIrqPct": 4
+    },
+    "scheduler": {
+      "runQueueLatencyMsP95": 12
+    },
+    "network": {
+      "tcpRetransmitPct": 3.2,
+      "socketLatencyMsP95": 46
+    },
+    "storage": {
+      "blockIoLatencyMsP95": 7,
+      "filesystemLatencyMsP95": 10
+    },
+    "noise": {
+      "noisyNeighborScore": 24,
+      "noiseEvents": 1
+    }
+  }
+]

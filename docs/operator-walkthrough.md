@@ -61,6 +61,7 @@ For tenant escalations, start with `Job` scope and copy the outcome report into 
 
 - Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, Grafana handoff overlay, eBPF host overlay, opportunity overlay, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
+- Use the optional backend ingestion service when a pilot needs signed uploads, tenant isolation, audit logs, and retention policy before the dashboard imports the accepted source bundle.
 - Use export to download the current workspace, including baselines and trend snapshots.
 - Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, Grafana link context, source-context identifiers, and imported opportunity free text with deterministic surrogate IDs.
 - Use evidence-pack export for a selected-scope Markdown handoff that keeps numeric evidence and recommendations while redacting source identifiers.

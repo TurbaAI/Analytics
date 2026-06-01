@@ -1,0 +1,21 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "metrics": {
+      "turba_gpu_utilization_ratio": 0.66,
+      "turba_useful_compute_ratio": 0.43,
+      "turba_nccl_time_ratio": 0.27,
+      "turba_network_wait_ratio": 0.13,
+      "turba_dataloader_stall_ratio": 0.04,
+      "turba_storage_wait_ratio": 0.03,
+      "turba_cpu_prep_ratio": 0.04,
+      "turba_queue_wait_minutes": 31,
+      "turba_step_regularity_ratio": 0.88,
+      "turba_latency_tail_ratio": 0,
+      "turba_tokens_million_total": 810,
+      "turba_training_steps_total": 14600,
+      "turba_inference_requests_million_total": 0,
+      "turba_all_to_all_time_ratio": 0.03
+    }
+  }
+]

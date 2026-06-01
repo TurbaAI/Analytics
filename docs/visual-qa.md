@@ -1,6 +1,14 @@
 # Visual QA Checklist
 
-Browser automation for local URLs is blocked in the current Codex environment by policy. Use this checklist in a local browser before sharing the prototype.
+When Playwright is available, run automated screenshot QA:
+
+```sh
+node scripts/run-screenshot-qa.js
+```
+
+The script writes desktop and mobile captures under `build/qa/` and checks for missing panels, empty render targets, and horizontal overflow. If Playwright is unavailable, it skips by default; set `TURBALANCE_SCREENSHOT_QA_REQUIRED=1` when CI must fail instead.
+
+Use this checklist in a local browser before sharing the prototype.
 
 ## Desktop
 

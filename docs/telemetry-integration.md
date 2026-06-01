@@ -1,6 +1,8 @@
 # Telemetry Integration
 
-This prototype has no backend. Real telemetry is connected by exporting JSON from existing systems and importing that JSON into the browser.
+The dashboard does not need a backend for local review. Real telemetry is connected by exporting JSON from existing systems and importing that JSON into the browser or sending it through the optional backend ingestion service.
+
+Provider pilots can also send validated source bundles through the optional backend ingestion service in `server/ingestion-server.js`. Use `node scripts/validate-source-bundle.js --require-source-export` before sharing a bundle, or let the backend reject invalid uploads.
 
 ## Prometheus
 
@@ -270,6 +272,15 @@ node scripts/build-provider-overlay.js fixtures/provider-export-inputs > provide
 ```
 
 Validate the result against `schemas/turba-source-bundle.v1.schema.json` before sharing it with a pilot team.
+
+For a full pilot handoff, use the all-lanes bundler:
+
+```sh
+node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs > provider-pilot-bundle.json
+node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
+```
+
+That bundle can include Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, Linux eBPF, NCCL traces, billing/SLO, and optional opportunity exports keyed by `runId`.
 
 Expected fields:
 

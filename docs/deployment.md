@@ -13,15 +13,29 @@ turbalance Analytics is a static prototype. It can be hosted from any static fil
 - `docs/`
 - `schemas/`
 - `grafana/`
+- `lib/`
+- `server/`
+
+The optional backend ingestion service can run separately from the static dashboard:
+
+```sh
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token" \
+TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
+node server/ingestion-server.js
+```
+
+See `docs/backend-ingestion.md` for signed upload, audit, tenancy, and retention details.
 
 ## GitHub Pages
 
 The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the workflow:
 
 1. runs `node tests/run-all.js`
-2. assembles the static site into `site/`
-3. uploads the site as a Pages artifact
-4. deploys it with GitHub Pages
+2. validates source bundles with `node scripts/validate-source-bundle.js --require-source-export`
+3. runs screenshot QA when Playwright is available
+4. assembles the static site into `site/`
+5. uploads the site as a Pages artifact
+6. deploys it with GitHub Pages
 
 Enable Pages in repository settings with GitHub Actions as the source.
 

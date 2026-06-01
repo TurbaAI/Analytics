@@ -19,3 +19,9 @@ jobs:
 
       - name: Run full suite
         run: node tests/run-all.js
+
+      - name: Validate source bundles
+        run: node scripts/validate-source-bundle.js --require-source-export
+
+      - name: Run screenshot QA when browser automation is available
+        run: node scripts/run-screenshot-qa.js

@@ -5,9 +5,11 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 ## Build Readiness
 
 1. Run `node tests/run-all.js`.
-2. Confirm `.github/workflows/ci.yml` is green for the latest commit.
-3. Confirm GitHub Pages is enabled with GitHub Actions as the source.
-4. Rerun `.github/workflows/pages.yml` and confirm the deployment URL is live.
+2. Run `node scripts/validate-source-bundle.js --require-source-export`.
+3. Run `node scripts/run-screenshot-qa.js` in an environment with Playwright when screenshots must be verified.
+4. Confirm `.github/workflows/ci.yml` is green for the latest commit.
+5. Confirm GitHub Pages is enabled with GitHub Actions as the source.
+6. Rerun `.github/workflows/pages.yml` and confirm the deployment URL is live.
 
 ## Data Readiness
 
@@ -22,8 +24,10 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 9. Generate a provider overlay with `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`.
 10. Generate a scheduler overlay with `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`.
 11. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
-12. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json`.
-13. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
+12. Generate a full provider pilot bundle with `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
+13. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json` with `node scripts/validate-source-bundle.js --require-source-export`.
+14. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
+15. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload plus audit-read smoke tests.
 
 ## Visual Readiness
 

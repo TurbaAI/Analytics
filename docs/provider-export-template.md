@@ -14,6 +14,13 @@ For scheduler-event evidence, use `scripts/build-scheduler-overlay.js` with the 
 node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs > scheduler-overlay.json
 ```
 
+For a complete provider pilot bundle across observability, scheduler, host, billing/SLO, and recommendation systems:
+
+```sh
+node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs > provider-pilot-bundle.json
+node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
+```
+
 The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, Grafana exports can add `sources.grafana` for dashboard handoff links, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
 
 ## Source Mapping

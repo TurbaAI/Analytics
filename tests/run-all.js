@@ -12,9 +12,12 @@ const checks = [
   { label: "NCCL trace parser", args: ["tests/nccl-trace-parser.test.js"] },
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },
   { label: "neo-cloud provider fixture", args: ["tests/neo-cloud-provider-fixture.test.js"] },
+  { label: "source bundle validator", args: ["tests/source-bundle-validator.test.js"] },
   { label: "provider exporter", args: ["tests/provider-exporter.test.js"] },
   { label: "scheduler exporter", args: ["tests/scheduler-exporter.test.js"] },
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
+  { label: "provider pilot bundler", args: ["tests/provider-pilot-bundler.test.js"] },
+  { label: "ingestion server", args: ["tests/ingestion-server.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },
   { label: "evidence pack export", args: ["tests/evidence-pack-export.test.js"] },
@@ -22,7 +25,8 @@ const checks = [
   { label: "source bundle validation", args: ["tests/source-bundle-validation.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },
   { label: "static page wiring", args: ["tests/static-page-wiring.test.js"] },
-  { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] }
+  { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] },
+  { label: "screenshot QA", args: ["scripts/run-screenshot-qa.js"] }
 ];
 
 const failures = [];

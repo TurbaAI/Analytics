@@ -9,6 +9,7 @@ const readme = read("README.md");
 
 [
   "docs/data-contract.md",
+  "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
   "docs/provider-export-template.md",
@@ -24,10 +25,16 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
+  "lib/source-bundle-validator.js",
+  "server/ingestion-server.js",
   "scripts/build-provider-overlay.js",
+  "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/validate-source-bundle.js",
+  "scripts/run-screenshot-qa.js",
   "fixtures/provider-overlay-template.json",
+  "fixtures/provider-pilot-export-inputs/prometheus.json",
   "fixtures/scheduler-export-inputs/scheduler-events.json",
   "fixtures/ebpf-export-inputs/host-samples.json",
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
@@ -41,6 +48,7 @@ const readme = read("README.md");
 
 [
   "docs/data-contract.md",
+  "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
   "docs/provider-export-template.md",
@@ -54,14 +62,21 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "scripts/build-provider-overlay.js",
+  "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/validate-source-bundle.js",
+  "scripts/run-screenshot-qa.js",
   "grafana/turbalance-provider-overview.json",
+  "server/ingestion-server.js",
   "node tests/run-all.js",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
+  "tests/provider-pilot-bundler.test.js",
+  "tests/ingestion-server.test.js",
+  "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
   "tests/source-bundle-validation.test.js",
   "build/turbalance-analytics-desktop.png"
@@ -73,10 +88,12 @@ const ci = read(".github/workflows/ci.yml");
 const pages = read(".github/workflows/pages.yml");
 
 assert.ok(ci.includes("node tests/run-all.js"));
+assert.ok(ci.includes("node scripts/validate-source-bundle.js --require-source-export"));
+assert.ok(ci.includes("node scripts/run-screenshot-qa.js"));
 assert.ok(pages.includes("node tests/run-all.js"));
 assert.ok(pages.includes("actions/deploy-pages@v4"));
 assert.ok(pages.includes("cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/"));
-assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana site/"));
+assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana lib server site/"));
 
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));
@@ -95,6 +112,14 @@ assert.ok(dataContract.includes("Markdown evidence pack"));
 assert.ok(dataContract.includes("eBPF Host Overlay"));
 assert.ok(dataContract.includes("Neo-Cloud Provider Overlay"));
 assert.ok(dataContract.includes("Validation Behavior"));
+assert.ok(dataContract.includes("validate-source-bundle.js"));
+assert.ok(dataContract.includes("build-provider-pilot-bundle.js"));
+
+const backendIngestion = read("docs/backend-ingestion.md");
+assert.ok(backendIngestion.includes("server/ingestion-server.js"));
+assert.ok(backendIngestion.includes("signed"));
+assert.ok(backendIngestion.includes("audit"));
+assert.ok(backendIngestion.includes("retention"));
 
 const telemetry = read("docs/telemetry-integration.md");
 assert.ok(telemetry.includes("Prometheus"));
@@ -113,6 +138,8 @@ assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
+assert.ok(telemetry.includes("scripts/build-provider-pilot-bundle.js"));
+assert.ok(telemetry.includes("scripts/validate-source-bundle.js"));
 assert.ok(telemetry.includes("grafana/turbalance-provider-overview.json"));
 
 const providerFit = read("docs/neo-cloud-provider-fit.md");
@@ -122,6 +149,8 @@ assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerFit.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerFit.includes("scripts/build-ebpf-overlay.js"));
+assert.ok(providerFit.includes("scripts/build-provider-pilot-bundle.js"));
+assert.ok(providerFit.includes("server/ingestion-server.js"));
 assert.ok(providerFit.includes("sources.grafana"));
 assert.ok(providerFit.includes("grafana/turbalance-provider-overview.json"));
 assert.ok(providerFit.includes("Opportunity Engine"));
@@ -133,7 +162,9 @@ assert.ok(providerFit.includes("Lambda"));
 const providerTemplate = read("docs/provider-export-template.md");
 assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
+assert.ok(providerTemplate.includes("scripts/build-provider-pilot-bundle.js"));
 assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));
+assert.ok(providerTemplate.includes("scripts/validate-source-bundle.js"));
 assert.ok(providerTemplate.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(providerTemplate.includes("Kubernetes Join Keys"));
 assert.ok(providerTemplate.includes("Slurm Join Keys"));
@@ -149,6 +180,8 @@ assert.ok(pilotValidation.includes("Tenant"));
 assert.ok(pilotValidation.includes("Reservation"));
 assert.ok(pilotValidation.includes("redacted workspace"));
 assert.ok(pilotValidation.includes("build-ebpf-overlay.js"));
+assert.ok(pilotValidation.includes("build-provider-pilot-bundle.js"));
+assert.ok(pilotValidation.includes("ingestion-server.js"));
 assert.ok(pilotValidation.includes("build-scheduler-overlay.js"));
 assert.ok(pilotValidation.includes("Grafana"));
 assert.ok(pilotValidation.includes("Opportunity Engine"));
@@ -160,6 +193,7 @@ const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
 assert.ok(demoScript.includes("build-ebpf-overlay.js"));
+assert.ok(demoScript.includes("build-provider-pilot-bundle.js"));
 assert.ok(demoScript.includes("build-scheduler-overlay.js"));
 assert.ok(demoScript.includes("sources.grafana"));
 assert.ok(demoScript.includes("grafana/turbalance-provider-overview.json"));
@@ -173,6 +207,10 @@ const demoRelease = read("docs/demo-release-checklist.md");
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
+assert.ok(demoRelease.includes("build-provider-pilot-bundle.js"));
+assert.ok(demoRelease.includes("validate-source-bundle.js"));
+assert.ok(demoRelease.includes("run-screenshot-qa.js"));
+assert.ok(demoRelease.includes("ingestion-server.js"));
 assert.ok(demoRelease.includes("build-scheduler-overlay.js"));
 assert.ok(demoRelease.includes("Grafana Handoff"));
 assert.ok(demoRelease.includes("grafana/turbalance-provider-overview.json"));
