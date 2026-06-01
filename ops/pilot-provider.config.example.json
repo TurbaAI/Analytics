@@ -6,6 +6,14 @@
   "configMapName": "turbalance-ingestion-config",
   "secretName": "turbalance-ingestion-secrets",
   "secretStoreName": "provider-managed-secret-store",
+  "secretProvider": "aws",
+  "serviceAccountAnnotations": {
+    "eks.amazonaws.com/role-arn": "arn:aws:iam::123456789012:role/turbalance-ingestion-secrets"
+  },
+  "aws": {
+    "region": "us-west-2",
+    "service": "SecretsManager"
+  },
   "objectBucket": "provider-ai-ops-turbalance-ingestion",
   "objectPrefix": "pilot/provider-a",
   "postgresSecretName": "turbalance/provider-a/postgres-url",

@@ -48,6 +48,16 @@ node scripts/render-managed-kubernetes.js \
 
 The rendered deployment uses managed Postgres, S3-compatible object storage, ExternalSecret bindings, a provider image, and no PVC-backed local ingestion state.
 
+Build/publish the provider image with:
+
+```sh
+node scripts/build-publish-ingestion-image.js \
+  --config ops/pilot-provider.config.example.json \
+  --push
+```
+
+The `.github/workflows/provider-image.yml` workflow exposes the same gate as a manual GitHub Action.
+
 ## GitHub Pages
 
 The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the workflow:

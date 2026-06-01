@@ -44,6 +44,14 @@ node scripts/fetch-source-system-export.js \
 
 Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`.
 
+Before scheduling collectors, validate the source-owner contract file:
+
+```sh
+node scripts/validate-source-contracts.js \
+  --config ops/source-contracts.example.json \
+  --out-dir build/provider-source-contracts
+```
+
 ## Source Mapping
 
 Map commercial, scheduler, and support systems into `sources.provider`:

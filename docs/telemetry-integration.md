@@ -132,6 +132,8 @@ node scripts/fetch-source-system-export.js \
   --out-dir /var/run/turbalance-provider-exports
 ```
 
+Use `scripts/validate-source-contracts.js` with `ops/source-contracts.example.json` to validate all approved endpoint contracts and Prometheus query contracts together before enabling scheduled collection.
+
 ## Kubernetes
 
 Kubernetes exports should use `sources.kubernetes`.

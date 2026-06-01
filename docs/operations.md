@@ -23,6 +23,16 @@ node scripts/render-managed-kubernetes.js \
   --out build/turbalance-managed-kubernetes.yaml
 ```
 
+Build and publish the provider-approved ingestion image referenced by the same config:
+
+```sh
+node scripts/build-publish-ingestion-image.js \
+  --config ops/pilot-provider.config.example.json \
+  --push
+```
+
+Run without `--push` or with `--dry-run` to print the Docker commands for approval review.
+
 ## Retention Job
 
 Use `scripts/run-retention-job.js` for cron, Kubernetes CronJob, or provider-managed scheduled task wiring:
@@ -102,6 +112,8 @@ node scripts/provision-customer-iam.js \
 
 Use `--apply-secrets` only from an approved provider automation context with the cloud CLI already authenticated.
 
+The rendered manifests include a provider `ClusterSecretStore`, `ExternalSecret`, and service-account IAM annotations when configured in `ops/pilot-provider.config.example.json`.
+
 ## Metrics
 
 The ingestion backend exposes Prometheus text metrics at `/metrics` for authenticated `viewer`, `operator`, or `admin` callers.
@@ -142,6 +154,30 @@ node scripts/fetch-source-system-export.js \
 ```
 
 Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`. Prometheus/DCGM collection remains in `scripts/fetch-prometheus-source-export.js` because it uses Prometheus query semantics.
+
+Validate all approved endpoint/query contracts before enabling scheduled jobs:
+
+```sh
+node scripts/validate-source-contracts.js \
+  --config ops/source-contracts.example.json \
+  --out-dir build/provider-source-contracts
+```
+
+## Pilot Burn-In
+
+Run a burn-in loop against staged source exports or validated source contracts:
+
+```sh
+node scripts/run-live-pilot-burn-in.js \
+  --contracts ops/source-contracts.example.json \
+  --iterations 3 \
+  --ingest-url https://ingestion.example.com/v1/ingestion \
+  --token "$TURBALANCE_INGEST_TOKEN" \
+  --tenant provider-a \
+  --out-dir build/provider-burn-in
+```
+
+Treat this as the final staging gate before customer-facing use: every iteration must build a valid source bundle, optionally ingest successfully, and leave a retained bundle artifact for review.
 
 ## Visual QA
 

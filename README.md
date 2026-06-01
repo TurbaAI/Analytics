@@ -266,6 +266,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/provider-pilot-export-inputs/`: per-system pilot export inputs for the all-lanes bundle builder
 - `fixtures/prometheus-collector-queries.json`: starter Prometheus/DCGM query map for live source export collection
 - `ops/pilot-provider.config.example.json`: managed deployment render config for a pilot provider
+- `ops/source-contracts.example.json`: source-owner endpoint/query contract template for pre-schedule validation
 - `fixtures/workspace-export.json`: canonical workspace export shape
 - `fixtures/provider-export-inputs/kubernetes-jobs.json`: provider exporter Kubernetes sample input
 - `fixtures/scheduler-export-inputs/scheduler-events.json`: scheduler exporter sample input
@@ -300,6 +301,7 @@ node tests/run-all.js
 Focused test entry points:
 
 - `tests/analytics-core.test.js`: core efficiency, bottleneck, what-if, fingerprint, regression, trend, provider economics, scheduler simulation, and opportunity calculations
+- `tests/provider-image.test.js`: provider ingestion Dockerfile and build/publish dry-run
 - `tests/nccl-trace-parser.test.js`: NCCL operation and topology-tier attribution
 - `tests/external-ingestion-fixture.test.js`: canonical external source-bundle fixture
 - `tests/neo-cloud-provider-fixture.test.js`: provider overlays, SLO fields, provider economics, scheduler simulation, and opportunity generation
@@ -308,6 +310,7 @@ Focused test entry points:
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
 - `tests/prometheus-source-exporter.test.js`: Prometheus/DCGM HTTP collector with mocked Prometheus API responses
 - `tests/source-system-collectors.test.js`: Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity collector staging
+- `tests/source-contracts.test.js`: source-owner contract validator across approved endpoints and Prometheus queries
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
 - `tests/provider-pilot-export-job.test.js`: provider pilot export job wrapper for bundle generation and optional ingestion upload
 - `tests/ingestion-oidc.test.js`: RS256/JWKS JWT validation, tenant mapping, and role mapping
@@ -318,6 +321,7 @@ Focused test entry points:
 - `tests/provision-tenant.test.js`: admin tenant bootstrap CLI and token issuance
 - `tests/provision-customer-iam.test.js`: tenant bootstrap plus secret-manager binding plan
 - `tests/render-managed-kubernetes.test.js`: managed Kubernetes manifest rendering without PVC-backed local state
+- `tests/live-pilot-burn-in.test.js`: staged bundle validation and optional ingestion upload loop
 - `tests/retention-job.test.js`: standalone retention job behavior
 - `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
@@ -327,10 +331,13 @@ Focused test entry points:
 - `tests/import-validation-copy.test.js`: import validation messages and helpers
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
+- `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/fetch-source-system-export.js`: source-system collector for Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity exports
 - `scripts/fetch-prometheus-source-export.js`: live Prometheus/DCGM collector that emits source bundles or staged provider input files
 - `scripts/provision-customer-iam.js`: customer onboarding helper that provisions a tenant token and secret-manager binding plan
 - `scripts/render-managed-kubernetes.js`: renders provider-specific managed Kubernetes manifests from `ops/pilot-provider.config.example.json`
+- `scripts/validate-source-contracts.js`: validates source-owner endpoint contracts before scheduled collectors are enabled
+- `scripts/run-live-pilot-burn-in.js`: runs a staged or live-contract burn-in loop and optionally posts to ingestion
 - `scripts/provision-tenant.js`: admin helper for pilot tenant creation and ingest-token rotation
 - `scripts/run-provider-pilot-export-job.js`: provider pilot export job for mounted source exports and optional ingestion upload
 - `scripts/run-retention-job.js`: standalone retention job for cron or Kubernetes CronJob wiring

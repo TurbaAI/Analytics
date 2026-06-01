@@ -1,0 +1,36 @@
+name: Provider Ingestion Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: "Provider-approved image tag"
+        required: false
+        default: ""
+      push:
+        description: "Push image"
+        required: true
+        default: "false"
+
+jobs:
+  build-provider-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build or publish provider image
+        run: |
+          ARGS="--config ops/pilot-provider.config.example.json"
+          if [ -n "${{ inputs.image }}" ]; then
+            ARGS="$ARGS --image ${{ inputs.image }}"
+          fi
+          if [ "${{ inputs.push }}" = "true" ]; then
+            ARGS="$ARGS --push"
+          else
+            ARGS="$ARGS --dry-run"
+          fi
+          node scripts/build-publish-ingestion-image.js $ARGS

@@ -22,12 +22,15 @@ const readme = read("README.md");
   "docs/demo-release-checklist.md",
   "assets/turbalance-mark.png",
   "assets/turbalance-analytics-logo.png",
+  "Dockerfile",
+  ".dockerignore",
   "schemas/turba-ingestion.v1.schema.json",
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
   "ops/pilot-provider.config.example.json",
+  "ops/source-contracts.example.json",
   "ops/kubernetes/ingestion-configmap.yaml",
   "ops/kubernetes/ingestion-secret.example.yaml",
   "ops/kubernetes/ingestion-serviceaccount.yaml",
@@ -44,9 +47,12 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/build-publish-ingestion-image.js",
   "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
+  "scripts/validate-source-contracts.js",
+  "scripts/run-live-pilot-burn-in.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
@@ -61,6 +67,7 @@ const readme = read("README.md");
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
+  ".github/workflows/provider-image.yml",
   ".github/workflows/visual-qa.yml",
   "build/turbalance-analytics-desktop.png",
   "build/turbalance-analytics-mobile.png"
@@ -88,9 +95,12 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/build-publish-ingestion-image.js",
   "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
+  "scripts/validate-source-contracts.js",
+  "scripts/run-live-pilot-burn-in.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
@@ -106,12 +116,14 @@ const readme = read("README.md");
   "server/ingestion-secrets.js",
   "server/ingestion-storage.js",
   "node tests/run-all.js",
+  "tests/provider-image.test.js",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/prometheus-source-exporter.test.js",
   "tests/source-system-collectors.test.js",
+  "tests/source-contracts.test.js",
   "tests/provider-pilot-bundler.test.js",
   "tests/provider-pilot-export-job.test.js",
   "tests/ingestion-oidc.test.js",
@@ -122,6 +134,7 @@ const readme = read("README.md");
   "tests/provision-tenant.test.js",
   "tests/provision-customer-iam.test.js",
   "tests/render-managed-kubernetes.test.js",
+  "tests/live-pilot-burn-in.test.js",
   "tests/retention-job.test.js",
   "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
@@ -134,6 +147,7 @@ const readme = read("README.md");
 const ci = read(".github/workflows/ci.yml");
 const pages = read(".github/workflows/pages.yml");
 const visualQaWorkflow = read(".github/workflows/visual-qa.yml");
+const providerImageWorkflow = read(".github/workflows/provider-image.yml");
 
 assert.ok(ci.includes("node tests/run-all.js"));
 assert.ok(ci.includes("node scripts/validate-source-bundle.js --require-source-export"));
@@ -144,6 +158,8 @@ assert.ok(pages.includes("cp index.html styles.css app.js analytics-core.js nccl
 assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana lib ops server site/"));
 assert.ok(visualQaWorkflow.includes("npx playwright install --with-deps chromium"));
 assert.ok(visualQaWorkflow.includes("TURBALANCE_SCREENSHOT_QA_REQUIRED"));
+assert.ok(providerImageWorkflow.includes("scripts/build-publish-ingestion-image.js"));
+assert.ok(providerImageWorkflow.includes("docker/setup-buildx-action"));
 
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));
@@ -200,6 +216,9 @@ assert.ok(operations.includes("scripts/provision-customer-iam.js"));
 assert.ok(operations.includes("scripts/render-managed-kubernetes.js"));
 assert.ok(operations.includes("scripts/fetch-source-system-export.js"));
 assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
+assert.ok(operations.includes("scripts/build-publish-ingestion-image.js"));
+assert.ok(operations.includes("scripts/validate-source-contracts.js"));
+assert.ok(operations.includes("scripts/run-live-pilot-burn-in.js"));
 assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
 assert.ok(operations.includes("managed-postgres-s3"));
 
@@ -220,6 +239,7 @@ assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(telemetry.includes("scripts/fetch-source-system-export.js"));
 assert.ok(telemetry.includes("scripts/fetch-prometheus-source-export.js"));
+assert.ok(telemetry.includes("scripts/validate-source-contracts.js"));
 assert.ok(telemetry.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-pilot-bundle.js"));
@@ -249,6 +269,7 @@ assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/build-provider-pilot-bundle.js"));
 assert.ok(providerTemplate.includes("scripts/fetch-source-system-export.js"));
 assert.ok(providerTemplate.includes("scripts/fetch-prometheus-source-export.js"));
+assert.ok(providerTemplate.includes("scripts/validate-source-contracts.js"));
 assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/validate-source-bundle.js"));
 assert.ok(providerTemplate.includes("turba-source-bundle.v1.schema.json"));

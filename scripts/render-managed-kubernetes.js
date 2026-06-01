@@ -26,13 +26,23 @@ function render(config) {
   const serviceAccountName = config.serviceAccountName || `${releaseName}-ingestion`;
   const image = config.image || "registry.example.com/turbalance-ingestion:latest";
   const secretStoreName = config.secretStoreName || "provider-managed-secret-store";
+  const secretProvider = config.secretProvider || "generic";
   const objectBucket = required(config.objectBucket, "objectBucket");
   const objectPrefix = config.objectPrefix || "ingestion";
   const ingestTenant = config.ingestTenant || "tenant-a";
 
   return [
     namespaceYaml(namespace),
-    serviceAccountYaml({ namespace, serviceAccountName }),
+    serviceAccountYaml({ namespace, serviceAccountName, annotations: config.serviceAccountAnnotations || {} }),
+    secretStoreYaml({
+      provider: secretProvider,
+      namespace,
+      secretStoreName,
+      serviceAccountName,
+      aws: config.aws || {},
+      gcp: config.gcp || {},
+      azure: config.azure || {}
+    }),
     configMapYaml({ namespace, configMapName, objectBucket, objectPrefix }),
     externalSecretYaml({
       namespace,
@@ -60,15 +70,92 @@ function namespaceYaml(namespace) {
   ].join("\n");
 }
 
-function serviceAccountYaml({ namespace, serviceAccountName }) {
+function serviceAccountYaml({ namespace, serviceAccountName, annotations }) {
+  const annotationEntries = Object.entries(annotations || {});
   return [
     "apiVersion: v1",
     "kind: ServiceAccount",
     "metadata:",
     `  name: ${serviceAccountName}`,
     `  namespace: ${namespace}`,
+    ...(annotationEntries.length > 0 ? [
+      "  annotations:",
+      ...annotationEntries.map(([key, value]) => `    ${key}: ${value}`)
+    ] : []),
     "  labels:",
     "    app.kubernetes.io/name: turbalance-ingestion",
+    ""
+  ].join("\n");
+}
+
+function secretStoreYaml({ provider, namespace, secretStoreName, serviceAccountName, aws, gcp, azure }) {
+  if (provider === "aws") {
+    return [
+      "apiVersion: external-secrets.io/v1beta1",
+      "kind: ClusterSecretStore",
+      "metadata:",
+      `  name: ${secretStoreName}`,
+      "spec:",
+      "  provider:",
+      "    aws:",
+      `      service: ${aws.service || "SecretsManager"}`,
+      `      region: ${aws.region || "us-west-2"}`,
+      "      auth:",
+      "        jwt:",
+      "          serviceAccountRef:",
+      `            name: ${serviceAccountName}`,
+      `            namespace: ${namespace}`,
+      ""
+    ].join("\n");
+  }
+
+  if (provider === "gcp") {
+    return [
+      "apiVersion: external-secrets.io/v1beta1",
+      "kind: ClusterSecretStore",
+      "metadata:",
+      `  name: ${secretStoreName}`,
+      "spec:",
+      "  provider:",
+      "    gcpsm:",
+      `      projectID: ${required(gcp.projectId, "gcp.projectId")}`,
+      "      auth:",
+      "        workloadIdentity:",
+      `          clusterLocation: ${required(gcp.clusterLocation, "gcp.clusterLocation")}`,
+      `          clusterName: ${required(gcp.clusterName, "gcp.clusterName")}`,
+      `          serviceAccountRef: { name: ${serviceAccountName}, namespace: ${namespace} }`,
+      ""
+    ].join("\n");
+  }
+
+  if (provider === "azure") {
+    return [
+      "apiVersion: external-secrets.io/v1beta1",
+      "kind: ClusterSecretStore",
+      "metadata:",
+      `  name: ${secretStoreName}`,
+      "spec:",
+      "  provider:",
+      "    azurekv:",
+      `      vaultUrl: ${required(azure.vaultUrl, "azure.vaultUrl")}`,
+      `      tenantId: ${required(azure.tenantId, "azure.tenantId")}`,
+      "      authType: WorkloadIdentity",
+      `      serviceAccountRef: { name: ${serviceAccountName}, namespace: ${namespace} }`,
+      ""
+    ].join("\n");
+  }
+
+  return [
+    "apiVersion: external-secrets.io/v1beta1",
+    "kind: ClusterSecretStore",
+    "metadata:",
+    `  name: ${secretStoreName}`,
+    "spec:",
+    "  provider:",
+    "    webhook:",
+    "      url: https://secret-store.example.invalid/{{ .remoteRef.key }}",
+    "      result:",
+    "        jsonPath: $.value",
     ""
   ].join("\n");
 }
