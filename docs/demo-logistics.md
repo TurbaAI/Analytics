@@ -17,9 +17,20 @@ python3 -m http.server 8000
 
 Then open `http://127.0.0.1:8000/` and import `fixtures/neo-cloud-provider-bundle.json` or the generated `build/demo/provider-pilot-bundle.json`.
 
+For the NUC14E demo on `192.168.10.101`, run:
+
+```sh
+node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000
+python3 -m http.server 8000 --bind 0.0.0.0
+```
+
+Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host. That bundle reflects the actual machine state: Ubuntu 24.04, Intel Core i9-14900KS, 64 GB RAM, NVIDIA GeForce RTX 4090 via `nvidia-smi`, Docker monitoring containers, Grafana, Netdata, Ollama model inventory, node-exporter, procfs, disk, memory, and network counters. It does not pretend Kubernetes or DCGM are installed when they are not.
+
 ## Hardware Needed
 
 No special hardware is required for the first demo. A laptop or small VM is enough because the dashboard can run from fixture data and generated source bundles.
+
+The current `192.168.10.101` demo machine has one NVIDIA GeForce RTX 4090 and is useful for a realistic single-node workstation/edge-provider demo. It is not a multi-node neo-cloud cluster, so scheduler, topology, and queue behavior should be framed as local/single-node evidence unless provider staging exports are imported.
 
 For integration testing against real infrastructure, the useful minimum is:
 

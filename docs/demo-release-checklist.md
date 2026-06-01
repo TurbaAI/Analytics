@@ -4,7 +4,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 
 ## Build Readiness
 
-1. Run `node scripts/prepare-demo.js --out-dir build/demo`.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000` on the demo machine.
 2. Run `node tests/run-all.js`.
 3. Run `node scripts/validate-source-bundle.js --require-source-export`.
 4. Run `node scripts/run-screenshot-qa.js` in an environment with Playwright when screenshots must be verified.
@@ -26,7 +26,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 10. Generate a scheduler overlay with `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`.
 11. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
 12. Generate a full provider pilot bundle with `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
-13. Confirm `build/demo/provider-pilot-bundle.json`, `build/demo/source-bundle-validation.json`, `build/demo/provider-readiness.json`, and `build/demo/demo-readiness.md` exist from `scripts/prepare-demo.js`.
+13. Confirm `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, `build/demo/source-bundle-validation.json`, `build/demo/provider-readiness.json`, and `build/demo/demo-readiness.md` exist from `scripts/prepare-demo.js`.
 14. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json` with `node scripts/validate-source-bundle.js --require-source-export`.
 15. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
 16. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload, JWKS/JWT auth, tenant provisioning, token/key rotation, metrics, audit export, and retention smoke tests.
@@ -38,6 +38,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 2. Regenerate `build/turbalance-analytics-desktop.png` and `build/turbalance-analytics-mobile.png` after layout changes.
 3. Confirm no text overlap in provider lens, provider portfolio tables, Grafana Handoff links, Scheduler Simulator cards, Opportunity Engine rows, trend metrics, and mobile controls.
 4. Confirm eBPF-enriched imports do not create misleading GPU claims; host evidence should only affect network wait, input pipeline, contention, latency tail, and noise signals.
+5. For `192.168.10.101`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json`; use `?demo=sample` only when intentionally showing the canned provider fixture.
 
 ## Talk Track Readiness
 

@@ -1102,7 +1102,9 @@ const TREND_METRIC_DEFS = {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
+  prefillMachineDemoUrl();
   render();
+  maybeAutoLoadMachineDemoBundle();
 });
 
 function loadWorkspaceStore(defaultIngestion) {
@@ -2523,6 +2525,60 @@ async function handleApiIngest() {
   } catch (error) {
     setIngestStatus(importErrorMessage(error, "Fetch failed"), "poor");
   }
+}
+
+function prefillMachineDemoUrl() {
+  if (!shouldOfferMachineDemoBundle()) return;
+  const input = document.querySelector("#apiInput");
+  if (input && !input.value) {
+    input.value = machineDemoBundleUrl();
+  }
+}
+
+async function maybeAutoLoadMachineDemoBundle() {
+  if (!shouldAutoLoadMachineDemoBundle()) return;
+
+  const requestUrl = machineDemoBundleUrl();
+  try {
+    setIngestStatus("Fetching machine demo", "watch");
+    const response = await window.fetch(cacheBustUrl(requestUrl));
+    if (!response.ok) {
+      throw new Error(`Machine demo ${response.status}`);
+    }
+    await ingestJsonPayload(
+      parseImportJson(await response.text(), "Machine demo did not return valid JSON."),
+      "Fetched NUC14E live machine bundle"
+    );
+  } catch (error) {
+    setIngestStatus(importErrorMessage(error, "Machine demo fetch failed"), "poor");
+  }
+}
+
+function shouldOfferMachineDemoBundle() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("demo") === "machine" || isNucMachineDemoHost();
+}
+
+function shouldAutoLoadMachineDemoBundle() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("demo") === "sample") return false;
+  if (params.get("demo") === "machine" || params.get("source") === "machine") return true;
+  return isNucMachineDemoHost();
+}
+
+function isNucMachineDemoHost() {
+  return ["192.168.10.101", "nuc14e"].includes(window.location.hostname.toLowerCase());
+}
+
+function machineDemoBundleUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return parseImportUrl(params.get("bundle") || "build/demo/live-machine-bundle.json");
+}
+
+function cacheBustUrl(url) {
+  const nextUrl = new URL(url, window.location.href);
+  nextUrl.searchParams.set("_", Date.now().toString());
+  return nextUrl.href;
 }
 
 function parseImportJson(text, message) {

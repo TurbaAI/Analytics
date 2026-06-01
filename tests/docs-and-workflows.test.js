@@ -55,6 +55,7 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
+  "scripts/collect-local-machine-bundle.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
@@ -112,6 +113,7 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
+  "scripts/collect-local-machine-bundle.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
@@ -141,6 +143,7 @@ const readme = read("README.md");
   "tests/provider-image.test.js",
   "tests/provider-config-generator.test.js",
   "tests/prepare-demo.test.js",
+  "tests/local-machine-bundle.test.js",
   "tests/provider-readiness.test.js",
   "tests/provider-go-live-gates.test.js",
   "tests/sandbox-go-live.test.js",
@@ -340,6 +343,8 @@ const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("scripts/prepare-demo.js"));
 assert.ok(demoScript.includes("docs/demo-logistics.md"));
 assert.ok(demoScript.includes("SM scheduler"));
+assert.ok(demoScript.includes("build/demo/live-machine-bundle.json"));
+assert.ok(demoScript.includes("192.168.10.101"));
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
 assert.ok(demoScript.includes("build-ebpf-overlay.js"));
@@ -356,6 +361,7 @@ assert.ok(demoScript.includes("Do Not Claim"));
 const demoRelease = read("docs/demo-release-checklist.md");
 assert.ok(demoRelease.includes("scripts/prepare-demo.js"));
 assert.ok(demoRelease.includes("docs/demo-logistics.md"));
+assert.ok(demoRelease.includes("build/demo/live-machine-bundle.json"));
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
@@ -376,8 +382,10 @@ const demoLogistics = read("docs/demo-logistics.md");
 assert.ok(demoLogistics.includes("Hardware Needed"));
 assert.ok(demoLogistics.includes("NVIDIA SM Scheduler Position"));
 assert.ok(demoLogistics.includes("scripts/prepare-demo.js"));
+assert.ok(demoLogistics.includes("live-machine-bundle.json"));
 assert.ok(demoLogistics.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(demoLogistics.includes("MPS/MIG"));
 assert.ok(demoLogistics.includes("one Linux NVIDIA GPU node"));
+assert.ok(demoLogistics.includes("NVIDIA GeForce RTX 4090"));
 
 console.log("docs and workflows tests passed");

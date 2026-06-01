@@ -96,6 +96,8 @@ assert.ok(app.includes("buildEvidencePackMarkdown"));
 assert.ok(app.includes("importEbpfSamples"));
 assert.ok(app.includes("importProviderSamples"));
 assert.ok(app.includes("importOpportunitySamples"));
+assert.ok(app.includes("maybeAutoLoadMachineDemoBundle"));
+assert.ok(app.includes("build/demo/live-machine-bundle.json"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));
 assert.ok(app.includes('"tenant", "account", "reservation"'));

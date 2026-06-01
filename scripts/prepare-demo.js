@@ -45,6 +45,25 @@ try {
     outputPath: path.join(outDir, "provider-pilot-bundle.json")
   });
 
+  artifacts.liveMachineBundle = path.join(outDir, "live-machine-bundle.json");
+  runCommand({
+    id: "artifacts.live_machine_bundle",
+    label: "Local machine source bundle generated",
+    commandArgs: [
+      "scripts/collect-local-machine-bundle.js",
+      "--out",
+      artifacts.liveMachineBundle,
+      "--host-url",
+      args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.101:8000"
+    ]
+  });
+  checks.push({
+    id: "artifacts.live_machine_bundle.written",
+    ok: fs.existsSync(artifacts.liveMachineBundle) && fs.statSync(artifacts.liveMachineBundle).size > 0,
+    severity: "error",
+    message: "Local machine source bundle artifact written"
+  });
+
   const validation = runJson({
     id: "validation.source_bundles",
     label: "Demo source bundles validate against schemas",
@@ -54,7 +73,8 @@ try {
       "--require-source-export",
       "fixtures/external-source-bundle.json",
       "fixtures/neo-cloud-provider-bundle.json",
-      artifacts.providerPilotBundle
+      artifacts.providerPilotBundle,
+      artifacts.liveMachineBundle
     ]
   });
   artifacts.sourceBundleValidation = path.join(outDir, "source-bundle-validation.json");
@@ -197,7 +217,8 @@ function buildReport(error = null) {
       localStaticServer: "python3 -m http.server 8000",
       localUrl: "http://127.0.0.1:8000/",
       primaryDataset: "fixtures/neo-cloud-provider-bundle.json",
-      generatedProviderBundle: artifacts.providerPilotBundle || ""
+      generatedProviderBundle: artifacts.providerPilotBundle || "",
+      liveMachineBundle: artifacts.liveMachineBundle || ""
     },
     hardware: {
       demo: "Laptop or small VM is enough for the offline dashboard and generated telemetry bundles.",
@@ -230,6 +251,7 @@ function markdownReport(report) {
     `- Local URL: ${report.demoPath.localUrl}`,
     `- Primary dataset: \`${report.demoPath.primaryDataset}\``,
     `- Generated provider bundle: \`${report.demoPath.generatedProviderBundle}\``,
+    `- Live machine bundle: \`${report.demoPath.liveMachineBundle}\``,
     "",
     "## Artifacts",
     "",

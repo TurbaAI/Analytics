@@ -306,6 +306,7 @@ Focused test entry points:
 - `tests/provider-image.test.js`: provider ingestion Dockerfile and build/publish dry-run
 - `tests/provider-config-generator.test.js`: provider pilot config generator and strict readiness handoff
 - `tests/prepare-demo.test.js`: demo artifact generator, source validation, readiness report, and hardware/scheduler notes
+- `tests/local-machine-bundle.test.js`: host telemetry bundle collector for live workstation demos
 - `tests/provider-readiness.test.js`: provider config/source-contract readiness gate
 - `tests/provider-go-live-gates.test.js`: end-to-end dry-run go-live orchestration and evidence artifacts
 - `tests/sandbox-go-live.test.js`: strict sandbox source gateway and go-live runner dry-run checks
@@ -341,6 +342,7 @@ Focused test entry points:
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
+- `scripts/collect-local-machine-bundle.js`: samples the current Linux host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
 - `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
@@ -373,7 +375,9 @@ Demo prep:
 node scripts/prepare-demo.js --out-dir build/demo
 ```
 
-This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
+This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
+
+When the demo is served from `192.168.10.101`, the app automatically fetches `build/demo/live-machine-bundle.json` so the dashboard reflects the NUC14E host state instead of only the canned provider fixture. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
 
 ## Deployment
 

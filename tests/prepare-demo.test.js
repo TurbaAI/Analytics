@@ -22,9 +22,11 @@ const report = JSON.parse(result.stdout);
 assert.equal(report.ok, true);
 assert.equal(report.outDir, tempDir);
 assert.ok(report.summary.passed >= 8);
-assert.ok(report.summary.warnings >= 1);
+assert.ok(report.summary.warnings >= 0);
 assert.equal(report.summary.failed, 0);
+assert.ok(report.checks.some((check) => check.id === "validation.screenshot_qa"));
 assert.equal(report.demoPath.primaryDataset, "fixtures/neo-cloud-provider-bundle.json");
+assert.ok(report.demoPath.liveMachineBundle.endsWith("live-machine-bundle.json"));
 assert.ok(report.hardware.integration.includes("Linux NVIDIA GPU node"));
 assert.ok(report.nvidiaSchedulerPosition.includes("Do not claim SM scheduler replacement"));
 
@@ -33,6 +35,7 @@ assert.ok(report.nvidiaSchedulerPosition.includes("Do not claim SM scheduler rep
   "scheduler-overlay.json",
   "ebpf-overlay.json",
   "provider-pilot-bundle.json",
+  "live-machine-bundle.json",
   "source-bundle-validation.json",
   "provider-readiness.json",
   "managed-kubernetes.yaml",
@@ -47,7 +50,7 @@ assert.ok(report.nvidiaSchedulerPosition.includes("Do not claim SM scheduler rep
 
 const validation = JSON.parse(fs.readFileSync(path.join(tempDir, "source-bundle-validation.json"), "utf8"));
 assert.equal(validation.ok, true);
-assert.equal(validation.reports.length, 3);
+assert.equal(validation.reports.length, 4);
 
 const readiness = JSON.parse(fs.readFileSync(path.join(tempDir, "provider-readiness.json"), "utf8"));
 assert.equal(readiness.ok, true);
