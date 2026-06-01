@@ -65,6 +65,14 @@ TURBALANCE_JWT_ROLE_MAP="security-reader:viewer,platform-operator:operator"
 
 JWKS URL responses are cached for `TURBALANCE_JWT_JWKS_CACHE_MS`, default 300000 ms.
 
+For OIDC discovery, set:
+
+```sh
+TURBALANCE_OIDC_DISCOVERY_URL="https://issuer.example.com/.well-known/openid-configuration"
+```
+
+The backend fetches `jwks_uri` from the discovery document and caches discovery responses for `TURBALANCE_OIDC_DISCOVERY_CACHE_MS`, default 300000 ms. Fetch and cache counters are exported through `/metrics`.
+
 ## API
 
 ### Health
@@ -131,6 +139,8 @@ node scripts/run-retention-job.js --json
 ```
 
 This script is meant for cron, Kubernetes CronJob, or provider-managed scheduled task wiring.
+
+Kubernetes templates for this job and Prometheus monitoring live under `ops/kubernetes/`; see `docs/operations.md`.
 
 ### Metrics
 

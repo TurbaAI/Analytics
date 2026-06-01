@@ -295,6 +295,7 @@ function signJwtRs256(payload, privateKey, kid) {
   });
   assert.equal(metrics.status, 200);
   assert.ok(metrics.body.includes("turbalance_ingest_accepted_total"));
+  assert.ok(metrics.body.includes("turbalance_jwks_fetches_total"));
   assert.ok(metrics.body.includes("turbalance_configured_tenants"));
 
   const uploadDir = path.join(tempDir, "tenants", "tenant-a", "uploads");

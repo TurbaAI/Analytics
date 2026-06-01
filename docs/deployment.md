@@ -14,6 +14,7 @@ turbalance Analytics is a static prototype. It can be hosted from any static fil
 - `schemas/`
 - `grafana/`
 - `lib/`
+- `ops/`
 - `server/`
 
 The optional backend ingestion service can run separately from the static dashboard:
@@ -24,7 +25,7 @@ TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 node server/ingestion-server.js
 ```
 
-See `docs/backend-ingestion.md` for signed upload, role-aware auth, HS256/JWKS JWT gateway mode, tenant provisioning, key rotation, audit export, metrics, tenancy, and retention details. Use `scripts/run-retention-job.js` when retention should run as a cron, Kubernetes CronJob, or provider-managed scheduled task instead of an in-process interval.
+See `docs/backend-ingestion.md` for signed upload, role-aware auth, HS256/JWKS/OIDC discovery gateway mode, tenant provisioning, key rotation, audit export, metrics, tenancy, and retention details. Use `scripts/run-retention-job.js` and `ops/kubernetes/` when retention should run as a cron, Kubernetes CronJob, or provider-managed scheduled task instead of an in-process interval.
 
 ## GitHub Pages
 

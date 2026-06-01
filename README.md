@@ -250,6 +250,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/`: sample source bundles, workspace exports, provider overlays, scheduler events, eBPF inputs, and exporter inputs
 - `grafana/`: Grafana dashboard templates, including `grafana/turbalance-provider-overview.json`
 - `lib/`: shared validation helpers used by CLI tooling and the ingestion backend
+- `ops/`: Kubernetes and Prometheus operation templates, including `ops/kubernetes/ingestion-retention-cronjob.yaml`, `ops/kubernetes/ingestion-service-monitor.yaml`, and `ops/kubernetes/ingestion-prometheus-rules.yaml`
 - `schemas/`: JSON Schemas for ingestion, source bundles, and workspaces
 - `scripts/`: dependency-free exporter examples
 - `server/`: optional controlled ingestion service and swappable file storage adapter
@@ -277,6 +278,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - [Provider export template](docs/provider-export-template.md)
 - [Neo-cloud pilot validation](docs/neo-cloud-pilot-validation.md)
 - [Telemetry integration](docs/telemetry-integration.md)
+- [Operations](docs/operations.md)
 - [Visual QA checklist](docs/visual-qa.md)
 - [Deployment](docs/deployment.md)
 - [Demo script](docs/demo-script.md)
@@ -346,7 +348,7 @@ Current boundaries:
 Expected production next steps:
 
 - Move file-backed ingestion storage/control JSON to object storage plus a database-backed control plane
-- Add full OIDC discovery lifecycle, JWKS cache observability, and customer IAM provisioning workflows
-- Move retention and ingestion metrics into managed CronJob/monitoring manifests with alert thresholds
+- Add customer IAM provisioning workflows and production secret-management integration
+- Replace file-backed retention/metrics templates with managed deployment manifests tied to the chosen cloud and object/database backend
 - Run screenshot QA in a CI image with Playwright browsers installed when visual artifacts must be regenerated
 - Connect live exporter jobs for provider pilots once each source system owner approves the export contract

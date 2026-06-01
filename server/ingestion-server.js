@@ -6,7 +6,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { validateSourceBundle } = require("../lib/source-bundle-validator.js");
-const { authenticateJwtWithJwks, loadJwks, parseMapping } = require("./ingestion-oidc.js");
+const { authenticateJwtWithJwks, loadJwks, loadOidcDiscovery, parseMapping } = require("./ingestion-oidc.js");
 const { createFileStorage } = require("./ingestion-storage.js");
 
 const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -528,12 +528,16 @@ function normalizeConfig(options = {}) {
     jwtJwks: loadJwks({ jwks: options.jwtJwks, jwksPath: options.jwtJwksPath }),
     jwtJwksUrl: options.jwtJwksUrl || process.env.TURBALANCE_JWT_JWKS_URL || "",
     jwtJwksCacheMs: Number(options.jwtJwksCacheMs || process.env.TURBALANCE_JWT_JWKS_CACHE_MS || 5 * 60 * 1000),
+    jwtOidcDiscovery: loadOidcDiscovery({ discovery: options.jwtOidcDiscovery, discoveryPath: options.jwtOidcDiscoveryPath }),
+    jwtOidcDiscoveryUrl: options.jwtOidcDiscoveryUrl || process.env.TURBALANCE_OIDC_DISCOVERY_URL || process.env.TURBALANCE_JWT_OIDC_DISCOVERY_URL || "",
+    jwtOidcDiscoveryCacheMs: Number(options.jwtOidcDiscoveryCacheMs || process.env.TURBALANCE_OIDC_DISCOVERY_CACHE_MS || process.env.TURBALANCE_JWT_OIDC_DISCOVERY_CACHE_MS || 5 * 60 * 1000),
     jwtTenantClaim: options.jwtTenantClaim || process.env.TURBALANCE_JWT_TENANT_CLAIM || "",
     jwtRoleClaim: options.jwtRoleClaim || process.env.TURBALANCE_JWT_ROLE_CLAIM || "",
     jwtSubjectClaim: options.jwtSubjectClaim || process.env.TURBALANCE_JWT_SUBJECT_CLAIM || "",
     jwtTenantMap: parseMapping(options.jwtTenantMap || process.env.TURBALANCE_JWT_TENANT_MAP),
     jwtRoleMap: parseMapping(options.jwtRoleMap || process.env.TURBALANCE_JWT_ROLE_MAP),
     jwtJwksCache: null,
+    jwtOidcDiscoveryCache: null,
     metrics,
     retentionDays: Number(options.retentionDays || process.env.TURBALANCE_RETENTION_DAYS || 30),
     retentionIntervalSeconds: Number(options.retentionIntervalSeconds || process.env.TURBALANCE_RETENTION_INTERVAL_SECONDS || 0),
@@ -897,6 +901,12 @@ function createMetrics() {
   return {
     authFailuresTotal: 0,
     authForbiddenTotal: 0,
+    jwksFetchesTotal: 0,
+    jwksFetchFailuresTotal: 0,
+    jwksCacheHitsTotal: 0,
+    oidcDiscoveryFetchesTotal: 0,
+    oidcDiscoveryFetchFailuresTotal: 0,
+    oidcDiscoveryCacheHitsTotal: 0,
     ingestAcceptedTotal: 0,
     ingestRejectedTotal: 0,
     signedUploadDeniedTotal: 0,
@@ -935,6 +945,12 @@ function metricsText(config) {
   const metricRows = [
     ["turbalance_auth_failures_total", "counter", "Authentication failures.", config.metrics.authFailuresTotal],
     ["turbalance_auth_forbidden_total", "counter", "Authenticated requests denied by tenant or role policy.", config.metrics.authForbiddenTotal],
+    ["turbalance_jwks_fetches_total", "counter", "JWKS fetch attempts.", config.metrics.jwksFetchesTotal],
+    ["turbalance_jwks_fetch_failures_total", "counter", "JWKS fetch failures.", config.metrics.jwksFetchFailuresTotal],
+    ["turbalance_jwks_cache_hits_total", "counter", "JWKS cache hits.", config.metrics.jwksCacheHitsTotal],
+    ["turbalance_oidc_discovery_fetches_total", "counter", "OIDC discovery document fetch attempts.", config.metrics.oidcDiscoveryFetchesTotal],
+    ["turbalance_oidc_discovery_fetch_failures_total", "counter", "OIDC discovery document fetch failures.", config.metrics.oidcDiscoveryFetchFailuresTotal],
+    ["turbalance_oidc_discovery_cache_hits_total", "counter", "OIDC discovery document cache hits.", config.metrics.oidcDiscoveryCacheHitsTotal],
     ["turbalance_ingest_accepted_total", "counter", "Accepted ingestion payloads.", config.metrics.ingestAcceptedTotal],
     ["turbalance_ingest_rejected_total", "counter", "Rejected ingestion payloads.", config.metrics.ingestRejectedTotal],
     ["turbalance_signed_upload_denied_total", "counter", "Denied signed upload attempts.", config.metrics.signedUploadDeniedTotal],

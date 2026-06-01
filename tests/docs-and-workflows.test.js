@@ -15,6 +15,7 @@ const readme = read("README.md");
   "docs/provider-export-template.md",
   "docs/neo-cloud-pilot-validation.md",
   "docs/telemetry-integration.md",
+  "docs/operations.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
   "docs/demo-script.md",
@@ -26,6 +27,9 @@ const readme = read("README.md");
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
+  "ops/kubernetes/ingestion-retention-cronjob.yaml",
+  "ops/kubernetes/ingestion-service-monitor.yaml",
+  "ops/kubernetes/ingestion-prometheus-rules.yaml",
   "server/ingestion-oidc.js",
   "server/ingestion-server.js",
   "server/ingestion-storage.js",
@@ -57,6 +61,7 @@ const readme = read("README.md");
   "docs/provider-export-template.md",
   "docs/neo-cloud-pilot-validation.md",
   "docs/telemetry-integration.md",
+  "docs/operations.md",
   "docs/visual-qa.md",
   "docs/deployment.md",
   "docs/demo-script.md",
@@ -72,6 +77,7 @@ const readme = read("README.md");
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
   "grafana/turbalance-provider-overview.json",
+  "ops/kubernetes/ingestion-retention-cronjob.yaml",
   "server/ingestion-oidc.js",
   "server/ingestion-server.js",
   "server/ingestion-storage.js",
@@ -102,7 +108,7 @@ assert.ok(ci.includes("node scripts/run-screenshot-qa.js"));
 assert.ok(pages.includes("node tests/run-all.js"));
 assert.ok(pages.includes("actions/deploy-pages@v4"));
 assert.ok(pages.includes("cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/"));
-assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana lib server site/"));
+assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana lib ops server site/"));
 
 const dataContract = read("docs/data-contract.md");
 assert.ok(dataContract.includes("turba.ingestion.v1"));
@@ -131,6 +137,7 @@ assert.ok(backendIngestion.includes("server/ingestion-storage.js"));
 assert.ok(backendIngestion.includes("signed"));
 assert.ok(backendIngestion.includes("JWT"));
 assert.ok(backendIngestion.includes("JWKS"));
+assert.ok(backendIngestion.includes("OIDC"));
 assert.ok(backendIngestion.includes("JWT_TENANT_MAP"));
 assert.ok(backendIngestion.includes("tokens/rotate"));
 assert.ok(backendIngestion.includes("upload-keys/rotate"));
@@ -139,6 +146,12 @@ assert.ok(backendIngestion.includes("/metrics"));
 assert.ok(backendIngestion.includes("scripts/run-retention-job.js"));
 assert.ok(backendIngestion.includes("audit"));
 assert.ok(backendIngestion.includes("retention"));
+
+const operations = read("docs/operations.md");
+assert.ok(operations.includes("ops/kubernetes/ingestion-retention-cronjob.yaml"));
+assert.ok(operations.includes("ops/kubernetes/ingestion-service-monitor.yaml"));
+assert.ok(operations.includes("ops/kubernetes/ingestion-prometheus-rules.yaml"));
+assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
 
 const telemetry = read("docs/telemetry-integration.md");
 assert.ok(telemetry.includes("Prometheus"));
