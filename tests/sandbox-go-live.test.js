@@ -53,6 +53,7 @@ const gateway = spawn(process.execPath, [
   assert.equal(report.dryRun, true);
   assert.equal(report.image, "127.0.0.1:5000/turbalance-ingestion:2026.06");
   assert.ok(report.commands.some((command) => command.includes("run-provider-go-live-gates.js")));
+  assert.ok(report.commands.some((command) => command.includes("--approvals ops/source-approvals.sandbox.json")));
   assert.ok(report.commands.some((command) => command.includes("--push-image")));
 
   console.log("sandbox go-live tests passed");

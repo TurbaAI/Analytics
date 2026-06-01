@@ -13,6 +13,8 @@ const result = spawnSync(process.execPath, [
   "ops/pilot-provider.config.example.json",
   "--source-contracts",
   "ops/source-contracts.example.json",
+  "--source-approvals",
+  "ops/source-approvals.example.json",
   "--allow-example",
   "--out",
   outPath
@@ -34,7 +36,9 @@ const strictResult = spawnSync(process.execPath, [
   "--config",
   "ops/pilot-provider.config.example.json",
   "--source-contracts",
-  "ops/source-contracts.example.json"
+  "ops/source-contracts.example.json",
+  "--source-approvals",
+  "ops/source-approvals.example.json"
 ], {
   cwd: root,
   encoding: "utf8"
@@ -48,7 +52,9 @@ const sandboxResult = spawnSync(process.execPath, [
   "--config",
   "ops/pilot-provider.sandbox.json",
   "--source-contracts",
-  "ops/source-contracts.sandbox.json"
+  "ops/source-contracts.sandbox.json",
+  "--source-approvals",
+  "ops/source-approvals.sandbox.json"
 ], {
   cwd: root,
   encoding: "utf8"
@@ -60,5 +66,6 @@ assert.equal(sandboxReport.ok, true);
 assert.equal(sandboxReport.summary.warnings, 0);
 assert.equal(sandboxReport.summary.failed, 0);
 assert.ok(sandboxReport.checks.some((check) => check.id === "image.provider_registry" && check.ok));
+assert.ok(sandboxReport.checks.some((check) => check.id === "approvals.valid" && check.ok));
 
 console.log("provider readiness tests passed");

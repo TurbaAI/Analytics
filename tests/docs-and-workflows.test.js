@@ -29,10 +29,13 @@ const readme = read("README.md");
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
+  "lib/source-approval-validator.js",
   "ops/pilot-provider.config.example.json",
   "ops/pilot-provider.sandbox.json",
   "ops/source-contracts.example.json",
   "ops/source-contracts.sandbox.json",
+  "ops/source-approvals.example.json",
+  "ops/source-approvals.sandbox.json",
   "ops/kubernetes/ingestion-configmap.yaml",
   "ops/kubernetes/ingestion-secret.example.yaml",
   "ops/kubernetes/ingestion-serviceaccount.yaml",
@@ -58,6 +61,7 @@ const readme = read("README.md");
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-contracts.js",
+  "scripts/validate-source-approvals.js",
   "scripts/run-live-pilot-burn-in.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
@@ -111,6 +115,7 @@ const readme = read("README.md");
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-contracts.js",
+  "scripts/validate-source-approvals.js",
   "scripts/run-live-pilot-burn-in.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
@@ -133,6 +138,7 @@ const readme = read("README.md");
   "tests/sandbox-go-live.test.js",
   "ops/pilot-provider.sandbox.json",
   "ops/source-contracts.sandbox.json",
+  "ops/source-approvals.sandbox.json",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/scheduler-exporter.test.js",
@@ -140,6 +146,7 @@ const readme = read("README.md");
   "tests/prometheus-source-exporter.test.js",
   "tests/source-system-collectors.test.js",
   "tests/source-contracts.test.js",
+  "tests/source-approvals.test.js",
   "tests/provider-pilot-bundler.test.js",
   "tests/provider-pilot-export-job.test.js",
   "tests/ingestion-oidc.test.js",
@@ -241,6 +248,7 @@ assert.ok(operations.includes("scripts/validate-provider-readiness.js"));
 assert.ok(operations.includes("scripts/run-provider-go-live-gates.js"));
 assert.ok(operations.includes("scripts/run-sandbox-source-gateway.js"));
 assert.ok(operations.includes("scripts/validate-source-contracts.js"));
+assert.ok(operations.includes("scripts/validate-source-approvals.js"));
 assert.ok(operations.includes("scripts/run-live-pilot-burn-in.js"));
 assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
 assert.ok(operations.includes("managed-postgres-s3"));

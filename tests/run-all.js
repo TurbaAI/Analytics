@@ -23,6 +23,7 @@ const checks = [
   { label: "Prometheus source exporter", args: ["tests/prometheus-source-exporter.test.js"] },
   { label: "source system collectors", args: ["tests/source-system-collectors.test.js"] },
   { label: "source contracts", args: ["tests/source-contracts.test.js"] },
+  { label: "source approvals", args: ["tests/source-approvals.test.js"] },
   { label: "provider pilot bundler", args: ["tests/provider-pilot-bundler.test.js"] },
   { label: "provider pilot export job", args: ["tests/provider-pilot-export-job.test.js"] },
   { label: "ingestion OIDC", args: ["tests/ingestion-oidc.test.js"] },

@@ -43,6 +43,8 @@ const sandboxResult = spawnSync(process.execPath, [
   "ops/pilot-provider.sandbox.json",
   "--contracts",
   "ops/source-contracts.sandbox.json",
+  "--approvals",
+  "ops/source-approvals.sandbox.json",
   "--skip-contracts",
   "--skip-burn-in",
   "--out-dir",
@@ -60,6 +62,7 @@ assert.equal(sandboxReport.readiness.summary.warnings, 0);
 assert.equal(sandboxReport.readiness.summary.failed, 0);
 assert.equal(sandboxReport.image.image, "127.0.0.1:5000/turbalance-ingestion:2026.06");
 assert.equal(sandboxReport.contracts, null);
+assert.equal(sandboxReport.approvals, null);
 assert.equal(sandboxReport.burnIn, null);
 
 console.log("provider go-live gate tests passed");

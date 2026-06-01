@@ -9,6 +9,7 @@ const args = parseArgs(process.argv.slice(2));
 const root = path.join(__dirname, "..");
 const pilotConfigPath = args.config || args["pilot-config"] || process.env.TURBALANCE_PILOT_CONFIG || path.join(root, "ops", "pilot-provider.config.example.json");
 const sourceContractsPath = args.contracts || args["source-contracts"] || process.env.TURBALANCE_SOURCE_CONTRACTS || "";
+const sourceApprovalsPath = args.approvals || args["source-approvals"] || process.env.TURBALANCE_SOURCE_APPROVALS || "";
 const inputDir = args["input-dir"] || process.env.TURBALANCE_EXPORT_INPUT_DIR || path.join(root, "fixtures", "provider-pilot-export-inputs");
 const outDir = path.resolve(args["out-dir"] || process.env.TURBALANCE_GO_LIVE_OUT_DIR || path.join(root, "build", "provider-go-live"));
 const allowExample = Boolean(args["allow-example"] || process.env.TURBALANCE_ALLOW_EXAMPLE_CONFIG);
@@ -30,6 +31,7 @@ try {
     "--out",
     path.join(outDir, "readiness.json"),
     ...(sourceContractsPath ? ["--source-contracts", sourceContractsPath] : []),
+    ...(sourceApprovalsPath ? ["--source-approvals", sourceApprovalsPath] : []),
     ...(allowExample ? ["--allow-example"] : [])
   ]);
 
@@ -49,7 +51,17 @@ try {
   ]);
 
   let contracts = null;
+  let approvals = null;
   if (!skipContracts) {
+    approvals = runJson([
+      "scripts/validate-source-approvals.js",
+      "--contracts",
+      sourceContractsPath,
+      "--approvals",
+      sourceApprovalsPath,
+      "--out",
+      path.join(outDir, "source-approvals.json")
+    ]);
     contracts = runJson([
       "scripts/validate-source-contracts.js",
       "--config",
@@ -75,15 +87,17 @@ try {
   }
 
   const report = {
-    ok: readiness.ok && image.ok && (!contracts || contracts.ok) && (!burnIn || burnIn.ok),
+    ok: readiness.ok && image.ok && (!approvals || approvals.ok) && (!contracts || contracts.ok) && (!burnIn || burnIn.ok),
     outDir,
     readiness,
     image,
+    approvals,
     contracts,
     burnIn,
     artifacts: {
       readiness: path.join(outDir, "readiness.json"),
       manifests: path.join(outDir, "managed-kubernetes.yaml"),
+      approvals: approvals ? path.join(outDir, "source-approvals.json") : "",
       report: path.join(outDir, "go-live-report.json"),
       markdown: path.join(outDir, "go-live-report.md")
     }
@@ -124,12 +138,14 @@ function markdownReport(report) {
     `- Readiness checks: ${report.readiness.summary.passed} passed, ${report.readiness.summary.warnings} warnings, ${report.readiness.summary.failed} failed`,
     `- Image: ${report.image.image}`,
     `- Image push: ${report.image.pushed ? "yes" : "no"}`,
+    `- Source approvals: ${report.approvals ? "validated" : "skipped"}`,
     `- Source contracts: ${report.contracts ? "validated" : "skipped"}`,
     `- Burn-in: ${report.burnIn ? `${report.burnIn.runs.length} iteration(s)` : "skipped"}`,
     "",
     "## Artifacts",
     "",
     `- Managed manifests: ${report.artifacts.manifests}`,
+    ...(report.artifacts.approvals ? [`- Source approvals: ${report.artifacts.approvals}`] : []),
     `- JSON report: ${report.artifacts.report}`,
     `- Readiness report: ${report.artifacts.readiness}`,
     ""

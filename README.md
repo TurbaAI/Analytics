@@ -314,6 +314,7 @@ Focused test entry points:
 - `tests/prometheus-source-exporter.test.js`: Prometheus/DCGM HTTP collector with mocked Prometheus API responses
 - `tests/source-system-collectors.test.js`: Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity collector staging
 - `tests/source-contracts.test.js`: source-owner contract validator across approved endpoints and Prometheus queries
+- `tests/source-approvals.test.js`: source-owner approval manifest validation and expiry checks
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
 - `tests/provider-pilot-export-job.test.js`: provider pilot export job wrapper for bundle generation and optional ingestion upload
 - `tests/ingestion-oidc.test.js`: RS256/JWKS JWT validation, tenant mapping, and role mapping
@@ -344,6 +345,7 @@ Focused test entry points:
 - `scripts/provision-customer-iam.js`: customer onboarding helper that provisions a tenant token and secret-manager binding plan
 - `scripts/render-managed-kubernetes.js`: renders provider-specific managed Kubernetes manifests from `ops/pilot-provider.config.example.json`
 - `scripts/validate-source-contracts.js`: validates source-owner endpoint contracts before scheduled collectors are enabled
+- `scripts/validate-source-approvals.js`: validates source-owner approval manifests against source-contract URLs, query files, and approval expiry
 - `scripts/run-live-pilot-burn-in.js`: runs a staged or live-contract burn-in loop and optionally posts to ingestion
 - `scripts/provision-tenant.js`: admin helper for pilot tenant creation and ingest-token rotation
 - `scripts/run-provider-pilot-export-job.js`: provider pilot export job for mounted source exports and optional ingestion upload
@@ -353,7 +355,8 @@ Focused test entry points:
 Pilot configs:
 
 - `ops/pilot-provider.config.example.json` and `ops/source-contracts.example.json` are replacement templates for a real provider account.
-- `ops/pilot-provider.sandbox.json` and `ops/source-contracts.sandbox.json` are strict local/SSH sandbox configs. They target a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness gates can run without placeholder warnings.
+- `ops/source-approvals.example.json` is the source-owner signoff template that must match the provider source-contract URLs and query files.
+- `ops/pilot-provider.sandbox.json`, `ops/source-contracts.sandbox.json`, and `ops/source-approvals.sandbox.json` are strict local/SSH sandbox configs. They target a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness gates can run without placeholder warnings.
 
 Use `git diff --check` before committing to catch whitespace issues.
 

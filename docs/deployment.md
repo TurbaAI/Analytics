@@ -72,7 +72,7 @@ The runner starts and cleans up a disposable local registry, mock source gateway
 
 The `.github/workflows/sandbox-go-live.yml` workflow runs the same Docker-backed gate on demand and uploads the generated readiness, manifest, burn-in, and sandbox reports.
 
-Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push, managed manifest rendering, source-contract validation, and burn-in report in one output directory.
+Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push, managed manifest rendering, source-owner approval validation, source-contract validation, and burn-in report in one output directory.
 
 ## GitHub Pages
 

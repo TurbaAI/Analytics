@@ -3,15 +3,18 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { validateSourceApprovals } = require("../lib/source-approval-validator.js");
 
 const args = parseArgs(process.argv.slice(2));
 const root = path.join(__dirname, "..");
 const pilotConfigPath = args.config || args["pilot-config"] || process.env.TURBALANCE_PILOT_CONFIG || path.join(root, "ops", "pilot-provider.config.example.json");
 const sourceContractsPath = args.contracts || args["source-contracts"] || process.env.TURBALANCE_SOURCE_CONTRACTS || "";
+const sourceApprovalsPath = args.approvals || args["source-approvals"] || process.env.TURBALANCE_SOURCE_APPROVALS || "";
 const outPath = args.out || "";
 const allowExample = Boolean(args["allow-example"] || process.env.TURBALANCE_ALLOW_EXAMPLE_CONFIG);
 const pilotConfig = readJson(pilotConfigPath);
 const sourceContracts = sourceContractsPath ? readJson(sourceContractsPath) : null;
+const sourceApprovals = sourceApprovalsPath ? readJson(sourceApprovalsPath) : null;
 const checks = [];
 
 check(Boolean(pilotConfig.image), "image.configured", "Provider image is configured");
@@ -47,6 +50,23 @@ if (sourceContracts) {
       check(fs.existsSync(path.resolve(root, contract.queriesFile || "")), "contracts.prometheus.queries_file", "Prometheus query file exists");
     }
   });
+  if (sourceApprovals) {
+    const enabledApprovals = Array.isArray(sourceApprovals.approvals) ? sourceApprovals.approvals.filter((approval) => approval.enabled !== false) : [];
+    const approvalSystems = new Set(enabledApprovals.map((approval) => String(approval.system || "").toLowerCase()));
+    requiredSystems.forEach((system) => {
+      check(approvalSystems.has(system), `approvals.${system}`, `${system} source-owner approval is configured`);
+    });
+    const approvalValidation = validateSourceApprovals({ contractsConfig: sourceContracts, approvalsConfig: sourceApprovals });
+    if (approvalValidation.ok) {
+      check(true, "approvals.valid", "Source-owner approvals match source contracts");
+    } else {
+      approvalValidation.errors.forEach((error, index) => {
+        check(false, `approvals.valid.${index + 1}`, error);
+      });
+    }
+  } else {
+    check(false, "approvals.present", "Source-owner approval file is supplied before scheduled collectors are enabled");
+  }
 } else {
   checks.push({
     id: "contracts.present",
@@ -62,6 +82,7 @@ const report = {
   allowExample,
   pilotConfigPath: path.resolve(pilotConfigPath),
   sourceContractsPath: sourceContractsPath ? path.resolve(sourceContractsPath) : "",
+  sourceApprovalsPath: sourceApprovalsPath ? path.resolve(sourceApprovalsPath) : "",
   checks,
   summary: {
     passed: checks.filter((entry) => entry.ok).length,

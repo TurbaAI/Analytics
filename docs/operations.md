@@ -181,9 +181,14 @@ Validate all approved endpoint/query contracts before enabling scheduled jobs:
 node scripts/validate-source-contracts.js \
   --config ops/source-contracts.example.json \
   --out-dir build/provider-source-contracts
+
+node scripts/validate-source-approvals.js \
+  --contracts ops/source-contracts.example.json \
+  --approvals ops/source-approvals.example.json \
+  --out build/provider-source-approvals.json
 ```
 
-Use `ops/source-contracts.example.json` as the provider replacement template. Use `ops/source-contracts.sandbox.json` only with a local mock source gateway on `127.0.0.1:8891` when exercising the SSH sandbox gate.
+Use `ops/source-contracts.example.json` and `ops/source-approvals.example.json` as provider replacement templates. The approval manifest records owner, approver, ticket, scope, expiry, URL, and Prometheus query-file signoff for each source lane. Use `ops/source-contracts.sandbox.json` and `ops/source-approvals.sandbox.json` only with a local mock source gateway on `127.0.0.1:8891` when exercising the SSH sandbox gate.
 
 For local and SSH sandbox runs, `scripts/run-sandbox-source-gateway.js` serves the provider pilot fixtures through the same HTTP paths expected by `ops/source-contracts.sandbox.json`.
 

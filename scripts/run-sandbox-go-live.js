@@ -9,6 +9,7 @@ const args = parseArgs(process.argv.slice(2));
 const root = path.join(__dirname, "..");
 const configPath = args.config || process.env.TURBALANCE_PILOT_CONFIG || path.join(root, "ops", "pilot-provider.sandbox.json");
 const contractsPath = args.contracts || process.env.TURBALANCE_SOURCE_CONTRACTS || path.join(root, "ops", "source-contracts.sandbox.json");
+const approvalsPath = args.approvals || process.env.TURBALANCE_SOURCE_APPROVALS || path.join(root, "ops", "source-approvals.sandbox.json");
 const outDir = path.resolve(args["out-dir"] || process.env.TURBALANCE_GO_LIVE_OUT_DIR || path.join(root, "build", "provider-go-live-sandbox"));
 const iterations = args.iterations || process.env.TURBALANCE_BURN_IN_ITERATIONS || "2";
 const sourcePort = Number(args["source-port"] || process.env.TURBALANCE_SANDBOX_SOURCE_PORT || 8891);
@@ -32,6 +33,7 @@ const plan = {
   dryRun,
   configPath: path.resolve(configPath),
   contractsPath: path.resolve(contractsPath),
+  approvalsPath: path.resolve(approvalsPath),
   outDir,
   image: config.image,
   services: {
@@ -44,7 +46,7 @@ const plan = {
     `node scripts/build-publish-ingestion-image.js --config ${relative(configPath)} --push`,
     `node scripts/run-sandbox-source-gateway.js --port ${sourcePort}`,
     `docker run -d --rm --name ${ingestionName} -p 127.0.0.1:${ingestPort}:8787 ${config.image}`,
-    `node scripts/run-provider-go-live-gates.js --config ${relative(configPath)} --contracts ${relative(contractsPath)} --push-image --iterations ${iterations} --ingest-url ${ingestUrl} --token ${token} --tenant ${tenant} --out-dir ${outDir}`
+    `node scripts/run-provider-go-live-gates.js --config ${relative(configPath)} --contracts ${relative(contractsPath)} --approvals ${relative(approvalsPath)} --push-image --iterations ${iterations} --ingest-url ${ingestUrl} --token ${token} --tenant ${tenant} --out-dir ${outDir}`
   ]
 };
 
@@ -112,6 +114,8 @@ async function main() {
     configPath,
     "--contracts",
     contractsPath,
+    "--approvals",
+    approvalsPath,
     "--push-image",
     "--iterations",
     iterations,
