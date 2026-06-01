@@ -58,6 +58,8 @@ node scripts/build-publish-ingestion-image.js \
 
 The `.github/workflows/provider-image.yml` workflow exposes the same gate as a manual GitHub Action.
 
+Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push, managed manifest rendering, source-contract validation, and burn-in report in one output directory.
+
 ## GitHub Pages
 
 The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the workflow:

@@ -33,6 +33,26 @@ node scripts/build-publish-ingestion-image.js \
 
 Run without `--push` or with `--dry-run` to print the Docker commands for approval review.
 
+For a single auditable go-live pass, run:
+
+```sh
+node scripts/run-provider-go-live-gates.js \
+  --config ops/pilot-provider.config.example.json \
+  --source-contracts ops/source-contracts.example.json \
+  --iterations 3 \
+  --out-dir build/provider-go-live
+```
+
+The gate runs provider readiness checks, image build/publish dry-run unless `--push-image` is provided, manifest rendering, source-contract validation, burn-in, and writes JSON plus Markdown evidence reports.
+
+To validate configuration without executing source collection:
+
+```sh
+node scripts/validate-provider-readiness.js \
+  --config ops/pilot-provider.config.example.json \
+  --source-contracts ops/source-contracts.example.json
+```
+
 ## Retention Job
 
 Use `scripts/run-retention-job.js` for cron, Kubernetes CronJob, or provider-managed scheduled task wiring:

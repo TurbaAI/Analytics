@@ -302,6 +302,8 @@ Focused test entry points:
 
 - `tests/analytics-core.test.js`: core efficiency, bottleneck, what-if, fingerprint, regression, trend, provider economics, scheduler simulation, and opportunity calculations
 - `tests/provider-image.test.js`: provider ingestion Dockerfile and build/publish dry-run
+- `tests/provider-readiness.test.js`: provider config/source-contract readiness gate
+- `tests/provider-go-live-gates.test.js`: end-to-end dry-run go-live orchestration and evidence artifacts
 - `tests/nccl-trace-parser.test.js`: NCCL operation and topology-tier attribution
 - `tests/external-ingestion-fixture.test.js`: canonical external source-bundle fixture
 - `tests/neo-cloud-provider-fixture.test.js`: provider overlays, SLO fields, provider economics, scheduler simulation, and opportunity generation
@@ -332,6 +334,8 @@ Focused test entry points:
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
+- `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
+- `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
 - `scripts/fetch-source-system-export.js`: source-system collector for Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity exports
 - `scripts/fetch-prometheus-source-export.js`: live Prometheus/DCGM collector that emits source bundles or staged provider input files
 - `scripts/provision-customer-iam.js`: customer onboarding helper that provisions a tenant token and secret-manager binding plan
