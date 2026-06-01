@@ -20,7 +20,7 @@ const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
 const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
 const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes });
 
-assertValidSourceBundle(bundle, { requireSourceExport: true });
+assertValidSourceBundle(bundle);
 
 const output = `${JSON.stringify(bundle, null, 2)}\n`;
 if (outPath) {
@@ -236,17 +236,18 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   const account = safeId(host.hostname);
   const reservation = primaryGpu.name ? `${safeId(primaryGpu.name)}-workstation` : "cpu-only-workstation";
   const generatedIso = generatedAt.toISOString();
-  const startedAt = new Date(generatedAt.getTime() - windowMinutes * 60000).toISOString();
   const activeModelNames = Array.isArray(services.ollama?.models)
     ? services.ollama.models.slice(0, 6).map((model) => model.name)
     : [];
+  const sourceAdapters = machineSourceAdapters(gpu, services);
 
   return {
     metadata: {
       generatedAt: generatedIso,
       source: "collect-local-machine-bundle.js",
       observedHost: host.hostname,
-      note: "Observed local machine state. Kubernetes and DCGM are included only when installed; this host currently uses nvidia-smi/procfs/node-exporter style signals."
+      sourceAdapters,
+      note: "Strict live machine observation. The bundle only claims data collected from nvidia-smi when present, host OS counters, Docker when present, and reachable local services; Kubernetes, DCGM, eBPF, scheduler, and provider exports are not synthesized."
     },
     ingestion: {
       schemaVersion: "turba.ingestion.v1",
@@ -294,7 +295,8 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             account,
             reservation
           },
-          status: metrics.noGpuProcess ? "GPU idle, observability active" : "Observed",
+          status: metrics.noGpuProcess ? "GPU idle, observability active" : "Live host observation",
+          importedSources: sourceAdapters,
           allocation: {
             durationHours: round(metrics.durationHours, 3),
             gpus: metrics.gpus,
@@ -340,7 +342,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
           },
           configuration: {
             precisionLoss: 0,
-            batchInefficiency: metrics.noGpuProcess ? 100 : 0
+            batchInefficiency: 0
           },
           work: {
             tokensM: 0,
@@ -356,306 +358,67 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             nodes: [host.hostname],
             partialNodes: []
           },
-          schedulerEvidence: {
-            schedulerName: "local-linux-process-scheduler",
-            queueName: "local-workstation",
-            priorityClass: "interactive",
-            admissionClass: "direct",
-            requestedGpuShape: `${metrics.gpus}x ${primaryGpu.name || "CPU"}`,
-            localityPreference: "single-node",
-            queuedAt: startedAt,
-            admittedAt: startedAt,
-            startedAt,
-            eventCount: docker.length,
-            queueWaitMinutes: 0,
-            gpusPerNode: Math.max(1, metrics.gpus)
-          },
-          grafanaContext: {
-            grafanaBaseUrl: `${hostUrl.replace(/:8000$/, ":3000")}`,
-            instanceName: "NUC14E Grafana",
-            dashboardTitle: "Local observability",
-            links: [
-              {
-                label: "Grafana health",
-                type: "dashboard",
-                url: `${hostUrl.replace(/:8000$/, ":3000")}/api/health`
-              },
-              {
-                label: "Node exporter metrics",
-                type: "metrics",
-                url: `${hostUrl.replace(/:8000$/, ":9100")}/metrics`
-              }
-            ]
-          },
-          commercial: {
-            billingModel: "local-workstation",
-            customerTier: "internal",
-            contractId: "local-observed",
-            listGpuHourRate: 0,
-            floorGpuHourCost: 0,
-            committedGpuHours: round(Math.max(metrics.allocatedGpuHours, 1), 3),
-            burstGpuHours: 0,
-            billableGpuHours: round(metrics.allocatedGpuHours, 3),
-            sellableGpuHours: round(metrics.allocatedGpuHours, 3)
-          },
-          slo: {
-            priority: "local",
-            targetStartMinutes: 0,
-            targetEfficiency: metrics.gpus > 0 ? 40 : 0,
-            supportTicketId: "local-demo"
-          },
           sourceContext: {
             hostname: host.hostname,
             os: host.osName,
             kernel: host.kernel,
             cpuModel: host.cpuModel,
             cpuCount: host.cpuCount,
+            load1: round(host.load1, 3),
+            load5: round(host.load5, 3),
+            load15: round(host.load15, 3),
+            cpuUsagePct: round(metrics.cpuBusyPct, 2),
             memoryTotalBytes: host.memoryTotalBytes,
+            memoryAvailableBytes: host.memoryAvailableBytes,
+            memoryUsedPct: round(metrics.memoryUsedPct, 2),
             diskTotalBytes: host.disk.totalBytes,
-            dockerContainers: docker.map((container) => container.name),
+            diskUsedBytes: host.disk.usedBytes,
+            diskUsedPct: round(metrics.diskUsedPct, 2),
+            networkInterface: host.network.iface,
+            dockerContainers: docker.map((container) => ({
+              name: container.name,
+              image: container.image,
+              status: container.status,
+              cpuPct: round(finite(container.stats?.cpuPct, 0), 2),
+              memory: container.stats?.memory || "",
+              netIo: container.stats?.netIo || "",
+              blockIo: container.stats?.blockIo || ""
+            })),
             observedServices: services.observedServices,
             ollamaModels: activeModelNames,
+            gpuName: primaryGpu.name || "",
             gpuUuid: primaryGpu.uuid,
+            gpuUtilizationPct: round(metrics.gpuUtil, 2),
+            gpuMemoryUsedMiB: round(finite(primaryGpu.memoryUsedMiB, 0), 2),
+            gpuMemoryTotalMiB: round(finite(primaryGpu.memoryTotalMiB, 0), 2),
+            gpuMemoryUsedPct: round(metrics.gpuMemoryPct, 2),
+            gpuPowerWatts: round(finite(primaryGpu.powerDrawWatts, 0), 2),
+            gpuTemperatureC: round(finite(primaryGpu.temperatureC, 0), 2),
+            gpuComputeProcesses: gpu.processes || [],
             gpuPcie: primaryGpu.pcieGen ? `gen${primaryGpu.pcieGen} x${primaryGpu.pcieWidth || "?"}` : "",
+            sourceAdapters,
+            unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],
+            workloadCountersObserved: false,
             generatedAt: generatedIso
-          },
-          opportunities: [
-            {
-              id: "local-gpu-idle",
-              category: "Useful Compute FinOps",
-              title: metrics.noGpuProcess ? "RTX 4090 is present but no GPU process is active" : "Measure active local GPU workload efficiency",
-              impactDollars: 0,
-              impactGpuHours: round(metrics.noGpuProcess ? metrics.allocatedGpuHours : Math.max(0, metrics.allocatedGpuHours * (1 - metrics.usefulCompute / 100)), 3),
-              riskScore: metrics.noGpuProcess ? 42 : 18,
-              confidence: 92,
-              evidence: metrics.noGpuProcess
-                ? `${primaryGpu.name || "GPU"} reports ${round(metrics.gpuUtil, 2)}% utilization and no active compute process during the sampled window.`
-                : `${primaryGpu.name || "GPU"} reports ${round(metrics.gpuUtil, 2)}% utilization during the sampled window.`,
-              recommendation: metrics.noGpuProcess
-                ? "Use this as an idle-capacity demo or start a controlled Ollama/GPU workload before collecting again."
-                : "Compare this host window against Ollama request volume or training logs before making tuning claims.",
-              owner: "Local operator"
-            }
-          ]
+          }
         }
       ],
-      sourceAdapters: ["local-machine", "nvidia-smi", "procfs", ...services.observedServices]
+      sourceAdapters
     },
-    sources: {
-      prometheus: [
-        {
-          runId,
-          metrics: {
-            turba_gpu_utilization_ratio: pctRatio(metrics.gpuUtil),
-            turba_useful_compute_ratio: pctRatio(metrics.usefulCompute),
-            turba_nccl_time_ratio: 0,
-            turba_network_wait_ratio: pctRatio(metrics.networkWait),
-            turba_dataloader_stall_ratio: 0,
-            turba_storage_wait_ratio: pctRatio(metrics.storageWait),
-            turba_cpu_prep_ratio: pctRatio(metrics.cpuPrep),
-            turba_queue_wait_minutes: 0,
-            turba_step_regularity_ratio: metrics.noGpuProcess ? 1 : pctRatio(clamp(100 - metrics.latencyTail, 0, 100)),
-            turba_latency_tail_ratio: pctRatio(metrics.latencyTail),
-            turba_tokens_million_total: 0,
-            turba_training_steps_total: 0,
-            turba_inference_requests_million_total: 0,
-            turba_all_to_all_time_ratio: 0
-          },
-          sourceContext: {
-            collector: "procfs+nvidia-smi",
-            nodeExporter: services.nodeExporterUp,
-            netdata: Boolean(services.netdata)
-          }
-        }
-      ],
-      dcgm: gpu.present ? [
-        {
-          runId,
-          fields: {
-            DCGM_FI_PROF_SM_OCCUPANCY: round(metrics.smOccupancy, 2),
-            DCGM_FI_PROF_PIPE_TENSOR_ACTIVE: round(metrics.tensorCoreUtil, 2),
-            DCGM_FI_DEV_FB_USED_RATIO: round(metrics.gpuMemoryPct, 2),
-            DCGM_FI_PROF_DRAM_ACTIVE: round(metrics.hbmBandwidthPct, 2),
-            DCGM_FI_DEV_MEM_FRAGMENTATION: 0,
-            DCGM_FI_DEV_KV_CACHE_PRESSURE: round(metrics.gpuMemoryPct, 2)
-          },
-          sourceContext: {
-            collector: "nvidia-smi-compatible-dcgm-fields",
-            gpuName: primaryGpu.name,
-            gpuUuid: primaryGpu.uuid,
-            powerDrawWatts: primaryGpu.powerDrawWatts,
-            temperatureC: primaryGpu.temperatureC
-          }
-        }
-      ] : [],
-      scheduler: [
-        {
-          runId,
-          schedulerExportId: `local-scheduler-${timestampId(generatedAt)}`,
-          schedulerName: "local-linux-process-scheduler",
-          queueName: "local-workstation",
-          priorityClass: "interactive",
-          admissionClass: "direct",
-          requestedGpuShape: `${metrics.gpus}x ${primaryGpu.name || "CPU"}`,
-          localityPreference: "single-node",
-          queuedAt: startedAt,
-          admittedAt: startedAt,
-          startedAt,
-          queueWaitMinutes: 0,
-          placementQuality: 100,
-          idleGpus: metrics.noGpuProcess ? metrics.gpus : 0,
-          partialNodes: 0,
-          preemptionCount: 0,
-          placementRetries: 0,
-          localityMisses: 0,
-          backfillCandidates: 0,
-          pendingJobsAhead: 0,
-          pendingGpuHoursAhead: 0,
-          gpusPerNode: Math.max(1, metrics.gpus),
-          targetStartMinutes: 0,
-          events: docker.map((container) => ({
-            type: "local_service",
-            timestamp: generatedIso,
-            reason: `${container.name} running ${container.image}`,
-            status: container.status
-          }))
-        }
-      ],
-      grafana: [
-        {
-          runId,
-          grafanaBaseUrl: `${hostUrl.replace(/:8000$/, ":3000")}`,
-          instanceName: "NUC14E Grafana",
-          orgId: "1",
-          dashboardTitle: "Local observability",
-          datasourceName: services.nodeExporterUp ? "node-exporter" : "local host",
-          timeRange: {
-            from: "now-1h",
-            to: "now"
-          },
-          variables: {
-            host: host.hostname,
-            gpu: primaryGpu.name || "none"
-          },
-          links: [
-            {
-              label: "Grafana health",
-              type: "dashboard",
-              url: `${hostUrl.replace(/:8000$/, ":3000")}/api/health`
-            },
-            {
-              label: "Netdata local",
-              type: "dashboard",
-              url: `${hostUrl.replace(/:8000$/, ":19999")}`
-            },
-            {
-              label: "Node exporter metrics",
-              type: "metrics",
-              url: `${hostUrl.replace(/:8000$/, ":9100")}/metrics`
-            }
-          ]
-        }
-      ],
-      ebpf: [
-        {
-          runId,
-          ebpfExportId: `procfs-${timestampId(generatedAt)}`,
-          collector: "procfs-summary",
-          kernelRelease: host.kernel,
-          host: host.hostname,
-          node: host.hostname,
-          namespace: "local",
-          podName: "",
-          containerName: docker.map((container) => container.name).join(", "),
-          cgroupPath: "",
-          cpu: {
-            offCpuTimePct: round(Math.max(0, 100 - metrics.cpuBusyPct), 2),
-            cpuThrottlePct: round(Math.min(metrics.dockerCpuPct, 100), 2),
-            softIrqPct: 0
-          },
-          scheduler: {
-            runQueueLatencyMsP95: round(Math.max(0.5, host.load1 / Math.max(1, host.cpuCount)) * 10, 2)
-          },
-          network: {
-            tcpRetransmitPct: 0,
-            socketLatencyMsP95: host.network.txDrops > 0 ? 18 : 3
-          },
-          storage: {
-            blockIoLatencyMsP95: metrics.diskUsedPct > 80 ? 18 : 4,
-            filesystemLatencyMsP95: metrics.diskUsedPct > 80 ? 24 : 6
-          },
-          noise: {
-            noisyNeighborScore: round(metrics.contentionPct, 2),
-            noiseEvents: host.network.txDrops > 0 ? 1 : 0
-          },
-          sourceContext: {
-            note: "procfs summary used because no eBPF collector is installed on this host."
-          }
-        }
-      ],
-      provider: [
-        {
-          runId,
-          tenant,
-          account,
-          reservation,
-          providerExportId: `local-machine-${timestampId(generatedAt)}`,
-          billingAccountId: account,
-          reservationWindow: `${windowMinutes}m-observed`,
-          commercial: {
-            billingModel: "local-workstation",
-            customerTier: "internal",
-            contractId: "local-observed",
-            listGpuHourRate: 0,
-            floorGpuHourCost: 0,
-            committedGpuHours: round(Math.max(metrics.allocatedGpuHours, 1), 3),
-            burstGpuHours: 0,
-            billableGpuHours: round(metrics.allocatedGpuHours, 3),
-            sellableGpuHours: round(metrics.allocatedGpuHours, 3)
-          },
-          slo: {
-            priority: "local",
-            targetStartMinutes: 0,
-            targetEfficiency: metrics.gpus > 0 ? 40 : 0,
-            supportTicketId: "local-demo"
-          },
-          sourceContext: {
-            hostname: host.hostname,
-            os: host.osName,
-            gpuName: primaryGpu.name,
-            dockerContainers: docker.length,
-            observedServices: services.observedServices.join(", ")
-          }
-        }
-      ],
-      opportunities: [
-        {
-          runId,
-          opportunityId: "local-machine-right-size",
-          category: "Useful Compute FinOps",
-          title: metrics.noGpuProcess ? "Use the idle RTX 4090 as a safe demo target" : "Attach request-level telemetry to active GPU work",
-          impactDollars: 0,
-          impactGpuHours: round(metrics.noGpuProcess ? metrics.allocatedGpuHours : Math.max(0, metrics.allocatedGpuHours * 0.25), 3),
-          riskScore: metrics.noGpuProcess ? 42 : 24,
-          confidence: 90,
-          evidence: metrics.noGpuProcess
-            ? `No active nvidia-smi compute processes; ${metrics.modelCount} Ollama model(s) are installed and Grafana/Netdata/node-exporter are reachable.`
-            : `Active GPU process detected with ${round(metrics.gpuUtil, 2)}% GPU utilization.`,
-          recommendation: metrics.noGpuProcess
-            ? "For a live workload demo, start a controlled local inference request stream, rerun the collector, then compare idle versus active windows."
-            : "Join Ollama request logs or application traces to this host window for cost-per-useful-token analysis.",
-          owner: "Local operator",
-          sourceSignals: {
-            gpuUtil: round(metrics.gpuUtil, 2),
-            gpuMemoryPct: round(metrics.gpuMemoryPct, 2),
-            dockerContainers: docker.length,
-            ollamaModels: metrics.modelCount,
-            largeOllamaModels: metrics.largeModelCount
-          }
-        }
-      ]
-    }
+    sources: {}
   };
+}
+
+function machineSourceAdapters(gpu, services) {
+  const hostCounters = fs.existsSync("/proc/stat") ? "procfs" : "os-counters";
+
+  return [
+    "local-machine",
+    gpu.present ? "nvidia-smi" : null,
+    hostCounters,
+    command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
+    ...services.observedServices
+  ].filter(Boolean);
 }
 
 function readMeminfo() {

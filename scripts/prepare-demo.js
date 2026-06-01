@@ -64,19 +64,34 @@ try {
     message: "Local machine source bundle artifact written"
   });
 
-  const validation = runJson({
-    id: "validation.source_bundles",
-    label: "Demo source bundles validate against schemas",
+  const sourceExportValidation = runJson({
+    id: "validation.source_export_bundles",
+    label: "Demo source-export bundles validate against schemas",
     commandArgs: [
       "scripts/validate-source-bundle.js",
       "--json",
       "--require-source-export",
       "fixtures/external-source-bundle.json",
       "fixtures/neo-cloud-provider-bundle.json",
-      artifacts.providerPilotBundle,
+      artifacts.providerPilotBundle
+    ]
+  });
+  const liveMachineValidation = runJson({
+    id: "validation.live_machine_bundle",
+    label: "Strict live-machine ingestion bundle validates without synthetic source exports",
+    commandArgs: [
+      "scripts/validate-source-bundle.js",
+      "--json",
       artifacts.liveMachineBundle
     ]
   });
+  const validation = {
+    ok: sourceExportValidation.ok && liveMachineValidation.ok,
+    reports: [
+      ...sourceExportValidation.reports,
+      ...liveMachineValidation.reports
+    ]
+  };
   artifacts.sourceBundleValidation = path.join(outDir, "source-bundle-validation.json");
   fs.writeFileSync(artifacts.sourceBundleValidation, `${JSON.stringify(validation, null, 2)}\n`);
 

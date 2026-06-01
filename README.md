@@ -377,7 +377,7 @@ node scripts/prepare-demo.js --out-dir build/demo
 
 This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
-When the demo is served from `192.168.10.101`, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 30 seconds while the tab is visible, so the dashboard reflects the NUC14E host state instead of only the canned provider fixture. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
+When the demo is served from `192.168.10.101`, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 30 seconds while the tab is visible, so the dashboard reflects the NUC14E host state instead of only the canned provider fixture. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
 
 ## Deployment
 

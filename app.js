@@ -3403,7 +3403,7 @@ function render() {
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
   renderMetricRibbon(summary);
-  renderSchedulerSimulator(schedulerSimulator);
+  renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
   renderTrend(summary);
   renderTruthTable(summary);
@@ -3579,12 +3579,13 @@ function renderInventory(entries) {
 
     const foot = document.createElement("span");
     foot.className = "entity-foot";
+    const machineContext = machineDemoContext(summary);
 
     const score = document.createElement("span");
-    score.textContent = `${round(summary.usefulCompute)}% useful`;
+    score.textContent = machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
 
     const bottleneck = document.createElement("span");
-    bottleneck.textContent = classifier.primary.name.replace("-bound", "");
+    bottleneck.textContent = machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
 
     foot.append(score, bottleneck);
     button.append(titleEl, meta, foot);
@@ -3595,17 +3596,23 @@ function renderInventory(entries) {
 function renderDiagnosis(summary, classifier) {
   const primary = classifier.primary;
   const secondary = classifier.secondary;
-  const meta = [
-    scopeLabel(summary.scope),
-    summary.clusters.join(", "),
-    summary.gpuModels.join(", "),
-    `${summary.count} ${summary.count === 1 ? "job" : "jobs"}`
-  ].join(" | ");
-
   const useful = round(summary.usefulCompute);
   const gpuUtil = round(summary.gpuUtil);
   const primaryLoss = primary.name.replace("-bound", "").toLowerCase();
   const machineContext = machineDemoContext(summary);
+  const meta = machineContext
+    ? [
+      "Machine",
+      machineContext.host,
+      machineContext.gpuModel,
+      machineContext.adapters
+    ].join(" | ")
+    : [
+      scopeLabel(summary.scope),
+      summary.clusters.join(", "),
+      summary.gpuModels.join(", "),
+      `${summary.count} ${summary.count === 1 ? "job" : "jobs"}`
+    ].join(" | ");
   const headline = machineContext?.idle
     ? `${machineContext.gpuModel} is present but idle on ${machineContext.host}.`
     : machineContext
@@ -3615,9 +3622,9 @@ function renderDiagnosis(summary, classifier) {
     : `${gpuUtil}% GPU utilization, ${useful}% useful compute. ${titleCase(primaryLoss)} is the dominant loss.`;
 
   const narrative = machineContext?.idle
-    ? `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${machineContext.services} are running, and ${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"} are installed. This is real idle capacity, not a fabricated training bottleneck.`
+    ? `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${machineContext.services} are running, and ${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"} are installed. This is an idle-capacity observation, not a workload bottleneck claim.`
     : machineContext
-      ? `Observed from ${machineContext.adapters}. ${machineContext.services} are available on the host, so refreshes reflect the current machine bundle rather than the canned provider fixture.`
+      ? `Observed from ${machineContext.adapters}. ${machineContext.services} are available on the host, so refreshes reflect the current machine bundle rather than a provider fixture.`
       : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
     : `${primary.reason} ${recommendationFor(summary, classifier)}`;
@@ -3645,6 +3652,20 @@ function machineDemoContext(summary) {
     adapters: adapters.join(", "),
     services: services.length ? services.join(", ") : "local observability services",
     modelCount: ollamaModels.length,
+    context,
+    gpuUtilizationPct: numeric(context.gpuUtilizationPct, summary.gpuUtil),
+    gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
+    gpuMemoryUsedMiB: numeric(context.gpuMemoryUsedMiB),
+    gpuMemoryTotalMiB: numeric(context.gpuMemoryTotalMiB),
+    gpuTemperatureC: numeric(context.gpuTemperatureC),
+    gpuPowerWatts: numeric(context.gpuPowerWatts),
+    gpuProcesses: Array.isArray(context.gpuComputeProcesses) ? context.gpuComputeProcesses : [],
+    cpuUsagePct: numeric(context.cpuUsagePct),
+    memoryUsedPct: numeric(context.memoryUsedPct),
+    diskUsedPct: numeric(context.diskUsedPct),
+    dockerContainers: Array.isArray(context.dockerContainers) ? context.dockerContainers : [],
+    workloadCountersObserved: Boolean(context.workloadCountersObserved),
+    unavailableExports: Array.isArray(context.unavailableExports) ? context.unavailableExports : [],
     idle: idleStatus || (
       summary.gpus > 0
       && summary.gpuUtil <= 1
@@ -3698,13 +3719,32 @@ function renderMetricRibbon(summary) {
   document.querySelector("#costPerUseful").textContent = currency.format(summary.costPerUsefulGpuHour);
 }
 
-function renderSchedulerSimulator(simulator) {
+function renderSchedulerSimulator(simulator, summary = null) {
   const controls = document.querySelectorAll("#simulatorControls button");
   const stats = document.querySelector("#simulatorStats");
   const narrative = document.querySelector("#simulatorNarrative");
   const list = document.querySelector("#simulatorScenarios");
   const badge = document.querySelector("#simulatorBadge");
   if (!stats || !narrative || !list || !badge) return;
+  const machineContext = summary ? machineDemoContext(summary) : null;
+
+  if (machineContext) {
+    controls.forEach((button) => button.setAttribute("aria-selected", "false"));
+    badge.textContent = "No scheduler export";
+    stats.replaceChildren(
+      simulatorStat("GPU process", machineContext.gpuProcesses.length ? `${machineContext.gpuProcesses.length} active` : "none", machineContext.gpuProcesses.length ? "good" : "watch"),
+      simulatorStat("Docker", `${machineContext.dockerContainers.length} containers`, machineContext.dockerContainers.length ? "good" : "watch"),
+      simulatorStat("Services", `${machineDemoServices(machineContext.context.observedServices).length} reachable`, "good"),
+      simulatorStat("Workload counters", machineContext.workloadCountersObserved ? "present" : "not collected", machineContext.workloadCountersObserved ? "good" : "watch")
+    );
+    narrative.replaceChildren(
+      simulatorNarrativeItem("Scope", "Single Linux host observation"),
+      simulatorNarrativeItem("Scheduler", "No Kubernetes, Slurm, admission, or provider scheduler export is attached"),
+      simulatorNarrativeItem("Next signal", machineContext.idle ? "Start a controlled GPU workload to measure active behavior" : "Join request or training counters to the host sample")
+    );
+    list.replaceChildren();
+    return;
+  }
 
   const scenarios = simulator.scenarios || [];
   const recommended = simulator.recommended || scenarios[0];
@@ -3816,6 +3856,26 @@ function renderGrafanaHandoff(summary) {
   const context = document.querySelector("#grafanaContext");
   const links = document.querySelector("#grafanaLinks");
   if (!badge || !context || !links) return;
+  const machineContext = machineDemoContext(summary);
+
+  if (machineContext) {
+    const services = machineDemoServices(machineContext.context.observedServices);
+    badge.textContent = services.includes("grafana") ? "Service reachable" : "No Grafana";
+    context.replaceChildren(
+      grafanaContextItem("Dashboard", "No dashboard overlay imported"),
+      grafanaContextItem("Datasource", services.includes("node-exporter") ? "node-exporter reachable" : "No datasource export"),
+      grafanaContextItem("Window", "live host sample"),
+      grafanaContextItem("Variables", machineContext.host)
+    );
+    links.replaceChildren();
+    const empty = document.createElement("div");
+    empty.className = "grafana-empty";
+    empty.textContent = services.includes("grafana")
+      ? "Grafana health is reachable, but no dashboard/export contract is attached to this live sample."
+      : "No Grafana service was detected on this host.";
+    links.append(empty);
+    return;
+  }
 
   const grafana = summary.grafana || {};
   const sourceCount = numeric(grafana.sourceCount);
@@ -4165,6 +4225,59 @@ function renderTruthTable(summary) {
 }
 
 function renderBottleneck(summary, classifier) {
+  const machineContext = machineDemoContext(summary);
+  if (machineContext) {
+    document.querySelector("#primaryBottleneck").textContent = machineContext.idle ? "Idle GPU capacity" : "Live host utilization";
+    document.querySelector("#secondaryBottleneck").textContent = machineContext.gpuProcesses.length ? "Active NVIDIA process" : "No NVIDIA compute process";
+    document.querySelector("#improvementEstimate").textContent = machineContext.idle ? "Start a controlled workload, then compare the next live sample." : "Attach request or training counters before tuning.";
+    document.querySelector("#bottleneckBadge").textContent = "Live host";
+
+    const list = document.querySelector("#bottleneckBars");
+    list.replaceChildren(
+      progressRow({
+        className: "bar-row",
+        fillClass: "bar-fill",
+        label: "GPU utilization",
+        value: machineContext.gpuUtilizationPct,
+        suffix: "observed",
+        note: "nvidia-smi utilization.gpu"
+      }),
+      progressRow({
+        className: "bar-row",
+        fillClass: "bar-fill",
+        label: "GPU memory",
+        value: machineContext.gpuMemoryUsedPct,
+        suffix: "observed",
+        note: `${number.format(machineContext.gpuMemoryUsedMiB)} / ${number.format(machineContext.gpuMemoryTotalMiB)} MiB`
+      }),
+      progressRow({
+        className: "bar-row",
+        fillClass: "bar-fill",
+        label: "CPU usage",
+        value: machineContext.cpuUsagePct,
+        suffix: "observed",
+        note: "Sampled from host CPU counters"
+      }),
+      progressRow({
+        className: "bar-row",
+        fillClass: "bar-fill",
+        label: "Memory used",
+        value: machineContext.memoryUsedPct,
+        suffix: "observed",
+        note: "Host memory pressure"
+      }),
+      progressRow({
+        className: "bar-row",
+        fillClass: "bar-fill",
+        label: "Disk used",
+        value: machineContext.diskUsedPct,
+        suffix: "observed",
+        note: "Root filesystem usage"
+      })
+    );
+    return;
+  }
+
   document.querySelector("#primaryBottleneck").textContent = classifier.primary.name;
   document.querySelector("#secondaryBottleneck").textContent = classifier.secondary.name;
   document.querySelector("#improvementEstimate").textContent = classifier.improvementRange;
@@ -4192,6 +4305,49 @@ function renderProviderLens(summary, provider, classifier) {
   const actions = document.querySelector("#providerActions");
   const providerData = summary.provider || {};
   const sloData = summary.slo || {};
+  const machineContext = machineDemoContext(summary);
+
+  if (machineContext) {
+    badge.textContent = "Local host";
+    context.replaceChildren(
+      providerContextItem("Host", machineContext.host),
+      providerContextItem("OS", machineContext.context.os || "unknown"),
+      providerContextItem("GPU", machineContext.gpuModel),
+      providerContextItem("Services", machineContext.services)
+    );
+    stats.replaceChildren(
+      providerStat({
+        label: "GPU temp",
+        value: machineContext.gpuTemperatureC ? `${round(machineContext.gpuTemperatureC)} C` : "n/a",
+        note: machineContext.gpuPowerWatts ? `${round(machineContext.gpuPowerWatts)} W draw` : "Power not reported",
+        grade: machineContext.gpuTemperatureC ? inverseGrade(machineContext.gpuTemperatureC, 75, 86).key : "watch"
+      }),
+      providerStat({
+        label: "CPU usage",
+        value: pct(machineContext.cpuUsagePct),
+        note: `${machineContext.context.cpuCount || "n/a"} logical CPUs`,
+        grade: inverseGrade(machineContext.cpuUsagePct, 70, 90).key
+      }),
+      providerStat({
+        label: "Memory used",
+        value: pct(machineContext.memoryUsedPct),
+        note: "Host memory pressure",
+        grade: inverseGrade(machineContext.memoryUsedPct, 75, 90).key
+      }),
+      providerStat({
+        label: "Disk used",
+        value: pct(machineContext.diskUsedPct),
+        note: "Root filesystem",
+        grade: inverseGrade(machineContext.diskUsedPct, 75, 90).key
+      })
+    );
+    actions.replaceChildren(
+      providerAction("No provider billing, SLO, Kubernetes, DCGM, eBPF, or scheduler export is attached to this live NUC sample."),
+      providerAction(machineContext.idle ? "Start a controlled local GPU workload before the demo to show active utilization changing live." : "Join request logs or training counters before making workload-efficiency claims."),
+      providerAction("Use provider pilot bundles only when approved source-system exports are available.")
+    );
+    return;
+  }
 
   badge.textContent = listLabel(providerData.customerTiers, 1);
   context.replaceChildren(

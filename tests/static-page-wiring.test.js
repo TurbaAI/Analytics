@@ -101,6 +101,8 @@ assert.ok(app.includes("MACHINE_DEMO_REFRESH_MS"));
 assert.ok(app.includes("machineDemoContext"));
 assert.ok(app.includes("machineDemoServices"));
 assert.ok(app.includes("isMachineDemoItem"));
+assert.ok(app.includes("No scheduler export"));
+assert.ok(app.includes("No provider billing"));
 assert.ok(app.includes("build/demo/live-machine-bundle.json"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));

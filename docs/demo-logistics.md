@@ -24,7 +24,7 @@ node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.1
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 30 seconds while the tab is visible. That bundle reflects the actual machine state: Ubuntu 24.04, Intel Core i9-14900KS, 64 GB RAM, NVIDIA GeForce RTX 4090 via `nvidia-smi`, Docker monitoring containers, Grafana, Netdata, Ollama model inventory, node-exporter, procfs, disk, memory, and network counters. It does not pretend Kubernetes or DCGM are installed when they are not.
+Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 30 seconds while the tab is visible. That bundle reflects the actual machine state: Ubuntu 24.04, Intel Core i9-14900KS, 64 GB RAM, NVIDIA GeForce RTX 4090 via `nvidia-smi`, Docker monitoring containers, Grafana, Netdata, Ollama model inventory, node-exporter, procfs, disk, memory, and network counters. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
 
 ## Hardware Needed
 
