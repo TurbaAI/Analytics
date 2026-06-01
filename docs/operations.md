@@ -185,6 +185,8 @@ node scripts/validate-source-contracts.js \
 
 Use `ops/source-contracts.example.json` as the provider replacement template. Use `ops/source-contracts.sandbox.json` only with a local mock source gateway on `127.0.0.1:8891` when exercising the SSH sandbox gate.
 
+For local and SSH sandbox runs, `scripts/run-sandbox-source-gateway.js` serves the provider pilot fixtures through the same HTTP paths expected by `ops/source-contracts.sandbox.json`.
+
 ## Pilot Burn-In
 
 Run a burn-in loop against staged source exports or validated source contracts:

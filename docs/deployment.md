@@ -61,6 +61,15 @@ node scripts/build-publish-ingestion-image.js \
 
 The `.github/workflows/provider-image.yml` workflow exposes the same gate as a manual GitHub Action.
 
+To run the full strict sandbox gate in one command:
+
+```sh
+node scripts/run-sandbox-go-live.js \
+  --out-dir build/provider-go-live-sandbox
+```
+
+The runner starts and cleans up a disposable local registry, mock source gateway, and ingestion container. It then pushes the sandbox image, validates source contracts, performs live ingestion burn-in, and writes `sandbox-go-live-report.json` beside the go-live report.
+
 Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push, managed manifest rendering, source-contract validation, and burn-in report in one output directory.
 
 ## GitHub Pages

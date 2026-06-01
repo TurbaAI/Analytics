@@ -11,6 +11,7 @@ const checks = [
   { label: "provider image", args: ["tests/provider-image.test.js"] },
   { label: "provider readiness", args: ["tests/provider-readiness.test.js"] },
   { label: "provider go-live gates", args: ["tests/provider-go-live-gates.test.js"] },
+  { label: "sandbox go-live", args: ["tests/sandbox-go-live.test.js"] },
   { label: "analytics core", args: ["tests/analytics-core.test.js"] },
   { label: "NCCL trace parser", args: ["tests/nccl-trace-parser.test.js"] },
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },

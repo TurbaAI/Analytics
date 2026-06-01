@@ -52,6 +52,8 @@ const readme = read("README.md");
   "scripts/build-publish-ingestion-image.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
+  "scripts/run-sandbox-go-live.js",
+  "scripts/run-sandbox-source-gateway.js",
   "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
@@ -102,6 +104,8 @@ const readme = read("README.md");
   "scripts/build-publish-ingestion-image.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
+  "scripts/run-sandbox-go-live.js",
+  "scripts/run-sandbox-source-gateway.js",
   "scripts/fetch-source-system-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
@@ -125,6 +129,7 @@ const readme = read("README.md");
   "tests/provider-image.test.js",
   "tests/provider-readiness.test.js",
   "tests/provider-go-live-gates.test.js",
+  "tests/sandbox-go-live.test.js",
   "ops/pilot-provider.sandbox.json",
   "ops/source-contracts.sandbox.json",
   "tests/neo-cloud-provider-fixture.test.js",
@@ -229,6 +234,7 @@ assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(operations.includes("scripts/build-publish-ingestion-image.js"));
 assert.ok(operations.includes("scripts/validate-provider-readiness.js"));
 assert.ok(operations.includes("scripts/run-provider-go-live-gates.js"));
+assert.ok(operations.includes("scripts/run-sandbox-source-gateway.js"));
 assert.ok(operations.includes("scripts/validate-source-contracts.js"));
 assert.ok(operations.includes("scripts/run-live-pilot-burn-in.js"));
 assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
