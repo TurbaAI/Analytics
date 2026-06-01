@@ -13,6 +13,7 @@ const checks = [
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },
   { label: "neo-cloud provider fixture", args: ["tests/neo-cloud-provider-fixture.test.js"] },
   { label: "provider exporter", args: ["tests/provider-exporter.test.js"] },
+  { label: "scheduler exporter", args: ["tests/scheduler-exporter.test.js"] },
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },

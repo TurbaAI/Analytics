@@ -59,7 +59,11 @@ const store = {
           namespace: "secret-namespace",
           podName: "secret-pod",
           host: "secret-host",
-          ebpfExportId: "secret-ebpf"
+          ebpfExportId: "secret-ebpf",
+          schedulerExportId: "secret-scheduler",
+          schedulerName: "secret-scheduler-name",
+          queueName: "secret-queue",
+          priorityClass: "secret-priority"
         }
       }
     ]
@@ -78,6 +82,12 @@ const markdown = context.buildEvidencePackMarkdown({
     usefulCompute: 42,
     wastedGpuHours: 58,
     wasteDollars: 360,
+    schedulerEvidence: {
+      sourceCount: 1,
+      eventCount: 4,
+      placementRetries: 2,
+      localityMisses: 1
+    },
     sourceItems: [
       {
         id: "secret-run",
@@ -87,12 +97,16 @@ const markdown = context.buildEvidencePackMarkdown({
             account: "secret-account",
             reservation: "secret-reservation"
           },
-          adapters: ["provider", "ebpf"],
+          adapters: ["provider", "scheduler", "ebpf"],
           context: {
             namespace: "secret-namespace",
             podName: "secret-pod",
             host: "secret-host",
-            ebpfExportId: "secret-ebpf"
+            ebpfExportId: "secret-ebpf",
+            schedulerExportId: "secret-scheduler",
+            schedulerName: "secret-scheduler-name",
+            queueName: "secret-queue",
+            priorityClass: "secret-priority"
           }
         }
       }
@@ -149,6 +163,7 @@ assert.ok(markdown.includes("# turbalance Evidence Pack"));
 assert.ok(markdown.includes("Repack topology-sensitive workload"));
 assert.ok(markdown.includes("## Scheduler / Capacity What-If"));
 assert.ok(markdown.includes("Reserve locality group"));
+assert.ok(markdown.includes("4 events"));
 assert.ok(markdown.includes("## Redacted Source Context"));
 assert.ok(markdown.includes("run-1"));
 assert.ok(markdown.includes("tenant-1"));
@@ -156,6 +171,8 @@ assert.ok(markdown.includes("account-1"));
 assert.ok(markdown.includes("reservation-1"));
 assert.ok(markdown.includes("host-1"));
 assert.ok(markdown.includes("ebpf-export-1"));
+assert.ok(markdown.includes("scheduler-export-1"));
+assert.ok(markdown.includes("queue-1"));
 
 [
   "secret-run",
@@ -166,7 +183,11 @@ assert.ok(markdown.includes("ebpf-export-1"));
   "secret-reservation",
   "secret-host",
   "secret-pod",
-  "secret-ebpf"
+  "secret-ebpf",
+  "secret-scheduler",
+  "secret-scheduler-name",
+  "secret-queue",
+  "secret-priority"
 ].forEach((secret) => {
   assert.ok(!markdown.includes(secret), `${secret} should not appear in evidence pack`);
 });

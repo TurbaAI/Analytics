@@ -37,6 +37,7 @@ Open `index.html` around 390px wide.
 
 - Import `fixtures/external-source-bundle.json`.
 - Confirm the ingestion status chip reports the imported file.
+- Confirm scheduler evidence appears in the Scheduler Simulator cards when the imported bundle includes `sources.scheduler`.
 - Click Analyze and confirm the trend point count increases.
 - Export the workspace and inspect that the downloaded JSON has `storageSchemaVersion: "turba.workspace.v2"`.
 - Export the redacted workspace and inspect that tenant, account, reservation, contract, support-ticket, run identifiers, and imported opportunity free text are surrogate IDs or redacted placeholders.

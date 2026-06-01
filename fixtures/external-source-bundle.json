@@ -49,6 +49,35 @@
         }
       }
     ],
+    "scheduler": [
+      {
+        "runId": "run-7421",
+        "schedulerExportId": "sched-2026-05-week-4",
+        "schedulerName": "slurm-topology-aware",
+        "queueName": "frontier-reserved",
+        "priorityClass": "p1-reserved",
+        "admissionClass": "reserved-burst",
+        "requestedGpuShape": "24x8-h100",
+        "localityPreference": "same-pod",
+        "queuedAt": "2026-05-30T10:02:00-07:00",
+        "startedAt": "2026-05-30T10:33:00-07:00",
+        "placementQuality": 51,
+        "partialNodes": 4,
+        "idleGpus": 0,
+        "placementRetries": 6,
+        "localityMisses": 3,
+        "backfillCandidates": 5,
+        "pendingJobsAhead": 7,
+        "pendingGpuHoursAhead": 910,
+        "gpusPerNode": 8,
+        "events": [
+          { "type": "queued", "timestamp": "2026-05-30T10:02:00-07:00", "reason": "reservation window opened" },
+          { "type": "placement_retry", "timestamp": "2026-05-30T10:08:00-07:00", "reason": "contiguous pod unavailable" },
+          { "type": "locality_miss", "timestamp": "2026-05-30T10:19:00-07:00", "reason": "cross-pod allocation accepted" },
+          { "type": "admitted", "timestamp": "2026-05-30T10:33:00-07:00", "reason": "priority reservation admitted" }
+        ]
+      }
+    ],
     "opportunities": [
       {
         "runId": "run-7421",

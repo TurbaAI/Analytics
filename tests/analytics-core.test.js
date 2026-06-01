@@ -125,12 +125,21 @@ const schedulerSimulator = analytics.simulateSchedulerScenarios({
   slo: {
     targetStartMinutes: 20
   },
+  schedulerEvidence: {
+    eventCount: 5,
+    placementRetries: 4,
+    localityMisses: 3,
+    backfillCandidates: 6,
+    gpusPerNode: 8
+  },
   traceAttribution: { eventCount: 3 }
 }, { rate: 6.8 });
 assert.equal(schedulerSimulator.scenarios.length, 3);
 assert.ok(schedulerSimulator.recommended.recoveredGpuHours > 0);
 assert.ok(schedulerSimulator.recommended.dollarUpside > 0);
 assert.ok(schedulerSimulator.recommended.projected.placementQuality > finalized.placementQuality);
+assert.ok(schedulerSimulator.recommended.evidence.includes("Scheduler evidence"));
+assert.equal(schedulerSimulator.recommended.sourceEvidence.schedulerEvents, 5);
 assert.ok(schedulerSimulator.scenarios.some((scenario) => scenario.id === "locality"));
 
 const noWhatIf = analytics.applyPlacementWhatIf(finalized, false);

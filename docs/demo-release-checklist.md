@@ -19,8 +19,9 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 6. Export an evidence pack and confirm scheduler what-if and source context redaction are present.
 7. Export a normal workspace and a redacted workspace.
 8. Generate a provider overlay with `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`.
-9. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
-10. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json`.
+9. Generate a scheduler overlay with `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`.
+10. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
+11. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json`.
 
 ## Visual Readiness
 

@@ -45,6 +45,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
     "prometheus": [],
     "dcgm": [],
     "kubernetes": [],
+    "scheduler": [],
     "ebpf": [],
     "provider": [],
     "opportunities": []
@@ -53,7 +54,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
 
 ### Workspace Export
 
@@ -73,7 +74,7 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 `fixtures/workspace-export.json` is the canonical workspace-export fixture.
 
-The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
+The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, scheduler queue/admission context, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
 
 The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, scheduler/capacity what-if estimates, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
 
@@ -96,6 +97,7 @@ Each run should include:
 - `work`: tokens, steps, or inference requests
 - `baseline`: comparison values used by regression checks
 - `placement`: allocated node list and partial node list
+- `schedulerEvidence`: optional queue, admission, placement retry, locality, preemption, and backfill evidence
 - `commercial`: provider-side billing and commitment context
 - `slo`: queue, efficiency, priority, and support-ticket targets
 - `opportunities`: optional upstream ranked actions, if a source system already emits recommendations
@@ -130,9 +132,43 @@ The dashboard computes Opportunity Engine rows from normalized run metrics even 
 
 The Opportunity Engine ranks computed and imported actions across Useful Compute FinOps, fabric/topology, scheduler/capacity, provider SLO risk, inference economics, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack categories. Values are directional and may overlap; use them to prioritize action, not as additive accounting totals.
 
+## Scheduler Event Overlay
+
+Scheduler systems should use `sources.scheduler` when they can export queue, admission, placement, locality, preemption, backfill, or reservation evidence by `runId`. This source is intentionally separate from Kubernetes pod state and provider commercial overlays.
+
+```json
+{
+  "sources": {
+    "scheduler": [
+      {
+        "runId": "run-7421",
+        "schedulerExportId": "sched-2026-05-week-4",
+        "schedulerName": "slurm-topology-aware",
+        "queueName": "frontier-reserved",
+        "priorityClass": "p1-reserved",
+        "admissionClass": "reserved-burst",
+        "requestedGpuShape": "24x8-h100",
+        "localityPreference": "same-pod",
+        "queuedAt": "2026-05-30T10:02:00-07:00",
+        "startedAt": "2026-05-30T10:33:00-07:00",
+        "placementQuality": 51,
+        "placementRetries": 6,
+        "localityMisses": 3,
+        "backfillCandidates": 5,
+        "pendingJobsAhead": 7,
+        "pendingGpuHoursAhead": 910,
+        "gpusPerNode": 8
+      }
+    ]
+  }
+}
+```
+
+The importer maps this into normalized scheduler metrics, preserves aggregate `schedulerEvidence`, and redacts scheduler source identifiers during evidence-pack and workspace export.
+
 ## Scheduler Simulator
 
-The Scheduler Simulator is computed locally from normalized allocation, scheduler, communication, provider, and SLO fields. It does not require a new source adapter. The dashboard compares repacking partial nodes, reserving locality groups, and protecting priority queue admission by projected GPU-hour recovery, dollar upside, queue minutes saved, useful compute, and placement fit.
+The Scheduler Simulator is computed locally from normalized allocation, scheduler, communication, provider, SLO, and optional scheduler-event fields. The dashboard compares repacking partial nodes, reserving locality groups, and protecting priority queue admission by projected GPU-hour recovery, dollar upside, queue minutes saved, useful compute, and placement fit.
 
 Simulator estimates are directional. Use source overlays and trace evidence to validate the selected action before changing scheduler policy.
 
@@ -244,6 +280,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

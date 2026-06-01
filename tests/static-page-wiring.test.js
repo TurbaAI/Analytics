@@ -85,6 +85,7 @@ assert.ok(app.includes("renderSchedulerSimulator"));
 assert.ok(app.includes("summarizeProviderEconomics"));
 assert.ok(app.includes("simulateSchedulerScenarios"));
 assert.ok(app.includes("generateOpportunities"));
+assert.ok(app.includes("importSchedulerSamples"));
 assert.ok(app.includes("exportEvidencePack"));
 assert.ok(app.includes("buildEvidencePackMarkdown"));
 assert.ok(app.includes("importEbpfSamples"));

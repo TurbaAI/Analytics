@@ -42,6 +42,7 @@ The app converts those fields into:
 - Gross margin view: billable GPU-hours minus optional floor GPU-hour cost.
 - Opportunity Engine actions: ranked FinOps, topology, scheduler, inference, eBPF, fleet, energy, and customer evidence-pack opportunities.
 - Scheduler Simulator scenarios: repack partial nodes, reserve locality groups, or protect queue-SLO admission windows with projected recovery and dollar upside.
+- Scheduler event overlays: queue, priority, admission, placement-retry, locality-miss, preemption, and backfill evidence through `sources.scheduler`.
 - Renewal and support actions: concise operator actions tied to the tenant, reservation, bottleneck, and ticket context.
 
 An optional Linux eBPF overlay adds host-side evidence for provider pilots:
@@ -66,7 +67,7 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 
 1. Switch to `Cluster` scope.
 2. Sort by wasted GPU-hours and inspect sellable waste value.
-3. Open the Scheduler Simulator and compare repack, locality, and queue-SLO scenarios against committed GPU-hour burn.
+3. Open the Scheduler Simulator and compare repack, locality, and queue-SLO scenarios against committed GPU-hour burn and scheduler-event evidence.
 4. Open the Opportunity Engine action center and compare high-waste tenants against imported and computed recommendations.
 5. Use placement and NCCL topology attribution to decide whether to reserve locality groups, repack partial nodes, or move a workload pool.
 
@@ -103,6 +104,8 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 `fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, opportunity overlays, and source telemetry.
 
 `fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing turbalance feed.
+
+`scripts/build-scheduler-overlay.js` is the minimal scheduler-event exporter example for integrating queue, admission, placement retry, locality, preemption, and backfill evidence by `runId`.
 
 `scripts/build-ebpf-overlay.js` is the minimal eBPF host-summary exporter example for integrating Linux scheduling, network, storage, and noisy-neighbor evidence by `runId`.
 

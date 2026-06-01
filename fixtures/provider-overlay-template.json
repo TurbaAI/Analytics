@@ -28,6 +28,35 @@
         }
       }
     ],
+    "scheduler": [
+      {
+        "runId": "replace-with-run-id",
+        "schedulerExportId": "scheduler-export-1",
+        "schedulerName": "scheduler-surrogate-1",
+        "queueName": "queue-surrogate-1",
+        "priorityClass": "priority-surrogate-1",
+        "admissionClass": "admission-surrogate-1",
+        "requestedGpuShape": "shape-surrogate-1",
+        "localityPreference": "same-pod",
+        "queueWaitMinutes": 20,
+        "placementQuality": 65,
+        "partialNodes": 2,
+        "idleGpus": 0,
+        "placementRetries": 3,
+        "localityMisses": 1,
+        "backfillCandidates": 4,
+        "pendingJobsAhead": 5,
+        "pendingGpuHoursAhead": 400,
+        "gpusPerNode": 8,
+        "events": [
+          {
+            "type": "placement_retry",
+            "timestamp": "2026-05-30T10:00:00Z",
+            "reason": "redacted scheduler event"
+          }
+        ]
+      }
+    ],
     "opportunities": [
       {
         "runId": "replace-with-run-id",

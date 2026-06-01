@@ -45,6 +45,7 @@ const INGESTION_SCHEMA = {
     "work",
     "baseline",
     "placement",
+    "schedulerEvidence",
     "commercial",
     "slo",
     "opportunities"
@@ -581,6 +582,61 @@ const SAMPLE_INGESTION = {
 };
 
 const SAMPLE_SOURCE_EXPORTS = {
+  scheduler: [
+    {
+      runId: "run-7421",
+      schedulerExportId: "sched-sample-2026-05",
+      schedulerName: "slurm-topology-aware",
+      queueName: "frontier-reserved",
+      priorityClass: "p1-reserved",
+      admissionClass: "reserved-burst",
+      requestedGpuShape: "24x8-h100",
+      localityPreference: "same-pod",
+      queuedAt: "2026-05-30T10:02:00-07:00",
+      startedAt: "2026-05-30T10:26:00-07:00",
+      placementQuality: 53,
+      partialNodes: 3,
+      idleGpus: 0,
+      placementRetries: 5,
+      localityMisses: 2,
+      backfillCandidates: 4,
+      pendingJobsAhead: 6,
+      pendingGpuHoursAhead: 740,
+      gpusPerNode: 8,
+      events: [
+        { type: "queued", timestamp: "2026-05-30T10:02:00-07:00" },
+        { type: "placement_retry", timestamp: "2026-05-30T10:08:00-07:00" },
+        { type: "locality_miss", timestamp: "2026-05-30T10:18:00-07:00" },
+        { type: "admitted", timestamp: "2026-05-30T10:26:00-07:00" }
+      ]
+    },
+    {
+      runId: "svc-1190",
+      schedulerExportId: "sched-sample-2026-05",
+      schedulerName: "kueue-prod",
+      queueName: "inference-prod",
+      priorityClass: "p1-serving",
+      admissionClass: "committed-plus-burst",
+      requestedGpuShape: "6x8-h100",
+      localityPreference: "same-rack",
+      queuedAt: "2026-05-30T11:04:00-07:00",
+      startedAt: "2026-05-30T11:11:00-07:00",
+      placementQuality: 81,
+      partialNodes: 2,
+      idleGpus: 6,
+      preemptionCount: 1,
+      placementRetries: 2,
+      backfillCandidates: 3,
+      pendingJobsAhead: 3,
+      pendingGpuHoursAhead: 180,
+      gpusPerNode: 8,
+      events: [
+        { type: "queued", timestamp: "2026-05-30T11:04:00-07:00" },
+        { type: "preempted_lower_priority", timestamp: "2026-05-30T11:08:00-07:00" },
+        { type: "admitted", timestamp: "2026-05-30T11:11:00-07:00" }
+      ]
+    }
+  ],
   prometheus: [
     {
       runId: "run-7421",
@@ -1257,6 +1313,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
     mergeImportedSections(importedByRun, importKubernetesSamples(sources.kubernetes), "kubernetes");
     adapters.push("kubernetes");
   }
+  if (sources.scheduler?.length) {
+    mergeImportedSections(importedByRun, importSchedulerSamples(sources.scheduler), "scheduler");
+    adapters.push("scheduler");
+  }
   if (sources.ebpf?.length) {
     mergeImportedSections(importedByRun, importEbpfSamples(sources.ebpf), "ebpf");
     adapters.push("ebpf");
@@ -1378,6 +1438,173 @@ function importKubernetesSamples(samples = []) {
       }
     }
   }));
+}
+
+function importSchedulerSamples(samples = []) {
+  return samples.map((sample) => {
+    const metrics = sample.metrics || {};
+    const scheduler = sample.scheduler || {};
+    const policy = sample.policy || {};
+    const signals = sample.signals || {};
+    const events = Array.isArray(sample.events) ? sample.events : [];
+    const counts = schedulerEventCounts(events);
+    const queuedAt = sample.queuedAt || scheduler.queuedAt || policy.queuedAt;
+    const admittedAt = sample.admittedAt || scheduler.admittedAt || policy.admittedAt;
+    const startedAt = sample.startedAt || scheduler.startedAt || policy.startedAt || admittedAt;
+    const eventCount = firstFinite(
+      metrics.turba_scheduler_events,
+      metrics.scheduler_event_count,
+      scheduler.eventCount,
+      sample.eventCount,
+      events.length
+    );
+    const queueWaitMinutes = firstFinite(
+      metrics.turba_queue_wait_minutes,
+      metrics.scheduler_queue_wait_minutes,
+      scheduler.queueWaitMinutes,
+      sample.queueWaitMinutes,
+      minutesBetween(queuedAt, startedAt)
+    );
+    const placementQuality = firstFinite(
+      metrics.turba_placement_quality,
+      metrics.scheduler_placement_quality,
+      signals.placementQuality,
+      scheduler.placementQuality,
+      sample.placementQuality
+    );
+    const idleGpus = firstFinite(
+      metrics.turba_idle_gpus,
+      metrics.scheduler_idle_gpus,
+      signals.idleGpus,
+      scheduler.idleGpus,
+      sample.idleGpus
+    );
+    const partialNodes = firstFinite(
+      metrics.turba_partial_nodes,
+      metrics.scheduler_partial_nodes,
+      signals.partialNodes,
+      scheduler.partialNodes,
+      sample.partialNodes
+    );
+    const admissionAttempts = firstFinite(
+      metrics.turba_admission_attempts,
+      scheduler.admissionAttempts,
+      sample.admissionAttempts,
+      counts.admissionAttempts
+    );
+    const preemptionCount = firstFinite(
+      metrics.turba_preemptions,
+      metrics.scheduler_preemptions,
+      scheduler.preemptionCount,
+      sample.preemptionCount,
+      counts.preemptionCount
+    );
+    const placementRetries = firstFinite(
+      metrics.turba_placement_retries,
+      metrics.scheduler_placement_retries,
+      scheduler.placementRetries,
+      sample.placementRetries,
+      counts.placementRetries
+    );
+    const localityMisses = firstFinite(
+      metrics.turba_locality_misses,
+      metrics.scheduler_locality_misses,
+      scheduler.localityMisses,
+      sample.localityMisses,
+      counts.localityMisses
+    );
+    const backfillCandidates = firstFinite(
+      metrics.turba_backfill_candidates,
+      scheduler.backfillCandidates,
+      sample.backfillCandidates,
+      counts.backfillCandidates
+    );
+    const pendingJobsAhead = firstFinite(
+      metrics.turba_pending_jobs_ahead,
+      scheduler.pendingJobsAhead,
+      sample.pendingJobsAhead
+    );
+    const pendingGpuHoursAhead = firstFinite(
+      metrics.turba_pending_gpu_hours_ahead,
+      scheduler.pendingGpuHoursAhead,
+      sample.pendingGpuHoursAhead
+    );
+    const gpusPerNode = firstFinite(
+      policy.gpusPerNode,
+      scheduler.gpusPerNode,
+      sample.gpusPerNode
+    );
+    const targetStartMinutes = firstFinite(
+      policy.targetStartMinutes,
+      scheduler.targetStartMinutes,
+      sample.targetStartMinutes
+    );
+
+    const schedulerName = sample.schedulerName || policy.schedulerName || scheduler.schedulerName;
+    const queueName = sample.queueName || policy.queueName || scheduler.queueName;
+    const priorityClass = sample.priorityClass || policy.priorityClass || scheduler.priorityClass;
+    const admissionClass = sample.admissionClass || policy.admissionClass || scheduler.admissionClass;
+    const requestedGpuShape = sample.requestedGpuShape || policy.requestedGpuShape || scheduler.requestedGpuShape;
+    const localityPreference = sample.localityPreference || policy.localityPreference || scheduler.localityPreference;
+    const reservationPolicy = sample.reservationPolicy || policy.reservationPolicy || scheduler.reservationPolicy;
+
+    return {
+      runId: sample.runId,
+      sections: compactSections({
+        scheduler: compactMetrics({
+          queueWaitMinutes,
+          placementQuality,
+          idleGpus,
+          partialNodes,
+          admissionAttempts,
+          preemptionCount,
+          placementRetries,
+          localityMisses,
+          backfillCandidates,
+          pendingJobsAhead,
+          pendingGpuHoursAhead,
+          gpusPerNode
+        }),
+        slo: compactMetrics({
+          targetStartMinutes
+        }),
+        schedulerEvidence: compactObject({
+          schedulerName,
+          queueName,
+          priorityClass,
+          admissionClass,
+          requestedGpuShape,
+          localityPreference,
+          reservationPolicy,
+          queuedAt,
+          admittedAt,
+          startedAt,
+          ...compactMetrics({
+            eventCount,
+            queueWaitMinutes,
+            admissionAttempts,
+            preemptionCount,
+            placementRetries,
+            localityMisses,
+            backfillCandidates,
+            pendingJobsAhead,
+            pendingGpuHoursAhead,
+            gpusPerNode
+          })
+        }),
+        sourceContext: compactObject({
+          ...(sample.sourceContext || {}),
+          schedulerExportId: sample.schedulerExportId,
+          schedulerName,
+          queueName,
+          priorityClass,
+          admissionClass,
+          requestedGpuShape,
+          localityPreference
+        })
+      })
+    };
+  });
 }
 
 function importEbpfSamples(samples = []) {
@@ -1653,6 +1880,34 @@ function pressure(value, low, high) {
   return clamp(((parsed - low) / (high - low)) * 100, 0, 100);
 }
 
+function minutesBetween(start, end) {
+  const startDate = start ? new Date(start) : null;
+  const endDate = end ? new Date(end) : null;
+  if (!startDate || !endDate || Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return undefined;
+  }
+
+  return Math.max(0, (endDate - startDate) / 60000);
+}
+
+function schedulerEventCounts(events = []) {
+  return events.reduce((counts, event) => {
+    const type = String(event.type || event.reason || event.action || "").toLowerCase();
+    if (type.includes("admit") || type.includes("schedule")) counts.admissionAttempts += 1;
+    if (type.includes("preempt")) counts.preemptionCount += 1;
+    if (type.includes("retry") || type.includes("unschedulable")) counts.placementRetries += 1;
+    if (type.includes("locality") || type.includes("cross-pod") || type.includes("cross-rack")) counts.localityMisses += 1;
+    if (type.includes("backfill")) counts.backfillCandidates += 1;
+    return counts;
+  }, {
+    admissionAttempts: 0,
+    preemptionCount: 0,
+    placementRetries: 0,
+    localityMisses: 0,
+    backfillCandidates: 0
+  });
+}
+
 function maxFinite(...values) {
   const finite = values
     .map((value) => Number(value))
@@ -1705,6 +1960,7 @@ function normalizeRun(run, entities) {
     baseline: normalizeBaseline(run.baseline),
     placement: normalizePlacement(run.placement),
     traceAttribution: normalizeTraceAttribution(run.traceAttribution),
+    schedulerEvidence: normalizeSchedulerEvidence(run.schedulerEvidence),
     importedOpportunities: normalizeImportedOpportunities(run.opportunities),
     source: {
       schemaVersion: INGESTION_SCHEMA.version,
@@ -1714,6 +1970,35 @@ function normalizeRun(run, entities) {
       context: run.sourceContext || {}
     }
   };
+}
+
+function normalizeSchedulerEvidence(evidence = {}) {
+  if (!isPlainObject(evidence)) return {};
+
+  return compactObject({
+    schedulerName: String(evidence.schedulerName || ""),
+    queueName: String(evidence.queueName || ""),
+    priorityClass: String(evidence.priorityClass || ""),
+    admissionClass: String(evidence.admissionClass || ""),
+    requestedGpuShape: String(evidence.requestedGpuShape || ""),
+    localityPreference: String(evidence.localityPreference || ""),
+    reservationPolicy: String(evidence.reservationPolicy || ""),
+    queuedAt: String(evidence.queuedAt || ""),
+    admittedAt: String(evidence.admittedAt || ""),
+    startedAt: String(evidence.startedAt || ""),
+    ...compactMetrics({
+      eventCount: optionalMetric(evidence, "eventCount"),
+      queueWaitMinutes: optionalMetric(evidence, "queueWaitMinutes"),
+      admissionAttempts: optionalMetric(evidence, "admissionAttempts"),
+      preemptionCount: optionalMetric(evidence, "preemptionCount"),
+      placementRetries: optionalMetric(evidence, "placementRetries"),
+      localityMisses: optionalMetric(evidence, "localityMisses"),
+      backfillCandidates: optionalMetric(evidence, "backfillCandidates"),
+      pendingJobsAhead: optionalMetric(evidence, "pendingJobsAhead"),
+      pendingGpuHoursAhead: optionalMetric(evidence, "pendingGpuHoursAhead"),
+      gpusPerNode: optionalMetric(evidence, "gpusPerNode")
+    })
+  });
 }
 
 function normalizeTraceAttribution(traceAttribution) {
@@ -1947,7 +2232,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "ebpf", "provider", "opportunities"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -1971,7 +2256,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "ebpf", "provider", "opportunities"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -2003,6 +2288,7 @@ function extractSourceExports(payload) {
     prometheus: Array.isArray(sourceRoot.prometheus) ? sourceRoot.prometheus : [],
     dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
     kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : [],
+    scheduler: Array.isArray(sourceRoot.scheduler) ? sourceRoot.scheduler : [],
     ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
     provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : [],
     opportunities: Array.isArray(sourceRoot.opportunities) ? sourceRoot.opportunities : []
@@ -2030,6 +2316,7 @@ function hasSourceExports(sources) {
   return sources.prometheus.length > 0
     || sources.dcgm.length > 0
     || sources.kubernetes.length > 0
+    || sources.scheduler.length > 0
     || sources.ebpf.length > 0
     || sources.provider.length > 0
     || sources.opportunities.length > 0;
@@ -2188,6 +2475,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
   const opportunityRows = (opportunityEngine.opportunities || []).slice(0, 6);
   const simulatorRows = (schedulerSimulator?.scenarios || []).slice(0, 3);
   const recommendedScenario = schedulerSimulator?.recommended || simulatorRows[0];
+  const schedulerEvidence = schedulerEvidenceSummaryLine(summary);
   const sourceRows = redactedSourceRows(summary, plan).slice(0, 10);
   const lines = [
     "# turbalance Evidence Pack",
@@ -2238,6 +2526,8 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
     ]),
     "## Scheduler / Capacity What-If",
     "",
+    schedulerEvidence,
+    "",
     "| Scenario | Dollar Upside | GPU-Hour Recovery | Queue Saved | Useful Compute | Action |",
     "| --- | --- | --- | --- | --- | --- |",
     ...simulatorRows.map((scenario) => [
@@ -2264,7 +2554,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
     "",
     "## Handling Notes",
     "",
-    "- This pack preserves numeric evidence and recommendations while redacting run, tenant, account, reservation, provider, Kubernetes, and eBPF source identifiers.",
+    "- This pack preserves numeric evidence and recommendations while redacting run, tenant, account, reservation, provider, scheduler, Kubernetes, and eBPF source identifiers.",
     "- Opportunity dollar values are prioritization estimates; categories can overlap and should not be summed as audited accounting.",
     "- Validate the top action against the underlying source system before making a customer or capacity commitment.",
     ""
@@ -2335,6 +2625,24 @@ function markdownText(value) {
   return String(value || "n/a").replace(/\s+/g, " ").trim();
 }
 
+function schedulerEvidenceSummaryLine(summary) {
+  const evidence = summary.schedulerEvidence || {};
+  if (numeric(evidence.sourceCount) <= 0) {
+    return "Evidence: no scheduler event overlay attached; estimates use normalized queue, placement, and topology metrics.";
+  }
+
+  const parts = [
+    `${number.format(evidence.sourceCount)} scheduler source ${evidence.sourceCount === 1 ? "record" : "records"}`,
+    `${number.format(evidence.eventCount)} events`
+  ];
+
+  if (numeric(evidence.placementRetries) > 0) parts.push(`${number.format(evidence.placementRetries)} placement retries`);
+  if (numeric(evidence.localityMisses) > 0) parts.push(`${number.format(evidence.localityMisses)} locality misses`);
+  if (numeric(evidence.preemptionCount) > 0) parts.push(`${number.format(evidence.preemptionCount)} preemptions`);
+
+  return `Evidence: ${parts.join(", ")}.`;
+}
+
 function safeFileSlug(value) {
   return String(value || "selection")
     .toLowerCase()
@@ -2379,6 +2687,7 @@ function redactWorkspaceStore(store) {
     "commercial contract ids",
     "support ticket ids",
     "provider and eBPF source context",
+    "scheduler source context",
     "imported opportunity free text"
     ]
   };
@@ -2406,7 +2715,14 @@ function buildRedactionPlan(store) {
     cgroupPaths: buildValueMap(runs.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
     providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
     billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
-    reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window")
+    reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
+    schedulerExports: buildValueMap(runs.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
+    schedulerNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
+    schedulerQueues: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
+    priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
+    admissionClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
+    requestedGpuShapes: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
+    localityPreferences: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality")
   };
 
   Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
@@ -2461,6 +2777,7 @@ function redactRun(run, plan) {
     refs: redactRefs(run.refs || {}, plan),
     commercial: redactCommercial(run.commercial || {}, plan),
     slo: redactSlo(run.slo || {}, plan),
+    schedulerEvidence: redactSchedulerEvidence(run.schedulerEvidence || {}, plan),
     opportunities: redactOpportunities(run.opportunities || []),
     sourceContext: redactSourceContext(run.sourceContext || {}, plan)
   };
@@ -2507,6 +2824,26 @@ function redactOpportunities(opportunities = []) {
   }));
 }
 
+function redactSchedulerEvidence(evidence = {}, plan) {
+  if (!isPlainObject(evidence)) return {};
+
+  return compactObject({
+    ...evidence,
+    schedulerName: mappedValue(plan.schedulerNames, evidence.schedulerName, "scheduler"),
+    queueName: mappedValue(plan.schedulerQueues, evidence.queueName, "queue"),
+    priorityClass: mappedValue(plan.priorityClasses, evidence.priorityClass, "priority"),
+    admissionClass: mappedValue(plan.admissionClasses, evidence.admissionClass, "admission"),
+    requestedGpuShape: mappedValue(plan.requestedGpuShapes, evidence.requestedGpuShape, "shape"),
+    localityPreference: mappedValue(plan.localityPreferences, evidence.localityPreference, "locality"),
+    schedulerNames: redactValueList(plan.schedulerNames, evidence.schedulerNames, "scheduler"),
+    queueNames: redactValueList(plan.schedulerQueues, evidence.queueNames, "queue"),
+    priorityClasses: redactValueList(plan.priorityClasses, evidence.priorityClasses, "priority"),
+    admissionClasses: redactValueList(plan.admissionClasses, evidence.admissionClasses, "admission"),
+    requestedGpuShapes: redactValueList(plan.requestedGpuShapes, evidence.requestedGpuShapes, "shape"),
+    localityPreferences: redactValueList(plan.localityPreferences, evidence.localityPreferences, "locality")
+  });
+}
+
 function redactSourceContext(context, plan) {
   return compactObject({
     ...context,
@@ -2521,7 +2858,14 @@ function redactSourceContext(context, plan) {
     cgroupPath: mappedValue(plan.cgroupPaths, context.cgroupPath, "cgroup"),
     providerExportId: mappedValue(plan.providerExports, context.providerExportId, "provider-export"),
     billingAccountId: mappedValue(plan.billingAccounts, context.billingAccountId, "billing-account"),
-    reservationWindow: mappedValue(plan.reservationWindows, context.reservationWindow, "reservation-window")
+    reservationWindow: mappedValue(plan.reservationWindows, context.reservationWindow, "reservation-window"),
+    schedulerExportId: mappedValue(plan.schedulerExports, context.schedulerExportId, "scheduler-export"),
+    schedulerName: mappedValue(plan.schedulerNames, context.schedulerName, "scheduler"),
+    queueName: mappedValue(plan.schedulerQueues, context.queueName, "queue"),
+    priorityClass: mappedValue(plan.priorityClasses, context.priorityClass, "priority"),
+    admissionClass: mappedValue(plan.admissionClasses, context.admissionClass, "admission"),
+    requestedGpuShape: mappedValue(plan.requestedGpuShapes, context.requestedGpuShape, "shape"),
+    localityPreference: mappedValue(plan.localityPreferences, context.localityPreference, "locality")
   });
 }
 
@@ -2565,6 +2909,18 @@ function buildValueMap(values, prefix) {
       }
     });
   return map;
+}
+
+function flattenRunValues(runs, getter) {
+  return runs.flatMap((run) => {
+    const value = getter(run);
+    return Array.isArray(value) ? value : [value];
+  });
+}
+
+function redactValueList(map, values, prefix) {
+  if (!Array.isArray(values)) return undefined;
+  return values.map((value) => mappedValue(map, value, prefix)).filter(Boolean);
 }
 
 function buildEntityValueMap(entityMap, refValues, prefix) {
@@ -2826,6 +3182,7 @@ function summarizeEntry(entry) {
     },
     provider: summarizeProviderFields(items),
     slo: summarizeSloFields(items),
+    schedulerEvidence: summarizeSchedulerEvidence(items),
     placement: mergePlacement(items),
     traceAttribution: mergeTraceAttribution(items),
     importedOpportunities: mergeImportedOpportunities(items),
@@ -4105,6 +4462,35 @@ function summarizeSloFields(items) {
     supportTickets: knownLabels(items.map((job) => job.slo?.supportTicketId), "No ticket"),
     targetStartMinutes: weightedOptionalAverage(items, (job) => job.slo?.targetStartMinutes, "allocatedGpuHours"),
     targetEfficiency: weightedOptionalAverage(items, (job) => job.slo?.targetEfficiency, "allocatedGpuHours")
+  };
+}
+
+function summarizeSchedulerEvidence(items) {
+  const evidenceItems = items
+    .map((job) => job.schedulerEvidence)
+    .filter((evidence) => isPlainObject(evidence) && Object.keys(evidence).length > 0);
+
+  if (evidenceItems.length === 0) {
+    return { sourceCount: 0 };
+  }
+
+  return {
+    sourceCount: evidenceItems.length,
+    schedulerNames: knownLabels(evidenceItems.map((evidence) => evidence.schedulerName), "Unknown scheduler"),
+    queueNames: knownLabels(evidenceItems.map((evidence) => evidence.queueName), "Unknown queue"),
+    priorityClasses: knownLabels(evidenceItems.map((evidence) => evidence.priorityClass), "Unknown priority"),
+    admissionClasses: knownLabels(evidenceItems.map((evidence) => evidence.admissionClass), "Unknown admission"),
+    requestedGpuShapes: knownLabels(evidenceItems.map((evidence) => evidence.requestedGpuShape), "Unknown shape"),
+    localityPreferences: knownLabels(evidenceItems.map((evidence) => evidence.localityPreference), "No locality preference"),
+    eventCount: sum(evidenceItems, "eventCount"),
+    admissionAttempts: sum(evidenceItems, "admissionAttempts"),
+    preemptionCount: sum(evidenceItems, "preemptionCount"),
+    placementRetries: sum(evidenceItems, "placementRetries"),
+    localityMisses: sum(evidenceItems, "localityMisses"),
+    backfillCandidates: sum(evidenceItems, "backfillCandidates"),
+    pendingJobsAhead: sum(evidenceItems, "pendingJobsAhead"),
+    pendingGpuHoursAhead: sum(evidenceItems, "pendingGpuHoursAhead"),
+    gpusPerNode: weightedOptionalAverage(items, (job) => job.schedulerEvidence?.gpusPerNode, "allocatedGpuHours")
   };
 }
 

@@ -25,7 +25,7 @@ When an eBPF host overlay is present, treat higher network wait, storage wait, C
 
 Use the Scheduler Simulator before choosing a capacity action. The `Recommended` view picks the strongest local scenario, while `Repack`, `Locality`, and `Queue SLO` compare specific scheduler moves by GPU-hour recovery, dollar upside, queue minutes saved, and projected placement fit.
 
-Treat the scenarios as directional planning estimates. Validate the selected move against topology, NCCL attribution, provider SLO context, and imported opportunity evidence before changing production policy.
+When a scheduler overlay is present, use its queue, admission, placement-retry, locality-miss, preemption, and backfill evidence to explain why the simulator prefers one move. Treat the scenarios as directional planning estimates. Validate the selected move against topology, NCCL attribution, provider SLO context, and imported opportunity evidence before changing production policy.
 
 ## Compare Against Baseline
 

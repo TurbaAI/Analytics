@@ -14,6 +14,7 @@ const providerFixture = readJson("fixtures/neo-cloud-provider-bundle.json");
 const providerTemplate = readJson("fixtures/provider-overlay-template.json");
 const providerExportBilling = readJson("fixtures/provider-export-inputs/billing-records.json");
 const ebpfExportInput = readJson("fixtures/ebpf-export-inputs/host-samples.json");
+const schedulerExportInput = readJson("fixtures/scheduler-export-inputs/scheduler-events.json");
 
 assert.equal(ingestionSchema.properties.schemaVersion.const, "turba.ingestion.v1");
 assert.equal(sourceBundleSchema.$id, "https://turba.analytics/schemas/turba-source-bundle.v1.schema.json");
@@ -34,18 +35,23 @@ assert.equal(workspaceFixture.storageSchemaVersion, workspaceSchema.properties.s
 assert.equal(workspaceFixture.ingestion.schemaVersion, ingestionSchema.properties.schemaVersion.const);
 assert.ok(Array.isArray(sourceFixture.sources.prometheus));
 assert.ok(Array.isArray(sourceFixture.sources.provider));
+assert.ok(Array.isArray(sourceFixture.sources.scheduler));
 assert.ok(Array.isArray(sourceFixture.sources.ebpf));
 assert.ok(Array.isArray(sourceFixture.sources.opportunities));
 assert.ok(Array.isArray(sourceFixture.ncclTraces));
 assert.ok(sourceBundleSchema.properties.sources.$ref.includes("sourceExports"));
 assert.ok(sourceBundleSchema.properties.sourceExports.$ref.includes("sourceExports"));
 assert.ok(sourceBundleSchema.$defs.sourceExports.properties.ebpf.items.$ref.includes("ebpfSample"));
+assert.ok(sourceBundleSchema.$defs.sourceExports.properties.scheduler.items.$ref.includes("schedulerSample"));
 assert.ok(sourceBundleSchema.$defs.sourceExports.properties.provider.items.$ref.includes("providerSample"));
 assert.ok(sourceBundleSchema.$defs.sourceExports.properties.opportunities.items.$ref.includes("opportunitySample"));
 assert.ok(sourceBundleSchema.$defs.sourceExports.properties.ncclTraces.items.$ref.includes("traceSample"));
 assert.ok(sourceBundleSchema.$defs.ebpfSample.required.includes("runId"));
 assert.ok(sourceBundleSchema.$defs.ebpfSample.properties.network);
 assert.ok(sourceBundleSchema.$defs.ebpfSample.properties.storage);
+assert.ok(sourceBundleSchema.$defs.schedulerSample.required.includes("runId"));
+assert.ok(sourceBundleSchema.$defs.schedulerSample.properties.events);
+assert.ok(sourceBundleSchema.$defs.schedulerSample.properties.queueName);
 assert.ok(sourceBundleSchema.$defs.providerSample.required.includes("runId"));
 assert.ok(sourceBundleSchema.$defs.opportunitySample.required.includes("runId"));
 assert.ok(sourceBundleSchema.$defs.traceSample.required.includes("runId"));
@@ -53,6 +59,7 @@ assert.ok(sourceBundleSchema.$defs.providerSample.properties.commercial.$ref.inc
 assert.ok(sourceBundleSchema.$defs.providerSample.properties.slo.$ref.includes("slo"));
 assert.ok(ingestionSchema.properties.entities.properties.tenants);
 assert.ok(ingestionSchema.properties.runs.items.properties.sourceContext);
+assert.ok(ingestionSchema.properties.runs.items.properties.schedulerEvidence);
 assert.ok(ingestionSchema.properties.runs.items.properties.opportunities.items.$ref.includes("opportunity"));
 assert.ok(ingestionSchema.properties.runs.items.properties.commercial);
 assert.ok(ingestionSchema.properties.runs.items.properties.slo);
@@ -61,13 +68,16 @@ assert.ok(workspaceSchema.properties.snapshots.items.properties.scope.enum.inclu
 assert.ok(workspaceSchema.properties.snapshots.items.properties.scope.enum.includes("reservation"));
 assert.equal(providerFixture.ingestion.schemaVersion, ingestionSchema.properties.schemaVersion.const);
 assert.ok(Array.isArray(providerFixture.sources.provider));
+assert.ok(Array.isArray(providerFixture.sources.scheduler));
 assert.ok(Array.isArray(providerFixture.sources.ebpf));
 assert.ok(Array.isArray(providerFixture.sources.opportunities));
 assert.ok(Array.isArray(providerTemplate.sources.provider));
+assert.ok(Array.isArray(providerTemplate.sources.scheduler));
 assert.ok(Array.isArray(providerTemplate.sources.opportunities));
 assert.equal(providerTemplate.sources.provider[0].runId, "replace-with-run-id");
 assert.equal(providerExportBilling[0].providerExportId, "billing-2026-05-week-4");
 assert.equal(providerExportBilling[0].contractId, "ctr-apex-2026-q2");
 assert.equal(ebpfExportInput[0].ebpfExportId, "ebpf-2026-05-week-4");
+assert.equal(schedulerExportInput[0].schedulerExportId, "sched-2026-05-week-4");
 
 console.log("schema tests passed");

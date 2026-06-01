@@ -24,8 +24,10 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "scripts/build-provider-overlay.js",
+  "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
   "fixtures/provider-overlay-template.json",
+  "fixtures/scheduler-export-inputs/scheduler-events.json",
   "fixtures/ebpf-export-inputs/host-samples.json",
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
   ".github/workflows/ci.yml",
@@ -51,10 +53,12 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "scripts/build-provider-overlay.js",
+  "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
   "node tests/run-all.js",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
+  "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/evidence-pack-export.test.js",
   "tests/source-bundle-validation.test.js",
@@ -77,9 +81,11 @@ assert.ok(dataContract.includes("turba.ingestion.v1"));
 assert.ok(dataContract.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(dataContract.includes("turba.workspace.v2"));
 assert.ok(dataContract.includes("sources.provider"));
+assert.ok(dataContract.includes("sources.scheduler"));
 assert.ok(dataContract.includes("sources.ebpf"));
 assert.ok(dataContract.includes("sources.opportunities"));
 assert.ok(dataContract.includes("Opportunity Overlay"));
+assert.ok(dataContract.includes("Scheduler Event Overlay"));
 assert.ok(dataContract.includes("Scheduler Simulator"));
 assert.ok(dataContract.includes("Markdown evidence pack"));
 assert.ok(dataContract.includes("eBPF Host Overlay"));
@@ -96,8 +102,10 @@ assert.ok(telemetry.includes("NCCL"));
 assert.ok(telemetry.includes("Provider Commercial Overlay"));
 assert.ok(telemetry.includes("sources.ebpf"));
 assert.ok(telemetry.includes("sources.provider"));
+assert.ok(telemetry.includes("sources.scheduler"));
 assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
+assert.ok(telemetry.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
 
 const providerFit = read("docs/neo-cloud-provider-fit.md");
@@ -105,6 +113,7 @@ assert.ok(providerFit.includes("Neo-Cloud Provider Fit"));
 assert.ok(providerFit.includes("Sellable waste value"));
 assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
+assert.ok(providerFit.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerFit.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(providerFit.includes("Opportunity Engine"));
 assert.ok(providerFit.includes("Scheduler Simulator"));
@@ -115,10 +124,12 @@ assert.ok(providerFit.includes("Lambda"));
 const providerTemplate = read("docs/provider-export-template.md");
 assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
+assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerTemplate.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(providerTemplate.includes("Kubernetes Join Keys"));
 assert.ok(providerTemplate.includes("Slurm Join Keys"));
 assert.ok(providerTemplate.includes("sources.ebpf"));
+assert.ok(providerTemplate.includes("sources.scheduler"));
 assert.ok(providerTemplate.includes("sources.opportunities"));
 assert.ok(providerTemplate.includes("redacted workspace export"));
 
@@ -127,6 +138,7 @@ assert.ok(pilotValidation.includes("Tenant"));
 assert.ok(pilotValidation.includes("Reservation"));
 assert.ok(pilotValidation.includes("redacted workspace"));
 assert.ok(pilotValidation.includes("build-ebpf-overlay.js"));
+assert.ok(pilotValidation.includes("build-scheduler-overlay.js"));
 assert.ok(pilotValidation.includes("Opportunity Engine"));
 assert.ok(pilotValidation.includes("Scheduler Simulator"));
 assert.ok(pilotValidation.includes("evidence pack"));
@@ -136,6 +148,7 @@ const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
 assert.ok(demoScript.includes("build-ebpf-overlay.js"));
+assert.ok(demoScript.includes("build-scheduler-overlay.js"));
 assert.ok(demoScript.includes("Opportunity Engine"));
 assert.ok(demoScript.includes("Capacity what-if"));
 assert.ok(demoScript.includes("evidence pack"));
@@ -146,6 +159,7 @@ const demoRelease = read("docs/demo-release-checklist.md");
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
+assert.ok(demoRelease.includes("build-scheduler-overlay.js"));
 assert.ok(demoRelease.includes("Opportunity Engine"));
 assert.ok(demoRelease.includes("Scheduler Simulator"));
 assert.ok(demoRelease.includes("evidence pack"));

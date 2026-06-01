@@ -16,14 +16,17 @@ assert.equal(fixture.ingestion.entities.tenants["apex-ai"].label, "Apex AI");
 assert.equal(fixture.ingestion.entities.reservations["rsv-h100-frontier-q2"].label, "H100 Frontier Q2");
 assert.ok(Array.isArray(fixture.sources.provider));
 assert.ok(Array.isArray(fixture.sources.prometheus));
+assert.ok(Array.isArray(fixture.sources.scheduler));
 assert.ok(Array.isArray(fixture.sources.ebpf));
 assert.ok(Array.isArray(fixture.sources.opportunities));
 assert.equal(fixture.sources.provider.length, 2);
+assert.equal(fixture.sources.scheduler.length, 2);
 assert.equal(fixture.sources.ebpf.length, 2);
 assert.equal(fixture.sources.opportunities.length, 2);
 
 const providerRun = fixture.ingestion.runs.find((run) => run.id === "provider-run-9001");
 const providerOverlay = fixture.sources.provider.find((sample) => sample.runId === "provider-run-9001");
+const schedulerOverlay = fixture.sources.scheduler.find((sample) => sample.runId === "provider-run-9001");
 const ebpfOverlay = fixture.sources.ebpf.find((sample) => sample.runId === "provider-run-9001");
 const opportunityOverlay = fixture.sources.opportunities.find((sample) => sample.runId === "provider-run-9001");
 
@@ -33,6 +36,9 @@ assert.equal(providerOverlay.commercial.billingModel, "reserved-cluster");
 assert.equal(providerOverlay.commercial.customerTier, "strategic");
 assert.equal(providerOverlay.slo.priority, "p1");
 assert.equal(providerOverlay.slo.supportTicketId, "CS-2044");
+assert.equal(schedulerOverlay.schedulerExportId, "sched-2026-05-week-4");
+assert.equal(schedulerOverlay.placementRetries, 8);
+assert.equal(schedulerOverlay.localityMisses, 4);
 assert.equal(ebpfOverlay.ebpfExportId, "ebpf-2026-05-week-4");
 assert.equal(ebpfOverlay.network.tcpRetransmitPct, 3.2);
 assert.equal(ebpfOverlay.storage.blockIoLatencyMsP95, 7);
@@ -85,5 +91,29 @@ const opportunityEngine = analytics.generateOpportunities({
   sourceItems: [providerRun]
 }, { provider: economics, rate: providerOverlay.commercial.listGpuHourRate });
 assert.ok(opportunityEngine.opportunities.some((opportunity) => opportunity.title === "Move Apex pretraining into a single pod admission window"));
+
+const schedulerSimulator = analytics.simulateSchedulerScenarios({
+  ...finalized,
+  gpus: providerRun.allocation.gpus,
+  placementQuality: providerRun.scheduler.placementQuality,
+  partialNodes: providerRun.scheduler.partialNodes,
+  idleGpus: providerRun.scheduler.idleGpus,
+  crossPodTraffic: providerRun.communication.crossPodTraffic,
+  crossRackTraffic: providerRun.communication.crossRackTraffic,
+  ncclTime: providerRun.communication.ncclTime,
+  provider: providerOverlay.commercial,
+  slo: providerOverlay.slo,
+  schedulerEvidence: {
+    eventCount: schedulerOverlay.events.length,
+    placementRetries: schedulerOverlay.placementRetries,
+    localityMisses: schedulerOverlay.localityMisses,
+    backfillCandidates: schedulerOverlay.backfillCandidates,
+    pendingJobsAhead: schedulerOverlay.pendingJobsAhead,
+    pendingGpuHoursAhead: schedulerOverlay.pendingGpuHoursAhead,
+    gpusPerNode: schedulerOverlay.gpusPerNode
+  }
+}, { rate: providerOverlay.commercial.listGpuHourRate });
+assert.ok(schedulerSimulator.recommended.evidence.includes("Scheduler evidence"));
+assert.ok(schedulerSimulator.scenarios.some((scenario) => scenario.sourceEvidence.schedulerEvents > 0));
 
 console.log("neo-cloud provider fixture tests passed");

@@ -101,11 +101,20 @@
 
   function simulateSchedulerScenarios(summary, options = {}) {
     const rate = firstPositive(options.rate, options.listGpuHourRate, summary.provider?.listGpuHourRate);
+    const schedulerEvidence = summary.schedulerEvidence || {};
+    const gpusPerNode = firstPositive(options.gpusPerNode, schedulerEvidence.gpusPerNode, 8);
     const durationHours = numeric(summary.gpus) > 0 ? numeric(summary.allocatedGpuHours) / numeric(summary.gpus) : 0;
-    const partialNodeGpuHours = numeric(summary.partialNodes) * durationHours * numeric(options.gpusPerNode, 8) * 0.5;
+    const partialNodeGpuHours = numeric(summary.partialNodes) * durationHours * gpusPerNode * 0.5;
     const idleGpuHours = numeric(summary.idleGpus) * durationHours;
     const strandedGpuHours = Math.max(0, partialNodeGpuHours + idleGpuHours);
     const queueSloMinutes = numeric(summary.slo?.targetStartMinutes);
+    const schedulerEventCount = numeric(schedulerEvidence.eventCount);
+    const preemptionCount = numeric(schedulerEvidence.preemptionCount);
+    const placementRetries = numeric(schedulerEvidence.placementRetries);
+    const localityMisses = numeric(schedulerEvidence.localityMisses);
+    const backfillCandidates = numeric(schedulerEvidence.backfillCandidates);
+    const pendingJobsAhead = numeric(schedulerEvidence.pendingJobsAhead);
+    const pendingGpuHoursAhead = numeric(schedulerEvidence.pendingGpuHoursAhead);
     const current = {
       usefulCompute: numeric(summary.usefulCompute),
       queueWaitMinutes: numeric(summary.queueWaitMinutes),
@@ -120,39 +129,39 @@
         id: "repack",
         label: "Repack partial nodes",
         owner: "Capacity planning",
-        queueReduction: clamp(4 + current.queueWaitMinutes * 0.18 + numeric(summary.partialNodes) * 1.8, 3, 18),
-        placementLift: clamp(5 + numeric(summary.partialNodes) * 5 + numeric(summary.idleGpus) * 0.6, 5, 26),
+        queueReduction: clamp(4 + current.queueWaitMinutes * 0.18 + numeric(summary.partialNodes) * 1.8 + backfillCandidates * 0.35, 3, 22),
+        placementLift: clamp(5 + numeric(summary.partialNodes) * 5 + numeric(summary.idleGpus) * 0.6 + placementRetries * 0.45, 5, 30),
         crossPodReductionPct: 18,
         crossRackReductionPct: 12,
         strandedRecoveryPct: 58,
-        usefulLift: clamp(2 + numeric(summary.partialNodes) * 1.4 + current.queueWaitMinutes * 0.04, 2, 12),
-        confidence: confidenceFromSignals([summary.partialNodes, summary.idleGpus, summary.queueWaitMinutes, summary.placementQuality]),
+        usefulLift: clamp(2 + numeric(summary.partialNodes) * 1.4 + current.queueWaitMinutes * 0.04 + backfillCandidates * 0.12, 2, 14),
+        confidence: confidenceFromSignals([summary.partialNodes, summary.idleGpus, summary.queueWaitMinutes, summary.placementQuality, placementRetries, backfillCandidates, schedulerEventCount]),
         action: "Defragment partial nodes and backfill smaller work only after contiguous GPU blocks are protected."
       },
       {
         id: "locality",
         label: "Reserve locality group",
         owner: "Scheduler + network",
-        queueReduction: clamp(2 + current.queueWaitMinutes * 0.1, 2, 12),
-        placementLift: clamp(8 + current.crossPodTraffic * 0.36 + Math.max(0, 72 - current.placementQuality) * 0.14, 8, 32),
-        crossPodReductionPct: clamp(58 + current.crossPodTraffic * 0.3, 58, 86),
+        queueReduction: clamp(2 + current.queueWaitMinutes * 0.1 + localityMisses * 0.2, 2, 14),
+        placementLift: clamp(8 + current.crossPodTraffic * 0.36 + Math.max(0, 72 - current.placementQuality) * 0.14 + localityMisses * 0.5, 8, 36),
+        crossPodReductionPct: clamp(58 + current.crossPodTraffic * 0.3 + localityMisses * 0.35, 58, 90),
         crossRackReductionPct: clamp(26 + current.crossRackTraffic * 0.16, 26, 62),
         strandedRecoveryPct: 28,
-        usefulLift: clamp(3 + current.crossPodTraffic * 0.12 + numeric(summary.ncclTime) * 0.08, 3, 18),
-        confidence: confidenceFromSignals([summary.crossPodTraffic, summary.crossRackTraffic, summary.ncclTime, summary.networkWait, summary.traceAttribution?.eventCount]),
+        usefulLift: clamp(3 + current.crossPodTraffic * 0.12 + numeric(summary.ncclTime) * 0.08 + localityMisses * 0.12, 3, 20),
+        confidence: confidenceFromSignals([summary.crossPodTraffic, summary.crossRackTraffic, summary.ncclTime, summary.networkWait, summary.traceAttribution?.eventCount, localityMisses, schedulerEventCount]),
         action: "Admit repeated high-value jobs into a same-pod or same-rack locality group before burst tenants consume the shape."
       },
       {
         id: "priority",
         label: "Protect SLO queue",
         owner: "Provider operations",
-        queueReduction: clamp(current.queueWaitMinutes - Math.max(0, queueSloMinutes || current.queueWaitMinutes * 0.55), 4, 28),
-        placementLift: clamp(4 + numeric(summary.provider?.committedGpuHours) / 2000, 4, 16),
+        queueReduction: clamp(current.queueWaitMinutes - Math.max(0, queueSloMinutes || current.queueWaitMinutes * 0.55) + preemptionCount * 0.7 + pendingJobsAhead * 0.15, 4, 34),
+        placementLift: clamp(4 + numeric(summary.provider?.committedGpuHours) / 2000 + pendingGpuHoursAhead / 5000, 4, 18),
         crossPodReductionPct: 22,
         crossRackReductionPct: 16,
         strandedRecoveryPct: 34,
-        usefulLift: clamp(2 + Math.max(0, current.queueWaitMinutes - queueSloMinutes) * 0.15, 2, 14),
-        confidence: confidenceFromSignals([summary.queueWaitMinutes, summary.slo?.targetStartMinutes, summary.provider?.committedGpuHours, summary.provider?.billableGpuHours]),
+        usefulLift: clamp(2 + Math.max(0, current.queueWaitMinutes - queueSloMinutes) * 0.15 + preemptionCount * 0.12, 2, 16),
+        confidence: confidenceFromSignals([summary.queueWaitMinutes, summary.slo?.targetStartMinutes, summary.provider?.committedGpuHours, summary.provider?.billableGpuHours, preemptionCount, pendingJobsAhead, schedulerEventCount]),
         action: "Reserve admission windows for priority reservations and delay lower-value burst work when queue SLO burn is rising."
       }
     ];
@@ -169,6 +178,7 @@
   }
 
   function finalizeSchedulerScenario(summary, current, scenario, rate) {
+    const schedulerEvidence = summary.schedulerEvidence || {};
     const queueWaitMinutes = Math.max(0, current.queueWaitMinutes - scenario.queueReduction);
     const placementQuality = clamp(current.placementQuality + scenario.placementLift);
     const crossPodTraffic = clamp(current.crossPodTraffic * (1 - scenario.crossPodReductionPct / 100));
@@ -202,8 +212,30 @@
       recoveredWasteGpuHours,
       dollarUpside,
       priorityScore,
-      evidence: `${round(recoveredGpuHours)} GPU-hours recoverable, ${round(queueMinutesSaved)} queue minutes saved, ${pct(placementQuality)} placement fit projected.`
+      sourceEvidence: {
+        schedulerEvents: numeric(schedulerEvidence.eventCount),
+        placementRetries: numeric(schedulerEvidence.placementRetries),
+        localityMisses: numeric(schedulerEvidence.localityMisses),
+        preemptions: numeric(schedulerEvidence.preemptionCount),
+        pendingJobsAhead: numeric(schedulerEvidence.pendingJobsAhead)
+      },
+      evidence: `${round(recoveredGpuHours)} GPU-hours recoverable, ${round(queueMinutesSaved)} queue minutes saved, ${pct(placementQuality)} placement fit projected.${schedulerEvidenceNote(schedulerEvidence)}`
     };
+  }
+
+  function schedulerEvidenceNote(evidence = {}) {
+    const eventCount = numeric(evidence.eventCount);
+    if (eventCount <= 0) return "";
+
+    const parts = [
+      `${round(eventCount)} scheduler events`
+    ];
+
+    if (numeric(evidence.placementRetries) > 0) parts.push(`${round(evidence.placementRetries)} placement retries`);
+    if (numeric(evidence.localityMisses) > 0) parts.push(`${round(evidence.localityMisses)} locality misses`);
+    if (numeric(evidence.preemptionCount) > 0) parts.push(`${round(evidence.preemptionCount)} preemptions`);
+
+    return ` Scheduler evidence: ${parts.join(", ")}.`;
   }
 
   function summarizeTrend(points = [], options = {}) {

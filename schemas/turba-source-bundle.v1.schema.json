@@ -8,6 +8,7 @@
     { "required": ["sources"] },
     { "required": ["sourceExports"] },
     { "required": ["runs"] },
+    { "required": ["scheduler"] },
     { "required": ["opportunities"] },
     { "required": ["ncclTraces"] },
     { "required": ["traces"] },
@@ -34,6 +35,10 @@
     "opportunities": {
       "type": "array",
       "items": { "$ref": "#/$defs/opportunitySample" }
+    },
+    "scheduler": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/schedulerSample" }
     },
     "ncclTraces": {
       "type": "array",
@@ -64,6 +69,10 @@
         "kubernetes": {
           "type": "array",
           "items": { "$ref": "#/$defs/kubernetesSample" }
+        },
+        "scheduler": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/schedulerSample" }
         },
         "ebpf": {
           "type": "array",
@@ -120,6 +129,60 @@
         "metrics": {
           "type": "object",
           "additionalProperties": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "schedulerSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "schedulerExportId": { "type": "string" },
+        "schedulerName": { "type": "string" },
+        "queueName": { "type": "string" },
+        "priorityClass": { "type": "string" },
+        "admissionClass": { "type": "string" },
+        "requestedGpuShape": { "type": "string" },
+        "localityPreference": { "type": "string" },
+        "queuedAt": { "type": "string" },
+        "admittedAt": { "type": "string" },
+        "startedAt": { "type": "string" },
+        "queueWaitMinutes": { "type": "number", "minimum": 0 },
+        "placementQuality": { "type": "number", "minimum": 0, "maximum": 100 },
+        "idleGpus": { "type": "number", "minimum": 0 },
+        "partialNodes": { "type": "number", "minimum": 0 },
+        "preemptionCount": { "type": "number", "minimum": 0 },
+        "placementRetries": { "type": "number", "minimum": 0 },
+        "localityMisses": { "type": "number", "minimum": 0 },
+        "backfillCandidates": { "type": "number", "minimum": 0 },
+        "pendingJobsAhead": { "type": "number", "minimum": 0 },
+        "pendingGpuHoursAhead": { "type": "number", "minimum": 0 },
+        "gpusPerNode": { "type": "number", "minimum": 1 },
+        "targetStartMinutes": { "type": "number", "minimum": 0 },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "events": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

@@ -179,6 +179,38 @@ Expected fields:
 }
 ```
 
+## Scheduler Event Overlay
+
+Use `sources.scheduler` for Slurm, Kubernetes scheduler, Kueue, Volcano, Run:ai, or internal admission-controller exports. The adapter expects records keyed by `runId` and accepts direct metrics, timestamps, and event summaries:
+
+- `schedulerExportId`
+- `schedulerName`
+- `queueName`
+- `priorityClass`
+- `admissionClass`
+- `requestedGpuShape`
+- `localityPreference`
+- `queuedAt`, `admittedAt`, `startedAt`
+- `queueWaitMinutes`
+- `placementQuality`
+- `idleGpus`, `partialNodes`
+- `preemptionCount`
+- `placementRetries`
+- `localityMisses`
+- `backfillCandidates`
+- `pendingJobsAhead`
+- `pendingGpuHoursAhead`
+- `gpusPerNode`
+- `events`
+
+`scripts/build-scheduler-overlay.js` is a concrete exporter example:
+
+```sh
+node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs > scheduler-overlay.json
+```
+
+The importer uses this evidence to strengthen Scheduler Simulator confidence and to explain whether repack, locality reservation, or queue-SLO protection is the better next action.
+
 ## Provider Commercial Overlay
 
 Neo-cloud provider billing, reservation, and support context should use `sources.provider`. This source is intentionally separate from Prometheus, DCGM, Kubernetes, and NCCL traces so operators can import redacted tenant metadata without exposing live billing systems to the browser prototype.

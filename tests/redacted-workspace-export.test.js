@@ -65,6 +65,15 @@ const store = {
         allocation: { allocatedGpuHours: 10 },
         commercial: { contractId: "secret-contract", listGpuHourRate: 6.8 },
         slo: { supportTicketId: "secret-ticket" },
+        schedulerEvidence: {
+          schedulerName: "secret-scheduler",
+          queueName: "secret-queue",
+          priorityClass: "secret-priority",
+          admissionClass: "secret-admission",
+          requestedGpuShape: "secret-shape",
+          localityPreference: "secret-locality",
+          eventCount: 4
+        },
         opportunities: [
           {
             id: "secret-opportunity",
@@ -91,7 +100,14 @@ const store = {
           cgroupPath: "secret-cgroup",
           providerExportId: "secret-export",
           billingAccountId: "secret-billing",
-          reservationWindow: "secret-window"
+          reservationWindow: "secret-window",
+          schedulerExportId: "secret-scheduler-export",
+          schedulerName: "secret-scheduler",
+          queueName: "secret-queue",
+          priorityClass: "secret-priority",
+          admissionClass: "secret-admission",
+          requestedGpuShape: "secret-shape",
+          localityPreference: "secret-locality"
         }
       }
     ]
@@ -155,7 +171,14 @@ const serialized = JSON.stringify(redacted);
   "secret-container",
   "secret-cgroup",
   "secret-billing",
-  "secret-export"
+  "secret-export",
+  "secret-scheduler-export",
+  "secret-scheduler",
+  "secret-queue",
+  "secret-priority",
+  "secret-admission",
+  "secret-shape",
+  "secret-locality"
 ].forEach((secret) => {
   assert.ok(!serialized.includes(secret), `${secret} should be redacted`);
 });
@@ -165,6 +188,9 @@ assert.equal(redacted.ingestion.runs[0].id, "run-1");
 assert.equal(redacted.ingestion.runs[0].refs.tenant, "tenant-1");
 assert.equal(redacted.ingestion.runs[0].commercial.contractId, "contract-1");
 assert.equal(redacted.ingestion.runs[0].slo.supportTicketId, "ticket-1");
+assert.equal(redacted.ingestion.runs[0].schedulerEvidence.schedulerName, "scheduler-1");
+assert.equal(redacted.ingestion.runs[0].schedulerEvidence.queueName, "queue-1");
+assert.equal(redacted.ingestion.runs[0].sourceContext.schedulerExportId, "scheduler-export-1");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].category, "Redacted Opportunity");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].title, "Redacted imported opportunity");
 assert.equal(redacted.ingestion.runs[0].opportunities[0].impactDollars, 1200);

@@ -9,7 +9,8 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 3. Keep `fixtures/external-source-bundle.json` ready for import.
 4. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
 5. Keep a generated provider overlay from `node scripts/build-provider-overlay.js fixtures/provider-export-inputs` ready if the audience wants exporter mechanics.
-6. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
+6. Keep a generated scheduler overlay from `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs` ready if the audience wants scheduler-event evidence mechanics.
+7. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
 
 ## Flow
 
@@ -20,7 +21,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 5. Use the bottleneck classifier to explain primary and secondary loss attribution.
 6. Scroll to topology and connect cross-pod placement to NCCL trace attribution.
 7. Toggle `Same-pod what-if` and describe the estimated improvement range.
-8. Use `Capacity what-if` to compare recommended, repack, locality, and queue-SLO scheduler scenarios.
+8. Use `Capacity what-if` to compare recommended, repack, locality, and queue-SLO scheduler scenarios, including event evidence when available.
 9. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
 10. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
 11. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
@@ -37,7 +38,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
+Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
 
 ## Do Not Claim
 

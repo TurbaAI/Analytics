@@ -49,6 +49,11 @@ assert.throws(
 );
 
 assert.throws(
+  () => context.buildIngestionFromExternalPayload({ sources: { scheduler: [{}] } }),
+  /sources\.scheduler\[1\] is missing runId\./
+);
+
+assert.throws(
   () => context.buildIngestionFromExternalPayload({ sources: { opportunities: [{}] } }),
   /sources\.opportunities\[1\] is missing runId\./
 );
@@ -61,6 +66,7 @@ assert.throws(
 const providerTemplate = JSON.parse(fs.readFileSync(path.join(__dirname, "../fixtures/provider-overlay-template.json"), "utf8"));
 const sourceBundle = context.buildIngestionFromExternalPayload(providerTemplate);
 assert.ok(sourceBundle.sourceAdapters.includes("provider"));
+assert.ok(sourceBundle.sourceAdapters.includes("scheduler"));
 assert.ok(sourceBundle.sourceAdapters.includes("opportunities"));
 
 const opportunityBundle = context.buildIngestionFromExternalPayload({
@@ -130,5 +136,49 @@ assert.ok(ebpfRun.inputPipeline.cpuPrep > 0);
 assert.equal(ebpfRun.reliability.noiseEvents, 2);
 assert.equal(ebpfRun.sourceContext.ebpfExportId, "ebpf-test");
 assert.equal(ebpfRun.sourceContext.cgroupPath, "/kubepods.slice/training/trainer-0");
+
+const schedulerBundle = context.buildIngestionFromExternalPayload({
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    runs: [
+      {
+        id: "run-scheduler",
+        name: "scheduler import",
+        allocation: { allocatedGpuHours: 10, gpus: 8 }
+      }
+    ]
+  },
+  sources: {
+    scheduler: [
+      {
+        runId: "run-scheduler",
+        schedulerExportId: "sched-test",
+        schedulerName: "kueue",
+        queueName: "training",
+        priorityClass: "p1",
+        requestedGpuShape: "1x8-h100",
+        queuedAt: "2026-05-30T10:00:00Z",
+        startedAt: "2026-05-30T10:22:00Z",
+        placementQuality: 61,
+        partialNodes: 1,
+        placementRetries: 3,
+        localityMisses: 2,
+        events: [
+          { type: "placement_retry" },
+          { type: "locality_miss" }
+        ]
+      }
+    ]
+  }
+});
+const schedulerRun = schedulerBundle.runs[0];
+assert.ok(schedulerBundle.sourceAdapters.includes("scheduler"));
+assert.equal(schedulerRun.scheduler.queueWaitMinutes, 22);
+assert.equal(schedulerRun.scheduler.placementQuality, 61);
+assert.equal(schedulerRun.schedulerEvidence.schedulerName, "kueue");
+assert.equal(schedulerRun.schedulerEvidence.eventCount, 2);
+assert.equal(schedulerRun.schedulerEvidence.placementRetries, 3);
+assert.equal(schedulerRun.sourceContext.schedulerExportId, "sched-test");
+assert.equal(schedulerRun.sourceContext.queueName, "training");
 
 console.log("source bundle validation tests passed");

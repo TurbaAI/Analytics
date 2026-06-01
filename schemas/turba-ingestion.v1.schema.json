@@ -43,6 +43,7 @@
           "work": { "type": "object" },
           "baseline": { "type": "object" },
           "placement": { "type": ["object", "array"] },
+          "schedulerEvidence": { "type": "object" },
           "traceAttribution": { "type": "object" },
           "sourceContext": { "type": "object" },
           "opportunities": {
