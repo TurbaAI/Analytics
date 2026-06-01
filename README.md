@@ -267,6 +267,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `fixtures/prometheus-collector-queries.json`: starter Prometheus/DCGM query map for live source export collection
 - `ops/pilot-provider.config.example.json`: managed deployment render config for a pilot provider
 - `ops/source-contracts.example.json`: source-owner endpoint/query contract template for pre-schedule validation
+- `ops/source-approvals.example.json`: source-owner approval manifest template for scheduled collector enablement
 - `fixtures/workspace-export.json`: canonical workspace export shape
 - `fixtures/provider-export-inputs/kubernetes-jobs.json`: provider exporter Kubernetes sample input
 - `fixtures/scheduler-export-inputs/scheduler-events.json`: scheduler exporter sample input
@@ -302,6 +303,7 @@ Focused test entry points:
 
 - `tests/analytics-core.test.js`: core efficiency, bottleneck, what-if, fingerprint, regression, trend, provider economics, scheduler simulation, and opportunity calculations
 - `tests/provider-image.test.js`: provider ingestion Dockerfile and build/publish dry-run
+- `tests/provider-config-generator.test.js`: provider pilot config generator and strict readiness handoff
 - `tests/provider-readiness.test.js`: provider config/source-contract readiness gate
 - `tests/provider-go-live-gates.test.js`: end-to-end dry-run go-live orchestration and evidence artifacts
 - `tests/sandbox-go-live.test.js`: strict sandbox source gateway and go-live runner dry-run checks
@@ -336,6 +338,7 @@ Focused test entry points:
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
+- `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
 - `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
 - `scripts/run-sandbox-go-live.js`: starts a disposable local registry, mock source gateway, ingestion container, and strict zero-warning sandbox go-live gate
@@ -356,6 +359,7 @@ Pilot configs:
 
 - `ops/pilot-provider.config.example.json` and `ops/source-contracts.example.json` are replacement templates for a real provider account.
 - `ops/source-approvals.example.json` is the source-owner signoff template that must match the provider source-contract URLs and query files.
+- `scripts/generate-provider-pilot-config.js` turns approved provider values into the pilot config consumed by `scripts/render-managed-kubernetes.js`, `scripts/build-publish-ingestion-image.js`, and `scripts/run-provider-go-live-gates.js`.
 - `ops/pilot-provider.sandbox.json`, `ops/source-contracts.sandbox.json`, and `ops/source-approvals.sandbox.json` are strict local/SSH sandbox configs. They target a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness gates can run without placeholder warnings.
 
 Use `git diff --check` before committing to catch whitespace issues.
@@ -386,7 +390,7 @@ Current boundaries:
 
 Remaining provider-specific production steps:
 
-- Replace the sandbox/example config values with the provider-approved registry, secret store, IAM role, managed database, object bucket, and source endpoints
+- Generate a provider pilot config with `scripts/generate-provider-pilot-config.js` using the provider-approved registry, secret store, IAM role, managed database secret names, object bucket, and tenant values
 - Build and publish the provider-approved ingestion container image referenced by the provider pilot config
 - Wire the rendered ExternalSecret resources to the provider's real secret store and IAM roles
 - Validate collector queries and endpoint contracts with each source-system owner before enabling scheduled jobs

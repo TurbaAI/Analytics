@@ -53,6 +53,7 @@ const readme = read("README.md");
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
+  "scripts/generate-provider-pilot-config.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
   "scripts/run-sandbox-go-live.js",
@@ -107,6 +108,7 @@ const readme = read("README.md");
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
   "scripts/build-publish-ingestion-image.js",
+  "scripts/generate-provider-pilot-config.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
   "scripts/run-sandbox-go-live.js",
@@ -133,6 +135,7 @@ const readme = read("README.md");
   "server/ingestion-storage.js",
   "node tests/run-all.js",
   "tests/provider-image.test.js",
+  "tests/provider-config-generator.test.js",
   "tests/provider-readiness.test.js",
   "tests/provider-go-live-gates.test.js",
   "tests/sandbox-go-live.test.js",
@@ -244,6 +247,7 @@ assert.ok(operations.includes("scripts/render-managed-kubernetes.js"));
 assert.ok(operations.includes("scripts/fetch-source-system-export.js"));
 assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(operations.includes("scripts/build-publish-ingestion-image.js"));
+assert.ok(operations.includes("scripts/generate-provider-pilot-config.js"));
 assert.ok(operations.includes("scripts/validate-provider-readiness.js"));
 assert.ok(operations.includes("scripts/run-provider-go-live-gates.js"));
 assert.ok(operations.includes("scripts/run-sandbox-source-gateway.js"));

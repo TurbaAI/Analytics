@@ -15,11 +15,34 @@ ops/kubernetes/ingestion-deployment.yaml
 
 The deployment uses `TURBALANCE_STORAGE_MODE=managed-postgres-s3`, file-mounted secrets, S3-compatible object storage, and managed Postgres control/audit state. It does not mount local PVCs for ingestion state.
 
-Render provider-specific names, image, object bucket, Postgres secret, and ExternalSecret bindings from:
+Generate the provider-specific pilot config from explicit provider-approved values before rendering or building anything:
+
+```sh
+node scripts/generate-provider-pilot-config.js \
+  --out build/provider-a/pilot-provider.json \
+  --namespace turbalance-provider-a \
+  --release-name turbalance-provider-a \
+  --image registry.provider.internal/ai-ops/turbalance-ingestion:2026.06 \
+  --secret-provider aws \
+  --secret-store-name turbalance-provider-a-secrets \
+  --service-account-role-arn arn:aws:iam::210987654321:role/turbalance-provider-a-ingestion \
+  --object-bucket turbalance-provider-a-ingestion \
+  --object-prefix pilot/provider-a \
+  --postgres-secret-name turbalance/provider-a/postgres-url \
+  --tenant-tokens-secret-name turbalance/provider-a/tenant-tokens \
+  --upload-secret-name turbalance/provider-a/upload-secret \
+  --jwt-secret-name turbalance/provider-a/jwt-secret \
+  --exporter-token-secret-name turbalance/provider-a/exporter-token \
+  --ingest-tenant provider-a
+```
+
+The generator refuses placeholder registries, account IDs, secret names, and `latest` image tags. For GCP use `--gcp-service-account`, `--gcp-project-id`, `--gcp-cluster-location`, and `--gcp-cluster-name`; for Azure use `--azure-client-id`, `--azure-vault-url`, and `--azure-tenant-id`.
+
+Render provider-specific names, image, object bucket, Postgres secret, and ExternalSecret bindings from the generated config:
 
 ```sh
 node scripts/render-managed-kubernetes.js \
-  --config ops/pilot-provider.config.example.json \
+  --config build/provider-a/pilot-provider.json \
   --out build/turbalance-managed-kubernetes.yaml
 ```
 
@@ -27,7 +50,7 @@ Build and publish the provider-approved ingestion image referenced by the same c
 
 ```sh
 node scripts/build-publish-ingestion-image.js \
-  --config ops/pilot-provider.config.example.json \
+  --config build/provider-a/pilot-provider.json \
   --push
 ```
 
@@ -37,8 +60,9 @@ For a single auditable go-live pass, run:
 
 ```sh
 node scripts/run-provider-go-live-gates.js \
-  --config ops/pilot-provider.config.example.json \
+  --config build/provider-a/pilot-provider.json \
   --source-contracts ops/source-contracts.example.json \
+  --source-approvals ops/source-approvals.example.json \
   --iterations 3 \
   --out-dir build/provider-go-live
 ```
@@ -49,8 +73,9 @@ To validate configuration without executing source collection:
 
 ```sh
 node scripts/validate-provider-readiness.js \
-  --config ops/pilot-provider.config.example.json \
-  --source-contracts ops/source-contracts.example.json
+  --config build/provider-a/pilot-provider.json \
+  --source-contracts ops/source-contracts.example.json \
+  --source-approvals ops/source-approvals.example.json
 ```
 
 ## Retention Job
