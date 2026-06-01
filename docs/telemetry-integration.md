@@ -99,6 +99,30 @@ Expected metric classes:
 - memory fragmentation
 - KV-cache pressure when serving inference workloads
 
+## Live Prometheus/DCGM Collector
+
+When a provider approves read-only Prometheus access, use `scripts/fetch-prometheus-source-export.js` to convert instant-query results into `sources.prometheus` and `sources.dcgm` samples:
+
+```sh
+node scripts/fetch-prometheus-source-export.js \
+  --url https://prometheus.provider.example \
+  --run-id provider-run-9001 \
+  --queries-file fixtures/prometheus-collector-queries.json \
+  --out provider-prometheus-source-bundle.json
+```
+
+To feed the all-lanes provider bundle builder, stage the collector output as `prometheus.json` and `dcgm.json`:
+
+```sh
+node scripts/fetch-prometheus-source-export.js \
+  --url https://prometheus.provider.example \
+  --run-id provider-run-9001 \
+  --queries-file fixtures/prometheus-collector-queries.json \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
+Set `TURBALANCE_PROMETHEUS_BEARER_TOKEN` or pass `--bearer-token` when the Prometheus gateway requires auth. Keep query files provider-specific: the included fixture is a starter map for DCGM-style metric names, not a promise that every provider exports identical names.
+
 ## Kubernetes
 
 Kubernetes exports should use `sources.kubernetes`.

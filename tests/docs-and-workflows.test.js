@@ -42,11 +42,13 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/fetch-prometheus-source-export.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
   "scripts/provision-tenant.js",
   "scripts/run-provider-pilot-export-job.js",
+  "fixtures/prometheus-collector-queries.json",
   "fixtures/provider-overlay-template.json",
   "fixtures/provider-pilot-export-inputs/prometheus.json",
   "fixtures/scheduler-export-inputs/scheduler-events.json",
@@ -81,6 +83,7 @@ const readme = read("README.md");
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
   "scripts/build-ebpf-overlay.js",
+  "scripts/fetch-prometheus-source-export.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
   "scripts/run-retention-job.js",
@@ -99,6 +102,7 @@ const readme = read("README.md");
   "tests/provider-exporter.test.js",
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
+  "tests/prometheus-source-exporter.test.js",
   "tests/provider-pilot-bundler.test.js",
   "tests/provider-pilot-export-job.test.js",
   "tests/ingestion-oidc.test.js",
@@ -177,6 +181,7 @@ assert.ok(operations.includes("ops/kubernetes/provider-export-cronjob.yaml"));
 assert.ok(operations.includes("ops/kubernetes/ingestion-service-monitor.yaml"));
 assert.ok(operations.includes("ops/kubernetes/ingestion-prometheus-rules.yaml"));
 assert.ok(operations.includes("scripts/provision-tenant.js"));
+assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(operations.includes("TURBALANCE_OIDC_DISCOVERY_URL"));
 assert.ok(operations.includes("object-sqlite"));
 
@@ -195,6 +200,7 @@ assert.ok(telemetry.includes("sources.provider"));
 assert.ok(telemetry.includes("sources.scheduler"));
 assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
+assert.ok(telemetry.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(telemetry.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-pilot-bundle.js"));
@@ -222,6 +228,7 @@ const providerTemplate = read("docs/provider-export-template.md");
 assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/build-provider-pilot-bundle.js"));
+assert.ok(providerTemplate.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/validate-source-bundle.js"));
 assert.ok(providerTemplate.includes("turba-source-bundle.v1.schema.json"));

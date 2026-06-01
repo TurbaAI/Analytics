@@ -50,6 +50,19 @@ ops/kubernetes/provider-export-cronjob.yaml
 
 The CronJob expects source exports to be mounted at `/var/run/turbalance-provider-exports` and posts the generated source bundle to the ingestion API.
 
+When Prometheus access is approved, stage live Prometheus/DCGM exports before the provider bundle job:
+
+```sh
+TURBALANCE_PROMETHEUS_BEARER_TOKEN="$PROMETHEUS_TOKEN" \
+node scripts/fetch-prometheus-source-export.js \
+  --url https://prometheus.provider.example \
+  --run-id provider-run-9001 \
+  --queries-file fixtures/prometheus-collector-queries.json \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
+This writes `prometheus.json` and `dcgm.json` in the same shape expected by `scripts/build-provider-pilot-bundle.js`.
+
 ## Tenant Bootstrap
 
 Use `scripts/provision-tenant.js` with an admin token to create a pilot tenant and issue the provider export token:

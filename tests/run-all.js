@@ -16,6 +16,7 @@ const checks = [
   { label: "provider exporter", args: ["tests/provider-exporter.test.js"] },
   { label: "scheduler exporter", args: ["tests/scheduler-exporter.test.js"] },
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
+  { label: "Prometheus source exporter", args: ["tests/prometheus-source-exporter.test.js"] },
   { label: "provider pilot bundler", args: ["tests/provider-pilot-bundler.test.js"] },
   { label: "provider pilot export job", args: ["tests/provider-pilot-export-job.test.js"] },
   { label: "ingestion OIDC", args: ["tests/ingestion-oidc.test.js"] },

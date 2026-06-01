@@ -23,6 +23,16 @@ node scripts/validate-source-bundle.js --require-source-export provider-pilot-bu
 
 The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, Grafana exports can add `sources.grafana` for dashboard handoff links, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
 
+For approved live Prometheus access, `scripts/fetch-prometheus-source-export.js` can generate the `prometheus.json` and `dcgm.json` files consumed by the bundle builder:
+
+```sh
+node scripts/fetch-prometheus-source-export.js \
+  --url https://prometheus.provider.example \
+  --run-id provider-run-9001 \
+  --queries-file fixtures/prometheus-collector-queries.json \
+  --out-dir fixtures/provider-pilot-export-inputs
+```
+
 ## Source Mapping
 
 Map commercial, scheduler, and support systems into `sources.provider`:
