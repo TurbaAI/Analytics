@@ -43,4 +43,22 @@ const strictResult = spawnSync(process.execPath, [
 assert.notEqual(strictResult.status, 0);
 assert.ok(strictResult.stdout.includes("provider_registry"));
 
+const sandboxResult = spawnSync(process.execPath, [
+  "scripts/validate-provider-readiness.js",
+  "--config",
+  "ops/pilot-provider.sandbox.json",
+  "--source-contracts",
+  "ops/source-contracts.sandbox.json"
+], {
+  cwd: root,
+  encoding: "utf8"
+});
+
+assert.equal(sandboxResult.status, 0, sandboxResult.stderr);
+const sandboxReport = JSON.parse(sandboxResult.stdout);
+assert.equal(sandboxReport.ok, true);
+assert.equal(sandboxReport.summary.warnings, 0);
+assert.equal(sandboxReport.summary.failed, 0);
+assert.ok(sandboxReport.checks.some((check) => check.id === "image.provider_registry" && check.ok));
+
 console.log("provider readiness tests passed");

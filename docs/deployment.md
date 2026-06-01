@@ -38,21 +38,24 @@ The Kubernetes reference deployment uses:
 - `ops/kubernetes/ingestion-service-monitor.yaml`
 - `ops/kubernetes/ingestion-prometheus-rules.yaml`
 
-For a real provider pilot, render managed manifests from `ops/pilot-provider.config.example.json`:
+For a strict local or SSH sandbox gate, use `ops/pilot-provider.sandbox.json` with `ops/source-contracts.sandbox.json`. The sandbox config points at a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness checks can pass without `--allow-example`:
 
 ```sh
 node scripts/render-managed-kubernetes.js \
-  --config ops/pilot-provider.config.example.json \
+  --config ops/pilot-provider.sandbox.json \
   --out build/turbalance-managed-kubernetes.yaml
 ```
+
+For a real provider pilot, copy `ops/pilot-provider.config.example.json` and replace the registry, secret store, IAM role, object bucket, managed database secret names, and source endpoints before running strict gates.
 
 The rendered deployment uses managed Postgres, S3-compatible object storage, ExternalSecret bindings, a provider image, and no PVC-backed local ingestion state.
 
 Build/publish the provider image with:
 
 ```sh
+docker run -d --rm --name turbalance-sandbox-registry -p 127.0.0.1:5000:5000 registry:2
 node scripts/build-publish-ingestion-image.js \
-  --config ops/pilot-provider.config.example.json \
+  --config ops/pilot-provider.sandbox.json \
   --push
 ```
 

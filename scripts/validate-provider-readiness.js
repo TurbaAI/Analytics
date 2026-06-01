@@ -16,7 +16,7 @@ const checks = [];
 
 check(Boolean(pilotConfig.image), "image.configured", "Provider image is configured");
 check(!String(pilotConfig.image || "").endsWith(":latest"), "image.pinned_tag", "Provider image uses a pinned tag instead of latest");
-checkNotExample(pilotConfig.image, "image.provider_registry", "Provider image points at a real provider registry");
+checkNotExample(pilotConfig.image, "image.provider_registry", "Provider image points at a non-placeholder registry");
 check(fs.existsSync(path.join(root, "Dockerfile")), "image.dockerfile", "Dockerfile exists for ingestion image build");
 
 check(pilotConfig.secretProvider && pilotConfig.secretProvider !== "generic", "iam.secret_provider", "Cloud secret provider is configured");

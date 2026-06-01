@@ -27,4 +27,20 @@ assert.equal(report.image, "registry.provider.example/ai-ops/turbalance-ingestio
 assert.ok(report.commands.some((command) => command.includes("docker buildx build")));
 assert.ok(report.commands.some((command) => command.includes("--tag registry.provider.example/ai-ops/turbalance-ingestion:2026.06")));
 
+const sandboxResult = spawnSync(process.execPath, [
+  "scripts/build-publish-ingestion-image.js",
+  "--config",
+  "ops/pilot-provider.sandbox.json",
+  "--dry-run"
+], {
+  cwd: root,
+  encoding: "utf8"
+});
+
+assert.equal(sandboxResult.status, 0, sandboxResult.stderr);
+const sandboxReport = JSON.parse(sandboxResult.stdout);
+assert.equal(sandboxReport.ok, true);
+assert.equal(sandboxReport.image, "127.0.0.1:5000/turbalance-ingestion:2026.06");
+assert.ok(sandboxReport.commands.some((command) => command.includes("--tag 127.0.0.1:5000/turbalance-ingestion:2026.06")));
+
 console.log("provider image tests passed");

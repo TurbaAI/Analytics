@@ -347,6 +347,11 @@ Focused test entry points:
 - `scripts/run-retention-job.js`: standalone retention job for cron or Kubernetes CronJob wiring
 - `scripts/run-screenshot-qa.js`: desktop and mobile screenshot QA when Playwright is installed; skips by default when browser automation is unavailable
 
+Pilot configs:
+
+- `ops/pilot-provider.config.example.json` and `ops/source-contracts.example.json` are replacement templates for a real provider account.
+- `ops/pilot-provider.sandbox.json` and `ops/source-contracts.sandbox.json` are strict local/SSH sandbox configs. They target a disposable local registry on `127.0.0.1:5000` and a mock source gateway on `127.0.0.1:8891`, so readiness gates can run without placeholder warnings.
+
 Use `git diff --check` before committing to catch whitespace issues.
 
 ## Deployment
@@ -374,7 +379,8 @@ Current boundaries:
 
 Remaining provider-specific production steps:
 
-- Build and publish the provider-approved ingestion container image referenced by `ops/pilot-provider.config.example.json`
+- Replace the sandbox/example config values with the provider-approved registry, secret store, IAM role, managed database, object bucket, and source endpoints
+- Build and publish the provider-approved ingestion container image referenced by the provider pilot config
 - Wire the rendered ExternalSecret resources to the provider's real secret store and IAM roles
 - Validate collector queries and endpoint contracts with each source-system owner before enabling scheduled jobs
 - Run a live pilot burn-in against provider staging data before customer-facing use
