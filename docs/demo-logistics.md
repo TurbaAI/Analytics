@@ -35,6 +35,15 @@ python3 -m http.server 8000 --bind 0.0.0.0
 
 Then open `http://100.96.89.98:8000/`. The app also auto-loads `build/demo/live-machine-bundle.json` on this host. Treat `DGX-pat` as a single observed Linux machine: if `nvidia-smi` is installed but cannot communicate with the NVIDIA driver, the dashboard should show NVIDIA telemetry unavailable instead of fabricating usable GPU counters.
 
+For the standalone `SPARK1` demo on `192.168.10.20`, run the same local-host path:
+
+```sh
+node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://192.168.10.20:8000
+python3 -m http.server 8000 --bind 0.0.0.0
+```
+
+Then open `http://192.168.10.20:8000/`. Treat it as a single observed Linux machine; if `nvidia-smi` cannot communicate with the NVIDIA driver, the dashboard should present that as the current telemetry state and use `?demo=sample` for the richer provider-value walkthrough.
+
 ## Hardware Needed
 
 No special hardware is required for the first demo. A laptop or small VM is enough because the dashboard can run from fixture data and generated source bundles.
@@ -42,6 +51,8 @@ No special hardware is required for the first demo. A laptop or small VM is enou
 The current `192.168.10.101` demo machine has one NVIDIA GeForce RTX 4090 and is useful for a realistic single-node workstation/edge-provider demo. `192.168.10.20` is included as `SPARK1`, a second observed Linux host; if `nvidia-smi` cannot communicate with the NVIDIA driver there, the dashboard should show that as telemetry unavailable rather than usable GPU capacity. These machines are not a multi-node neo-cloud cluster, so scheduler, topology, and queue behavior should be framed as host/fleet evidence unless provider staging exports are imported.
 
 The `100.96.89.98` machine is tracked as `DGX-pat` for a standalone host demo. It is useful as an observed AI operator workstation/server path, but it should be described only by the counters it exposes at demo time.
+
+The `192.168.10.20` machine can also be used as standalone `SPARK1`; this is useful when the demo should run directly on that host instead of through the NUC fleet collector.
 
 For integration testing against real infrastructure, the useful minimum is:
 

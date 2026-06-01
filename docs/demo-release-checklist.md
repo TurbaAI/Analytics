@@ -39,7 +39,8 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 3. Confirm no text overlap in provider lens, provider portfolio tables, Grafana Handoff links, Scheduler Simulator cards, Opportunity Engine rows, trend metrics, and mobile controls.
 4. Confirm eBPF-enriched imports do not create misleading GPU claims; host evidence should only affect network wait, input pipeline, contention, latency tail, and noise signals.
 5. For `192.168.10.101`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with NUC14E and SPARK1 rows; use `?demo=sample` only when intentionally showing the canned provider fixture.
-6. For `100.96.89.98`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `DGX-pat` row and reports NVIDIA telemetry availability exactly as observed.
+6. For `192.168.10.20`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `SPARK1` row and reports NVIDIA telemetry availability exactly as observed.
+7. For `100.96.89.98`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `DGX-pat` row and reports NVIDIA telemetry availability exactly as observed.
 
 ## Talk Track Readiness
 

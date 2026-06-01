@@ -100,6 +100,8 @@ assert.ok(app.includes("maybeAutoLoadMachineDemoBundle"));
 assert.ok(app.includes("MACHINE_DEMO_REFRESH_MS"));
 assert.ok(app.includes("machineDemoContext"));
 assert.ok(app.includes("isKnownMachineDemoHost"));
+assert.ok(app.includes("192.168.10.20"));
+assert.ok(app.includes("spark1"));
 assert.ok(app.includes("100.96.89.98"));
 assert.ok(app.includes("dgx-pat"));
 assert.ok(app.includes("machineDemoHeadline"));

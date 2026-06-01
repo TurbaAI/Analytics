@@ -393,6 +393,7 @@ assert.ok(demoLogistics.includes("scripts/prepare-demo.js"));
 assert.ok(demoLogistics.includes("live-machine-bundle.json"));
 assert.ok(demoLogistics.includes("192.168.10.20"));
 assert.ok(demoLogistics.includes("SPARK1"));
+assert.ok(demoLogistics.includes("standalone `SPARK1`"));
 assert.ok(demoLogistics.includes("100.96.89.98"));
 assert.ok(demoLogistics.includes("DGX-pat"));
 assert.ok(demoLogistics.includes("30 seconds"));

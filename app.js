@@ -2591,6 +2591,8 @@ function isKnownMachineDemoHost() {
   return [
     "192.168.10.101",
     "nuc14e",
+    "192.168.10.20",
+    "spark1",
     "100.96.89.98",
     "dgx-pat"
   ].includes(window.location.hostname.toLowerCase());
