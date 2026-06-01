@@ -75,6 +75,8 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
 
+The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
+
 ## Run Sections
 
 Each run should include:

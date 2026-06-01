@@ -56,6 +56,7 @@ const readme = read("README.md");
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/ebpf-exporter.test.js",
+  "tests/evidence-pack-export.test.js",
   "tests/source-bundle-validation.test.js",
   "build/turbalance-analytics-desktop.png"
 ].forEach((text) => {
@@ -79,6 +80,7 @@ assert.ok(dataContract.includes("sources.provider"));
 assert.ok(dataContract.includes("sources.ebpf"));
 assert.ok(dataContract.includes("sources.opportunities"));
 assert.ok(dataContract.includes("Opportunity Overlay"));
+assert.ok(dataContract.includes("Markdown evidence pack"));
 assert.ok(dataContract.includes("eBPF Host Overlay"));
 assert.ok(dataContract.includes("Neo-Cloud Provider Overlay"));
 assert.ok(dataContract.includes("Validation Behavior"));
@@ -104,6 +106,7 @@ assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerFit.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(providerFit.includes("Opportunity Engine"));
+assert.ok(providerFit.includes("evidence pack"));
 assert.ok(providerFit.includes("CoreWeave"));
 assert.ok(providerFit.includes("Lambda"));
 
@@ -123,6 +126,7 @@ assert.ok(pilotValidation.includes("Reservation"));
 assert.ok(pilotValidation.includes("redacted workspace"));
 assert.ok(pilotValidation.includes("build-ebpf-overlay.js"));
 assert.ok(pilotValidation.includes("Opportunity Engine"));
+assert.ok(pilotValidation.includes("evidence pack"));
 assert.ok(pilotValidation.includes("GitHub Pages"));
 
 const demoScript = read("docs/demo-script.md");
@@ -130,6 +134,7 @@ assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
 assert.ok(demoScript.includes("build-ebpf-overlay.js"));
 assert.ok(demoScript.includes("Opportunity Engine"));
+assert.ok(demoScript.includes("evidence pack"));
 assert.ok(demoScript.includes("redacted workspace"));
 assert.ok(demoScript.includes("Do Not Claim"));
 
@@ -138,6 +143,7 @@ assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
 assert.ok(demoRelease.includes("Opportunity Engine"));
+assert.ok(demoRelease.includes("evidence pack"));
 assert.ok(demoRelease.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(demoRelease.includes("build/turbalance-analytics-desktop.png"));
 

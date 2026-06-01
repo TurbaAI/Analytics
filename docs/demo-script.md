@@ -29,9 +29,10 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 14. Import `fixtures/external-source-bundle.json`.
 15. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
 16. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
-17. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-18. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-19. Copy the customer report as the final operator summary.
+17. Export the evidence pack to show a customer/provider Markdown handoff with redacted source context.
+18. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+19. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+20. Copy the customer report as the final operator summary.
 
 ## Close
 

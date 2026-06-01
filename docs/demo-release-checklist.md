@@ -15,10 +15,11 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 2. Validate `Tenant`, `Account`, and `Reservation` scopes.
 3. Review provider portfolio risk tables for sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
 4. Review the Opportunity Engine action center and confirm imported `sources.opportunities` rows appear with computed actions.
-5. Export a normal workspace and a redacted workspace.
-6. Generate a provider overlay with `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`.
-7. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
-8. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json`.
+5. Export an evidence pack and confirm source context is redacted.
+6. Export a normal workspace and a redacted workspace.
+7. Generate a provider overlay with `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`.
+8. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
+9. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json`.
 
 ## Visual Readiness
 

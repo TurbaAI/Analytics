@@ -2128,6 +2128,202 @@ function exportWorkspace({ redacted = false } = {}) {
   setIngestStatus(redacted ? "Redacted workspace exported" : "Workspace exported", "good");
 }
 
+function exportEvidencePack() {
+  const exportedAt = new Date();
+  const analysis = currentAnalysis();
+  if (!analysis) {
+    setIngestStatus("No evidence target", "watch");
+    return;
+  }
+
+  const store = createWorkspaceStore(activeIngestion, {
+    savedAt: exportedAt,
+    lastAnalysisAt: state.lastAnalysis,
+    snapshots: snapshotHistory
+  });
+  const plan = buildRedactionPlan(store);
+  const markdown = buildEvidencePackMarkdown({
+    ...analysis,
+    plan,
+    exportedAt
+  });
+  const blob = new Blob([markdown], { type: "text/markdown" });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = `turbalance-evidence-pack-${safeFileSlug(analysis.summary.scope)}-${safeFileSlug(redactedSummaryKey(analysis.summary, plan))}-${fileDateStamp(exportedAt)}.md`;
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 0);
+  setIngestStatus("Evidence pack exported", "good");
+}
+
+function currentAnalysis() {
+  const entries = buildEntries(state.scope);
+  const activeEntry = entries.find((entry) => entry.key === state.selectedKey) || entries[0];
+  if (!activeEntry) return null;
+
+  const summary = displaySummary(activeEntry);
+  const classifier = classifyBottlenecks(summary);
+  const provider = providerEconomics(summary);
+  const opportunityEngine = generateOpportunities(summary, classifier, provider);
+
+  return {
+    summary,
+    classifier,
+    provider,
+    opportunityEngine
+  };
+}
+
+function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityEngine, plan, exportedAt }) {
+  const redactedKey = redactedSummaryKey(summary, plan);
+  const redactedLabelValue = redactedSummaryLabel(summary, plan);
+  const providerContext = redactedProviderContext(summary, plan);
+  const opportunityRows = (opportunityEngine.opportunities || []).slice(0, 6);
+  const sourceRows = redactedSourceRows(summary, plan).slice(0, 10);
+  const lines = [
+    "# turbalance Evidence Pack",
+    "",
+    `Generated: ${formatAnalysisTime(exportedAt)}`,
+    `Scope: ${scopeLabel(summary.scope)}`,
+    `Selection: ${redactedLabelValue}`,
+    `Selection key: ${redactedKey}`,
+    `Window: ${state.window}`,
+    `List rate: ${currency.format(state.rate)} / GPU-hour`,
+    "",
+    "## Executive Summary",
+    "",
+    `- Efficiency: ${pct(summary.usefulCompute)} useful compute from ${number.format(summary.allocatedGpuHours)} allocated GPU-hours.`,
+    `- Waste: ${number.format(summary.wastedGpuHours)} GPU-hours, ${currency.format(summary.wasteDollars)} at the current list rate.`,
+    `- Primary bottleneck: ${classifier.primary.name}; secondary: ${classifier.secondary.name}.`,
+    `- Provider context: tenant ${providerContext.tenant}, account ${providerContext.account}, reservation ${providerContext.reservation}.`,
+    `- Provider impact: ${currency.format(provider.sellableWasteValue)} sellable waste value; ${queueSloNote(provider)}.`,
+    `- Opportunity upside: ${currency.format(opportunityEngine.totalImpactDollars)} and ${number.format(opportunityEngine.totalImpactGpuHours)} GPU-hours across ${opportunityRows.length} ranked actions.`,
+    "",
+    "## Top Opportunities",
+    "",
+    "| Rank | Category | Action | Impact | Confidence | Owner |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...opportunityRows.map((opportunity, index) => [
+      index + 1,
+      markdownCell(opportunity.category),
+      markdownCell(opportunity.title),
+      markdownCell(opportunityImpactLabel(opportunity)),
+      markdownCell(pct(opportunity.confidence)),
+      markdownCell(opportunity.owner || "Unassigned")
+    ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
+    "",
+    "## Evidence Details",
+    "",
+    ...opportunityRows.flatMap((opportunity, index) => [
+      `### ${index + 1}. ${markdownText(opportunity.title)}`,
+      "",
+      `- Category: ${markdownText(opportunity.category)}`,
+      `- Severity: ${titleCase(opportunity.severity)}`,
+      `- Impact: ${opportunityImpactLabel(opportunity)}`,
+      `- Confidence: ${pct(opportunity.confidence)}`,
+      `- Evidence: ${markdownText(opportunity.evidence)}`,
+      `- Recommendation: ${markdownText(opportunity.recommendation)}`,
+      `- Owner: ${markdownText(opportunity.owner || "Unassigned")}`,
+      ""
+    ]),
+    "## Redacted Source Context",
+    "",
+    "| Run | Adapters | Tenant | Account | Reservation | Context |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...sourceRows.map((row) => [
+      markdownCell(row.run),
+      markdownCell(row.adapters),
+      markdownCell(row.tenant),
+      markdownCell(row.account),
+      markdownCell(row.reservation),
+      markdownCell(row.context)
+    ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
+    "",
+    "## Handling Notes",
+    "",
+    "- This pack preserves numeric evidence and recommendations while redacting run, tenant, account, reservation, provider, Kubernetes, and eBPF source identifiers.",
+    "- Opportunity dollar values are prioritization estimates; categories can overlap and should not be summed as audited accounting.",
+    "- Validate the top action against the underlying source system before making a customer or capacity commitment.",
+    ""
+  ];
+
+  return `${lines.join("\n")}`;
+}
+
+function redactedSummaryKey(summary, plan) {
+  return redactSnapshotKey(summary.scope, summary.key, plan);
+}
+
+function redactedSummaryLabel(summary, plan) {
+  const key = redactedSummaryKey(summary, plan);
+  return key === summary.key ? summary.label : redactedLabel(key);
+}
+
+function redactedProviderContext(summary, plan) {
+  return {
+    tenant: redactedRefList(summary, plan, "tenant"),
+    account: redactedRefList(summary, plan, "account"),
+    reservation: redactedRefList(summary, plan, "reservation")
+  };
+}
+
+function redactedRefList(summary, plan, refKey) {
+  const collection = REF_COLLECTIONS[refKey];
+  if (!collection) return "n/a";
+
+  const values = unique((summary.sourceItems || [])
+    .map((job) => job.source?.refs?.[refKey] || job[refKey])
+    .filter(Boolean)
+    .map((value) => mappedValue(plan.entities[collection], value, refKey)));
+
+  return listLabel(values, 3);
+}
+
+function redactedSourceRows(summary, plan) {
+  return (summary.sourceItems || []).map((job) => {
+    const refs = redactRefs(job.source?.refs || {}, plan);
+    const context = redactSourceContext(job.source?.context || {}, plan);
+    const contextPairs = Object.entries(context)
+      .filter(([, value]) => value !== undefined && value !== null && value !== "")
+      .map(([key, value]) => `${key}=${value}`);
+
+    return {
+      run: mappedValue(plan.runs, job.id, "run"),
+      adapters: (job.source?.adapters || []).join(", ") || "seed",
+      tenant: refs.tenant || "n/a",
+      account: refs.account || "n/a",
+      reservation: refs.reservation || "n/a",
+      context: contextPairs.length > 0 ? contextPairs.join("; ") : "no source context"
+    };
+  });
+}
+
+function opportunityImpactLabel(opportunity) {
+  const dollars = opportunity.impactDollars > 0 ? currency.format(opportunity.impactDollars) : "";
+  const gpuHours = opportunity.impactGpuHours > 0 ? `${number.format(opportunity.impactGpuHours)} GPU-hours` : "";
+  return [dollars, gpuHours].filter(Boolean).join(" / ") || "n/a";
+}
+
+function markdownCell(value) {
+  return markdownText(value).replace(/\|/g, "\\|");
+}
+
+function markdownText(value) {
+  return String(value || "n/a").replace(/\s+/g, " ").trim();
+}
+
+function safeFileSlug(value) {
+  return String(value || "selection")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "selection";
+}
+
 const ENTITY_REDACTION_PREFIXES = {
   models: "model",
   users: "user",
@@ -2469,6 +2665,7 @@ function bindEvents() {
   document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
   document.querySelector("#exportWorkspaceButton").addEventListener("click", exportWorkspace);
   document.querySelector("#exportRedactedWorkspaceButton").addEventListener("click", () => exportWorkspace({ redacted: true }));
+  document.querySelector("#exportEvidencePackButton").addEventListener("click", exportEvidencePack);
   document.querySelector("#resetWorkspaceButton").addEventListener("click", resetWorkspace);
 }
 

@@ -15,6 +15,7 @@ Open `index.html` at a wide desktop viewport.
 - Trend metric tabs switch between efficiency, waste, NCCL, cost, sellable waste, opportunity impact, commit burn, queue SLO, and gross margin.
 - Trend chart axis labels and recent snapshot cards are legible.
 - Truth table, bottleneck, provider lens, provider portfolio, Opportunity Engine, component, topology, trace, fingerprint, regression, and report panels render.
+- Evidence-pack export button is visible in the Opportunity Engine heading.
 - Copy report button updates visually after click.
 
 ## Mobile
@@ -37,6 +38,7 @@ Open `index.html` around 390px wide.
 - Click Analyze and confirm the trend point count increases.
 - Export the workspace and inspect that the downloaded JSON has `storageSchemaVersion: "turba.workspace.v2"`.
 - Export the redacted workspace and inspect that tenant, account, reservation, contract, support-ticket, run identifiers, and imported opportunity free text are surrogate IDs or redacted placeholders.
+- Export an evidence pack and inspect that the Markdown includes ranked actions and redacted source context.
 - Re-import the exported workspace and confirm the dashboard restores.
 - Reset workspace and confirm the sample feed returns.
 

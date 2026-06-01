@@ -34,6 +34,7 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Provider portfolio risk tables for sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates
 - Provider source overlays through `sources.provider` for commercial and support metadata without requiring live billing credentials
 - Opportunity Engine that ranks FinOps, topology, scheduler, inference, host-kernel, fleet, energy, and customer evidence-pack actions by impact, risk, and confidence
+- Markdown evidence-pack export for the selected scope with summary, impact, recommendations, and redacted source context
 - Optional `sources.opportunities` overlay for upstream recommendation systems to contribute ranked actions
 - First-class tenant, account, and reservation scopes for provider operations
 - Redacted workspace export for tenant-safe support, QBR, and capacity-planning handoff
@@ -75,6 +76,7 @@ Run `node tests/neo-cloud-provider-fixture.test.js` to validate provider overlay
 Run `node tests/provider-exporter.test.js` to validate the provider exporter example.
 Run `node tests/ebpf-exporter.test.js` to validate the eBPF host overlay exporter example.
 Run `node tests/workspace-export-fixture.test.js` to validate exported workspace shape.
+Run `node tests/evidence-pack-export.test.js` to validate Markdown evidence-pack redaction.
 Run `node tests/schemas.test.js` to validate schema files and fixture alignment.
 Run `node tests/source-bundle-validation.test.js` to validate source bundle preflight checks.
 Run `node tests/import-validation-copy.test.js` to validate import validation messages and helpers.

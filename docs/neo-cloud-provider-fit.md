@@ -87,7 +87,8 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 1. Use the action center to rank opportunities by impact, risk, and confidence.
 2. Treat Opportunity Engine dollar values as prioritization estimates because categories can overlap.
 3. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
-4. Export a redacted workspace when the action needs customer-success, support, or QBR review.
+4. Export an evidence pack when the action needs a concise customer-success, support, or QBR handoff.
+5. Export a redacted workspace when the reviewer needs the full metric workspace and trend history.
 
 ## Privacy Boundary
 

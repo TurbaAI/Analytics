@@ -16,6 +16,7 @@ const checks = [
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },
+  { label: "evidence pack export", args: ["tests/evidence-pack-export.test.js"] },
   { label: "schemas", args: ["tests/schemas.test.js"] },
   { label: "source bundle validation", args: ["tests/source-bundle-validation.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },

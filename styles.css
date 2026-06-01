@@ -723,6 +723,27 @@ input[type="url"] {
   flex: 0 0 auto;
 }
 
+.panel-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.panel-actions > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: #e2eff0;
+  color: #27424a;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .trend-body {
   display: grid;
   gap: 14px;

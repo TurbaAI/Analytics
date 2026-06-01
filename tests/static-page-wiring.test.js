@@ -60,6 +60,7 @@ selectorMatches.forEach((selector) => {
   "opportunityBadge",
   "opportunityStats",
   "opportunityList",
+  "exportEvidencePackButton",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -76,6 +77,8 @@ assert.ok(app.includes("renderProviderSummaryTables"));
 assert.ok(app.includes("renderOpportunityCenter"));
 assert.ok(app.includes("summarizeProviderEconomics"));
 assert.ok(app.includes("generateOpportunities"));
+assert.ok(app.includes("exportEvidencePack"));
+assert.ok(app.includes("buildEvidencePackMarkdown"));
 assert.ok(app.includes("importEbpfSamples"));
 assert.ok(app.includes("importProviderSamples"));
 assert.ok(app.includes("importOpportunitySamples"));
