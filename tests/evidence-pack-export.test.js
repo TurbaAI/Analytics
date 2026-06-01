@@ -124,12 +124,31 @@ const markdown = context.buildEvidencePackMarkdown({
       }
     ]
   },
+  schedulerSimulator: {
+    recommended: {
+      label: "Reserve locality group",
+      dollarUpside: 950,
+      recoveredGpuHours: 140
+    },
+    scenarios: [
+      {
+        label: "Reserve locality group",
+        dollarUpside: 950,
+        recoveredGpuHours: 140,
+        deltas: { queueWaitMinutes: 8, usefulCompute: 6 },
+        projected: { usefulCompute: 48 },
+        action: "Keep the next run inside one pod."
+      }
+    ]
+  },
   plan,
   exportedAt: new Date("2026-05-31T12:00:00.000Z")
 });
 
 assert.ok(markdown.includes("# turbalance Evidence Pack"));
 assert.ok(markdown.includes("Repack topology-sensitive workload"));
+assert.ok(markdown.includes("## Scheduler / Capacity What-If"));
+assert.ok(markdown.includes("Reserve locality group"));
 assert.ok(markdown.includes("## Redacted Source Context"));
 assert.ok(markdown.includes("run-1"));
 assert.ok(markdown.includes("tenant-1"));

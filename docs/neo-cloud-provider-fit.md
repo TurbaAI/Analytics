@@ -41,6 +41,7 @@ The app converts those fields into:
 - Queue SLO pressure: queue wait compared with the tenant's target start time.
 - Gross margin view: billable GPU-hours minus optional floor GPU-hour cost.
 - Opportunity Engine actions: ranked FinOps, topology, scheduler, inference, eBPF, fleet, energy, and customer evidence-pack opportunities.
+- Scheduler Simulator scenarios: repack partial nodes, reserve locality groups, or protect queue-SLO admission windows with projected recovery and dollar upside.
 - Renewal and support actions: concise operator actions tied to the tenant, reservation, bottleneck, and ticket context.
 
 An optional Linux eBPF overlay adds host-side evidence for provider pilots:
@@ -65,8 +66,9 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 
 1. Switch to `Cluster` scope.
 2. Sort by wasted GPU-hours and inspect sellable waste value.
-3. Open the Opportunity Engine action center and compare high-waste tenants against committed GPU-hour burn.
-4. Use placement and NCCL topology attribution to decide whether to reserve locality groups, repack partial nodes, or move a workload pool.
+3. Open the Scheduler Simulator and compare repack, locality, and queue-SLO scenarios against committed GPU-hour burn.
+4. Open the Opportunity Engine action center and compare high-waste tenants against imported and computed recommendations.
+5. Use placement and NCCL topology attribution to decide whether to reserve locality groups, repack partial nodes, or move a workload pool.
 
 ### QBR And Renewal
 
@@ -80,15 +82,17 @@ These signals enrich existing bottleneck attribution. They do not replace DCGM G
 1. Focus on jobs where the provider lens flags high sellable waste and the classifier flags communication or placement.
 2. Compare cross-rack and cross-pod trace attribution.
 3. Toggle `Same-pod what-if` to estimate locality benefit.
-4. Treat repeated high-value reservations as candidates for scheduler hints or dedicated placement groups.
+4. Use `Capacity what-if` to compare repack, locality reservation, and queue-SLO protection before changing scheduler policy.
+5. Treat repeated high-value reservations as candidates for scheduler hints or dedicated placement groups.
 
 ### Opportunity Review
 
 1. Use the action center to rank opportunities by impact, risk, and confidence.
 2. Treat Opportunity Engine dollar values as prioritization estimates because categories can overlap.
-3. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
-4. Export an evidence pack when the action needs a concise customer-success, support, or QBR handoff.
-5. Export a redacted workspace when the reviewer needs the full metric workspace and trend history.
+3. Compare the top scheduler-related action with the Scheduler Simulator scenario that best matches the same evidence.
+4. Validate the top action with the underlying source evidence: Prometheus/DCGM for utilization, NCCL for fabric, eBPF for host pressure, and provider overlays for SLO/commercial context.
+5. Export an evidence pack when the action needs a concise customer-success, support, or QBR handoff.
+6. Export a redacted workspace when the reviewer needs the full metric workspace and trend history.
 
 ## Privacy Boundary
 

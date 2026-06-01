@@ -75,7 +75,7 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, provider export identifiers, and imported opportunity free text with deterministic surrogate IDs or redacted placeholders.
 
-The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
+The Opportunity Engine panel can export a Markdown evidence pack for the selected scope. Evidence packs are not a restore format; they are human-readable handoffs that include summary metrics, scheduler/capacity what-if estimates, ranked opportunities, impact estimates, evidence, recommendations, and a redacted source-context table.
 
 ## Run Sections
 
@@ -129,6 +129,12 @@ The dashboard computes Opportunity Engine rows from normalized run metrics even 
 ```
 
 The Opportunity Engine ranks computed and imported actions across Useful Compute FinOps, fabric/topology, scheduler/capacity, provider SLO risk, inference economics, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack categories. Values are directional and may overlap; use them to prioritize action, not as additive accounting totals.
+
+## Scheduler Simulator
+
+The Scheduler Simulator is computed locally from normalized allocation, scheduler, communication, provider, and SLO fields. It does not require a new source adapter. The dashboard compares repacking partial nodes, reserving locality groups, and protecting priority queue admission by projected GPU-hour recovery, dollar upside, queue minutes saved, useful compute, and placement fit.
+
+Simulator estimates are directional. Use source overlays and trace evidence to validate the selected action before changing scheduler policy.
 
 ## eBPF Host Overlay
 

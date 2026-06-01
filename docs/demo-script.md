@@ -20,19 +20,20 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 5. Use the bottleneck classifier to explain primary and secondary loss attribution.
 6. Scroll to topology and connect cross-pod placement to NCCL trace attribution.
 7. Toggle `Same-pod what-if` and describe the estimated improvement range.
-8. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
-9. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
-10. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
-11. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
-12. Open the Opportunity Engine action center and show how FinOps, topology, scheduler, inference, eBPF, fleet, energy, and evidence-pack actions are ranked together.
-13. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data, including imported `sources.opportunities` rows.
-14. Import `fixtures/external-source-bundle.json`.
-15. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
-16. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
-17. Export the evidence pack to show a customer/provider Markdown handoff with redacted source context.
-18. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-19. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-20. Copy the customer report as the final operator summary.
+8. Use `Capacity what-if` to compare recommended, repack, locality, and queue-SLO scheduler scenarios.
+9. Switch to `Model`, `Team`, and `Cluster` scopes to show aggregation.
+10. Switch to `Tenant`, `Account`, and `Reservation` scopes to show provider-native grouping.
+11. Open the provider lens and call out tenant, reservation, sellable waste value, commit burn, queue SLO, and gross-margin context.
+12. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
+13. Open the Opportunity Engine action center and show how FinOps, topology, scheduler, inference, eBPF, fleet, energy, and evidence-pack actions are ranked together.
+14. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data, including imported `sources.opportunities` rows.
+15. Import `fixtures/external-source-bundle.json`.
+16. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
+17. Click Analyze and show the trend panel updating from persisted snapshots, including opportunity impact, sellable waste, commit burn, queue SLO, and gross margin.
+18. Export the evidence pack to show a customer/provider Markdown handoff with scheduler what-if, ranked actions, and redacted source context.
+19. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+20. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+21. Copy the customer report as the final operator summary.
 
 ## Close
 

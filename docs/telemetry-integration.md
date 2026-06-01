@@ -141,6 +141,8 @@ The browser adapter converts those summaries into the existing dashboard lanes: 
 
 The dashboard computes ranked opportunities locally, but upstream systems can contribute recommendation rows with `sources.opportunities`. Use this when an external scheduler simulator, inference tuner, support workflow, or capacity-planning tool already knows the action it wants an operator to validate.
 
+The local Scheduler Simulator also uses normalized telemetry directly, so provider pilots can compare repack, locality, and queue-SLO what-if scenarios even when no external recommendation source is attached.
+
 Expected fields:
 
 - `runId`

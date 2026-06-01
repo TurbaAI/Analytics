@@ -176,6 +176,25 @@
           </section>
 
           <div class="analysis-grid">
+            <section class="panel simulator-panel">
+              <div class="panel-heading">
+                <div>
+                  <p>Scheduler Simulator</p>
+                  <h2>Capacity what-if</h2>
+                </div>
+                <span id="simulatorBadge">Recommended</span>
+              </div>
+              <div class="segmented simulator-controls" id="simulatorControls" role="tablist" aria-label="Scheduler simulator scenario">
+                <button type="button" data-scheduler-scenario="recommended" aria-selected="true">Recommended</button>
+                <button type="button" data-scheduler-scenario="repack" aria-selected="false">Repack</button>
+                <button type="button" data-scheduler-scenario="locality" aria-selected="false">Locality</button>
+                <button type="button" data-scheduler-scenario="priority" aria-selected="false">Queue SLO</button>
+              </div>
+              <div id="simulatorStats" class="simulator-stats"></div>
+              <div id="simulatorNarrative" class="simulator-narrative"></div>
+              <div id="simulatorScenarios" class="simulator-scenarios"></div>
+            </section>
+
             <section class="panel opportunity-panel">
               <div class="panel-heading">
                 <div>

@@ -57,6 +57,11 @@ selectorMatches.forEach((selector) => {
   "providerActions",
   "providerSummaryBadge",
   "providerSummaryTables",
+  "simulatorBadge",
+  "simulatorControls",
+  "simulatorStats",
+  "simulatorNarrative",
+  "simulatorScenarios",
   "opportunityBadge",
   "opportunityStats",
   "opportunityList",
@@ -69,13 +74,16 @@ selectorMatches.forEach((selector) => {
 
 assert.equal((html.match(/data-scope="/g) || []).length, 8);
 assert.equal((html.match(/data-trend-metric="/g) || []).length, 9);
+assert.equal((html.match(/data-scheduler-scenario="/g) || []).length, 4);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
 assert.ok(app.includes("renderProviderLens"));
 assert.ok(app.includes("renderProviderSummaryTables"));
 assert.ok(app.includes("renderOpportunityCenter"));
+assert.ok(app.includes("renderSchedulerSimulator"));
 assert.ok(app.includes("summarizeProviderEconomics"));
+assert.ok(app.includes("simulateSchedulerScenarios"));
 assert.ok(app.includes("generateOpportunities"));
 assert.ok(app.includes("exportEvidencePack"));
 assert.ok(app.includes("buildEvidencePackMarkdown"));

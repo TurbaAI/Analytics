@@ -34,7 +34,8 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Provider portfolio risk tables for sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates
 - Provider source overlays through `sources.provider` for commercial and support metadata without requiring live billing credentials
 - Opportunity Engine that ranks FinOps, topology, scheduler, inference, host-kernel, fleet, energy, and customer evidence-pack actions by impact, risk, and confidence
-- Markdown evidence-pack export for the selected scope with summary, impact, recommendations, and redacted source context
+- Scheduler/capacity simulator for repack, locality-group, and queue-SLO what-if scenarios
+- Markdown evidence-pack export for the selected scope with summary, impact, scheduler what-if, recommendations, and redacted source context
 - Optional `sources.opportunities` overlay for upstream recommendation systems to contribute ranked actions
 - First-class tenant, account, and reservation scopes for provider operations
 - Redacted workspace export for tenant-safe support, QBR, and capacity-planning handoff

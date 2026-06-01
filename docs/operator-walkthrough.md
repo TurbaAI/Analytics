@@ -21,6 +21,12 @@ Open `index.html` in a browser. The app loads a seeded workspace into browser-lo
 
 When an eBPF host overlay is present, treat higher network wait, storage wait, CPU preprocessing pressure, contention, latency tail, or noise events as host-side evidence. Use it to separate Linux scheduling, socket, filesystem, or noisy-neighbor symptoms from GPU/NCCL issues.
 
+## Simulate Scheduler Moves
+
+Use the Scheduler Simulator before choosing a capacity action. The `Recommended` view picks the strongest local scenario, while `Repack`, `Locality`, and `Queue SLO` compare specific scheduler moves by GPU-hour recovery, dollar upside, queue minutes saved, and projected placement fit.
+
+Treat the scenarios as directional planning estimates. Validate the selected move against topology, NCCL attribution, provider SLO context, and imported opportunity evidence before changing production policy.
+
 ## Compare Against Baseline
 
 Use the regression panel to compare current step time, NCCL time, GPU efficiency, queue wait, and cost against the persisted baseline for each run.
@@ -29,7 +35,7 @@ Use the regression panel to compare current step time, NCCL time, GPU efficiency
 
 Use the Opportunity Engine action center after the first diagnosis. It ranks FinOps, topology, scheduler, inference, data pipeline, host-kernel/eBPF, fleet reliability, energy/carbon, and customer evidence-pack actions by estimated impact, risk, and confidence. Treat dollar values as prioritization estimates because categories can overlap.
 
-Use the evidence-pack export button in the action center when a selected job, tenant, account, reservation, or cluster needs a support, QBR, or capacity-planning handoff. The exported Markdown includes the executive summary, ranked actions, impact, evidence, recommendations, and redacted source context.
+Use the evidence-pack export button in the action center when a selected job, tenant, account, reservation, or cluster needs a support, QBR, or capacity-planning handoff. The exported Markdown includes the executive summary, scheduler what-if table, ranked actions, impact, evidence, recommendations, and redacted source context.
 
 ## Track Trends
 

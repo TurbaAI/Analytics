@@ -99,6 +99,113 @@
     };
   }
 
+  function simulateSchedulerScenarios(summary, options = {}) {
+    const rate = firstPositive(options.rate, options.listGpuHourRate, summary.provider?.listGpuHourRate);
+    const durationHours = numeric(summary.gpus) > 0 ? numeric(summary.allocatedGpuHours) / numeric(summary.gpus) : 0;
+    const partialNodeGpuHours = numeric(summary.partialNodes) * durationHours * numeric(options.gpusPerNode, 8) * 0.5;
+    const idleGpuHours = numeric(summary.idleGpus) * durationHours;
+    const strandedGpuHours = Math.max(0, partialNodeGpuHours + idleGpuHours);
+    const queueSloMinutes = numeric(summary.slo?.targetStartMinutes);
+    const current = {
+      usefulCompute: numeric(summary.usefulCompute),
+      queueWaitMinutes: numeric(summary.queueWaitMinutes),
+      placementQuality: numeric(summary.placementQuality),
+      crossPodTraffic: numeric(summary.crossPodTraffic),
+      crossRackTraffic: numeric(summary.crossRackTraffic),
+      strandedGpuHours,
+      wastedGpuHours: numeric(summary.wastedGpuHours)
+    };
+    const scenarioInputs = [
+      {
+        id: "repack",
+        label: "Repack partial nodes",
+        owner: "Capacity planning",
+        queueReduction: clamp(4 + current.queueWaitMinutes * 0.18 + numeric(summary.partialNodes) * 1.8, 3, 18),
+        placementLift: clamp(5 + numeric(summary.partialNodes) * 5 + numeric(summary.idleGpus) * 0.6, 5, 26),
+        crossPodReductionPct: 18,
+        crossRackReductionPct: 12,
+        strandedRecoveryPct: 58,
+        usefulLift: clamp(2 + numeric(summary.partialNodes) * 1.4 + current.queueWaitMinutes * 0.04, 2, 12),
+        confidence: confidenceFromSignals([summary.partialNodes, summary.idleGpus, summary.queueWaitMinutes, summary.placementQuality]),
+        action: "Defragment partial nodes and backfill smaller work only after contiguous GPU blocks are protected."
+      },
+      {
+        id: "locality",
+        label: "Reserve locality group",
+        owner: "Scheduler + network",
+        queueReduction: clamp(2 + current.queueWaitMinutes * 0.1, 2, 12),
+        placementLift: clamp(8 + current.crossPodTraffic * 0.36 + Math.max(0, 72 - current.placementQuality) * 0.14, 8, 32),
+        crossPodReductionPct: clamp(58 + current.crossPodTraffic * 0.3, 58, 86),
+        crossRackReductionPct: clamp(26 + current.crossRackTraffic * 0.16, 26, 62),
+        strandedRecoveryPct: 28,
+        usefulLift: clamp(3 + current.crossPodTraffic * 0.12 + numeric(summary.ncclTime) * 0.08, 3, 18),
+        confidence: confidenceFromSignals([summary.crossPodTraffic, summary.crossRackTraffic, summary.ncclTime, summary.networkWait, summary.traceAttribution?.eventCount]),
+        action: "Admit repeated high-value jobs into a same-pod or same-rack locality group before burst tenants consume the shape."
+      },
+      {
+        id: "priority",
+        label: "Protect SLO queue",
+        owner: "Provider operations",
+        queueReduction: clamp(current.queueWaitMinutes - Math.max(0, queueSloMinutes || current.queueWaitMinutes * 0.55), 4, 28),
+        placementLift: clamp(4 + numeric(summary.provider?.committedGpuHours) / 2000, 4, 16),
+        crossPodReductionPct: 22,
+        crossRackReductionPct: 16,
+        strandedRecoveryPct: 34,
+        usefulLift: clamp(2 + Math.max(0, current.queueWaitMinutes - queueSloMinutes) * 0.15, 2, 14),
+        confidence: confidenceFromSignals([summary.queueWaitMinutes, summary.slo?.targetStartMinutes, summary.provider?.committedGpuHours, summary.provider?.billableGpuHours]),
+        action: "Reserve admission windows for priority reservations and delay lower-value burst work when queue SLO burn is rising."
+      }
+    ];
+
+    const scenarios = scenarioInputs
+      .map((scenario) => finalizeSchedulerScenario(summary, current, scenario, rate))
+      .sort((a, b) => b.priorityScore - a.priorityScore);
+
+    return {
+      current,
+      recommended: scenarios[0] || null,
+      scenarios
+    };
+  }
+
+  function finalizeSchedulerScenario(summary, current, scenario, rate) {
+    const queueWaitMinutes = Math.max(0, current.queueWaitMinutes - scenario.queueReduction);
+    const placementQuality = clamp(current.placementQuality + scenario.placementLift);
+    const crossPodTraffic = clamp(current.crossPodTraffic * (1 - scenario.crossPodReductionPct / 100));
+    const crossRackTraffic = clamp(current.crossRackTraffic * (1 - scenario.crossRackReductionPct / 100));
+    const usefulCompute = clamp(current.usefulCompute + scenario.usefulLift);
+    const recoveredStrandedGpuHours = current.strandedGpuHours * scenario.strandedRecoveryPct / 100;
+    const recoveredWasteGpuHours = current.wastedGpuHours * clamp(scenario.usefulLift / 100, 0, 0.32);
+    const recoveredGpuHours = Math.max(0, recoveredStrandedGpuHours + recoveredWasteGpuHours);
+    const dollarUpside = recoveredGpuHours * rate;
+    const queueMinutesSaved = Math.max(0, current.queueWaitMinutes - queueWaitMinutes);
+    const priorityScore = clamp(dollarUpside / 150 + recoveredGpuHours / 15 + queueMinutesSaved * 1.8 + scenario.confidence * 0.24);
+
+    return {
+      ...scenario,
+      projected: {
+        usefulCompute,
+        queueWaitMinutes,
+        placementQuality,
+        crossPodTraffic,
+        crossRackTraffic
+      },
+      deltas: {
+        usefulCompute: usefulCompute - current.usefulCompute,
+        queueWaitMinutes: current.queueWaitMinutes - queueWaitMinutes,
+        placementQuality: placementQuality - current.placementQuality,
+        crossPodTraffic: current.crossPodTraffic - crossPodTraffic,
+        crossRackTraffic: current.crossRackTraffic - crossRackTraffic
+      },
+      recoveredGpuHours,
+      recoveredStrandedGpuHours,
+      recoveredWasteGpuHours,
+      dollarUpside,
+      priorityScore,
+      evidence: `${round(recoveredGpuHours)} GPU-hours recoverable, ${round(queueMinutesSaved)} queue minutes saved, ${pct(placementQuality)} placement fit projected.`
+    };
+  }
+
   function summarizeTrend(points = [], options = {}) {
     const clean = points
       .map((point) => ({ ...point, value: numeric(point.value, Number.NaN) }))
@@ -814,6 +921,7 @@
     regressionRows,
     round,
     scoreComponents,
+    simulateSchedulerScenarios,
     summarizeProviderEconomics,
     summarizeTrend,
     titleCase

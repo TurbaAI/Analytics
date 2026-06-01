@@ -112,6 +112,27 @@ assert.equal(opportunityEngine.opportunities[0].category, "Provider SLO + Escala
 assert.ok(opportunityEngine.opportunities.some((opportunity) => opportunity.category === "Fabric + Topology"));
 assert.ok(opportunityEngine.opportunities.some((opportunity) => opportunity.category === "Energy + Carbon"));
 
+const schedulerSimulator = analytics.simulateSchedulerScenarios({
+  ...finalized,
+  gpus: 192,
+  partialNodes: 3,
+  idleGpus: 0,
+  provider: {
+    listGpuHourRate: 6.8,
+    committedGpuHours: 6500,
+    billableGpuHours: 2227
+  },
+  slo: {
+    targetStartMinutes: 20
+  },
+  traceAttribution: { eventCount: 3 }
+}, { rate: 6.8 });
+assert.equal(schedulerSimulator.scenarios.length, 3);
+assert.ok(schedulerSimulator.recommended.recoveredGpuHours > 0);
+assert.ok(schedulerSimulator.recommended.dollarUpside > 0);
+assert.ok(schedulerSimulator.recommended.projected.placementQuality > finalized.placementQuality);
+assert.ok(schedulerSimulator.scenarios.some((scenario) => scenario.id === "locality"));
+
 const noWhatIf = analytics.applyPlacementWhatIf(finalized, false);
 assert.equal(noWhatIf.whatIfActive, false);
 assert.equal(noWhatIf.crossPodTraffic, finalized.crossPodTraffic);

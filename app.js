@@ -910,6 +910,7 @@ const state = {
   rate: 6.2,
   samePod: false,
   trendMetric: "usefulCompute",
+  schedulerScenario: "recommended",
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   analyzing: false,
   storageLabel: workspaceStore.storageLabel,
@@ -2169,20 +2170,24 @@ function currentAnalysis() {
   const classifier = classifyBottlenecks(summary);
   const provider = providerEconomics(summary);
   const opportunityEngine = generateOpportunities(summary, classifier, provider);
+  const schedulerSimulator = simulateScheduler(summary);
 
   return {
     summary,
     classifier,
     provider,
-    opportunityEngine
+    opportunityEngine,
+    schedulerSimulator
   };
 }
 
-function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityEngine, plan, exportedAt }) {
+function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityEngine, schedulerSimulator, plan, exportedAt }) {
   const redactedKey = redactedSummaryKey(summary, plan);
   const redactedLabelValue = redactedSummaryLabel(summary, plan);
   const providerContext = redactedProviderContext(summary, plan);
   const opportunityRows = (opportunityEngine.opportunities || []).slice(0, 6);
+  const simulatorRows = (schedulerSimulator?.scenarios || []).slice(0, 3);
+  const recommendedScenario = schedulerSimulator?.recommended || simulatorRows[0];
   const sourceRows = redactedSourceRows(summary, plan).slice(0, 10);
   const lines = [
     "# turbalance Evidence Pack",
@@ -2202,6 +2207,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
     `- Provider context: tenant ${providerContext.tenant}, account ${providerContext.account}, reservation ${providerContext.reservation}.`,
     `- Provider impact: ${currency.format(provider.sellableWasteValue)} sellable waste value; ${queueSloNote(provider)}.`,
     `- Opportunity upside: ${currency.format(opportunityEngine.totalImpactDollars)} and ${number.format(opportunityEngine.totalImpactGpuHours)} GPU-hours across ${opportunityRows.length} ranked actions.`,
+    recommendedScenario ? `- Scheduler what-if: ${recommendedScenario.label} projects ${currency.format(recommendedScenario.dollarUpside)} upside and ${number.format(recommendedScenario.recoveredGpuHours)} recovered GPU-hours.` : "",
     "",
     "## Top Opportunities",
     "",
@@ -2230,6 +2236,19 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
       `- Owner: ${markdownText(opportunity.owner || "Unassigned")}`,
       ""
     ]),
+    "## Scheduler / Capacity What-If",
+    "",
+    "| Scenario | Dollar Upside | GPU-Hour Recovery | Queue Saved | Useful Compute | Action |",
+    "| --- | --- | --- | --- | --- | --- |",
+    ...simulatorRows.map((scenario) => [
+      markdownCell(scenario.label),
+      markdownCell(currency.format(scenario.dollarUpside)),
+      markdownCell(number.format(scenario.recoveredGpuHours)),
+      markdownCell(`${round(scenario.deltas.queueWaitMinutes)} min`),
+      markdownCell(`${pct(scenario.projected.usefulCompute)} (${signedNumber(scenario.deltas.usefulCompute)} pts)`),
+      markdownCell(scenario.action)
+    ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
+    "",
     "## Redacted Source Context",
     "",
     "| Run | Adapters | Tenant | Account | Reservation | Context |",
@@ -2609,6 +2628,7 @@ function resetWorkspace() {
   state.scope = "job";
   state.selectedKey = jobs.find((job) => job.id === "run-7421")?.id || jobs[0]?.id || "";
   state.samePod = false;
+  state.schedulerScenario = "recommended";
   state.ingestLabel = "Sample feed";
   state.ingestTone = "good";
   state.lastAnalysis = new Date();
@@ -2644,6 +2664,13 @@ function bindEvents() {
   document.querySelectorAll("#trendMetricControls button").forEach((button) => {
     button.addEventListener("click", () => {
       state.trendMetric = button.dataset.trendMetric;
+      render();
+    });
+  });
+
+  document.querySelectorAll("#simulatorControls button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.schedulerScenario = button.dataset.schedulerScenario;
       render();
     });
   });
@@ -2686,10 +2713,12 @@ function render() {
   const fingerprint = fingerprintWorkload(summary);
   const provider = providerEconomics(summary);
   const opportunityEngine = generateOpportunities(summary, classifier, provider);
+  const schedulerSimulator = simulateScheduler(summary);
 
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
   renderMetricRibbon(summary);
+  renderSchedulerSimulator(schedulerSimulator);
   renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
@@ -2918,6 +2947,119 @@ function renderMetricRibbon(summary) {
   document.querySelector("#wastedGpuHours").textContent = number.format(summary.wastedGpuHours);
   document.querySelector("#wasteDollars").textContent = currency.format(summary.wasteDollars);
   document.querySelector("#costPerUseful").textContent = currency.format(summary.costPerUsefulGpuHour);
+}
+
+function renderSchedulerSimulator(simulator) {
+  const controls = document.querySelectorAll("#simulatorControls button");
+  const stats = document.querySelector("#simulatorStats");
+  const narrative = document.querySelector("#simulatorNarrative");
+  const list = document.querySelector("#simulatorScenarios");
+  const badge = document.querySelector("#simulatorBadge");
+  if (!stats || !narrative || !list || !badge) return;
+
+  const scenarios = simulator.scenarios || [];
+  const recommended = simulator.recommended || scenarios[0];
+  const selected = state.schedulerScenario === "recommended"
+    ? recommended
+    : scenarios.find((scenario) => scenario.id === state.schedulerScenario) || recommended;
+
+  if (!selected) {
+    stats.replaceChildren();
+    narrative.replaceChildren();
+    list.replaceChildren();
+    badge.textContent = "No scenario";
+    return;
+  }
+
+  controls.forEach((button) => {
+    const selectedControl = button.dataset.schedulerScenario === state.schedulerScenario
+      || (state.schedulerScenario === "recommended" && selected.id === recommended?.id && button.dataset.schedulerScenario === "recommended");
+    button.setAttribute("aria-selected", String(selectedControl));
+  });
+
+  badge.textContent = selected.id === recommended?.id ? "Recommended" : selected.label;
+  stats.replaceChildren(
+    simulatorStat("GPU-hour upside", number.format(selected.recoveredGpuHours), "good"),
+    simulatorStat("Dollar upside", currency.format(selected.dollarUpside), "good"),
+    simulatorStat("Queue saved", `${round(selected.deltas.queueWaitMinutes)} min`, selected.deltas.queueWaitMinutes > 0 ? "good" : "watch"),
+    simulatorStat("Placement fit", pct(selected.projected.placementQuality), grade(selected.projected.placementQuality, 65, 82).key)
+  );
+
+  narrative.replaceChildren(
+    simulatorNarrativeItem("Scenario", selected.label),
+    simulatorNarrativeItem("Action", selected.action),
+    simulatorNarrativeItem("Projection", `${pct(selected.projected.usefulCompute)} useful compute, ${round(selected.projected.queueWaitMinutes)} minute queue wait, ${pct(selected.projected.crossPodTraffic)} cross-pod traffic.`)
+  );
+
+  list.replaceChildren();
+  scenarios.forEach((scenario) => {
+    list.append(simulatorScenarioCard(scenario, selected.id === scenario.id, recommended?.id === scenario.id));
+  });
+}
+
+function simulatorStat(label, value, tone) {
+  const item = document.createElement("div");
+  item.dataset.tone = tone;
+
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = value;
+  item.append(labelEl, valueEl);
+
+  return item;
+}
+
+function simulatorNarrativeItem(label, value) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = value;
+  item.append(labelEl, valueEl);
+  return item;
+}
+
+function simulatorScenarioCard(scenario, selected, recommended) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "simulator-scenario";
+  button.setAttribute("aria-selected", String(selected));
+  button.addEventListener("click", () => {
+    state.schedulerScenario = scenario.id;
+    render();
+  });
+
+  const head = document.createElement("div");
+  const title = document.createElement("strong");
+  const badge = document.createElement("span");
+  title.textContent = scenario.label;
+  badge.textContent = recommended ? "Recommended" : `${pct(scenario.confidence)} confidence`;
+  head.append(title, badge);
+
+  const metrics = document.createElement("div");
+  metrics.className = "simulator-scenario-metrics";
+  metrics.append(
+    simulatorMiniMetric(currency.format(scenario.dollarUpside), "upside"),
+    simulatorMiniMetric(`${round(scenario.deltas.queueWaitMinutes)} min`, "queue"),
+    simulatorMiniMetric(`${round(scenario.deltas.usefulCompute)} pts`, "useful")
+  );
+
+  const note = document.createElement("small");
+  note.textContent = scenario.evidence;
+
+  button.append(head, metrics, note);
+  return button;
+}
+
+function simulatorMiniMetric(value, label) {
+  const item = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  const labelEl = document.createElement("small");
+  valueEl.textContent = value;
+  labelEl.textContent = label;
+  item.append(valueEl, labelEl);
+  return item;
 }
 
 function renderTrend(summary) {
@@ -3886,6 +4028,10 @@ function scoreComponents(summary) {
 
 function providerEconomics(summary) {
   return analytics.summarizeProviderEconomics(summary, { rate: state.rate });
+}
+
+function simulateScheduler(summary) {
+  return analytics.simulateSchedulerScenarios(summary, { rate: state.rate });
 }
 
 function generateOpportunities(summary, classifier, provider) {
