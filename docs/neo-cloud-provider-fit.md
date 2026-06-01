@@ -23,7 +23,7 @@ Useful reference patterns:
 - Customer success and support: needs tenant-safe evidence for a slow-run escalation or renewal conversation.
 - Capacity planning: needs sellable GPU-hour waste, reservation burn, and queue pressure by cluster or tenant.
 - Revenue operations: needs billing-model and contract overlays without importing secrets into the browser prototype.
-- Platform security: needs controlled upload paths, tenant isolation, audit logs, and retention controls for pilot handoff.
+- Platform security: needs controlled upload paths, tenant isolation, role-aware auth, token/key rotation, audit export, and retention controls for pilot handoff.
 
 ## Provider Signals
 
@@ -115,6 +115,6 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 
 `scripts/build-provider-pilot-bundle.js` is the all-lanes provider pilot bundler for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, NCCL trace, billing/SLO, and opportunity exports.
 
-`server/ingestion-server.js` is the optional controlled ingestion service for signed upload, tenant audit, and retention workflows.
+`server/ingestion-server.js` is the optional controlled ingestion service for signed upload, role-aware auth, tenant provisioning, audit export, token/key rotation, and retention workflows.
 
 For a pilot walkthrough, use `docs/neo-cloud-pilot-validation.md`.

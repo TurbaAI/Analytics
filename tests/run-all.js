@@ -17,6 +17,7 @@ const checks = [
   { label: "scheduler exporter", args: ["tests/scheduler-exporter.test.js"] },
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
   { label: "provider pilot bundler", args: ["tests/provider-pilot-bundler.test.js"] },
+  { label: "ingestion storage", args: ["tests/ingestion-storage.test.js"] },
   { label: "ingestion server", args: ["tests/ingestion-server.test.js"] },
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },

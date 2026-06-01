@@ -27,6 +27,7 @@ const readme = read("README.md");
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
   "server/ingestion-server.js",
+  "server/ingestion-storage.js",
   "scripts/build-provider-overlay.js",
   "scripts/build-provider-pilot-bundle.js",
   "scripts/build-scheduler-overlay.js",
@@ -69,12 +70,14 @@ const readme = read("README.md");
   "scripts/run-screenshot-qa.js",
   "grafana/turbalance-provider-overview.json",
   "server/ingestion-server.js",
+  "server/ingestion-storage.js",
   "node tests/run-all.js",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/provider-pilot-bundler.test.js",
+  "tests/ingestion-storage.test.js",
   "tests/ingestion-server.test.js",
   "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
@@ -117,7 +120,12 @@ assert.ok(dataContract.includes("build-provider-pilot-bundle.js"));
 
 const backendIngestion = read("docs/backend-ingestion.md");
 assert.ok(backendIngestion.includes("server/ingestion-server.js"));
+assert.ok(backendIngestion.includes("server/ingestion-storage.js"));
 assert.ok(backendIngestion.includes("signed"));
+assert.ok(backendIngestion.includes("JWT"));
+assert.ok(backendIngestion.includes("tokens/rotate"));
+assert.ok(backendIngestion.includes("upload-keys/rotate"));
+assert.ok(backendIngestion.includes("audit/export"));
 assert.ok(backendIngestion.includes("audit"));
 assert.ok(backendIngestion.includes("retention"));
 

@@ -2,22 +2,29 @@
 "use strict";
 
 const crypto = require("node:crypto");
-const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { validateSourceBundle } = require("../lib/source-bundle-validator.js");
+const { createFileStorage } = require("./ingestion-storage.js");
 
 const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const ROLE_PERMISSIONS = {
+  admin: ["*"],
+  operator: ["upload:sign", "ingest:write", "audit:read", "audit:export", "retention:run"],
+  ingest: ["upload:sign", "ingest:write"],
+  viewer: ["audit:read", "audit:export"]
+};
+const DEFAULT_ROLE = "ingest";
 
 function createIngestionServer(options = {}) {
   const config = normalizeConfig(options);
 
-  ensureDir(config.dataDir);
-  ensureDir(path.join(config.dataDir, "audit"));
+  config.storage.initialize();
   applyRetention(config);
+  const retentionTimer = startRetentionScheduler(config);
 
-  return http.createServer(async (req, res) => {
+  const server = http.createServer(async (req, res) => {
     const requestId = crypto.randomUUID();
     const requestUrl = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
 
@@ -31,6 +38,7 @@ function createIngestionServer(options = {}) {
           ok: true,
           service: "turbalance-ingestion",
           retentionDays: config.retentionDays,
+          retentionIntervalSeconds: config.retentionIntervalSeconds,
           maxUploadBytes: config.maxUploadBytes
         }, config);
       }
@@ -51,8 +59,28 @@ function createIngestionServer(options = {}) {
         return await handleAuditRead(req, res, requestUrl, requestId, config);
       }
 
+      if (req.method === "GET" && requestUrl.pathname === "/v1/audit/export") {
+        return await handleAuditExport(req, res, requestUrl, requestId, config);
+      }
+
       if (req.method === "POST" && requestUrl.pathname === "/v1/retention/run") {
         return await handleRetentionRun(req, res, requestId, config);
+      }
+
+      if (req.method === "GET" && requestUrl.pathname === "/v1/tenants") {
+        return await handleTenantList(req, res, requestId, config);
+      }
+
+      if (req.method === "POST" && requestUrl.pathname === "/v1/tenants") {
+        return await handleTenantUpsert(req, res, requestId, config);
+      }
+
+      if (req.method === "POST" && requestUrl.pathname === "/v1/tokens/rotate") {
+        return await handleTokenRotate(req, res, requestId, config);
+      }
+
+      if (req.method === "POST" && requestUrl.pathname === "/v1/upload-keys/rotate") {
+        return await handleUploadKeyRotate(req, res, requestId, config);
       }
 
       writeJson(res, 404, { ok: false, error: "not_found", requestId }, config);
@@ -69,10 +97,16 @@ function createIngestionServer(options = {}) {
       writeJson(res, statusCode, { ok: false, error: publicError, requestId }, config);
     }
   });
+
+  if (retentionTimer) {
+    server.on("close", () => clearInterval(retentionTimer));
+  }
+
+  return server;
 }
 
 async function handleSignUpload(req, res, requestId, config) {
-  const auth = await requireAuth(req, res, requestId, config);
+  const auth = await requireAuth(req, res, requestId, config, "upload:sign");
   if (!auth) return;
 
   const body = await readJsonBody(req, config.maxUploadBytes);
@@ -86,10 +120,12 @@ async function handleSignUpload(req, res, requestId, config) {
   const expiresInSeconds = clampNumber(body.expiresInSeconds, 60, 3600, 900);
   const expires = Math.floor(Date.now() / 1000) + expiresInSeconds;
   const sha256 = stringValue(body.sha256);
-  const signature = signUpload(config, { tenantId, uploadId, expires, sha256 });
+  const keyId = config.activeUploadKeyId;
+  const signature = signUpload(config, { tenantId, uploadId, expires, sha256, keyId });
   const query = new URLSearchParams({
     tenant: tenantId,
     expires: String(expires),
+    kid: keyId,
     signature
   });
   if (sha256) query.set("sha256", sha256);
@@ -101,6 +137,7 @@ async function handleSignUpload(req, res, requestId, config) {
     actor: auth.actor,
     tenantId,
     uploadId,
+    keyId,
     expiresAt: new Date(expires * 1000).toISOString()
   });
 
@@ -109,6 +146,7 @@ async function handleSignUpload(req, res, requestId, config) {
     requestId,
     tenantId,
     uploadId,
+    keyId,
     method: "PUT",
     expiresAt: new Date(expires * 1000).toISOString(),
     uploadUrl: `/v1/uploads/${uploadId}?${query.toString()}`
@@ -119,17 +157,18 @@ async function handleSignedUpload(req, res, requestUrl, requestId, config) {
   const uploadId = sanitizeSegment(requestUrl.pathname.split("/").pop());
   const tenantId = sanitizeSegment(requestUrl.searchParams.get("tenant"));
   const expires = Number(requestUrl.searchParams.get("expires"));
+  const keyId = sanitizeSegment(requestUrl.searchParams.get("kid")) || config.activeUploadKeyId;
   const signature = stringValue(requestUrl.searchParams.get("signature"));
   const sha256 = stringValue(requestUrl.searchParams.get("sha256"));
 
-  if (!uploadId || !tenantId || !Number.isFinite(expires) || expires < Math.floor(Date.now() / 1000)) {
-    await audit(config, { requestId, event: "upload.signed.denied", status: "expired_or_invalid", tenantId, uploadId });
+  if (!uploadId || !tenantId || !keyId || !Number.isFinite(expires) || expires < Math.floor(Date.now() / 1000)) {
+    await audit(config, { requestId, event: "upload.signed.denied", status: "expired_or_invalid", tenantId, uploadId, keyId });
     return writeJson(res, 401, { ok: false, error: "signed_upload_expired_or_invalid", requestId }, config);
   }
 
-  const expected = signUpload(config, { tenantId, uploadId, expires, sha256 });
+  const expected = signUpload(config, { tenantId, uploadId, expires, sha256, keyId });
   if (!safeEqual(signature, expected)) {
-    await audit(config, { requestId, event: "upload.signed.denied", status: "bad_signature", tenantId, uploadId });
+    await audit(config, { requestId, event: "upload.signed.denied", status: "bad_signature", tenantId, uploadId, keyId });
     return writeJson(res, 401, { ok: false, error: "bad_signature", requestId }, config);
   }
 
@@ -153,7 +192,7 @@ async function handleSignedUpload(req, res, requestUrl, requestId, config) {
 }
 
 async function handleDirectIngest(req, res, requestId, config) {
-  const auth = await requireAuth(req, res, requestId, config);
+  const auth = await requireAuth(req, res, requestId, config, "ingest:write");
   if (!auth) return;
 
   const tenantId = tenantForRequest(auth, req.headers["x-turbalance-tenant"]);
@@ -175,7 +214,7 @@ async function handleDirectIngest(req, res, requestId, config) {
 }
 
 async function handleAuditRead(req, res, requestUrl, requestId, config) {
-  const auth = await requireAuth(req, res, requestId, config);
+  const auth = await requireAuth(req, res, requestId, config, "audit:read");
   if (!auth) return;
 
   const requestedTenant = sanitizeSegment(requestUrl.searchParams.get("tenant"));
@@ -187,13 +226,142 @@ async function handleAuditRead(req, res, requestUrl, requestId, config) {
   writeJson(res, 200, { ok: true, requestId, tenantId: tenantId || "all", rows }, config);
 }
 
+async function handleAuditExport(req, res, requestUrl, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "audit:export");
+  if (!auth) return;
+
+  const requestedTenant = sanitizeSegment(requestUrl.searchParams.get("tenant"));
+  const tenantId = auth.role === "admin" ? requestedTenant : auth.tenantId;
+  const limit = clampNumber(requestUrl.searchParams.get("limit"), 1, 10000, 1000);
+  const format = stringValue(requestUrl.searchParams.get("format") || "jsonl").toLowerCase();
+  const rows = readAuditRows(config, { tenantId, limit }).slice().reverse();
+
+  await audit(config, { requestId, event: "audit.export", status: "ok", actor: auth.actor, tenantId: tenantId || "all", format, limit });
+
+  if (format === "json") {
+    return writeJson(res, 200, { ok: true, requestId, tenantId: tenantId || "all", rows }, config);
+  }
+
+  if (format === "csv") {
+    return writeResponse(res, 200, auditRowsToCsv(rows), config, "text/csv; charset=utf-8");
+  }
+
+  writeResponse(res, 200, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, config, "application/x-ndjson; charset=utf-8");
+}
+
 async function handleRetentionRun(req, res, requestId, config) {
-  const auth = await requireAuth(req, res, requestId, config);
+  const auth = await requireAuth(req, res, requestId, config, "retention:run");
   if (!auth) return;
 
   const result = applyRetention(config, { tenantId: auth.role === "admin" ? undefined : auth.tenantId });
   await audit(config, { requestId, event: "retention.run", status: "ok", actor: auth.actor, tenantId: auth.role === "admin" ? "all" : auth.tenantId, deleted: result.deleted.length });
   writeJson(res, 200, { ok: true, requestId, ...result }, config);
+}
+
+async function handleTenantList(req, res, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "tenant:manage");
+  if (!auth) return;
+
+  const tenants = tenantList(config).map((tenant) => ({
+    ...tenant,
+    tokenCount: tokenSummaries(config, tenant.tenantId).length,
+    tokens: tokenSummaries(config, tenant.tenantId)
+  }));
+
+  await audit(config, { requestId, event: "tenant.list", status: "ok", actor: auth.actor, tenantId: "all", count: tenants.length });
+  writeJson(res, 200, { ok: true, requestId, tenants }, config);
+}
+
+async function handleTenantUpsert(req, res, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "tenant:manage");
+  if (!auth) return;
+
+  const body = await readJsonBody(req, config.maxUploadBytes);
+  const tenant = upsertTenant(config, {
+    tenantId: body.tenantId,
+    displayName: body.displayName,
+    status: body.status,
+    retentionDays: body.retentionDays,
+    maxUploadsPerTenant: body.maxUploadsPerTenant
+  }, auth.actor);
+
+  await audit(config, { requestId, event: "tenant.upsert", status: "ok", actor: auth.actor, tenantId: tenant.tenantId });
+  writeJson(res, 200, { ok: true, requestId, tenant }, config);
+}
+
+async function handleTokenRotate(req, res, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "key:rotate");
+  if (!auth) return;
+
+  const body = await readJsonBody(req, config.maxUploadBytes);
+  const tenantId = sanitizeSegment(body.tenantId);
+  if (!tenantId) {
+    return writeJson(res, 400, { ok: false, error: "tenant_id_required", requestId }, config);
+  }
+
+  ensureTenant(config, tenantId, auth.actor);
+  const token = stringValue(body.token) || crypto.randomBytes(24).toString("base64url");
+  const role = normalizeRole(body.role || DEFAULT_ROLE);
+  const subject = stringValue(body.subject || `${role}-token`);
+  const account = registerToken(config, {
+    token,
+    tenantId,
+    role,
+    subject,
+    source: "control"
+  });
+  persistControlTokens(config);
+
+  await audit(config, {
+    requestId,
+    event: "token.rotate",
+    status: "ok",
+    actor: auth.actor,
+    tenantId,
+    role,
+    subject,
+    tokenFingerprint: account.tokenFingerprint
+  });
+
+  writeJson(res, 200, {
+    ok: true,
+    requestId,
+    tenantId,
+    role,
+    subject,
+    token,
+    tokenFingerprint: account.tokenFingerprint
+  }, config);
+}
+
+async function handleUploadKeyRotate(req, res, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "key:rotate");
+  if (!auth) return;
+
+  const body = await readJsonBody(req, config.maxUploadBytes);
+  const keyId = sanitizeSegment(body.keyId) || `key-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomBytes(3).toString("hex")}`;
+  const secret = stringValue(body.secret) || crypto.randomBytes(32).toString("base64url");
+  const activate = body.activate !== false;
+
+  config.uploadKeys.set(keyId, {
+    keyId,
+    secret,
+    createdAt: new Date().toISOString(),
+    source: "control"
+  });
+  if (activate) {
+    config.activeUploadKeyId = keyId;
+  }
+  persistUploadKeys(config);
+
+  await audit(config, { requestId, event: "upload_key.rotate", status: "ok", actor: auth.actor, tenantId: "all", keyId, active: activate });
+  writeJson(res, 200, {
+    ok: true,
+    requestId,
+    keyId,
+    activeUploadKeyId: config.activeUploadKeyId,
+    secret
+  }, config);
 }
 
 async function validateAndStore({ res, config, requestId, tenantId, actor, uploadId, raw, source }) {
@@ -237,33 +405,26 @@ async function validateAndStore({ res, config, requestId, tenantId, actor, uploa
 }
 
 function storePayload(config, { tenantId, uploadId, payload, raw, source }) {
-  const tenantDir = tenantUploadDir(config, tenantId);
-  ensureDir(tenantDir);
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const baseName = `${stamp}-${uploadId}`;
-  const storageKey = `tenants/${tenantId}/uploads/${baseName}.json`;
-  const fullPath = path.join(config.dataDir, storageKey);
-  const metaPath = path.join(config.dataDir, `tenants/${tenantId}/uploads/${baseName}.meta.json`);
-
-  fs.writeFileSync(`${fullPath}.tmp`, raw);
-  fs.renameSync(`${fullPath}.tmp`, fullPath);
-  fs.writeFileSync(metaPath, `${JSON.stringify({
+  return config.storage.writeUpload({
     tenantId,
     uploadId,
-    source,
-    storedAt: new Date().toISOString(),
-    sha256: sha256Hex(raw),
-    bytes: raw.length,
-    schemaVersion: payload.schemaVersion || payload.ingestion?.schemaVersion || "source-bundle"
-  }, null, 2)}\n`);
-
-  return { storageKey, fullPath };
+    raw,
+    metadata: {
+      tenantId,
+      uploadId,
+      source,
+      storedAt: new Date().toISOString(),
+      sha256: sha256Hex(raw),
+      bytes: raw.length,
+      schemaVersion: payload.schemaVersion || payload.ingestion?.schemaVersion || "source-bundle"
+    }
+  });
 }
 
-async function requireAuth(req, res, requestId, config) {
+async function requireAuth(req, res, requestId, config, permission) {
   const header = stringValue(req.headers.authorization);
   const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-  const account = config.tokens.get(token);
+  const account = authenticateToken(token, config);
 
   if (!account) {
     await audit(config, { requestId, event: "auth.failure", status: "denied", actor: "anonymous" });
@@ -271,10 +432,19 @@ async function requireAuth(req, res, requestId, config) {
     return null;
   }
 
-  return {
-    ...account,
-    actor: `${account.tenantId}:${tokenFingerprint(token)}`
-  };
+  if (!tenantIsActive(config, account.tenantId) && account.role !== "admin") {
+    await audit(config, { requestId, event: "auth.tenant_disabled", status: "denied", actor: account.actor, tenantId: account.tenantId });
+    writeJson(res, 403, { ok: false, error: "tenant_disabled", requestId }, config);
+    return null;
+  }
+
+  if (permission && !hasPermission(account.role, permission)) {
+    await audit(config, { requestId, event: "auth.forbidden", status: "denied", actor: account.actor, tenantId: account.tenantId, role: account.role, permission });
+    writeJson(res, 403, { ok: false, error: "forbidden", requestId }, config);
+    return null;
+  }
+
+  return account;
 }
 
 function tenantForRequest(auth, requestedTenant) {
@@ -286,34 +456,17 @@ function tenantForRequest(auth, requestedTenant) {
 
 function applyRetention(config, options = {}) {
   const deleted = [];
-  const cutoff = Date.now() - config.retentionDays * 24 * 60 * 60 * 1000;
-  const tenantsDir = path.join(config.dataDir, "tenants");
-  if (!fs.existsSync(tenantsDir)) return { deleted };
-
-  const tenants = fs.readdirSync(tenantsDir)
+  const tenants = Array.from(new Set([...config.storage.listTenantsWithUploads(), ...config.tenants.keys()]))
     .filter((tenantId) => !options.tenantId || tenantId === options.tenantId);
 
   tenants.forEach((tenantId) => {
-    const uploadDir = path.join(tenantsDir, tenantId, "uploads");
-    if (!fs.existsSync(uploadDir)) return;
-
-    const files = fs.readdirSync(uploadDir)
-      .filter((file) => file.endsWith(".json") && !file.endsWith(".meta.json"))
-      .map((file) => ({
-        file,
-        fullPath: path.join(uploadDir, file),
-        mtimeMs: fs.statSync(path.join(uploadDir, file)).mtimeMs
-      }))
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    const policy = retentionPolicyForTenant(config, tenantId);
+    const cutoff = Date.now() - policy.retentionDays * 24 * 60 * 60 * 1000;
+    const files = config.storage.listTenantUploads(tenantId);
 
     files.forEach((entry, index) => {
-      if (entry.mtimeMs >= cutoff && index < config.maxUploadsPerTenant) return;
-      [entry.fullPath, entry.fullPath.replace(/\.json$/, ".meta.json")].forEach((target) => {
-        if (fs.existsSync(target)) {
-          fs.rmSync(target, { force: true });
-          deleted.push(path.relative(config.dataDir, target));
-        }
-      });
+      if (entry.mtimeMs >= cutoff && index < policy.maxUploadsPerTenant) return;
+      deleted.push(...config.storage.deleteUpload(entry));
     });
   });
 
@@ -321,45 +474,44 @@ function applyRetention(config, options = {}) {
 }
 
 function readAuditRows(config, { tenantId, limit }) {
-  const auditPath = path.join(config.dataDir, "audit", "audit.jsonl");
-  if (!fs.existsSync(auditPath)) return [];
-
-  return fs.readFileSync(auditPath, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .filter((row) => !tenantId || row.tenantId === tenantId)
-    .slice(-limit)
-    .reverse();
+  return config.storage.readAuditRows({ tenantId, limit });
 }
 
 async function audit(config, event) {
-  const auditPath = path.join(config.dataDir, "audit", "audit.jsonl");
-  ensureDir(path.dirname(auditPath));
-  const row = {
+  config.storage.appendAudit({
     ts: new Date().toISOString(),
     ...event
-  };
-  fs.appendFileSync(auditPath, `${JSON.stringify(row)}\n`);
+  });
 }
 
 function normalizeConfig(options = {}) {
   const dataDir = path.resolve(options.dataDir || process.env.TURBALANCE_DATA_DIR || path.join(__dirname, "..", ".turbalance-data"));
-  const uploadSecret = options.uploadSecret || process.env.TURBALANCE_UPLOAD_SECRET || "dev-upload-secret-change-me";
-  const tokens = parseTenantTokens(options.tenantTokens || process.env.TURBALANCE_TENANT_TOKENS || "demo:dev-token");
+  const storage = options.storage || createFileStorage({ dataDir });
+  storage.initialize();
+  const persistedUploadKeys = readControlArray(storage, "upload-keys");
+  const uploadKeys = parseUploadKeys({
+    uploadKeys: options.uploadKeys,
+    uploadSecret: options.uploadSecret,
+    persistedUploadKeys
+  });
+  const activeUploadKeyId = activeUploadKeyIdFor(options, uploadKeys, persistedUploadKeys);
+  const tokens = new Map();
+  mergeTokenMap(tokens, parseTenantTokens(options.tenantTokens || process.env.TURBALANCE_TENANT_TOKENS || "demo:dev-token"));
+  mergeTokenMap(tokens, tokensFromControlRecords(readControlArray(storage, "tokens")));
+  const tenants = loadTenantRegistry(storage, tokens, options.tenants);
 
   return {
     dataDir,
-    uploadSecret,
+    storage,
+    uploadKeys,
+    activeUploadKeyId,
     tokens,
+    tenants,
+    jwtSecret: options.jwtSecret || process.env.TURBALANCE_JWT_SECRET || "",
+    jwtIssuer: options.jwtIssuer || process.env.TURBALANCE_JWT_ISSUER || "",
+    jwtAudience: options.jwtAudience || process.env.TURBALANCE_JWT_AUDIENCE || "",
     retentionDays: Number(options.retentionDays || process.env.TURBALANCE_RETENTION_DAYS || 30),
+    retentionIntervalSeconds: Number(options.retentionIntervalSeconds || process.env.TURBALANCE_RETENTION_INTERVAL_SECONDS || 0),
     maxUploadsPerTenant: Number(options.maxUploadsPerTenant || process.env.TURBALANCE_MAX_UPLOADS_PER_TENANT || 200),
     maxUploadBytes: Number(options.maxUploadBytes || process.env.TURBALANCE_MAX_UPLOAD_BYTES || DEFAULT_MAX_UPLOAD_BYTES),
     corsOrigin: options.corsOrigin || process.env.TURBALANCE_CORS_ORIGIN || "*"
@@ -373,18 +525,361 @@ function parseTenantTokens(value) {
     .map((entry) => entry.trim())
     .filter(Boolean)
     .forEach((entry) => {
-      const [tenantId, token, role = "ingest"] = entry.split(":");
+      const [tenantId, token, role = DEFAULT_ROLE, subject = `${normalizeRole(role)}-token`] = entry.split(":");
       if (!sanitizeSegment(tenantId) || !token) return;
-      tokens.set(token, { tenantId: sanitizeSegment(tenantId), role });
+      const account = tokenAccount({
+        token,
+        tenantId,
+        role,
+        subject,
+        source: "env"
+      });
+      tokens.set(account.tokenHash, account);
     });
   return tokens;
 }
 
-function signUpload(config, { tenantId, uploadId, expires, sha256 }) {
+function parseUploadKeys({ uploadKeys, uploadSecret, persistedUploadKeys }) {
+  const keys = new Map();
+  const envKeys = process.env.TURBALANCE_UPLOAD_SECRETS;
+
+  addUploadKey(keys, "default", uploadSecret || process.env.TURBALANCE_UPLOAD_SECRET || "dev-upload-secret-change-me", "fallback");
+
+  if (uploadKeys instanceof Map) {
+    uploadKeys.forEach((value, keyId) => addUploadKey(keys, keyId, typeof value === "string" ? value : value?.secret, "option"));
+  } else if (Array.isArray(uploadKeys)) {
+    uploadKeys.forEach((entry) => addUploadKey(keys, entry.keyId, entry.secret, "option"));
+  } else if (uploadKeys && typeof uploadKeys === "object") {
+    Object.entries(uploadKeys).forEach(([keyId, secret]) => addUploadKey(keys, keyId, secret, "option"));
+  }
+
+  String(envKeys || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .forEach((entry) => {
+      const [keyId, secret] = entry.split(":");
+      addUploadKey(keys, keyId, secret, "env");
+    });
+
+  persistedUploadKeys.forEach((entry) => addUploadKey(keys, entry.keyId, entry.secret, "control", entry.createdAt));
+
+  return keys;
+}
+
+function addUploadKey(keys, keyId, secret, source, createdAt = new Date().toISOString()) {
+  const safeKeyId = sanitizeSegment(keyId);
+  const value = stringValue(secret);
+  if (!safeKeyId || !value) return;
+  keys.set(safeKeyId, {
+    keyId: safeKeyId,
+    secret: value,
+    createdAt,
+    source
+  });
+}
+
+function activeUploadKeyIdFor(options, uploadKeys, persistedUploadKeys) {
+  const requested = sanitizeSegment(options.activeUploadKeyId || process.env.TURBALANCE_ACTIVE_UPLOAD_KEY_ID);
+  if (requested && uploadKeys.has(requested)) return requested;
+  const persistedActive = persistedUploadKeys.find((entry) => entry.active && uploadKeys.has(entry.keyId));
+  if (persistedActive) return persistedActive.keyId;
+  return Array.from(uploadKeys.keys()).at(-1) || "default";
+}
+
+function signUpload(config, { tenantId, uploadId, expires, sha256, keyId }) {
+  const selectedKeyId = sanitizeSegment(keyId) || config.activeUploadKeyId;
+  const key = config.uploadKeys.get(selectedKeyId);
+  if (!key) return "";
   return crypto
-    .createHmac("sha256", config.uploadSecret)
-    .update(`${tenantId}:${uploadId}:${expires}:${sha256 || ""}`)
+    .createHmac("sha256", key.secret)
+    .update(`${selectedKeyId}:${tenantId}:${uploadId}:${expires}:${sha256 || ""}`)
     .digest("hex");
+}
+
+function authenticateToken(token, config) {
+  if (!token) return null;
+  const tokenHashValue = hashToken(token);
+  const account = config.tokens.get(tokenHashValue);
+  if (account) return accountWithActor(account);
+  return authenticateJwt(token, config);
+}
+
+function authenticateJwt(token, config) {
+  if (!config.jwtSecret || token.split(".").length !== 3) return null;
+  const [encodedHeader, encodedPayload, signature] = token.split(".");
+
+  let header;
+  let payload;
+  try {
+    header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8"));
+    payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+
+  if (header.alg !== "HS256") return null;
+
+  const expected = crypto
+    .createHmac("sha256", config.jwtSecret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest("base64url");
+  if (!safeEqual(signature, expected)) return null;
+  if (payload.exp && Number(payload.exp) < Math.floor(Date.now() / 1000)) return null;
+  if (config.jwtIssuer && payload.iss !== config.jwtIssuer) return null;
+  if (config.jwtAudience && !jwtAudienceMatches(payload.aud, config.jwtAudience)) return null;
+
+  const tenantId = sanitizeSegment(payload.tenantId || payload.tenant || payload["https://turbalance.ai/tenant"]);
+  if (!tenantId) return null;
+  const role = normalizeRole(payload.role || payload["https://turbalance.ai/role"] || "viewer");
+  const subject = stringValue(payload.sub || payload.email || "jwt-subject");
+
+  return accountWithActor({
+    tenantId,
+    role,
+    subject,
+    source: "jwt",
+    tokenHash: hashToken(token),
+    tokenFingerprint: tokenFingerprint(token),
+    createdAt: new Date(0).toISOString()
+  });
+}
+
+function jwtAudienceMatches(actual, expected) {
+  if (Array.isArray(actual)) return actual.includes(expected);
+  return stringValue(actual) === expected;
+}
+
+function tokenAccount({ token, tenantId, role, subject, source, createdAt = new Date().toISOString() }) {
+  const safeTenantId = sanitizeSegment(tenantId);
+  const tokenHashValue = hashToken(token);
+  return {
+    tenantId: safeTenantId,
+    role: normalizeRole(role),
+    subject: stringValue(subject || `${normalizeRole(role)}-token`),
+    source,
+    tokenHash: tokenHashValue,
+    tokenFingerprint: tokenHashValue.slice(0, 12),
+    createdAt
+  };
+}
+
+function accountWithActor(account) {
+  return {
+    ...account,
+    actor: `${account.tenantId}:${account.subject || account.role}:${account.tokenFingerprint || String(account.tokenHash || "").slice(0, 12)}`
+  };
+}
+
+function registerToken(config, token) {
+  const account = tokenAccount(token);
+  config.tokens.set(account.tokenHash, account);
+  return account;
+}
+
+function tokensFromControlRecords(records) {
+  const tokens = new Map();
+  records.forEach((record) => {
+    const tenantId = sanitizeSegment(record.tenantId);
+    const tokenHashValue = stringValue(record.tokenHash);
+    if (!tenantId || !tokenHashValue || record.revokedAt) return;
+    tokens.set(tokenHashValue, {
+      tenantId,
+      role: normalizeRole(record.role),
+      subject: stringValue(record.subject || `${normalizeRole(record.role)}-token`),
+      source: "control",
+      tokenHash: tokenHashValue,
+      tokenFingerprint: stringValue(record.tokenFingerprint) || tokenHashValue.slice(0, 12),
+      createdAt: stringValue(record.createdAt) || new Date().toISOString()
+    });
+  });
+  return tokens;
+}
+
+function mergeTokenMap(target, source) {
+  source.forEach((value, key) => target.set(key, value));
+}
+
+function persistControlTokens(config) {
+  const records = Array.from(config.tokens.values())
+    .filter((account) => account.source === "control")
+    .map((account) => ({
+      tenantId: account.tenantId,
+      role: account.role,
+      subject: account.subject,
+      tokenHash: account.tokenHash,
+      tokenFingerprint: account.tokenFingerprint,
+      createdAt: account.createdAt
+    }))
+    .sort((a, b) => `${a.tenantId}:${a.subject}`.localeCompare(`${b.tenantId}:${b.subject}`));
+  config.storage.writeControlJson("tokens", records);
+}
+
+function persistUploadKeys(config) {
+  const records = Array.from(config.uploadKeys.values())
+    .filter((key) => key.source === "control")
+    .map((key) => ({
+      keyId: key.keyId,
+      secret: key.secret,
+      createdAt: key.createdAt,
+      active: key.keyId === config.activeUploadKeyId
+    }))
+    .sort((a, b) => a.keyId.localeCompare(b.keyId));
+  config.storage.writeControlJson("upload-keys", records);
+}
+
+function loadTenantRegistry(storage, tokens, optionTenants) {
+  const tenants = new Map();
+  [
+    ...readControlArray(storage, "tenants"),
+    ...tenantOptionRecords(optionTenants)
+  ].forEach((record) => {
+    const tenantId = sanitizeSegment(record.tenantId);
+    if (!tenantId) return;
+    tenants.set(tenantId, normalizeTenantRecord({ ...record, tenantId }));
+  });
+
+  tokens.forEach((account) => {
+    if (!tenants.has(account.tenantId)) {
+      tenants.set(account.tenantId, normalizeTenantRecord({ tenantId: account.tenantId }));
+    }
+  });
+
+  return tenants;
+}
+
+function tenantOptionRecords(optionTenants) {
+  if (!optionTenants) return [];
+  if (Array.isArray(optionTenants)) return optionTenants;
+  return Object.entries(optionTenants).map(([tenantId, value]) => ({ tenantId, ...(value || {}) }));
+}
+
+function normalizeTenantRecord(record) {
+  const now = new Date().toISOString();
+  return {
+    tenantId: sanitizeSegment(record.tenantId),
+    displayName: stringValue(record.displayName || record.tenantId),
+    status: record.status === "disabled" ? "disabled" : "active",
+    retentionDays: optionalNumber(record.retentionDays),
+    maxUploadsPerTenant: optionalNumber(record.maxUploadsPerTenant),
+    createdAt: stringValue(record.createdAt) || now,
+    updatedAt: stringValue(record.updatedAt) || now,
+    updatedBy: stringValue(record.updatedBy)
+  };
+}
+
+function upsertTenant(config, input, actor) {
+  const tenantId = sanitizeSegment(input.tenantId);
+  if (!tenantId) throw clientError("tenant_id_required", 400);
+  const existing = config.tenants.get(tenantId) || normalizeTenantRecord({ tenantId });
+  const updated = normalizeTenantRecord({
+    ...existing,
+    ...input,
+    tenantId,
+    retentionDays: input.retentionDays === undefined ? existing.retentionDays : input.retentionDays,
+    maxUploadsPerTenant: input.maxUploadsPerTenant === undefined ? existing.maxUploadsPerTenant : input.maxUploadsPerTenant,
+    updatedAt: new Date().toISOString(),
+    updatedBy: actor
+  });
+  config.tenants.set(tenantId, updated);
+  persistTenantRegistry(config);
+  return updated;
+}
+
+function ensureTenant(config, tenantId, actor) {
+  if (config.tenants.has(tenantId)) return config.tenants.get(tenantId);
+  const tenant = normalizeTenantRecord({ tenantId, updatedBy: actor });
+  config.tenants.set(tenantId, tenant);
+  persistTenantRegistry(config);
+  return tenant;
+}
+
+function persistTenantRegistry(config) {
+  const records = tenantList(config);
+  config.storage.writeControlJson("tenants", records);
+}
+
+function tenantList(config) {
+  return Array.from(config.tenants.values())
+    .sort((a, b) => a.tenantId.localeCompare(b.tenantId));
+}
+
+function tenantIsActive(config, tenantId) {
+  const tenant = config.tenants.get(tenantId);
+  return !tenant || tenant.status !== "disabled";
+}
+
+function retentionPolicyForTenant(config, tenantId) {
+  const tenant = config.tenants.get(tenantId) || {};
+  return {
+    retentionDays: Number.isFinite(Number(tenant.retentionDays)) ? Number(tenant.retentionDays) : config.retentionDays,
+    maxUploadsPerTenant: Number.isFinite(Number(tenant.maxUploadsPerTenant)) ? Number(tenant.maxUploadsPerTenant) : config.maxUploadsPerTenant
+  };
+}
+
+function tokenSummaries(config, tenantId) {
+  return Array.from(config.tokens.values())
+    .filter((account) => account.tenantId === tenantId)
+    .map((account) => ({
+      role: account.role,
+      subject: account.subject,
+      source: account.source,
+      tokenFingerprint: account.tokenFingerprint,
+      createdAt: account.createdAt
+    }))
+    .sort((a, b) => `${a.role}:${a.subject}`.localeCompare(`${b.role}:${b.subject}`));
+}
+
+function hasPermission(role, permission) {
+  const permissions = ROLE_PERMISSIONS[normalizeRole(role)] || [];
+  return permissions.includes("*") || permissions.includes(permission);
+}
+
+function normalizeRole(role) {
+  const value = stringValue(role || DEFAULT_ROLE).toLowerCase();
+  return ROLE_PERMISSIONS[value] ? value : DEFAULT_ROLE;
+}
+
+function readControlArray(storage, name) {
+  const value = storage.readControlJson(name, []);
+  return Array.isArray(value) ? value : [];
+}
+
+function startRetentionScheduler(config) {
+  if (!Number.isFinite(config.retentionIntervalSeconds) || config.retentionIntervalSeconds <= 0) return null;
+  const timer = setInterval(() => {
+    const result = applyRetention(config);
+    audit(config, {
+      event: "retention.scheduled",
+      status: "ok",
+      actor: "system:retention-scheduler",
+      tenantId: "all",
+      deleted: result.deleted.length
+    });
+  }, config.retentionIntervalSeconds * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}
+
+function auditRowsToCsv(rows) {
+  const columns = ["ts", "event", "status", "tenantId", "actor", "requestId", "role", "permission", "uploadId", "source", "storageKey", "deleted", "message"];
+  return [
+    columns.join(","),
+    ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))
+  ].join("\n") + "\n";
+}
+
+function csvEscape(value) {
+  if (value === undefined || value === null) return "";
+  const text = Array.isArray(value) ? value.join("|") : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, "\"\"")}"` : text;
+}
+
+function clientError(error, statusCode) {
+  const result = new Error(error);
+  result.statusCode = statusCode;
+  result.publicError = error;
+  return result;
 }
 
 function readJsonBody(req, limit) {
@@ -435,14 +930,6 @@ function writeResponse(res, statusCode, body, config, contentType = "text/plain;
   res.end(body || "");
 }
 
-function tenantUploadDir(config, tenantId) {
-  return path.join(config.dataDir, "tenants", sanitizeSegment(tenantId), "uploads");
-}
-
-function ensureDir(dir) {
-  fs.mkdirSync(dir, { recursive: true });
-}
-
 function safeEqual(left, right) {
   const leftBuffer = Buffer.from(String(left || ""));
   const rightBuffer = Buffer.from(String(right || ""));
@@ -454,7 +941,11 @@ function sha256Hex(value) {
 }
 
 function tokenFingerprint(token) {
-  return crypto.createHash("sha256").update(token).digest("hex").slice(0, 12);
+  return hashToken(token).slice(0, 12);
+}
+
+function hashToken(token) {
+  return crypto.createHash("sha256").update(String(token || "")).digest("hex");
 }
 
 function sanitizeSegment(value) {
@@ -470,6 +961,12 @@ function clampNumber(value, min, max, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
+}
+
+function optionalNumber(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 if (require.main === module) {

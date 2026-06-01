@@ -66,7 +66,7 @@ The original prototype backlog is implemented. The repo includes:
 - Neo-cloud provider workflows for tenant/account/reservation views, queue SLOs, sellable waste, commit burn, margin pressure, and portfolio risk
 - Scheduler/capacity scenario simulation and an Opportunity Engine for ranked actions
 - Tests, fixtures, exporter examples, GitHub Actions CI, and GitHub Pages packaging
-- Optional backend ingestion service with bearer-token auth, tenant isolation, signed uploads, audit logs, source-bundle validation, and retention cleanup
+- Optional backend ingestion service with bearer/JWT auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, source-bundle validation, and retention cleanup
 
 Real production use still requires operator-provided exports from the relevant systems. Automated screenshot QA runs when Playwright is available and skips cleanly otherwise; browser visual QA should still be completed locally before a customer-facing demo.
 
@@ -200,10 +200,10 @@ node scripts/validate-source-bundle.js --require-source-export provider-pilot-bu
 
 ## Backend Ingestion
 
-Provider pilots can run `server/ingestion-server.js` when uploads need controlled tenancy, signatures, audit logs, and retention policy.
+Provider pilots can run `server/ingestion-server.js` when uploads need controlled tenancy, signatures, role-aware access, audit logs, and retention policy.
 
 ```sh
-TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token,admin:admin-token:admin" \
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token:operator,admin:admin-token:admin" \
 TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 TURBALANCE_DATA_DIR=".turbalance-data" \
 node server/ingestion-server.js
@@ -215,9 +215,13 @@ The service provides:
 - `PUT /v1/uploads/:uploadId`: short-lived signed upload path
 - `POST /v1/ingestion`: authenticated direct ingest path
 - `GET /v1/audit`: tenant-scoped audit rows
+- `GET /v1/audit/export`: tenant-scoped audit export as JSON, JSONL, or CSV
 - `POST /v1/retention/run`: retention cleanup
+- `GET /v1/tenants` and `POST /v1/tenants`: admin tenant registry controls
+- `POST /v1/tokens/rotate`: admin tenant token rotation
+- `POST /v1/upload-keys/rotate`: admin signed-upload key rotation
 
-All accepted uploads are validated with `lib/source-bundle-validator.js`, stored under tenant-specific directories, and logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
+All accepted uploads are validated with `lib/source-bundle-validator.js`, stored through the file storage adapter in `server/ingestion-storage.js`, and logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
 
 ## Privacy And Redaction
 
@@ -247,7 +251,7 @@ Numeric evidence, trend snapshots, cost estimates, scheduler what-if rows, and h
 - `lib/`: shared validation helpers used by CLI tooling and the ingestion backend
 - `schemas/`: JSON Schemas for ingestion, source bundles, and workspaces
 - `scripts/`: dependency-free exporter examples
-- `server/`: optional controlled ingestion service
+- `server/`: optional controlled ingestion service and swappable file storage adapter
 - `tests/`: syntax, fixture, schema, exporter, redaction, static wiring, and docs tests
 - `.github/workflows/ci.yml`: CI verification
 - `.github/workflows/pages.yml`: GitHub Pages static deployment
@@ -298,7 +302,8 @@ Focused test entry points:
 - `tests/scheduler-exporter.test.js`: scheduler exporter example
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
-- `tests/ingestion-server.test.js`: signed upload, direct ingest, tenant audit, and retention service behavior
+- `tests/ingestion-storage.test.js`: file storage adapter uploads, audit rows, control JSON, and deletes
+- `tests/ingestion-server.test.js`: signed upload, direct ingest, role-aware auth, tenant provisioning, key rotation, audit export, and retention service behavior
 - `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
 - `tests/evidence-pack-export.test.js`: Markdown evidence-pack redaction
@@ -328,16 +333,16 @@ This repo is ready as a static pilot/demo surface, an integration contract for e
 
 Current boundaries:
 
-- Optional file-backed backend service, not a horizontally scalable managed ingestion plane
-- Bearer-token tenant auth for pilot ingestion, not enterprise SSO or user-level RBAC
+- Optional file-backed backend service and local control plane, not a horizontally scalable managed ingestion plane
+- Bearer-token and HS256 JWT support for pilot ingress, not full enterprise OIDC/JWKS federation
 - No direct cluster, billing, support, or Grafana API calls
 - Screenshot QA requires Playwright availability in the runtime
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
 
 Expected production next steps:
 
-- Move file-backed ingestion storage to object storage plus a database-backed control plane
-- Add customer SSO, tenant provisioning, user-level RBAC, key rotation, and audit export
-- Add retention jobs as managed scheduled tasks
+- Move file-backed ingestion storage/control JSON to object storage plus a database-backed control plane
+- Replace HS256 pilot JWTs with customer OIDC/JWKS validation, SSO tenant mapping, and user-level RBAC policy
+- Run retention scheduling as managed jobs with monitoring and alerting
 - Run screenshot QA in a CI image with Playwright browsers installed when visual artifacts must be regenerated
 - Connect live exporter jobs for provider pilots once each source system owner approves the export contract

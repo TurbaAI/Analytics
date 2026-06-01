@@ -21,7 +21,7 @@ Use `fixtures/neo-cloud-provider-bundle.json` as the first pilot dataset. It has
 15. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
 16. Generate a full provider pilot bundle with `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
 17. Validate source bundle shape with `node scripts/validate-source-bundle.js --require-source-export`.
-18. If using controlled uploads, run `server/ingestion-server.js` and confirm signed upload, tenant audit rows, and retention cleanup.
+18. If using controlled uploads, run `server/ingestion-server.js` and confirm signed upload, role-aware auth, tenant provisioning, token/key rotation, audit export, and retention cleanup.
 
 ## Acceptance Criteria
 
@@ -30,7 +30,7 @@ Use `fixtures/neo-cloud-provider-bundle.json` as the first pilot dataset. It has
 - Capacity planning can compare scheduler what-if options before repacking, reserving locality, or protecting priority admission.
 - Scheduler teams can attach event evidence for queue wait, placement retries, locality misses, preemptions, and backfill candidates.
 - Observability teams can attach Grafana dashboards and Explore links without granting the browser prototype Grafana credentials.
-- Platform teams can use signed uploads, tenant-scoped audit logs, and retention cleanup for controlled pilot ingestion.
+- Platform teams can use signed uploads, role-aware auth, tenant-scoped audit logs, audit export, token/key rotation, and retention cleanup for controlled pilot ingestion.
 - Revenue or QBR review can quantify sellable waste value and whether queue SLOs are inside target.
 - Provider operations can jump from a portfolio risk queue to the affected tenant, account, or reservation.
 - Provider and operator teams can rank FinOps, scheduler, inference, fabric, host-kernel, fleet, energy, and evidence-pack opportunities in one queue.

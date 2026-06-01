@@ -19,12 +19,12 @@ turbalance Analytics is a static prototype. It can be hosted from any static fil
 The optional backend ingestion service can run separately from the static dashboard:
 
 ```sh
-TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token" \
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token:operator,admin:admin-token:admin" \
 TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 node server/ingestion-server.js
 ```
 
-See `docs/backend-ingestion.md` for signed upload, audit, tenancy, and retention details.
+See `docs/backend-ingestion.md` for signed upload, role-aware auth, JWT gateway mode, tenant provisioning, key rotation, audit export, tenancy, and retention details.
 
 ## GitHub Pages
 

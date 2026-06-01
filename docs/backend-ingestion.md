@@ -5,7 +5,7 @@ The browser app still works as a static prototype, but provider pilots can now r
 ## Run Locally
 
 ```sh
-TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token,admin:admin-token:admin" \
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token:operator,admin:admin-token:admin" \
 TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 TURBALANCE_DATA_DIR=".turbalance-data" \
 node server/ingestion-server.js
@@ -15,13 +15,35 @@ The service listens on `127.0.0.1:8787` by default. Set `TURBALANCE_INGEST_HOST`
 
 ## Controls
 
-- Auth: bearer tokens from `TURBALANCE_TENANT_TOKENS`
+- Auth: bearer tokens from `TURBALANCE_TENANT_TOKENS`, plus optional HS256 JWT validation when `TURBALANCE_JWT_SECRET` is set
 - Tenancy: each token maps to one tenant unless the token role is `admin`
+- Roles: `admin`, `operator`, `ingest`, and `viewer`
+- Tenant registry: admins can create or update tenant display names, status, retention days, and upload caps
 - Signed upload path: authenticated clients request a short-lived signed `PUT` URL
+- Upload-key rotation: admins can rotate the HMAC key used for signed upload URLs
+- Token rotation: admins can issue tenant-scoped ingest, operator, viewer, or admin tokens
 - Direct ingest path: authenticated clients can post a source bundle directly
-- Audit log: every auth failure, signing event, accepted ingest, rejected ingest, audit read, and retention run is appended to `audit/audit.jsonl`
-- Retention: uploads older than `TURBALANCE_RETENTION_DAYS` or beyond `TURBALANCE_MAX_UPLOADS_PER_TENANT` are removed
+- Audit log: every auth failure, signing event, accepted ingest, rejected ingest, audit read/export, tenant change, key rotation, and retention run is appended to `audit/audit.jsonl`
+- Audit export: tenant-scoped JSON, JSONL, or CSV export
+- Retention: uploads older than `TURBALANCE_RETENTION_DAYS` or beyond `TURBALANCE_MAX_UPLOADS_PER_TENANT` are removed; set `TURBALANCE_RETENTION_INTERVAL_SECONDS` to run this automatically
 - Size limit: `TURBALANCE_MAX_UPLOAD_BYTES`, default 25 MiB
+- Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; the current adapter is file-backed and intentionally small enough to replace with object storage and a database later
+
+Token entries use `tenant:token:role:subject`. `role` and `subject` are optional. Example:
+
+```sh
+TURBALANCE_TENANT_TOKENS="tenant-a:tenant-token:operator:pilot-operator,tenant-a:viewer-token:viewer:security-review,admin:admin-token:admin:platform-admin"
+```
+
+For gateway-issued pilot JWTs, set:
+
+```sh
+TURBALANCE_JWT_SECRET="replace-with-shared-secret" \
+TURBALANCE_JWT_ISSUER="https://sso.example.com" \
+TURBALANCE_JWT_AUDIENCE="turbalance-ingestion"
+```
+
+JWT claims must include `tenantId` or `tenant`, plus optional `role`. This is a pilot-friendly gateway/JWT mode, not full OIDC/JWKS federation.
 
 ## API
 
@@ -66,12 +88,63 @@ curl -sS http://127.0.0.1:8787/v1/audit?limit=50 \
   -H "Authorization: Bearer tenant-token"
 ```
 
+Export audit rows:
+
+```sh
+curl -sS "http://127.0.0.1:8787/v1/audit/export?format=csv&limit=1000" \
+  -H "Authorization: Bearer tenant-token"
+```
+
 ### Retention
 
 ```sh
 curl -sS -X POST http://127.0.0.1:8787/v1/retention/run \
   -H "Authorization: Bearer tenant-token"
 ```
+
+### Tenant Provisioning
+
+Admin tokens can create or update pilot tenants:
+
+```sh
+curl -sS http://127.0.0.1:8787/v1/tenants \
+  -H "Authorization: Bearer admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"tenant-b","displayName":"Tenant B","retentionDays":14,"maxUploadsPerTenant":100}'
+```
+
+List tenants and redacted token summaries:
+
+```sh
+curl -sS http://127.0.0.1:8787/v1/tenants \
+  -H "Authorization: Bearer admin-token"
+```
+
+### Token Rotation
+
+Issue a tenant-scoped token:
+
+```sh
+curl -sS http://127.0.0.1:8787/v1/tokens/rotate \
+  -H "Authorization: Bearer admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"tenant-b","role":"ingest","subject":"pilot-exporter"}'
+```
+
+The response returns the generated token once and stores only its hash in `<data-dir>/control/tokens.json`.
+
+### Upload-Key Rotation
+
+Rotate the signed-upload HMAC key:
+
+```sh
+curl -sS http://127.0.0.1:8787/v1/upload-keys/rotate \
+  -H "Authorization: Bearer admin-token" \
+  -H "Content-Type: application/json" \
+  -d '{"keyId":"pilot-2026-06","activate":true}'
+```
+
+Generated upload-key secrets are stored under `<data-dir>/control/upload-keys.json` for local pilot continuity. Use a real secret manager before running this as a managed service.
 
 ## Validation
 
@@ -88,3 +161,11 @@ Accepted payloads are stored under:
 ```
 
 Metadata is stored beside each payload as `.meta.json`; audit rows stay in `<data-dir>/audit/audit.jsonl`.
+
+Control-plane state is stored under:
+
+```text
+<data-dir>/control/tenants.json
+<data-dir>/control/tokens.json
+<data-dir>/control/upload-keys.json
+```

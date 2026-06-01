@@ -27,7 +27,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 12. Generate a full provider pilot bundle with `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
 13. Validate source bundles against `schemas/turba-source-bundle.v1.schema.json` with `node scripts/validate-source-bundle.js --require-source-export`.
 14. Validate `grafana/turbalance-provider-overview.json` imports into the target Grafana instance when the demo includes Grafana handoff.
-15. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload plus audit-read smoke tests.
+15. If demoing controlled uploads, run `server/ingestion-server.js` and complete signed upload, tenant provisioning, token/key rotation, audit export, and retention smoke tests.
 
 ## Visual Readiness
 

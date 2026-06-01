@@ -13,7 +13,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 7. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
 8. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
 9. Keep a generated all-lanes provider pilot bundle from `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` ready if the audience wants the full exporter flow.
-10. Keep the backend ingestion service ready if the audience wants signed upload, tenant audit, and retention mechanics.
+10. Keep the backend ingestion service ready if the audience wants signed upload, tenant provisioning, token/key rotation, audit export, and retention mechanics.
 
 ## Flow
 
