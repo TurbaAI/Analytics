@@ -3582,10 +3582,14 @@ function renderInventory(entries) {
     const machineContext = machineDemoContext(summary);
 
     const score = document.createElement("span");
-    score.textContent = machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
+    score.textContent = machineContext?.driverUnavailable || machineContext?.noGpu
+      ? "host only"
+      : machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
 
     const bottleneck = document.createElement("span");
-    bottleneck.textContent = machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
+    bottleneck.textContent = machineContext?.driverUnavailable
+      ? "GPU unavailable"
+      : machineContext?.noGpu ? "No GPU telemetry" : machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
 
     foot.append(score, bottleneck);
     button.append(titleEl, meta, foot);
@@ -3613,19 +3617,15 @@ function renderDiagnosis(summary, classifier) {
       summary.gpuModels.join(", "),
       `${summary.count} ${summary.count === 1 ? "job" : "jobs"}`
     ].join(" | ");
-  const headline = machineContext?.idle
-    ? `${machineContext.gpuModel} is present but idle on ${machineContext.host}.`
-    : machineContext
-      ? `Live ${machineContext.host} telemetry: ${gpuUtil}% GPU utilization, ${useful}% useful compute.`
-      : summary.whatIfActive
+  const headline = machineContext
+    ? machineDemoHeadline(machineContext, gpuUtil, useful)
+    : summary.whatIfActive
     ? `Same-pod what-if lifts useful compute to ${useful}% and cuts cross-pod traffic to ${round(summary.crossPodTraffic)}%.`
     : `${gpuUtil}% GPU utilization, ${useful}% useful compute. ${titleCase(primaryLoss)} is the dominant loss.`;
 
-  const narrative = machineContext?.idle
-    ? `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${machineContext.services} are running, and ${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"} are installed. This is an idle-capacity observation, not a workload bottleneck claim.`
-    : machineContext
-      ? `Observed from ${machineContext.adapters}. ${machineContext.services} are available on the host, so refreshes reflect the current machine bundle rather than a provider fixture.`
-      : summary.whatIfActive
+  const narrative = machineContext
+    ? machineDemoNarrative(machineContext)
+    : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
     : `${primary.reason} ${recommendationFor(summary, classifier)}`;
 
@@ -3645,10 +3645,16 @@ function machineDemoContext(summary) {
   const ollamaModels = Array.isArray(context.ollamaModels) ? context.ollamaModels : [];
   const idleStatus = sourceItems.some((item) => /gpu idle|idle capacity/i.test(String(item.status || "")));
   const adapters = unique(["local-machine", ...(machineItem.source?.adapters || [])]);
+  const gpuModel = machineDemoGpuModel(context, summary, machineItem);
+  const gpuPresent = context.gpuPresent === true || (
+    summary.gpus > 0
+    && !/no nvidia|unavailable|none/i.test(gpuModel)
+  );
+  const driverUnavailable = !gpuPresent && context.gpuSource === "nvidia-smi-unavailable";
 
   return {
     host: context.hostname || summary.clusters[0] || "this host",
-    gpuModel: summary.gpuModels[0] || machineItem.gpuModel || "GPU",
+    gpuModel,
     adapters: adapters.join(", "),
     services: services.length ? services.join(", ") : "local observability services",
     modelCount: ollamaModels.length,
@@ -3666,14 +3672,64 @@ function machineDemoContext(summary) {
     dockerContainers: Array.isArray(context.dockerContainers) ? context.dockerContainers : [],
     workloadCountersObserved: Boolean(context.workloadCountersObserved),
     unavailableExports: Array.isArray(context.unavailableExports) ? context.unavailableExports : [],
-    idle: idleStatus || (
+    gpuPresent,
+    gpuSource: String(context.gpuSource || ""),
+    gpuError: String(context.gpuError || ""),
+    driverUnavailable,
+    noGpu: !gpuPresent && !driverUnavailable,
+    idle: gpuPresent && (idleStatus || (
       summary.gpus > 0
       && summary.gpuUtil <= 1
       && summary.usefulCompute <= 1
       && summary.steps === 0
       && summary.inferenceRequestsM === 0
-    )
+    ))
   };
+}
+
+function machineDemoHeadline(machineContext, gpuUtil, useful) {
+  if (machineContext.driverUnavailable) {
+    return `NVIDIA telemetry is unavailable on ${machineContext.host}.`;
+  }
+  if (machineContext.noGpu) {
+    return `${machineContext.host} is reporting host telemetry without NVIDIA GPU counters.`;
+  }
+  if (machineContext.idle) {
+    return `${machineContext.gpuModel} is present but idle on ${machineContext.host}.`;
+  }
+
+  return `Live ${machineContext.host} telemetry: ${gpuUtil}% GPU utilization, ${useful}% useful compute.`;
+}
+
+function machineDemoNarrative(machineContext) {
+  const modelText = `${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"}`;
+  const serviceText = machineDemoServicePhrase(machineContext);
+  if (machineContext.driverUnavailable) {
+    const error = machineContext.gpuError ? ` ${machineContext.gpuError}` : "";
+    return `Observed from ${machineContext.adapters}. nvidia-smi is installed, but it cannot communicate with the NVIDIA driver.${error} ${serviceText}, and ${modelText} are installed.`;
+  }
+  if (machineContext.noGpu) {
+    return `Observed from ${machineContext.adapters}. No usable NVIDIA GPU counter source was detected; ${serviceText}, and ${modelText} are installed.`;
+  }
+  if (machineContext.idle) {
+    return `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${serviceText}, and ${modelText} are installed. This is an idle-capacity observation, not a workload bottleneck claim.`;
+  }
+
+  return `Observed from ${machineContext.adapters}. ${machineContext.services} are available on the host, so refreshes reflect the current machine bundle rather than a provider fixture.`;
+}
+
+function machineDemoServicePhrase(machineContext) {
+  const services = machineDemoServices(machineContext.context.observedServices);
+  if (!services.length) return "no local observability service was detected";
+  return `${services.join(", ")} ${services.length === 1 ? "is" : "are"} running`;
+}
+
+function machineDemoGpuModel(context, summary, machineItem) {
+  const summaryModel = (summary.gpuModels || []).find((model) => model && model !== "none");
+  if (summaryModel) return summaryModel;
+  if (context.gpuName) return context.gpuName;
+  if (context.gpuSource === "nvidia-smi-unavailable") return "NVIDIA telemetry unavailable";
+  return machineItem.gpuModel || "No NVIDIA GPU telemetry";
 }
 
 function machineDemoServices(observedServices) {
@@ -3740,7 +3796,7 @@ function renderSchedulerSimulator(simulator, summary = null) {
     narrative.replaceChildren(
       simulatorNarrativeItem("Scope", "Single Linux host observation"),
       simulatorNarrativeItem("Scheduler", "No Kubernetes, Slurm, admission, or provider scheduler export is attached"),
-      simulatorNarrativeItem("Next signal", machineContext.idle ? "Start a controlled GPU workload to measure active behavior" : "Join request or training counters to the host sample")
+      simulatorNarrativeItem("Next signal", machineContext.driverUnavailable ? "Fix NVIDIA driver access before expecting GPU counters" : machineContext.idle ? "Start a controlled GPU workload to measure active behavior" : "Join request or training counters to the host sample")
     );
     list.replaceChildren();
     return;
@@ -4227,9 +4283,9 @@ function renderTruthTable(summary) {
 function renderBottleneck(summary, classifier) {
   const machineContext = machineDemoContext(summary);
   if (machineContext) {
-    document.querySelector("#primaryBottleneck").textContent = machineContext.idle ? "Idle GPU capacity" : "Live host utilization";
-    document.querySelector("#secondaryBottleneck").textContent = machineContext.gpuProcesses.length ? "Active NVIDIA process" : "No NVIDIA compute process";
-    document.querySelector("#improvementEstimate").textContent = machineContext.idle ? "Start a controlled workload, then compare the next live sample." : "Attach request or training counters before tuning.";
+    document.querySelector("#primaryBottleneck").textContent = machineContext.driverUnavailable ? "NVIDIA telemetry unavailable" : machineContext.noGpu ? "Host-only telemetry" : machineContext.idle ? "Idle GPU capacity" : "Live host utilization";
+    document.querySelector("#secondaryBottleneck").textContent = machineContext.driverUnavailable ? "nvidia-smi cannot reach driver" : machineContext.gpuProcesses.length ? "Active NVIDIA process" : "No NVIDIA compute process";
+    document.querySelector("#improvementEstimate").textContent = machineContext.driverUnavailable ? "Repair driver access or use a supported GPU counter source, then collect again." : machineContext.idle ? "Start a controlled workload, then compare the next live sample." : "Attach request or training counters before tuning.";
     document.querySelector("#bottleneckBadge").textContent = "Live host";
 
     const list = document.querySelector("#bottleneckBars");
@@ -4240,7 +4296,7 @@ function renderBottleneck(summary, classifier) {
         label: "GPU utilization",
         value: machineContext.gpuUtilizationPct,
         suffix: "observed",
-        note: "nvidia-smi utilization.gpu"
+        note: machineContext.driverUnavailable ? machineContext.gpuError || "nvidia-smi unavailable" : "nvidia-smi utilization.gpu"
       }),
       progressRow({
         className: "bar-row",
@@ -4342,8 +4398,8 @@ function renderProviderLens(summary, provider, classifier) {
       })
     );
     actions.replaceChildren(
-      providerAction("No provider billing, SLO, Kubernetes, DCGM, eBPF, or scheduler export is attached to this live NUC sample."),
-      providerAction(machineContext.idle ? "Start a controlled local GPU workload before the demo to show active utilization changing live." : "Join request logs or training counters before making workload-efficiency claims."),
+      providerAction("No provider billing, SLO, Kubernetes, DCGM, eBPF, or scheduler export is attached to this live machine sample."),
+      providerAction(machineContext.driverUnavailable ? "Fix NVIDIA driver telemetry on this host before presenting GPU utilization from it." : machineContext.idle ? "Start a controlled local GPU workload before the demo to show active utilization changing live." : "Join request logs or training counters before making workload-efficiency claims."),
       providerAction("Use provider pilot bundles only when approved source-system exports are available.")
     );
     return;

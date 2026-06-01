@@ -343,6 +343,7 @@ Focused test entry points:
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
 - `scripts/collect-local-machine-bundle.js`: samples the current Linux host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle
+- `scripts/collect-machine-fleet-bundle.js`: combines strict live observations from the demo host plus approved SSH machines such as `user@192.168.10.20` into one live machine bundle without synthesizing provider/source overlays
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
 - `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
@@ -377,7 +378,7 @@ node scripts/prepare-demo.js --out-dir build/demo
 
 This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
-When the demo is served from `192.168.10.101`, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 30 seconds while the tab is visible, so the dashboard reflects the NUC14E host state instead of only the canned provider fixture. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
+When the demo is served from `192.168.10.101`, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 30 seconds while the tab is visible, so the dashboard reflects the NUC14E host state plus approved SSH fleet members such as `SPARK1` at `192.168.10.20` instead of only the canned provider fixture. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
 
 ## Deployment
 

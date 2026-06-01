@@ -8,6 +8,7 @@ const { validateSourceBundle } = require("../lib/source-bundle-validator.js");
 const root = path.join(__dirname, "..");
 const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "turba-machine-bundle-"));
 const outPath = path.join(tempDir, "live-machine-bundle.json");
+const fleetOutPath = path.join(tempDir, "live-machine-fleet-bundle.json");
 const result = spawnSync(process.execPath, [
   "scripts/collect-local-machine-bundle.js",
   "--out",
@@ -43,5 +44,26 @@ assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.dockerContainers)
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.observedServices));
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
+
+const fleetResult = spawnSync(process.execPath, [
+  "scripts/collect-machine-fleet-bundle.js",
+  "--out",
+  fleetOutPath,
+  "--host-url",
+  "http://192.168.10.101:8000"
+], {
+  cwd: root,
+  encoding: "utf8",
+  maxBuffer: 20 * 1024 * 1024
+});
+
+assert.equal(fleetResult.status, 0, fleetResult.stderr);
+const fleetBundle = JSON.parse(fs.readFileSync(fleetOutPath, "utf8"));
+const fleetValidation = validateSourceBundle(fleetBundle);
+assert.equal(fleetValidation.ok, true, fleetValidation.errors.join("; "));
+assert.equal(fleetBundle.metadata.source, "collect-machine-fleet-bundle.js");
+assert.ok(fleetBundle.metadata.note.includes("fleet observation"));
+assert.deepEqual(fleetBundle.sources, {});
+assert.ok(fleetBundle.ingestion.runs.length >= 1);
 
 console.log("local machine bundle tests passed");

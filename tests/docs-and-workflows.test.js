@@ -56,6 +56,7 @@ const readme = read("README.md");
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
   "scripts/collect-local-machine-bundle.js",
+  "scripts/collect-machine-fleet-bundle.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
@@ -114,6 +115,7 @@ const readme = read("README.md");
   "scripts/build-publish-ingestion-image.js",
   "scripts/generate-provider-pilot-config.js",
   "scripts/collect-local-machine-bundle.js",
+  "scripts/collect-machine-fleet-bundle.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
@@ -345,6 +347,8 @@ assert.ok(demoScript.includes("docs/demo-logistics.md"));
 assert.ok(demoScript.includes("SM scheduler"));
 assert.ok(demoScript.includes("build/demo/live-machine-bundle.json"));
 assert.ok(demoScript.includes("192.168.10.101"));
+assert.ok(demoScript.includes("192.168.10.20"));
+assert.ok(demoScript.includes("SPARK1"));
 assert.ok(demoScript.includes("30 seconds"));
 assert.ok(demoScript.includes("no fabricated multi-node queue or billing/SLO overlay"));
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
@@ -385,6 +389,8 @@ assert.ok(demoLogistics.includes("Hardware Needed"));
 assert.ok(demoLogistics.includes("NVIDIA SM Scheduler Position"));
 assert.ok(demoLogistics.includes("scripts/prepare-demo.js"));
 assert.ok(demoLogistics.includes("live-machine-bundle.json"));
+assert.ok(demoLogistics.includes("192.168.10.20"));
+assert.ok(demoLogistics.includes("SPARK1"));
 assert.ok(demoLogistics.includes("30 seconds"));
 assert.ok(demoLogistics.includes("does not pretend Kubernetes, DCGM, eBPF"));
 assert.ok(demoLogistics.includes("fixtures/neo-cloud-provider-bundle.json"));

@@ -10,6 +10,8 @@ const args = parseArgs(process.argv.slice(2));
 const outDir = path.resolve(args["out-dir"] || process.env.TURBALANCE_DEMO_OUT_DIR || path.join(root, "build", "demo"));
 const requireScreenshots = Boolean(args["require-screenshots"] || process.env.TURBALANCE_SCREENSHOT_QA_REQUIRED === "1");
 const runScreenshots = Boolean(args.screenshots || requireScreenshots || process.env.TURBALANCE_DEMO_SCREENSHOTS);
+const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.101:8000";
+const remoteMachines = splitList(args["remote-machine"] || process.env.TURBALANCE_REMOTE_MACHINES || "");
 
 fs.mkdirSync(outDir, { recursive: true });
 
@@ -46,16 +48,26 @@ try {
   });
 
   artifacts.liveMachineBundle = path.join(outDir, "live-machine-bundle.json");
-  runCommand({
-    id: "artifacts.live_machine_bundle",
-    label: "Local machine source bundle generated",
-    commandArgs: [
+  const liveMachineCommand = remoteMachines.length
+    ? [
+      "scripts/collect-machine-fleet-bundle.js",
+      "--out",
+      artifacts.liveMachineBundle,
+      "--host-url",
+      hostUrl,
+      ...remoteMachines.flatMap((remote) => ["--remote", remote])
+    ]
+    : [
       "scripts/collect-local-machine-bundle.js",
       "--out",
       artifacts.liveMachineBundle,
       "--host-url",
-      args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.101:8000"
-    ]
+      hostUrl
+    ];
+  runCommand({
+    id: "artifacts.live_machine_bundle",
+    label: remoteMachines.length ? "Live machine fleet bundle generated" : "Local machine source bundle generated",
+    commandArgs: liveMachineCommand
   });
   checks.push({
     id: "artifacts.live_machine_bundle.written",
@@ -233,7 +245,8 @@ function buildReport(error = null) {
       localUrl: "http://127.0.0.1:8000/",
       primaryDataset: "fixtures/neo-cloud-provider-bundle.json",
       generatedProviderBundle: artifacts.providerPilotBundle || "",
-      liveMachineBundle: artifacts.liveMachineBundle || ""
+      liveMachineBundle: artifacts.liveMachineBundle || "",
+      remoteMachines
     },
     hardware: {
       demo: "Laptop or small VM is enough for the offline dashboard and generated telemetry bundles.",
@@ -308,4 +321,11 @@ function parseArgs(argv) {
     parsed[arg.slice(2)] = argv[index + 1] && !argv[index + 1].startsWith("--") ? argv[++index] : "1";
   }
   return parsed;
+}
+
+function splitList(value) {
+  return String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }

@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const { execFileSync, spawnSync } = require("node:child_process");
 const { assertValidSourceBundle } = require("../lib/source-bundle-validator.js");
 
 const args = parseArgs(process.argv.slice(2));
@@ -67,16 +67,22 @@ function collectHost() {
 }
 
 function collectGpu() {
-  const query = command("nvidia-smi", [
+  const queryResult = commandResult("nvidia-smi", [
     "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
     "--format=csv,noheader,nounits"
   ]);
-  if (!query.trim()) {
+  const query = queryResult.stdout;
+  if (
+    queryResult.status !== 0
+    || /nvidia-smi has failed|couldn't communicate with the nvidia driver|failed to initialize/i.test(query)
+    || !query.trim()
+  ) {
     return {
       present: false,
       count: 0,
       gpus: [],
-      source: "nvidia-smi-not-found"
+      source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
+      error: compactWhitespace(queryResult.stderr || query || queryResult.errorMessage || "nvidia-smi returned no GPU rows")
     };
   }
 
@@ -132,7 +138,8 @@ function collectGpu() {
     count: gpus.length,
     gpus,
     processes,
-    source: "nvidia-smi"
+    source: "nvidia-smi",
+    error: ""
   };
 }
 
@@ -230,7 +237,8 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
 
 function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes }) {
   const primaryGpu = gpu.gpus[0] || {};
-  const modelKey = safeId(primaryGpu.name || "no-nvidia-gpu");
+  const gpuName = gpuLabel(primaryGpu, gpu);
+  const modelKey = safeId(primaryGpu.name || gpuName);
   const clusterKey = safeId(host.hostname);
   const tenant = "local-lab";
   const account = safeId(host.hostname);
@@ -254,7 +262,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
       entities: {
         models: {
           [modelKey]: {
-            label: primaryGpu.name ? `${primaryGpu.name} local capacity` : "CPU-only local capacity",
+            label: primaryGpu.name ? `${primaryGpu.name} local capacity` : `${gpuName} local host`,
             family: primaryGpu.name ? "local-gpu" : "local-cpu",
             parameterCountB: metrics.largeModelCount > 0 ? 120 : 0
           }
@@ -285,7 +293,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
       runs: [
         {
           id: runId,
-          name: `${host.hostname} current ${primaryGpu.name || "CPU"} window`,
+          name: `${host.hostname} current ${primaryGpu.name || "host"} window`,
           refs: {
             model: modelKey,
             user: "local-operator",
@@ -301,7 +309,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             durationHours: round(metrics.durationHours, 3),
             gpus: metrics.gpus,
             allocatedGpuHours: round(metrics.allocatedGpuHours, 3),
-            gpuModel: primaryGpu.name || "none"
+            gpuModel: gpuName
           },
           utilization: {
             gpuUtil: round(metrics.gpuUtil, 2),
@@ -386,7 +394,10 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             })),
             observedServices: services.observedServices,
             ollamaModels: activeModelNames,
+            gpuPresent: gpu.present,
             gpuName: primaryGpu.name || "",
+            gpuSource: gpu.source,
+            gpuError: gpu.error || "",
             gpuUuid: primaryGpu.uuid,
             gpuUtilizationPct: round(metrics.gpuUtil, 2),
             gpuMemoryUsedMiB: round(finite(primaryGpu.memoryUsedMiB, 0), 2),
@@ -415,10 +426,17 @@ function machineSourceAdapters(gpu, services) {
   return [
     "local-machine",
     gpu.present ? "nvidia-smi" : null,
+    !gpu.present && gpu.source === "nvidia-smi-unavailable" ? "nvidia-smi-unavailable" : null,
     hostCounters,
     command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
     ...services.observedServices
   ].filter(Boolean);
+}
+
+function gpuLabel(primaryGpu, gpu) {
+  if (primaryGpu.name) return primaryGpu.name;
+  if (gpu.source === "nvidia-smi-unavailable") return "NVIDIA telemetry unavailable";
+  return "No NVIDIA GPU telemetry";
 }
 
 function readMeminfo() {
@@ -518,12 +536,33 @@ function command(bin, args = []) {
   }
 }
 
+function commandResult(bin, args = []) {
+  const result = spawnSync(bin, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: 5000,
+    maxBuffer: 10 * 1024 * 1024
+  });
+
+  return {
+    status: result.status,
+    stdout: result.stdout || "",
+    stderr: result.stderr || "",
+    errorCode: result.error?.code || "",
+    errorMessage: result.error?.message || ""
+  };
+}
+
 function readFile(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8").trim();
   } catch {
     return "";
   }
+}
+
+function compactWhitespace(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function valueFromText(text, key) {
