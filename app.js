@@ -991,12 +991,15 @@ const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
+const MACHINE_DEMO_REFRESH_MS = 30000;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
 let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
+let machineDemoRefreshTimer = null;
+let machineDemoLoadInFlight = false;
 
 const state = {
   scope: "job",
@@ -2538,20 +2541,38 @@ function prefillMachineDemoUrl() {
 async function maybeAutoLoadMachineDemoBundle() {
   if (!shouldAutoLoadMachineDemoBundle()) return;
 
+  await loadMachineDemoBundle();
+  startMachineDemoRefresh();
+}
+
+async function loadMachineDemoBundle({ quiet = false } = {}) {
+  if (machineDemoLoadInFlight) return;
+  machineDemoLoadInFlight = true;
   const requestUrl = machineDemoBundleUrl();
   try {
-    setIngestStatus("Fetching machine demo", "watch");
+    if (!quiet) setIngestStatus("Fetching machine demo", "watch");
     const response = await window.fetch(cacheBustUrl(requestUrl));
     if (!response.ok) {
       throw new Error(`Machine demo ${response.status}`);
     }
+    const loadedAt = new Date();
     await ingestJsonPayload(
       parseImportJson(await response.text(), "Machine demo did not return valid JSON."),
-      "Fetched NUC14E live machine bundle"
+      `Live NUC14E telemetry ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
     );
   } catch (error) {
     setIngestStatus(importErrorMessage(error, "Machine demo fetch failed"), "poor");
+  } finally {
+    machineDemoLoadInFlight = false;
   }
+}
+
+function startMachineDemoRefresh() {
+  if (machineDemoRefreshTimer || !shouldAutoLoadMachineDemoBundle()) return;
+  machineDemoRefreshTimer = window.setInterval(() => {
+    if (document.hidden) return;
+    loadMachineDemoBundle({ quiet: true });
+  }, MACHINE_DEMO_REFRESH_MS);
 }
 
 function shouldOfferMachineDemoBundle() {
@@ -3584,11 +3605,20 @@ function renderDiagnosis(summary, classifier) {
   const useful = round(summary.usefulCompute);
   const gpuUtil = round(summary.gpuUtil);
   const primaryLoss = primary.name.replace("-bound", "").toLowerCase();
-  const headline = summary.whatIfActive
+  const machineContext = machineDemoContext(summary);
+  const headline = machineContext?.idle
+    ? `${machineContext.gpuModel} is present but idle on ${machineContext.host}.`
+    : machineContext
+      ? `Live ${machineContext.host} telemetry: ${gpuUtil}% GPU utilization, ${useful}% useful compute.`
+      : summary.whatIfActive
     ? `Same-pod what-if lifts useful compute to ${useful}% and cuts cross-pod traffic to ${round(summary.crossPodTraffic)}%.`
     : `${gpuUtil}% GPU utilization, ${useful}% useful compute. ${titleCase(primaryLoss)} is the dominant loss.`;
 
-  const narrative = summary.whatIfActive
+  const narrative = machineContext?.idle
+    ? `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${machineContext.services} are running, and ${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"} are installed. This is real idle capacity, not a fabricated training bottleneck.`
+    : machineContext
+      ? `Observed from ${machineContext.adapters}. ${machineContext.services} are available on the host, so refreshes reflect the current machine bundle rather than the canned provider fixture.`
+      : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
     : `${primary.reason} ${recommendationFor(summary, classifier)}`;
 
@@ -3596,6 +3626,58 @@ function renderDiagnosis(summary, classifier) {
   document.querySelector("#diagnosisHeadline").textContent = headline;
   document.querySelector("#diagnosisNarrative").textContent = narrative;
   renderScoreDial(summary.usefulCompute);
+}
+
+function machineDemoContext(summary) {
+  const sourceItems = summary.sourceItems || [];
+  const machineItem = sourceItems.find(isMachineDemoItem);
+  if (!machineItem) return null;
+
+  const context = machineItem.source?.context || {};
+  const services = machineDemoServices(context.observedServices);
+  const ollamaModels = Array.isArray(context.ollamaModels) ? context.ollamaModels : [];
+  const idleStatus = sourceItems.some((item) => /gpu idle|idle capacity/i.test(String(item.status || "")));
+  const adapters = unique(["local-machine", ...(machineItem.source?.adapters || [])]);
+
+  return {
+    host: context.hostname || summary.clusters[0] || "this host",
+    gpuModel: summary.gpuModels[0] || machineItem.gpuModel || "GPU",
+    adapters: adapters.join(", "),
+    services: services.length ? services.join(", ") : "local observability services",
+    modelCount: ollamaModels.length,
+    idle: idleStatus || (
+      summary.gpus > 0
+      && summary.gpuUtil <= 1
+      && summary.usefulCompute <= 1
+      && summary.steps === 0
+      && summary.inferenceRequestsM === 0
+    )
+  };
+}
+
+function machineDemoServices(observedServices) {
+  if (Array.isArray(observedServices)) return observedServices.filter(Boolean);
+  if (typeof observedServices === "string") {
+    return observedServices.split(",").map((service) => service.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
+function isMachineDemoItem(item) {
+  const adapters = item.source?.adapters || [];
+  const context = item.source?.context || {};
+
+  return adapters.includes("local-machine")
+    || Boolean(
+      context.hostname
+      && (
+        context.gpuUuid
+        || context.generatedAt
+        || Array.isArray(context.observedServices)
+        || Array.isArray(context.ollamaModels)
+      )
+    );
 }
 
 function renderScoreDial(score) {

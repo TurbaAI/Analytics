@@ -45,7 +45,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 Position the product as a browser-first operator review surface with an optional controlled ingestion service: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, scheduler/admission systems, Grafana handoff links, Linux eBPF summaries, NCCL traces, provider billing/SLO systems, and optional opportunity systems for production validation.
 
-When showing `http://192.168.10.101:8000/`, position it as an observed single-node AI workstation/edge GPU demo: RTX 4090, Ollama/Grafana/Netdata/node-exporter present, no active Kubernetes/DCGM stack, and no fabricated multi-node queue. Use `?demo=sample` if you need to return to the seeded provider fixture.
+When showing `http://192.168.10.101:8000/`, position it as an observed single-node AI workstation/edge GPU demo: RTX 4090, Ollama/Grafana/Netdata/node-exporter present, no active Kubernetes/DCGM stack, and no fabricated multi-node queue. The browser refreshes the live-machine bundle every 30 seconds while visible; if the RTX 4090 is idle, say that plainly as idle capacity rather than a workload bottleneck. Use `?demo=sample` if you need to return to the seeded provider fixture.
 
 If asked about hardware, use `docs/demo-logistics.md`: a laptop or small VM is enough for the demo; one Linux NVIDIA GPU node is enough for integration smoke testing; two to four or more GPU nodes are better for realistic placement and topology behavior.
 
