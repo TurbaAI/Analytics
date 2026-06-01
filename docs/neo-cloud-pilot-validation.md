@@ -13,7 +13,8 @@ Use `fixtures/neo-cloud-provider-bundle.json` as the first pilot dataset. It has
 7. Export a normal workspace.
 8. Export a redacted workspace and confirm surrogate IDs replace tenant, account, reservation, contract, ticket, and run identifiers.
 9. Generate a provider overlay with `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`.
-10. Validate source bundle shape with `schemas/turba-source-bundle.v1.schema.json` and the source bundle preflight checks.
+10. Generate an eBPF host overlay with `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
+11. Validate source bundle shape with `schemas/turba-source-bundle.v1.schema.json` and the source bundle preflight checks.
 
 ## Acceptance Criteria
 
@@ -21,6 +22,7 @@ Use `fixtures/neo-cloud-provider-bundle.json` as the first pilot dataset. It has
 - Capacity planning can identify reservations consuming sellable GPU-hours without useful work.
 - Revenue or QBR review can quantify sellable waste value and whether queue SLOs are inside target.
 - Provider operations can jump from a portfolio risk queue to the affected tenant, account, or reservation.
+- Host-side eBPF summaries can distinguish Linux scheduling, socket, storage, or noisy-neighbor symptoms from GPU/NCCL bottlenecks.
 - Shared exports can preserve performance evidence without leaking customer identifiers.
 
 ## Current Blockers

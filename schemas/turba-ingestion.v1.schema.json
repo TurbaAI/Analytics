@@ -44,6 +44,7 @@
           "baseline": { "type": "object" },
           "placement": { "type": ["object", "array"] },
           "traceAttribution": { "type": "object" },
+          "sourceContext": { "type": "object" },
           "commercial": {
             "type": "object",
             "properties": {

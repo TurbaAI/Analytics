@@ -68,6 +68,75 @@ Expected fields:
 - allocated nodes and partial nodes
 - cross-rack and cross-pod traffic estimates when available
 
+## Linux eBPF Host Overlay
+
+Linux eBPF summaries should use `sources.ebpf`. Keep this adapter as host/kernel evidence: it should explain CPU scheduling, socket/network, storage, and noisy-neighbor symptoms that are hard to see from GPU counters alone. It should not replace DCGM for GPU hardware metrics or NCCL traces for collective attribution.
+
+Use `scripts/build-ebpf-overlay.js` as a concrete exporter example:
+
+```sh
+node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs > ebpf-overlay.json
+```
+
+Expected fields:
+
+- `runId`
+- `ebpfExportId`
+- `collector`
+- `kernelRelease`
+- `host` and `node`
+- `namespace`, `podName`, `containerName`, and `cgroupPath`
+- `cpu.offCpuTimePct`
+- `cpu.cpuThrottlePct`
+- `cpu.softIrqPct`
+- `scheduler.runQueueLatencyMsP95`
+- `network.tcpRetransmitPct`
+- `network.socketLatencyMsP95`
+- `storage.blockIoLatencyMsP95`
+- `storage.filesystemLatencyMsP95`
+- `noise.noisyNeighborScore`
+- `noise.noiseEvents`
+
+```json
+{
+  "sources": {
+    "ebpf": [
+      {
+        "runId": "run-7421",
+        "ebpfExportId": "ebpf-2026-05-week-4",
+        "collector": "bpftrace-summary",
+        "host": "h100-a1-01.internal",
+        "node": "A1-01",
+        "namespace": "frontier",
+        "podName": "llama-70b-pretrain-7421-worker-0",
+        "containerName": "trainer",
+        "cpu": {
+          "offCpuTimePct": 7,
+          "cpuThrottlePct": 4
+        },
+        "scheduler": {
+          "runQueueLatencyMsP95": 8
+        },
+        "network": {
+          "tcpRetransmitPct": 2.4,
+          "socketLatencyMsP95": 34
+        },
+        "storage": {
+          "blockIoLatencyMsP95": 6,
+          "filesystemLatencyMsP95": 9
+        },
+        "noise": {
+          "noisyNeighborScore": 18,
+          "noiseEvents": 0
+        }
+      }
+    ]
+  }
+}
+```
+
+The browser adapter converts those summaries into the existing dashboard lanes: network wait, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events.
+
 ## Provider Commercial Overlay
 
 Neo-cloud provider billing, reservation, and support context should use `sources.provider`. This source is intentionally separate from Prometheus, DCGM, Kubernetes, and NCCL traces so operators can import redacted tenant metadata without exposing live billing systems to the browser prototype.
@@ -148,11 +217,11 @@ The parser attributes collective time by operation and topology tier: same node,
 ## Production Intake Flow
 
 1. Export a normalized `turba.ingestion.v1` feed for run identity, allocation, baselines, work counters, and placement.
-2. Export source metric bundles for Prometheus, DCGM, Kubernetes, and NCCL traces.
+2. Export source metric bundles for Prometheus, DCGM, Kubernetes, Linux eBPF summaries, and NCCL traces.
 3. Export a provider overlay for tenant, reservation, commercial, and support/SLO metadata when the operator is a GPU cloud or neo-cloud provider.
 4. Import the feed first.
 5. Import source bundles to overlay source-measured metrics and provider metadata.
 6. Click Analyze after each import to capture trend snapshots.
 7. Export the resulting workspace for review, sharing, or archive.
 
-No live cluster credentials, tokens, or sensitive customer metadata are required by the prototype. Redact or hash user, team, namespace, tenant, account, reservation, contract, support-ticket, and run labels before sharing workspace exports outside the operator group.
+No live cluster credentials, tokens, or sensitive customer metadata are required by the prototype. Redact or hash user, team, namespace, pod, container, cgroup, host, tenant, account, reservation, contract, support-ticket, and run labels before sharing workspace exports outside the operator group.

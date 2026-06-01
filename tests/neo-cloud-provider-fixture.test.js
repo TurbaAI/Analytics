@@ -16,10 +16,13 @@ assert.equal(fixture.ingestion.entities.tenants["apex-ai"].label, "Apex AI");
 assert.equal(fixture.ingestion.entities.reservations["rsv-h100-frontier-q2"].label, "H100 Frontier Q2");
 assert.ok(Array.isArray(fixture.sources.provider));
 assert.ok(Array.isArray(fixture.sources.prometheus));
+assert.ok(Array.isArray(fixture.sources.ebpf));
 assert.equal(fixture.sources.provider.length, 2);
+assert.equal(fixture.sources.ebpf.length, 2);
 
 const providerRun = fixture.ingestion.runs.find((run) => run.id === "provider-run-9001");
 const providerOverlay = fixture.sources.provider.find((sample) => sample.runId === "provider-run-9001");
+const ebpfOverlay = fixture.sources.ebpf.find((sample) => sample.runId === "provider-run-9001");
 
 assert.equal(providerRun.refs.tenant, "apex-ai");
 assert.equal(providerRun.refs.reservation, "rsv-h100-frontier-q2");
@@ -27,6 +30,9 @@ assert.equal(providerOverlay.commercial.billingModel, "reserved-cluster");
 assert.equal(providerOverlay.commercial.customerTier, "strategic");
 assert.equal(providerOverlay.slo.priority, "p1");
 assert.equal(providerOverlay.slo.supportTicketId, "CS-2044");
+assert.equal(ebpfOverlay.ebpfExportId, "ebpf-2026-05-week-4");
+assert.equal(ebpfOverlay.network.tcpRetransmitPct, 3.2);
+assert.equal(ebpfOverlay.storage.blockIoLatencyMsP95, 7);
 
 const finalized = analytics.finalizeSummary({
   allocatedGpuHours: providerRun.allocation.allocatedGpuHours,

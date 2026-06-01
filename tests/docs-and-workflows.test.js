@@ -24,7 +24,9 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "scripts/build-provider-overlay.js",
+  "scripts/build-ebpf-overlay.js",
   "fixtures/provider-overlay-template.json",
+  "fixtures/ebpf-export-inputs/host-samples.json",
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
@@ -49,9 +51,11 @@ const readme = read("README.md");
   "schemas/turba-source-bundle.v1.schema.json",
   "schemas/turba-workspace.v2.schema.json",
   "scripts/build-provider-overlay.js",
+  "scripts/build-ebpf-overlay.js",
   "node tests/run-all.js",
   "tests/neo-cloud-provider-fixture.test.js",
   "tests/provider-exporter.test.js",
+  "tests/ebpf-exporter.test.js",
   "tests/source-bundle-validation.test.js",
   "build/turbalance-analytics-desktop.png"
 ].forEach((text) => {
@@ -72,6 +76,8 @@ assert.ok(dataContract.includes("turba.ingestion.v1"));
 assert.ok(dataContract.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(dataContract.includes("turba.workspace.v2"));
 assert.ok(dataContract.includes("sources.provider"));
+assert.ok(dataContract.includes("sources.ebpf"));
+assert.ok(dataContract.includes("eBPF Host Overlay"));
 assert.ok(dataContract.includes("Neo-Cloud Provider Overlay"));
 assert.ok(dataContract.includes("Validation Behavior"));
 
@@ -79,9 +85,12 @@ const telemetry = read("docs/telemetry-integration.md");
 assert.ok(telemetry.includes("Prometheus"));
 assert.ok(telemetry.includes("DCGM"));
 assert.ok(telemetry.includes("Kubernetes"));
+assert.ok(telemetry.includes("Linux eBPF Host Overlay"));
 assert.ok(telemetry.includes("NCCL"));
 assert.ok(telemetry.includes("Provider Commercial Overlay"));
+assert.ok(telemetry.includes("sources.ebpf"));
 assert.ok(telemetry.includes("sources.provider"));
+assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(telemetry.includes("scripts/build-provider-overlay.js"));
 
 const providerFit = read("docs/neo-cloud-provider-fit.md");
@@ -89,6 +98,7 @@ assert.ok(providerFit.includes("Neo-Cloud Provider Fit"));
 assert.ok(providerFit.includes("Sellable waste value"));
 assert.ok(providerFit.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
+assert.ok(providerFit.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(providerFit.includes("CoreWeave"));
 assert.ok(providerFit.includes("Lambda"));
 
@@ -98,23 +108,27 @@ assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
 assert.ok(providerTemplate.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(providerTemplate.includes("Kubernetes Join Keys"));
 assert.ok(providerTemplate.includes("Slurm Join Keys"));
+assert.ok(providerTemplate.includes("sources.ebpf"));
 assert.ok(providerTemplate.includes("redacted workspace export"));
 
 const pilotValidation = read("docs/neo-cloud-pilot-validation.md");
 assert.ok(pilotValidation.includes("Tenant"));
 assert.ok(pilotValidation.includes("Reservation"));
 assert.ok(pilotValidation.includes("redacted workspace"));
+assert.ok(pilotValidation.includes("build-ebpf-overlay.js"));
 assert.ok(pilotValidation.includes("GitHub Pages"));
 
 const demoScript = read("docs/demo-script.md");
 assert.ok(demoScript.includes("fixtures/external-source-bundle.json"));
 assert.ok(demoScript.includes("provider portfolio risk tables"));
+assert.ok(demoScript.includes("build-ebpf-overlay.js"));
 assert.ok(demoScript.includes("redacted workspace"));
 assert.ok(demoScript.includes("Do Not Claim"));
 
 const demoRelease = read("docs/demo-release-checklist.md");
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
+assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
 assert.ok(demoRelease.includes("turba-source-bundle.v1.schema.json"));
 assert.ok(demoRelease.includes("build/turbalance-analytics-desktop.png"));
 

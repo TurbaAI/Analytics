@@ -69,6 +69,12 @@ const store = {
           namespace: "secret-namespace",
           podSelector: "job-name=secret",
           slurmJobId: "secret-slurm",
+          ebpfExportId: "secret-ebpf-export",
+          host: "secret-host",
+          node: "secret-node",
+          podName: "secret-pod",
+          containerName: "secret-container",
+          cgroupPath: "secret-cgroup",
           providerExportId: "secret-export",
           billingAccountId: "secret-billing",
           reservationWindow: "secret-window"
@@ -123,6 +129,12 @@ const serialized = JSON.stringify(redacted);
   "secret-ticket",
   "secret-namespace",
   "secret-slurm",
+  "secret-ebpf-export",
+  "secret-host",
+  "secret-node",
+  "secret-pod",
+  "secret-container",
+  "secret-cgroup",
   "secret-billing",
   "secret-export"
 ].forEach((secret) => {

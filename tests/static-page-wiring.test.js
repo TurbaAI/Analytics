@@ -71,6 +71,7 @@ assert.ok(app.includes("turba.workspace.v2"));
 assert.ok(app.includes("renderProviderLens"));
 assert.ok(app.includes("renderProviderSummaryTables"));
 assert.ok(app.includes("summarizeProviderEconomics"));
+assert.ok(app.includes("importEbpfSamples"));
 assert.ok(app.includes("importProviderSamples"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));

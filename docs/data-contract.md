@@ -45,13 +45,14 @@ Use this shape when the upstream system exports source-shaped metrics and the da
     "prometheus": [],
     "dcgm": [],
     "kubernetes": [],
+    "ebpf": [],
     "provider": []
   },
   "ncclTraces": []
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
 
 ### Workspace Export
 
@@ -71,7 +72,7 @@ Use this shape for browser-to-browser handoff or backup/restore.
 
 `fixtures/workspace-export.json` is the canonical workspace-export fixture.
 
-The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, billing account, and provider export identifiers with deterministic surrogate IDs.
+The dashboard can also export a redacted workspace. Redacted exports preserve numeric metrics and trend snapshots while replacing run, model, user, team, cluster, tenant, account, reservation, contract, support-ticket, namespace, pod selector, eBPF host/container context, billing account, and provider export identifiers with deterministic surrogate IDs.
 
 ## Run Sections
 
@@ -96,6 +97,61 @@ Each run should include:
 - `slo`: queue, efficiency, priority, and support-ticket targets
 
 Percent-like values are expressed as `0` to `100` in normalized ingestion feeds. Source adapters accept source-native ratios where documented, such as Prometheus `0.52` for `52%`.
+
+## eBPF Host Overlay
+
+Linux eBPF summaries should use `sources.ebpf`. This source is optional and should be treated as host-side evidence, not as a replacement for DCGM, CUDA, NCCL, or provider billing data. It is useful for explaining input stalls, socket/network latency, CPU throttling, runqueue pressure, and noisy-neighbor symptoms.
+
+```json
+{
+  "sources": {
+    "ebpf": [
+      {
+        "runId": "run-7421",
+        "ebpfExportId": "ebpf-2026-05-week-4",
+        "collector": "bpftrace-summary",
+        "kernelRelease": "6.8.0-provider",
+        "host": "h100-a1-01.internal",
+        "node": "A1-01",
+        "namespace": "frontier",
+        "podName": "llama-70b-pretrain-7421-worker-0",
+        "containerName": "trainer",
+        "cgroupPath": "/kubepods.slice/frontier/llama-70b-pretrain-7421",
+        "cpu": {
+          "offCpuTimePct": 7,
+          "cpuThrottlePct": 4,
+          "softIrqPct": 3
+        },
+        "scheduler": {
+          "runQueueLatencyMsP95": 8
+        },
+        "network": {
+          "tcpRetransmitPct": 2.4,
+          "socketLatencyMsP95": 34
+        },
+        "storage": {
+          "blockIoLatencyMsP95": 6,
+          "filesystemLatencyMsP95": 9
+        },
+        "noise": {
+          "noisyNeighborScore": 18,
+          "noiseEvents": 0
+        }
+      }
+    ]
+  }
+}
+```
+
+The app maps eBPF summaries into existing normalized sections:
+
+- `communication.networkWait` from TCP retransmits and socket latency
+- `inputPipeline.storageWait` from block I/O and filesystem latency
+- `inputPipeline.cpuPrep` from off-CPU time, CPU throttling, and runqueue pressure
+- `reliability.contentionPct`, `latencyTail`, and `noiseEvents` from host contention and noisy-neighbor signals
+- `sourceContext` for eBPF export ID, collector, kernel release, host, node, pod, container, and cgroup provenance
+
+Prefer summary values by `runId`, pod, container, or cgroup. Do not import raw event streams into the browser prototype unless they have been aggregated and redacted upstream.
 
 ## Neo-Cloud Provider Overlay
 
@@ -150,6 +206,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

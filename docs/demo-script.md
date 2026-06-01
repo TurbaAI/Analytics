@@ -9,6 +9,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 3. Keep `fixtures/external-source-bundle.json` ready for import.
 4. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
 5. Keep a generated provider overlay from `node scripts/build-provider-overlay.js fixtures/provider-export-inputs` ready if the audience wants exporter mechanics.
+6. Keep a generated eBPF overlay from `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs` ready if the audience wants host-kernel evidence mechanics.
 
 ## Flow
 
@@ -25,14 +26,15 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 11. Use the provider portfolio risk tables to move between top sellable waste, queue SLO misses, margin pressure, and noisy-neighbor candidates.
 12. Import `fixtures/neo-cloud-provider-bundle.json` and show the same workflow on provider-specific tenant data.
 13. Import `fixtures/external-source-bundle.json`.
-14. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
-15. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
-16. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
-17. Copy the customer report as the final operator summary.
+14. Import the eBPF overlay to show host-side network, storage, CPU scheduling, and noisy-neighbor evidence enriching the same bottleneck lanes.
+15. Click Analyze and show the trend panel updating from persisted snapshots, including sellable waste, commit burn, queue SLO, and gross margin.
+16. Export the workspace, then export the redacted workspace to demonstrate tenant-safe handoff.
+17. Re-import the normal exported workspace to demonstrate browser-to-browser restore.
+18. Copy the customer report as the final operator summary.
 
 ## Close
 
-Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, NCCL traces, and provider billing/SLO systems for production validation.
+Position the prototype as a static operator review surface: it does not need cluster credentials, but it does need exported telemetry bundles from Prometheus, DCGM, Kubernetes, Linux eBPF summaries, NCCL traces, and provider billing/SLO systems for production validation.
 
 ## Do Not Claim
 

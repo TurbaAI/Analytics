@@ -19,6 +19,8 @@ Open `index.html` in a browser. The app loads a seeded workspace into browser-lo
 3. Read NCCL trace attribution by topology tier.
 4. Toggle `Same-pod what-if` to estimate the locality improvement range.
 
+When an eBPF host overlay is present, treat higher network wait, storage wait, CPU preprocessing pressure, contention, latency tail, or noise events as host-side evidence. Use it to separate Linux scheduling, socket, filesystem, or noisy-neighbor symptoms from GPU/NCCL issues.
+
 ## Compare Against Baseline
 
 Use the regression panel to compare current step time, NCCL time, GPU efficiency, queue wait, and cost against the persisted baseline for each run.
@@ -41,7 +43,7 @@ For tenant escalations, start with `Job` scope and copy the outcome report into 
 
 ## Import And Restore Data
 
-- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, or `turba.workspace.v2` file.
+- Use `Import JSON` for a local `turba.ingestion.v1`, source bundle, eBPF host overlay, or `turba.workspace.v2` file.
 - Use `API URL` and `Fetch` for a JSON endpoint or relative fixture path.
 - Use export to download the current workspace, including baselines and trend snapshots.
 - Use redacted export to replace tenant, account, reservation, contract, support-ticket, run, and source-context identifiers with deterministic surrogate IDs.

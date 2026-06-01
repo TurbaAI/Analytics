@@ -60,6 +60,10 @@
           "type": "array",
           "items": { "$ref": "#/$defs/kubernetesSample" }
         },
+        "ebpf": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ebpfSample" }
+        },
         "provider": {
           "type": "array",
           "items": { "$ref": "#/$defs/providerSample" }
@@ -120,6 +124,55 @@
         "events": {
           "type": "array",
           "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ebpfSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "ebpfExportId": { "type": "string" },
+        "collector": { "type": "string" },
+        "kernelRelease": { "type": "string" },
+        "host": { "type": "string" },
+        "node": { "type": "string" },
+        "namespace": { "type": "string" },
+        "podName": { "type": "string" },
+        "containerName": { "type": "string" },
+        "cgroupPath": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "cpu": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "noise": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

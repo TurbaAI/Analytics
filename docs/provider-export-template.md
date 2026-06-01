@@ -52,3 +52,5 @@ Prefer surrogate IDs before import when sharing outside the provider operator gr
 ## Validation
 
 Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.
+
+For Linux host-side evidence, use `sources.ebpf` separately from the provider commercial overlay. `scripts/build-ebpf-overlay.js` emits a summary overlay for CPU scheduling, socket/network, storage, and noisy-neighbor evidence by `runId`; keep raw eBPF event streams outside the browser prototype.

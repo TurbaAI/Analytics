@@ -22,6 +22,7 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 - Same-pod placement what-if toggle
 - Normalized `turba.ingestion.v1` sample ingestion envelope with entity references and grouped metric domains
 - Prometheus, DCGM, and Kubernetes sample importers that map source-shaped exports into the shared ingestion sections
+- Linux eBPF host-summary importer for CPU scheduling, socket/network, storage, and noisy-neighbor evidence
 - Browser-local persistence for imported job runs, per-run baselines, and the last analysis timestamp
 - Shared `analytics-core.js` calculation module with focused Node tests
 - NCCL trace fixtures and parser that attribute collective time by operation and topology tier
@@ -37,9 +38,9 @@ Open `index.html` in a browser. The current build is a static prototype with syn
 
 ## Data contract
 
-`app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
+`app.js` keeps sample runs in `SAMPLE_INGESTION`, a versioned ingestion payload with shared model, user, team, and cluster entities. Prometheus, DCGM, Kubernetes, Linux eBPF, and NCCL trace sample exports are merged through source-specific importers before the dashboard normalizes each run into analysis records. The merged ingestion payload, per-run baselines, and persisted analysis snapshots are stored in `localStorage` under `turba.analytics.workspace.v2`, then reloaded on the next visit. The workspace can be exported as a `turba.workspace.v2` JSON file and restored through the same JSON import path. Each run groups metrics by source domain: allocation, utilization, communication, input pipeline, memory, scheduler, reliability, configuration, work, baseline, placement, and trace attribution.
 
-External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example; `fixtures/provider-overlay-template.json` is a provider export template. `scripts/build-provider-overlay.js` builds a provider overlay from example Kubernetes, Slurm, billing, and support inputs in `fixtures/provider-export-inputs/`.
+External imports can be full `turba.ingestion.v1` feeds, `{ "ingestion": ... }` wrappers, source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.ebpf`, `sources.provider`, and `ncclTraces`, or a `runs` array with compatible entities. `fixtures/external-source-bundle.json` is a local fetch/import example; `fixtures/neo-cloud-provider-bundle.json` is a provider-focused tenant and reservation overlay example; `fixtures/provider-overlay-template.json` is a provider export template. `scripts/build-provider-overlay.js` builds a provider overlay from example Kubernetes, Slurm, billing, and support inputs in `fixtures/provider-export-inputs/`. `scripts/build-ebpf-overlay.js` builds an eBPF host overlay from summarized host samples in `fixtures/ebpf-export-inputs/`.
 
 ## Operator docs
 
@@ -70,6 +71,7 @@ Run `node tests/nccl-trace-parser.test.js` to validate NCCL operation and topolo
 Run `node tests/external-ingestion-fixture.test.js` to validate the external source bundle fixture.
 Run `node tests/neo-cloud-provider-fixture.test.js` to validate provider overlays, SLO fields, and provider economics.
 Run `node tests/provider-exporter.test.js` to validate the provider exporter example.
+Run `node tests/ebpf-exporter.test.js` to validate the eBPF host overlay exporter example.
 Run `node tests/workspace-export-fixture.test.js` to validate exported workspace shape.
 Run `node tests/schemas.test.js` to validate schema files and fixture alignment.
 Run `node tests/source-bundle-validation.test.js` to validate source bundle preflight checks.
@@ -79,4 +81,4 @@ Run `node tests/docs-and-workflows.test.js` to validate docs, screenshots, and G
 
 ## Current status
 
-The original prototype backlog is implemented. Real production telemetry requires an operator-provided export from Prometheus, DCGM, Kubernetes, and NCCL traces. Browser visual QA should be completed locally with the checklist in `docs/visual-qa.md`.
+The original prototype backlog is implemented. Real production telemetry requires an operator-provided export from Prometheus, DCGM, Kubernetes, Linux eBPF summaries, and NCCL traces. Browser visual QA should be completed locally with the checklist in `docs/visual-qa.md`.

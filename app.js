@@ -1244,6 +1244,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
     mergeImportedSections(importedByRun, importKubernetesSamples(sources.kubernetes), "kubernetes");
     adapters.push("kubernetes");
   }
+  if (sources.ebpf?.length) {
+    mergeImportedSections(importedByRun, importEbpfSamples(sources.ebpf), "ebpf");
+    adapters.push("ebpf");
+  }
   if (sources.provider?.length) {
     mergeImportedSections(importedByRun, importProviderSamples(sources.provider), "provider");
     adapters.push("provider");
@@ -1359,6 +1363,128 @@ function importKubernetesSamples(samples = []) {
   }));
 }
 
+function importEbpfSamples(samples = []) {
+  return samples.map((sample) => {
+    const metrics = sample.metrics || {};
+    const cpu = sample.cpu || {};
+    const scheduler = sample.scheduler || {};
+    const network = sample.network || {};
+    const storage = sample.storage || {};
+    const noise = sample.noise || {};
+    const signals = sample.signals || {};
+
+    const runQueueLatency = firstFinite(
+      metrics.turba_run_queue_latency_ms_p95,
+      scheduler.runQueueLatencyMsP95,
+      sample.runQueueLatencyMsP95
+    );
+    const offCpuPct = optionalPercent(firstFinite(
+      metrics.turba_off_cpu_time_ratio,
+      metrics.turba_off_cpu_time_pct,
+      cpu.offCpuTimePct,
+      sample.offCpuTimePct
+    ));
+    const cpuThrottlePct = optionalPercent(firstFinite(
+      metrics.turba_cpu_throttle_ratio,
+      metrics.turba_cpu_throttle_pct,
+      cpu.cpuThrottlePct,
+      sample.cpuThrottlePct
+    ));
+    const tcpRetransmitPct = optionalPercent(firstFinite(
+      metrics.turba_tcp_retransmit_ratio,
+      metrics.turba_tcp_retransmit_pct,
+      network.tcpRetransmitPct
+    ));
+    const socketLatency = firstFinite(
+      metrics.turba_socket_latency_ms_p95,
+      network.socketLatencyMsP95
+    );
+    const blockLatency = firstFinite(
+      metrics.turba_block_io_latency_ms_p95,
+      storage.blockIoLatencyMsP95
+    );
+    const filesystemLatency = firstFinite(
+      metrics.turba_filesystem_latency_ms_p95,
+      storage.filesystemLatencyMsP95
+    );
+    const softIrqPct = optionalPercent(firstFinite(
+      metrics.turba_softirq_ratio,
+      metrics.turba_softirq_pct,
+      cpu.softIrqPct,
+      noise.softIrqPct
+    ));
+    const noisyNeighborScore = optionalPercent(firstFinite(
+      metrics.turba_noisy_neighbor_score,
+      noise.noisyNeighborScore,
+      sample.noisyNeighborScore
+    ));
+
+    const networkWait = maxFinite(
+      optionalPercent(signals.networkWait),
+      pressure(tcpRetransmitPct, 1, 8),
+      pressure(socketLatency, 10, 80)
+    );
+    const storageWait = maxFinite(
+      optionalPercent(signals.storageWait),
+      pressure(blockLatency, 2, 40),
+      pressure(filesystemLatency, 2, 50)
+    );
+    const cpuPrep = maxFinite(
+      optionalPercent(signals.cpuPrep),
+      offCpuPct,
+      cpuThrottlePct,
+      pressure(runQueueLatency, 1, 30)
+    );
+    const contentionPct = maxFinite(
+      optionalPercent(signals.contentionPct),
+      cpuThrottlePct,
+      offCpuPct,
+      softIrqPct,
+      noisyNeighborScore
+    );
+    const latencyTail = maxFinite(
+      optionalPercent(signals.latencyTail),
+      pressure(runQueueLatency, 2, 40),
+      pressure(socketLatency, 20, 120)
+    );
+    const noiseEvents = firstFinite(
+      noise.noiseEvents,
+      metrics.turba_noise_events,
+      noisyNeighborScore >= 65 ? 1 : undefined
+    );
+
+    return {
+      runId: sample.runId,
+      sections: compactSections({
+        communication: compactMetrics({
+          networkWait
+        }),
+        inputPipeline: compactMetrics({
+          storageWait,
+          cpuPrep
+        }),
+        reliability: compactMetrics({
+          contentionPct,
+          latencyTail,
+          noiseEvents
+        }),
+        sourceContext: compactObject({
+          ...(sample.sourceContext || {}),
+          ebpfExportId: sample.ebpfExportId,
+          collector: sample.collector,
+          kernelRelease: sample.kernelRelease,
+          host: sample.host,
+          node: sample.node,
+          namespace: sample.namespace,
+          podName: sample.podName,
+          containerName: sample.containerName,
+          cgroupPath: sample.cgroupPath
+        })
+      })
+    };
+  });
+}
+
 function importProviderSamples(samples = []) {
   return samples.map((sample) => ({
     runId: sample.runId,
@@ -1445,8 +1571,53 @@ function compactObject(object) {
   );
 }
 
+function compactMetrics(object) {
+  return Object.fromEntries(
+    Object.entries(object).filter(([, value]) => Number.isFinite(value))
+  );
+}
+
+function compactSections(sections) {
+  return Object.fromEntries(
+    Object.entries(sections).filter(([, value]) => (
+      isPlainObject(value) ? Object.keys(value).length > 0 : value !== undefined
+    ))
+  );
+}
+
 function ratioPercent(value) {
   return numeric(value) * 100;
+}
+
+function optionalPercent(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
+}
+
+function pressure(value, low, high) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return undefined;
+  if (high <= low) return undefined;
+  return clamp(((parsed - low) / (high - low)) * 100, 0, 100);
+}
+
+function maxFinite(...values) {
+  const finite = values
+    .map((value) => Number(value))
+    .filter(Number.isFinite);
+  return finite.length ? Math.max(...finite) : undefined;
+}
+
+function firstFinite(...values) {
+  for (const entry of values) {
+    if (entry === undefined || entry === null || entry === "") continue;
+    const parsed = Number(entry);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 function normalizeIngestion(feed) {
@@ -1706,7 +1877,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "provider"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -1730,7 +1901,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "provider"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "ebpf", "provider"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -1762,6 +1933,7 @@ function extractSourceExports(payload) {
     prometheus: Array.isArray(sourceRoot.prometheus) ? sourceRoot.prometheus : [],
     dcgm: Array.isArray(sourceRoot.dcgm) ? sourceRoot.dcgm : [],
     kubernetes: Array.isArray(sourceRoot.kubernetes) ? sourceRoot.kubernetes : [],
+    ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
     provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : []
   };
 }
@@ -1787,6 +1959,7 @@ function hasSourceExports(sources) {
   return sources.prometheus.length > 0
     || sources.dcgm.length > 0
     || sources.kubernetes.length > 0
+    || sources.ebpf.length > 0
     || sources.provider.length > 0;
 }
 
@@ -1919,7 +2092,7 @@ function redactWorkspaceStore(store) {
       "model/user/team/cluster/tenant/account/reservation refs",
       "commercial contract ids",
       "support ticket ids",
-      "provider source context"
+      "provider and eBPF source context"
     ]
   };
 
@@ -1938,6 +2111,12 @@ function buildRedactionPlan(store) {
     namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
     podSelectors: buildValueMap(runs.map((run) => run.sourceContext?.podSelector), "pod-selector"),
     slurmJobIds: buildValueMap(runs.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
+    ebpfExports: buildValueMap(runs.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
+    hosts: buildValueMap(runs.map((run) => run.sourceContext?.host), "host"),
+    nodes: buildValueMap(runs.map((run) => run.sourceContext?.node), "node"),
+    podNames: buildValueMap(runs.map((run) => run.sourceContext?.podName), "pod"),
+    containerNames: buildValueMap(runs.map((run) => run.sourceContext?.containerName), "container"),
+    cgroupPaths: buildValueMap(runs.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
     providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
     billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
     reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window")
@@ -2028,6 +2207,12 @@ function redactSourceContext(context, plan) {
     namespace: mappedValue(plan.namespaces, context.namespace, "namespace"),
     podSelector: mappedValue(plan.podSelectors, context.podSelector, "pod-selector"),
     slurmJobId: mappedValue(plan.slurmJobIds, context.slurmJobId, "slurm-job"),
+    ebpfExportId: mappedValue(plan.ebpfExports, context.ebpfExportId, "ebpf-export"),
+    host: mappedValue(plan.hosts, context.host, "host"),
+    node: mappedValue(plan.nodes, context.node, "node"),
+    podName: mappedValue(plan.podNames, context.podName, "pod"),
+    containerName: mappedValue(plan.containerNames, context.containerName, "container"),
+    cgroupPath: mappedValue(plan.cgroupPaths, context.cgroupPath, "cgroup"),
     providerExportId: mappedValue(plan.providerExports, context.providerExportId, "provider-export"),
     billingAccountId: mappedValue(plan.billingAccounts, context.billingAccountId, "billing-account"),
     reservationWindow: mappedValue(plan.reservationWindows, context.reservationWindow, "reservation-window")

@@ -48,6 +48,40 @@
           "supportTicketId": "CS-1842"
         }
       }
+    ],
+    "ebpf": [
+      {
+        "runId": "run-7421",
+        "ebpfExportId": "ebpf-2026-05-week-4",
+        "collector": "bpftrace-summary",
+        "kernelRelease": "6.8.0-provider",
+        "host": "h100-a1-01.internal",
+        "node": "A1-01",
+        "namespace": "frontier",
+        "podName": "llama-70b-pretrain-7421-worker-0",
+        "containerName": "trainer",
+        "cgroupPath": "/kubepods.slice/frontier/llama-70b-pretrain-7421",
+        "cpu": {
+          "offCpuTimePct": 7,
+          "cpuThrottlePct": 4,
+          "softIrqPct": 3
+        },
+        "scheduler": {
+          "runQueueLatencyMsP95": 8
+        },
+        "network": {
+          "tcpRetransmitPct": 2.4,
+          "socketLatencyMsP95": 34
+        },
+        "storage": {
+          "blockIoLatencyMsP95": 6,
+          "filesystemLatencyMsP95": 9
+        },
+        "noise": {
+          "noisyNeighborScore": 18,
+          "noiseEvents": 0
+        }
+      }
     ]
   },
   "ncclTraces": [

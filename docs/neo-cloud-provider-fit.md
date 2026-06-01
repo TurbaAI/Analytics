@@ -42,6 +42,15 @@ The app converts those fields into:
 - Gross margin view: billable GPU-hours minus optional floor GPU-hour cost.
 - Renewal and support actions: concise operator actions tied to the tenant, reservation, bottleneck, and ticket context.
 
+An optional Linux eBPF overlay adds host-side evidence for provider pilots:
+
+- CPU scheduling pressure and throttling
+- socket latency and TCP retransmits
+- block I/O or filesystem latency behind input stalls
+- noisy-neighbor score and host contention events
+
+These signals enrich existing bottleneck attribution. They do not replace DCGM GPU counters, NCCL trace attribution, or commercial provider overlays.
+
 ## Workflows
 
 ### Tenant Escalation
@@ -81,5 +90,7 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 `fixtures/neo-cloud-provider-bundle.json` is a provider-focused import sample with two tenants, reservations, commercial overlays, SLO targets, and source telemetry.
 
 `fixtures/provider-overlay-template.json` is the minimal provider overlay template for integrating billing, reservation, support, and SLO metadata with an existing turbalance feed.
+
+`scripts/build-ebpf-overlay.js` is the minimal eBPF host-summary exporter example for integrating Linux scheduling, network, storage, and noisy-neighbor evidence by `runId`.
 
 For a pilot walkthrough, use `docs/neo-cloud-pilot-validation.md`.
