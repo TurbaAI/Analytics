@@ -6,14 +6,15 @@ const http = require("node:http");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { validateSourceBundle } = require("../lib/source-bundle-validator.js");
+const { authenticateJwtWithJwks, loadJwks, parseMapping } = require("./ingestion-oidc.js");
 const { createFileStorage } = require("./ingestion-storage.js");
 
 const DEFAULT_MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 const ROLE_PERMISSIONS = {
   admin: ["*"],
-  operator: ["upload:sign", "ingest:write", "audit:read", "audit:export", "retention:run"],
+  operator: ["upload:sign", "ingest:write", "audit:read", "audit:export", "retention:run", "metrics:read"],
   ingest: ["upload:sign", "ingest:write"],
-  viewer: ["audit:read", "audit:export"]
+  viewer: ["audit:read", "audit:export", "metrics:read"]
 };
 const DEFAULT_ROLE = "ingest";
 
@@ -61,6 +62,10 @@ function createIngestionServer(options = {}) {
 
       if (req.method === "GET" && requestUrl.pathname === "/v1/audit/export") {
         return await handleAuditExport(req, res, requestUrl, requestId, config);
+      }
+
+      if (req.method === "GET" && requestUrl.pathname === "/metrics") {
+        return await handleMetricsRead(req, res, requestId, config);
       }
 
       if (req.method === "POST" && requestUrl.pathname === "/v1/retention/run") {
@@ -249,6 +254,14 @@ async function handleAuditExport(req, res, requestUrl, requestId, config) {
   writeResponse(res, 200, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, config, "application/x-ndjson; charset=utf-8");
 }
 
+async function handleMetricsRead(req, res, requestId, config) {
+  const auth = await requireAuth(req, res, requestId, config, "metrics:read");
+  if (!auth) return;
+
+  await audit(config, { requestId, event: "metrics.read", status: "ok", actor: auth.actor, tenantId: auth.role === "admin" ? "all" : auth.tenantId });
+  writeResponse(res, 200, metricsText(config), config, "text/plain; version=0.0.4; charset=utf-8");
+}
+
 async function handleRetentionRun(req, res, requestId, config) {
   const auth = await requireAuth(req, res, requestId, config, "retention:run");
   if (!auth) return;
@@ -424,7 +437,7 @@ function storePayload(config, { tenantId, uploadId, payload, raw, source }) {
 async function requireAuth(req, res, requestId, config, permission) {
   const header = stringValue(req.headers.authorization);
   const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
-  const account = authenticateToken(token, config);
+  const account = await authenticateToken(token, config);
 
   if (!account) {
     await audit(config, { requestId, event: "auth.failure", status: "denied", actor: "anonymous" });
@@ -478,6 +491,7 @@ function readAuditRows(config, { tenantId, limit }) {
 }
 
 async function audit(config, event) {
+  observeEvent(config, event);
   config.storage.appendAudit({
     ts: new Date().toISOString(),
     ...event
@@ -499,6 +513,7 @@ function normalizeConfig(options = {}) {
   mergeTokenMap(tokens, parseTenantTokens(options.tenantTokens || process.env.TURBALANCE_TENANT_TOKENS || "demo:dev-token"));
   mergeTokenMap(tokens, tokensFromControlRecords(readControlArray(storage, "tokens")));
   const tenants = loadTenantRegistry(storage, tokens, options.tenants);
+  const metrics = createMetrics();
 
   return {
     dataDir,
@@ -510,6 +525,16 @@ function normalizeConfig(options = {}) {
     jwtSecret: options.jwtSecret || process.env.TURBALANCE_JWT_SECRET || "",
     jwtIssuer: options.jwtIssuer || process.env.TURBALANCE_JWT_ISSUER || "",
     jwtAudience: options.jwtAudience || process.env.TURBALANCE_JWT_AUDIENCE || "",
+    jwtJwks: loadJwks({ jwks: options.jwtJwks, jwksPath: options.jwtJwksPath }),
+    jwtJwksUrl: options.jwtJwksUrl || process.env.TURBALANCE_JWT_JWKS_URL || "",
+    jwtJwksCacheMs: Number(options.jwtJwksCacheMs || process.env.TURBALANCE_JWT_JWKS_CACHE_MS || 5 * 60 * 1000),
+    jwtTenantClaim: options.jwtTenantClaim || process.env.TURBALANCE_JWT_TENANT_CLAIM || "",
+    jwtRoleClaim: options.jwtRoleClaim || process.env.TURBALANCE_JWT_ROLE_CLAIM || "",
+    jwtSubjectClaim: options.jwtSubjectClaim || process.env.TURBALANCE_JWT_SUBJECT_CLAIM || "",
+    jwtTenantMap: parseMapping(options.jwtTenantMap || process.env.TURBALANCE_JWT_TENANT_MAP),
+    jwtRoleMap: parseMapping(options.jwtRoleMap || process.env.TURBALANCE_JWT_ROLE_MAP),
+    jwtJwksCache: null,
+    metrics,
     retentionDays: Number(options.retentionDays || process.env.TURBALANCE_RETENTION_DAYS || 30),
     retentionIntervalSeconds: Number(options.retentionIntervalSeconds || process.env.TURBALANCE_RETENTION_INTERVAL_SECONDS || 0),
     maxUploadsPerTenant: Number(options.maxUploadsPerTenant || process.env.TURBALANCE_MAX_UPLOADS_PER_TENANT || 200),
@@ -597,15 +622,22 @@ function signUpload(config, { tenantId, uploadId, expires, sha256, keyId }) {
     .digest("hex");
 }
 
-function authenticateToken(token, config) {
+async function authenticateToken(token, config) {
   if (!token) return null;
   const tokenHashValue = hashToken(token);
   const account = config.tokens.get(tokenHashValue);
   if (account) return accountWithActor(account);
-  return authenticateJwt(token, config);
+  return await authenticateJwt(token, config);
 }
 
-function authenticateJwt(token, config) {
+async function authenticateJwt(token, config) {
+  let jwksAccount = null;
+  try {
+    jwksAccount = await authenticateJwtWithJwks(token, config);
+  } catch {
+    jwksAccount = null;
+  }
+  if (jwksAccount) return accountWithActor(jwksAccount);
   if (!config.jwtSecret || token.split(".").length !== 3) return null;
   const [encodedHeader, encodedPayload, signature] = token.split(".");
 
@@ -861,6 +893,71 @@ function startRetentionScheduler(config) {
   return timer;
 }
 
+function createMetrics() {
+  return {
+    authFailuresTotal: 0,
+    authForbiddenTotal: 0,
+    ingestAcceptedTotal: 0,
+    ingestRejectedTotal: 0,
+    signedUploadDeniedTotal: 0,
+    auditExportsTotal: 0,
+    retentionRunsTotal: 0,
+    retentionScheduledRunsTotal: 0,
+    retentionDeletedFilesTotal: 0,
+    tenantChangesTotal: 0,
+    tokenRotationsTotal: 0,
+    uploadKeyRotationsTotal: 0,
+    lastRetentionRunUnixSeconds: 0
+  };
+}
+
+function observeEvent(config, event) {
+  if (!config.metrics) return;
+
+  if (event.event === "auth.failure") config.metrics.authFailuresTotal += 1;
+  if (event.event === "auth.forbidden" || event.event === "auth.tenant_disabled") config.metrics.authForbiddenTotal += 1;
+  if (event.event === "ingest.accepted") config.metrics.ingestAcceptedTotal += 1;
+  if (event.event === "ingest.rejected") config.metrics.ingestRejectedTotal += 1;
+  if (event.event === "upload.signed.denied") config.metrics.signedUploadDeniedTotal += 1;
+  if (event.event === "audit.export") config.metrics.auditExportsTotal += 1;
+  if (event.event === "tenant.upsert") config.metrics.tenantChangesTotal += 1;
+  if (event.event === "token.rotate") config.metrics.tokenRotationsTotal += 1;
+  if (event.event === "upload_key.rotate") config.metrics.uploadKeyRotationsTotal += 1;
+  if (event.event === "retention.run" || event.event === "retention.scheduled") {
+    config.metrics.retentionRunsTotal += 1;
+    config.metrics.retentionDeletedFilesTotal += Number(event.deleted || 0);
+    config.metrics.lastRetentionRunUnixSeconds = Math.floor(Date.now() / 1000);
+  }
+  if (event.event === "retention.scheduled") config.metrics.retentionScheduledRunsTotal += 1;
+}
+
+function metricsText(config) {
+  const metricRows = [
+    ["turbalance_auth_failures_total", "counter", "Authentication failures.", config.metrics.authFailuresTotal],
+    ["turbalance_auth_forbidden_total", "counter", "Authenticated requests denied by tenant or role policy.", config.metrics.authForbiddenTotal],
+    ["turbalance_ingest_accepted_total", "counter", "Accepted ingestion payloads.", config.metrics.ingestAcceptedTotal],
+    ["turbalance_ingest_rejected_total", "counter", "Rejected ingestion payloads.", config.metrics.ingestRejectedTotal],
+    ["turbalance_signed_upload_denied_total", "counter", "Denied signed upload attempts.", config.metrics.signedUploadDeniedTotal],
+    ["turbalance_audit_exports_total", "counter", "Audit export requests.", config.metrics.auditExportsTotal],
+    ["turbalance_retention_runs_total", "counter", "Manual and scheduled retention runs.", config.metrics.retentionRunsTotal],
+    ["turbalance_retention_scheduled_runs_total", "counter", "Scheduled retention runs.", config.metrics.retentionScheduledRunsTotal],
+    ["turbalance_retention_deleted_files_total", "counter", "Files deleted by retention.", config.metrics.retentionDeletedFilesTotal],
+    ["turbalance_tenant_changes_total", "counter", "Tenant registry changes.", config.metrics.tenantChangesTotal],
+    ["turbalance_token_rotations_total", "counter", "Tenant token rotation events.", config.metrics.tokenRotationsTotal],
+    ["turbalance_upload_key_rotations_total", "counter", "Signed upload key rotation events.", config.metrics.uploadKeyRotationsTotal],
+    ["turbalance_last_retention_run_unix_seconds", "gauge", "Unix timestamp of the last retention run.", config.metrics.lastRetentionRunUnixSeconds],
+    ["turbalance_configured_tenants", "gauge", "Configured tenants in the local control plane.", config.tenants.size],
+    ["turbalance_configured_tokens", "gauge", "Configured bearer tokens in the local control plane.", config.tokens.size],
+    ["turbalance_upload_signing_keys", "gauge", "Configured signed upload HMAC keys.", config.uploadKeys.size]
+  ];
+
+  return metricRows.map(([name, type, help, value]) => [
+    `# HELP ${name} ${help}`,
+    `# TYPE ${name} ${type}`,
+    `${name} ${Number(value || 0)}`
+  ].join("\n")).join("\n") + "\n";
+}
+
 function auditRowsToCsv(rows) {
   const columns = ["ts", "event", "status", "tenantId", "actor", "requestId", "role", "permission", "uploadId", "source", "storageKey", "deleted", "message"];
   return [
@@ -980,6 +1077,7 @@ if (require.main === module) {
 
 module.exports = {
   applyRetention,
+  createIngestionConfig: normalizeConfig,
   createIngestionServer,
   parseTenantTokens,
   signUpload

@@ -66,7 +66,7 @@ The original prototype backlog is implemented. The repo includes:
 - Neo-cloud provider workflows for tenant/account/reservation views, queue SLOs, sellable waste, commit burn, margin pressure, and portfolio risk
 - Scheduler/capacity scenario simulation and an Opportunity Engine for ranked actions
 - Tests, fixtures, exporter examples, GitHub Actions CI, and GitHub Pages packaging
-- Optional backend ingestion service with bearer/JWT auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, source-bundle validation, and retention cleanup
+- Optional backend ingestion service with bearer, HS256 JWT, and RS256/JWKS auth, tenant isolation, role-aware controls, signed uploads, token and upload-key rotation, audit export, Prometheus metrics, source-bundle validation, and retention cleanup
 
 Real production use still requires operator-provided exports from the relevant systems. Automated screenshot QA runs when Playwright is available and skips cleanly otherwise; browser visual QA should still be completed locally before a customer-facing demo.
 
@@ -216,12 +216,13 @@ The service provides:
 - `POST /v1/ingestion`: authenticated direct ingest path
 - `GET /v1/audit`: tenant-scoped audit rows
 - `GET /v1/audit/export`: tenant-scoped audit export as JSON, JSONL, or CSV
+- `GET /metrics`: Prometheus-style backend operational metrics
 - `POST /v1/retention/run`: retention cleanup
 - `GET /v1/tenants` and `POST /v1/tenants`: admin tenant registry controls
 - `POST /v1/tokens/rotate`: admin tenant token rotation
 - `POST /v1/upload-keys/rotate`: admin signed-upload key rotation
 
-All accepted uploads are validated with `lib/source-bundle-validator.js`, stored through the file storage adapter in `server/ingestion-storage.js`, and logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
+All accepted uploads are validated with `lib/source-bundle-validator.js`, JWT/JWKS verification lives in `server/ingestion-oidc.js`, uploads are stored through the file storage adapter in `server/ingestion-storage.js`, and audit rows are logged to `audit/audit.jsonl`. See `docs/backend-ingestion.md` for the full API.
 
 ## Privacy And Redaction
 
@@ -302,8 +303,10 @@ Focused test entry points:
 - `tests/scheduler-exporter.test.js`: scheduler exporter example
 - `tests/ebpf-exporter.test.js`: eBPF host overlay exporter example
 - `tests/provider-pilot-bundler.test.js`: all-lanes provider pilot bundle builder
+- `tests/ingestion-oidc.test.js`: RS256/JWKS JWT validation, tenant mapping, and role mapping
 - `tests/ingestion-storage.test.js`: file storage adapter uploads, audit rows, control JSON, and deletes
-- `tests/ingestion-server.test.js`: signed upload, direct ingest, role-aware auth, tenant provisioning, key rotation, audit export, and retention service behavior
+- `tests/ingestion-server.test.js`: signed upload, direct ingest, role-aware auth, JWKS auth, tenant provisioning, key rotation, metrics, audit export, and retention service behavior
+- `tests/retention-job.test.js`: standalone retention job behavior
 - `tests/source-bundle-validator.test.js`: source-bundle validation library and CLI
 - `tests/workspace-export-fixture.test.js`: exported workspace shape
 - `tests/evidence-pack-export.test.js`: Markdown evidence-pack redaction
@@ -312,6 +315,7 @@ Focused test entry points:
 - `tests/import-validation-copy.test.js`: import validation messages and helpers
 - `tests/static-page-wiring.test.js`: static DOM IDs, script order, and dashboard control wiring
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
+- `scripts/run-retention-job.js`: standalone retention job for cron or Kubernetes CronJob wiring
 - `scripts/run-screenshot-qa.js`: desktop and mobile screenshot QA when Playwright is installed; skips by default when browser automation is unavailable
 
 Use `git diff --check` before committing to catch whitespace issues.
@@ -334,7 +338,7 @@ This repo is ready as a static pilot/demo surface, an integration contract for e
 Current boundaries:
 
 - Optional file-backed backend service and local control plane, not a horizontally scalable managed ingestion plane
-- Bearer-token and HS256 JWT support for pilot ingress, not full enterprise OIDC/JWKS federation
+- Bearer-token, HS256 JWT, and RS256/JWKS validation for pilot ingress, not a full customer IAM provisioning product
 - No direct cluster, billing, support, or Grafana API calls
 - Screenshot QA requires Playwright availability in the runtime
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
@@ -342,7 +346,7 @@ Current boundaries:
 Expected production next steps:
 
 - Move file-backed ingestion storage/control JSON to object storage plus a database-backed control plane
-- Replace HS256 pilot JWTs with customer OIDC/JWKS validation, SSO tenant mapping, and user-level RBAC policy
-- Run retention scheduling as managed jobs with monitoring and alerting
+- Add full OIDC discovery lifecycle, JWKS cache observability, and customer IAM provisioning workflows
+- Move retention and ingestion metrics into managed CronJob/monitoring manifests with alert thresholds
 - Run screenshot QA in a CI image with Playwright browsers installed when visual artifacts must be regenerated
 - Connect live exporter jobs for provider pilots once each source system owner approves the export contract

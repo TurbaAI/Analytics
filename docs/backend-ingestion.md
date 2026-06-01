@@ -15,7 +15,7 @@ The service listens on `127.0.0.1:8787` by default. Set `TURBALANCE_INGEST_HOST`
 
 ## Controls
 
-- Auth: bearer tokens from `TURBALANCE_TENANT_TOKENS`, plus optional HS256 JWT validation when `TURBALANCE_JWT_SECRET` is set
+- Auth: bearer tokens from `TURBALANCE_TENANT_TOKENS`, optional HS256 JWT validation with `TURBALANCE_JWT_SECRET`, and optional RS256/JWKS validation with `TURBALANCE_JWT_JWKS`, `TURBALANCE_JWT_JWKS_PATH`, or `TURBALANCE_JWT_JWKS_URL`
 - Tenancy: each token maps to one tenant unless the token role is `admin`
 - Roles: `admin`, `operator`, `ingest`, and `viewer`
 - Tenant registry: admins can create or update tenant display names, status, retention days, and upload caps
@@ -26,6 +26,7 @@ The service listens on `127.0.0.1:8787` by default. Set `TURBALANCE_INGEST_HOST`
 - Audit log: every auth failure, signing event, accepted ingest, rejected ingest, audit read/export, tenant change, key rotation, and retention run is appended to `audit/audit.jsonl`
 - Audit export: tenant-scoped JSON, JSONL, or CSV export
 - Retention: uploads older than `TURBALANCE_RETENTION_DAYS` or beyond `TURBALANCE_MAX_UPLOADS_PER_TENANT` are removed; set `TURBALANCE_RETENTION_INTERVAL_SECONDS` to run this automatically
+- Metrics: `/metrics` exposes Prometheus-style counters and gauges for auth failures, accepted/rejected ingests, retention runs, tenant/key changes, and configured control-plane size
 - Size limit: `TURBALANCE_MAX_UPLOAD_BYTES`, default 25 MiB
 - Storage: uploads, audit rows, and control-plane JSON use `server/ingestion-storage.js`; the current adapter is file-backed and intentionally small enough to replace with object storage and a database later
 
@@ -43,7 +44,26 @@ TURBALANCE_JWT_ISSUER="https://sso.example.com" \
 TURBALANCE_JWT_AUDIENCE="turbalance-ingestion"
 ```
 
-JWT claims must include `tenantId` or `tenant`, plus optional `role`. This is a pilot-friendly gateway/JWT mode, not full OIDC/JWKS federation.
+JWT claims must include `tenantId` or `tenant`, plus optional `role`. This is a pilot-friendly gateway/JWT mode; JWKS support validates signatures and claims, while full OIDC discovery lifecycle and customer IAM provisioning remain production integration work.
+
+For RS256/JWKS validation, set one JWKS source:
+
+```sh
+TURBALANCE_JWT_JWKS_PATH="./jwks.json"
+# or TURBALANCE_JWT_JWKS='{"keys":[...]}'
+# or TURBALANCE_JWT_JWKS_URL="https://issuer.example.com/.well-known/jwks.json"
+```
+
+Tenant and role claims can be mapped into turbalance tenant IDs and roles:
+
+```sh
+TURBALANCE_JWT_TENANT_CLAIM="customer_tenant" \
+TURBALANCE_JWT_ROLE_CLAIM="groups" \
+TURBALANCE_JWT_TENANT_MAP="external-customer-a:tenant-a" \
+TURBALANCE_JWT_ROLE_MAP="security-reader:viewer,platform-operator:operator"
+```
+
+JWKS URL responses are cached for `TURBALANCE_JWT_JWKS_CACHE_MS`, default 300000 ms.
 
 ## API
 
@@ -99,6 +119,23 @@ curl -sS "http://127.0.0.1:8787/v1/audit/export?format=csv&limit=1000" \
 
 ```sh
 curl -sS -X POST http://127.0.0.1:8787/v1/retention/run \
+  -H "Authorization: Bearer tenant-token"
+```
+
+Run retention as a standalone managed job:
+
+```sh
+TURBALANCE_DATA_DIR=".turbalance-data" \
+TURBALANCE_RETENTION_DAYS=30 \
+node scripts/run-retention-job.js --json
+```
+
+This script is meant for cron, Kubernetes CronJob, or provider-managed scheduled task wiring.
+
+### Metrics
+
+```sh
+curl -sS http://127.0.0.1:8787/metrics \
   -H "Authorization: Bearer tenant-token"
 ```
 

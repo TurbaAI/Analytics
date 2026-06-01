@@ -24,7 +24,7 @@ TURBALANCE_UPLOAD_SECRET="replace-with-random-secret" \
 node server/ingestion-server.js
 ```
 
-See `docs/backend-ingestion.md` for signed upload, role-aware auth, JWT gateway mode, tenant provisioning, key rotation, audit export, tenancy, and retention details.
+See `docs/backend-ingestion.md` for signed upload, role-aware auth, HS256/JWKS JWT gateway mode, tenant provisioning, key rotation, audit export, metrics, tenancy, and retention details. Use `scripts/run-retention-job.js` when retention should run as a cron, Kubernetes CronJob, or provider-managed scheduled task instead of an in-process interval.
 
 ## GitHub Pages
 

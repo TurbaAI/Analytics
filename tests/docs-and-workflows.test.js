@@ -26,6 +26,7 @@ const readme = read("README.md");
   "schemas/turba-workspace.v2.schema.json",
   "grafana/turbalance-provider-overview.json",
   "lib/source-bundle-validator.js",
+  "server/ingestion-oidc.js",
   "server/ingestion-server.js",
   "server/ingestion-storage.js",
   "scripts/build-provider-overlay.js",
@@ -34,6 +35,7 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
+  "scripts/run-retention-job.js",
   "fixtures/provider-overlay-template.json",
   "fixtures/provider-pilot-export-inputs/prometheus.json",
   "fixtures/scheduler-export-inputs/scheduler-events.json",
@@ -68,7 +70,9 @@ const readme = read("README.md");
   "scripts/build-ebpf-overlay.js",
   "scripts/validate-source-bundle.js",
   "scripts/run-screenshot-qa.js",
+  "scripts/run-retention-job.js",
   "grafana/turbalance-provider-overview.json",
+  "server/ingestion-oidc.js",
   "server/ingestion-server.js",
   "server/ingestion-storage.js",
   "node tests/run-all.js",
@@ -77,8 +81,10 @@ const readme = read("README.md");
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/provider-pilot-bundler.test.js",
+  "tests/ingestion-oidc.test.js",
   "tests/ingestion-storage.test.js",
   "tests/ingestion-server.test.js",
+  "tests/retention-job.test.js",
   "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
   "tests/source-bundle-validation.test.js",
@@ -120,12 +126,17 @@ assert.ok(dataContract.includes("build-provider-pilot-bundle.js"));
 
 const backendIngestion = read("docs/backend-ingestion.md");
 assert.ok(backendIngestion.includes("server/ingestion-server.js"));
+assert.ok(backendIngestion.includes("server/ingestion-oidc.js") || backendIngestion.includes("RS256/JWKS"));
 assert.ok(backendIngestion.includes("server/ingestion-storage.js"));
 assert.ok(backendIngestion.includes("signed"));
 assert.ok(backendIngestion.includes("JWT"));
+assert.ok(backendIngestion.includes("JWKS"));
+assert.ok(backendIngestion.includes("JWT_TENANT_MAP"));
 assert.ok(backendIngestion.includes("tokens/rotate"));
 assert.ok(backendIngestion.includes("upload-keys/rotate"));
 assert.ok(backendIngestion.includes("audit/export"));
+assert.ok(backendIngestion.includes("/metrics"));
+assert.ok(backendIngestion.includes("scripts/run-retention-job.js"));
 assert.ok(backendIngestion.includes("audit"));
 assert.ok(backendIngestion.includes("retention"));
 

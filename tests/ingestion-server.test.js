@@ -11,13 +11,23 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "turba-ingest-"));
 const tenantToken = "tenant-token";
 const fixtureBody = fs.readFileSync(path.join(root, "fixtures/external-source-bundle.json"));
 const fixtureSha = crypto.createHash("sha256").update(fixtureBody).digest("hex");
+const jwksKeyPair = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+const jwk = jwksKeyPair.publicKey.export({ format: "jwk" });
+jwk.kid = "test-rs256-key";
+jwk.alg = "RS256";
+jwk.use = "sig";
 const server = createIngestionServer({
   dataDir: tempDir,
   uploadSecret: "test-secret",
   tenantTokens: `tenant-a:${tenantToken}:operator:tenant-operator,admin:admin-token:admin:platform-admin`,
   jwtSecret: "jwt-secret",
+  jwtJwks: { keys: [jwk] },
   jwtIssuer: "test-issuer",
   jwtAudience: "turbalance-ingestion",
+  jwtTenantClaim: "customer_tenant",
+  jwtRoleClaim: "groups",
+  jwtTenantMap: "external-tenant-a:tenant-a",
+  jwtRoleMap: "security-reader:viewer,platform-operator:operator",
   retentionDays: 1,
   maxUploadsPerTenant: 10,
   maxUploadBytes: 2 * 1024 * 1024
@@ -64,6 +74,15 @@ function signJwt(payload, secret) {
     .createHmac("sha256", secret)
     .update(`${header}.${body}`)
     .digest("base64url");
+  return `${header}.${body}.${signature}`;
+}
+
+function signJwtRs256(payload, privateKey, kid) {
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT", kid })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const signature = crypto
+    .sign("RSA-SHA256", Buffer.from(`${header}.${body}`), privateKey)
+    .toString("base64url");
   return `${header}.${body}.${signature}`;
 }
 
@@ -238,6 +257,45 @@ function signJwt(payload, secret) {
     body: fixtureBody
   });
   assert.equal(ssoIngestDenied.status, 403);
+
+  const jwksViewer = signJwtRs256({
+    sub: "jwks-viewer@example.com",
+    customer_tenant: "external-tenant-a",
+    groups: ["security-reader"],
+    iss: "test-issuer",
+    aud: "turbalance-ingestion",
+    exp: Math.floor(Date.now() / 1000) + 300
+  }, jwksKeyPair.privateKey, "test-rs256-key");
+  const jwksAudit = await request(port, "GET", "/v1/audit?limit=5", {
+    headers: {
+      authorization: `Bearer ${jwksViewer}`
+    }
+  });
+  assert.equal(jwksAudit.status, 200, jwksAudit.body);
+
+  const wrongAudienceJwt = signJwtRs256({
+    sub: "jwks-viewer@example.com",
+    customer_tenant: "external-tenant-a",
+    groups: ["security-reader"],
+    iss: "test-issuer",
+    aud: "wrong-audience",
+    exp: Math.floor(Date.now() / 1000) + 300
+  }, jwksKeyPair.privateKey, "test-rs256-key");
+  const wrongAudience = await request(port, "GET", "/v1/audit?limit=5", {
+    headers: {
+      authorization: `Bearer ${wrongAudienceJwt}`
+    }
+  });
+  assert.equal(wrongAudience.status, 401);
+
+  const metrics = await request(port, "GET", "/metrics", {
+    headers: {
+      authorization: `Bearer ${tenantToken}`
+    }
+  });
+  assert.equal(metrics.status, 200);
+  assert.ok(metrics.body.includes("turbalance_ingest_accepted_total"));
+  assert.ok(metrics.body.includes("turbalance_configured_tenants"));
 
   const uploadDir = path.join(tempDir, "tenants", "tenant-a", "uploads");
   const oldPath = path.join(uploadDir, "old-upload.json");
