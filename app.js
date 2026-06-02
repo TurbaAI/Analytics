@@ -993,6 +993,8 @@ const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "a
 const SNAPSHOT_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
+const LIVE_TELEMETRY_ALERT_LIMIT = 5;
+const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
@@ -3796,13 +3798,15 @@ function renderLiveResources(summary) {
   const title = document.querySelector("#liveResourceTitle");
   const badge = document.querySelector("#liveResourceBadge");
   const grid = document.querySelector("#liveResourceGrid");
+  const alerts = document.querySelector("#liveTelemetryAlerts");
   const graphs = document.querySelector("#liveTelemetryGraphs");
-  if (!panel || !title || !badge || !grid || !graphs) return;
+  if (!panel || !title || !badge || !grid || !alerts || !graphs) return;
 
   const machineContext = machineDemoContext(summary);
   if (!machineContext) {
     panel.hidden = true;
     grid.replaceChildren();
+    alerts.replaceChildren();
     graphs.replaceChildren();
     liveTelemetryHistory = [];
     return;
@@ -3896,6 +3900,7 @@ function renderLiveResources(summary) {
     })
   );
 
+  renderLiveTelemetryAlerts(alerts, analyzeLiveTelemetryRelationships(telemetry, machineContext));
   renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
 }
 
@@ -3933,6 +3938,333 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
   }
 
   return liveTelemetryHistory;
+}
+
+function analyzeLiveTelemetryRelationships(history, machineContext) {
+  const window = history.slice(-LIVE_TELEMETRY_RELATIONSHIP_WINDOW);
+  const sampleCount = window.length;
+  const first = window[0];
+  const latest = window[sampleCount - 1] || {};
+  const windowSeconds = first && latest.timestampMs
+    ? Math.max(0, Math.round((latest.timestampMs - first.timestampMs) / 1000))
+    : 0;
+  const trends = {
+    cpu: telemetryTrend(window, "cpu"),
+    ram: telemetryTrend(window, "ram"),
+    disk: telemetryTrend(window, "disk"),
+    gpu: telemetryTrend(window, "gpu"),
+    gpuPower: telemetryTrend(window, "gpuPower"),
+    gpuMemory: telemetryTrend(window, "gpuMemory"),
+    gpuTemperature: telemetryTrend(window, "gpuTemperature")
+  };
+  const relationships = [
+    telemetryRelationship("CPU/GPU", telemetryCorrelation(window, "cpu", "gpu"), "Host pressure vs accelerator work"),
+    telemetryRelationship("Power/GPU", telemetryCorrelation(window, "gpuPower", "gpu"), "Power draw vs useful accelerator motion"),
+    telemetryRelationship("RAM/CPU", telemetryCorrelation(window, "ram", "cpu"), "Memory pressure vs host activity")
+  ];
+  const alerts = [];
+
+  if (sampleCount < 6) {
+    return {
+      sampleCount,
+      windowSeconds,
+      alerts,
+      relationships,
+      status: "Learning baseline"
+    };
+  }
+
+  const avgGpu = telemetryAverage(window, "gpu");
+  const avgCpu = telemetryAverage(window, "cpu");
+  const latestGpu = numeric(latest.gpu, 0);
+  const latestCpu = numeric(latest.cpu, 0);
+  const latestRam = numeric(latest.ram, 0);
+  const latestDisk = numeric(latest.disk, 0);
+  const latestPower = numeric(latest.gpuPower, 0);
+  const latestTemp = numeric(latest.gpuTemperature, 0);
+  const cpuGpuCorrelation = telemetryCorrelation(window, "cpu", "gpu");
+  const powerGpuCorrelation = telemetryCorrelation(window, "gpuPower", "gpu");
+
+  if (machineContext.gpuPresent && avgGpu !== null && avgGpu <= 5 && sampleCount >= 10) {
+    alerts.push(liveTelemetryAlert({
+      severity: avgCpu !== null && avgCpu > 35 ? "high" : "medium",
+      title: "Accelerator is trending idle",
+      evidence: `GPU averaged ${pct(avgGpu)} across ${sampleCount} samples while the host stayed at ${pct(avgCpu || 0)} CPU.`,
+      recommendation: "Start a controlled workload or attach scheduler/request counters before treating this as workload saturation.",
+      confidence: sampleCount >= 30 ? 0.86 : 0.72
+    }));
+  }
+
+  if (trends.cpu.slopePerMinute > 8 && latestCpu > 20 && machineContext.gpuPresent && (trends.gpu.slopePerMinute < 1 || latestGpu < 20)) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestCpu > 65 ? "high" : "medium",
+      title: "CPU rising while GPU is flat",
+      evidence: `CPU is moving ${signedRate(trends.cpu.slopePerMinute, "pts/min")} while GPU is moving ${signedRate(trends.gpu.slopePerMinute, "pts/min")}.`,
+      recommendation: "Check preprocessing, request fan-in, tokenization, data loading, or host-side queues before adding GPUs.",
+      confidence: Math.min(0.92, 0.64 + Math.abs(trends.cpu.slopePerMinute) / 100)
+    }));
+  }
+
+  if (latestRam >= 85 || (trends.ram.slopePerMinute > 3 && latestRam >= 55)) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestRam >= 90 ? "critical" : "high",
+      title: "Memory pressure is drifting up",
+      evidence: `RAM is at ${pct(latestRam)} with a short-window trend of ${signedRate(trends.ram.slopePerMinute, "pts/min")}.`,
+      recommendation: "Inspect resident model processes, cache growth, and batch/concurrency settings before the host starts swapping.",
+      confidence: latestRam >= 85 ? 0.9 : 0.74
+    }));
+  }
+
+  if (latestDisk >= 85 || trends.disk.slopePerMinute > 0.5) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestDisk >= 92 ? "critical" : "medium",
+      title: "Disk usage trend needs attention",
+      evidence: `Root filesystem is at ${pct(latestDisk)} and moving ${signedRate(trends.disk.slopePerMinute, "pts/min")}.`,
+      recommendation: "Check logs, model cache growth, checkpoints, and local dataset staging before writes fail.",
+      confidence: latestDisk >= 85 ? 0.88 : 0.68
+    }));
+  }
+
+  if (latestTemp >= 78 || (trends.gpuTemperature.slopePerMinute > 2 && latestTemp >= 60)) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestTemp >= 86 ? "critical" : "high",
+      title: "GPU thermal trend is worsening",
+      evidence: `GPU temperature is ${round(latestTemp)} C and moving ${signedRate(trends.gpuTemperature.slopePerMinute, "C/min")}.`,
+      recommendation: "Check fan curve, power limits, enclosure airflow, and co-located heat sources before performance throttles.",
+      confidence: latestTemp >= 78 ? 0.9 : 0.76
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
+    && latestPower > 0
+    && powerGpuCorrelation !== null
+    && powerGpuCorrelation < -0.25
+    && trends.gpuPower.slopePerMinute > 1
+    && trends.gpu.slopePerMinute < 0
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: "high",
+      title: "Power and utilization are diverging",
+      evidence: `Power/GPU correlation is ${formatCorrelation(powerGpuCorrelation)}; power is rising while utilization is falling.`,
+      recommendation: "Inspect thermal limits, background GPU contexts, clock behavior, and workload stalls.",
+      confidence: 0.8
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
+    && cpuGpuCorrelation !== null
+    && cpuGpuCorrelation < -0.35
+    && trends.cpu.slopePerMinute > 2
+    && trends.gpu.slopePerMinute < -1
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: "medium",
+      title: "Host and accelerator are moving against each other",
+      evidence: `CPU/GPU correlation is ${formatCorrelation(cpuGpuCorrelation)} over the latest ${sampleCount} samples.`,
+      recommendation: "Look for CPU-side blocking, synchronous request queues, dataloader stalls, or single-threaded orchestration.",
+      confidence: 0.76
+    }));
+  }
+
+  if (machineContext.gpuSampleCached && machineContext.gpuSampleAgeMs > 5000) {
+    alerts.push(liveTelemetryAlert({
+      severity: "medium",
+      title: "GPU counter is lagging behind host telemetry",
+      evidence: `The latest GPU sample is ${formatDecimal(machineContext.gpuSampleAgeMs / 1000, 1)}s older than the current host sample.`,
+      recommendation: "Keep host alerts active, but treat GPU/power relationships as delayed until nvidia-smi catches up.",
+      confidence: 0.84
+    }));
+  }
+
+  const severityRank = { critical: 4, high: 3, medium: 2, low: 1 };
+  alerts.sort((left, right) => severityRank[right.severity] - severityRank[left.severity] || right.confidence - left.confidence);
+
+  return {
+    sampleCount,
+    windowSeconds,
+    alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
+    relationships,
+    status: alerts.length ? `${alerts.length} active` : "Stable"
+  };
+}
+
+function renderLiveTelemetryAlerts(container, analysis) {
+  const wrapper = document.createElement("section");
+  wrapper.className = "live-relationship-panel";
+
+  const head = document.createElement("div");
+  head.className = "live-relationship-head";
+  const label = document.createElement("p");
+  label.textContent = "Relationship Watch";
+  const title = document.createElement("h3");
+  title.textContent = analysis.status;
+  const badge = document.createElement("span");
+  badge.textContent = analysis.sampleCount
+    ? `${analysis.sampleCount} samples | ${analysis.windowSeconds}s`
+    : "No samples";
+  head.append(label, title, badge);
+
+  const relationshipGrid = document.createElement("div");
+  relationshipGrid.className = "live-relationship-grid";
+  analysis.relationships.forEach((relationship) => {
+    relationshipGrid.append(liveRelationshipCard(relationship));
+  });
+
+  const alertList = document.createElement("div");
+  alertList.className = "live-alert-list";
+  if (!analysis.alerts.length) {
+    const empty = document.createElement("div");
+    empty.className = "live-alert-empty";
+    empty.textContent = analysis.sampleCount < 6
+      ? "Learning enough signal history to score adverse trends."
+      : "No adverse relationship trend detected in the current window.";
+    alertList.append(empty);
+  } else {
+    analysis.alerts.forEach((alert) => {
+      alertList.append(liveAlertCard(alert));
+    });
+  }
+
+  wrapper.append(head, relationshipGrid, alertList);
+  container.replaceChildren(wrapper);
+}
+
+function liveRelationshipCard(relationship) {
+  const item = document.createElement("div");
+  item.className = "live-relationship-card";
+  item.dataset.tone = relationship.tone;
+
+  const label = document.createElement("span");
+  label.textContent = relationship.label;
+  const value = document.createElement("strong");
+  value.textContent = relationship.value;
+  const note = document.createElement("small");
+  note.textContent = relationship.note;
+
+  item.append(label, value, note);
+  return item;
+}
+
+function liveAlertCard(alert) {
+  const item = document.createElement("article");
+  item.className = "live-alert-card";
+  item.dataset.severity = alert.severity;
+
+  const head = document.createElement("div");
+  const severity = document.createElement("span");
+  severity.textContent = titleCase(alert.severity);
+  const confidence = document.createElement("small");
+  confidence.textContent = `${pct(alert.confidence * 100)} confidence`;
+  head.append(severity, confidence);
+
+  const title = document.createElement("strong");
+  title.textContent = alert.title;
+  const evidence = document.createElement("p");
+  evidence.textContent = alert.evidence;
+  const recommendation = document.createElement("small");
+  recommendation.textContent = alert.recommendation;
+
+  item.append(head, title, evidence, recommendation);
+  return item;
+}
+
+function liveTelemetryAlert({ severity, title, evidence, recommendation, confidence }) {
+  return { severity, title, evidence, recommendation, confidence: clamp(confidence, 0, 1) };
+}
+
+function telemetryRelationship(label, correlation, note) {
+  if (correlation === null) {
+    return {
+      label,
+      value: "learning",
+      note,
+      tone: "watch"
+    };
+  }
+
+  const strength = Math.abs(correlation);
+  return {
+    label,
+    value: formatCorrelation(correlation),
+    note: `${strength >= 0.7 ? "Strong" : strength >= 0.35 ? "Moderate" : "Weak"} ${correlation >= 0 ? "positive" : "negative"} relationship`,
+    tone: correlation < -0.35 ? "poor" : strength >= 0.7 ? "good" : "watch"
+  };
+}
+
+function telemetryTrend(history, key) {
+  const points = history
+    .map((sample) => ({
+      x: numeric(sample.timestampMs, Number.NaN),
+      y: numeric(sample[key], Number.NaN)
+    }))
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+  if (points.length < 2) {
+    return {
+      count: points.length,
+      latest: points[0]?.y ?? 0,
+      delta: 0,
+      slopePerMinute: 0,
+      average: points[0]?.y ?? null
+    };
+  }
+
+  const start = points[0].x;
+  const xs = points.map((point) => (point.x - start) / 60000);
+  const ys = points.map((point) => point.y);
+  const n = points.length;
+  const sumX = xs.reduce((total, value) => total + value, 0);
+  const sumY = ys.reduce((total, value) => total + value, 0);
+  const sumXY = xs.reduce((total, value, index) => total + value * ys[index], 0);
+  const sumX2 = xs.reduce((total, value) => total + value * value, 0);
+  const denominator = n * sumX2 - sumX * sumX;
+  const slopePerMinute = denominator === 0 ? 0 : (n * sumXY - sumX * sumY) / denominator;
+
+  return {
+    count: n,
+    latest: ys[n - 1],
+    delta: ys[n - 1] - ys[0],
+    slopePerMinute,
+    average: sumY / n
+  };
+}
+
+function telemetryCorrelation(history, leftKey, rightKey) {
+  const pairs = history
+    .map((sample) => [numeric(sample[leftKey], Number.NaN), numeric(sample[rightKey], Number.NaN)])
+    .filter(([left, right]) => Number.isFinite(left) && Number.isFinite(right));
+  if (pairs.length < 4) return null;
+
+  const leftAvg = pairs.reduce((total, pair) => total + pair[0], 0) / pairs.length;
+  const rightAvg = pairs.reduce((total, pair) => total + pair[1], 0) / pairs.length;
+  const covariance = pairs.reduce((total, [left, right]) => total + (left - leftAvg) * (right - rightAvg), 0);
+  const leftVariance = pairs.reduce((total, [left]) => total + (left - leftAvg) ** 2, 0);
+  const rightVariance = pairs.reduce((total, [, right]) => total + (right - rightAvg) ** 2, 0);
+  if (leftVariance === 0 || rightVariance === 0) return null;
+  return covariance / Math.sqrt(leftVariance * rightVariance);
+}
+
+function telemetryAverage(history, key) {
+  const values = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  if (!values.length) return null;
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function formatCorrelation(value) {
+  if (value === null || !Number.isFinite(value)) return "learning";
+  return `r ${value >= 0 ? "+" : ""}${formatDecimal(value, 2)}`;
+}
+
+function signedRate(value, unit) {
+  const parsed = numeric(value, 0);
+  return `${parsed >= 0 ? "+" : ""}${formatDecimal(parsed, 1)} ${unit}`;
+}
+
+function formatDecimal(value, digits) {
+  const parsed = numeric(value, 0);
+  return parsed.toFixed(digits);
 }
 
 function renderLiveTelemetryGraphs(container, machineContext, history) {

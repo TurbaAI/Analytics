@@ -69,6 +69,7 @@ selectorMatches.forEach((selector) => {
   "opportunityStats",
   "opportunityList",
   "exportEvidencePackButton",
+  "liveTelemetryAlerts",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -106,6 +107,10 @@ assert.ok(app.includes("renderLiveTelemetryGraphs"));
 assert.ok(app.includes("buildTelemetrySparkline"));
 assert.ok(app.includes("gpuProcessQuerySkipped"));
 assert.ok(app.includes("gpuSampleCached"));
+assert.ok(app.includes("analyzeLiveTelemetryRelationships"));
+assert.ok(app.includes("renderLiveTelemetryAlerts"));
+assert.ok(app.includes("telemetryCorrelation"));
+assert.ok(app.includes("telemetryTrend"));
 assert.ok(app.includes("machineDemoContext"));
 assert.ok(app.includes("isKnownMachineDemoHost"));
 assert.ok(app.includes("192.168.10.20"));
@@ -122,6 +127,7 @@ assert.ok(app.includes("No provider billing"));
 assert.ok(app.includes("build/demo/live-machine-bundle.json"));
 assert.ok(html.includes("liveResourcePanel"));
 assert.ok(html.includes("liveResourceGrid"));
+assert.ok(html.includes("liveTelemetryAlerts"));
 assert.ok(html.includes("liveTelemetryGraphs"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));
