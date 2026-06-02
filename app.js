@@ -991,7 +991,7 @@ const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
-const MACHINE_DEMO_REFRESH_MS = 30000;
+const MACHINE_DEMO_REFRESH_MS = 5000;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
@@ -2558,7 +2558,7 @@ async function loadMachineDemoBundle({ quiet = false } = {}) {
     const loadedAt = new Date();
     await ingestJsonPayload(
       parseImportJson(await response.text(), "Machine demo did not return valid JSON."),
-      `Live NUC14E telemetry ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+      `Live machine telemetry ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
     );
   } catch (error) {
     setIngestStatus(importErrorMessage(error, "Machine demo fetch failed"), "poor");
@@ -3409,6 +3409,7 @@ function render() {
 
   renderInventory(entries);
   renderDiagnosis(summary, classifier);
+  renderLiveResources(summary);
   renderMetricRibbon(summary);
   renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
@@ -3780,6 +3781,125 @@ function renderMetricRibbon(summary) {
   document.querySelector("#wastedGpuHours").textContent = number.format(summary.wastedGpuHours);
   document.querySelector("#wasteDollars").textContent = currency.format(summary.wasteDollars);
   document.querySelector("#costPerUseful").textContent = currency.format(summary.costPerUsefulGpuHour);
+}
+
+function renderLiveResources(summary) {
+  const panel = document.querySelector("#liveResourcePanel");
+  const title = document.querySelector("#liveResourceTitle");
+  const badge = document.querySelector("#liveResourceBadge");
+  const grid = document.querySelector("#liveResourceGrid");
+  if (!panel || !title || !badge || !grid) return;
+
+  const machineContext = machineDemoContext(summary);
+  if (!machineContext) {
+    panel.hidden = true;
+    grid.replaceChildren();
+    return;
+  }
+
+  const context = machineContext.context || {};
+  const generatedAt = context.generatedAt ? safeDate(context.generatedAt, new Date(0)) : null;
+  const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
+  const memoryTotal = numeric(context.memoryTotalBytes);
+  const memoryAvailable = numeric(context.memoryAvailableBytes);
+  const memoryUsed = Math.max(0, memoryTotal - memoryAvailable);
+  const dockerCpu = machineContext.dockerContainers.reduce((total, container) => total + numeric(container.cpuPct), 0);
+  const gpuMemoryNote = machineContext.gpuPresent
+    ? `${number.format(machineContext.gpuMemoryUsedMiB)} / ${number.format(machineContext.gpuMemoryTotalMiB)} MiB`
+    : machineContext.driverUnavailable ? "nvidia-smi cannot reach driver" : "No GPU counter source";
+  const gpuPowerAvailable = machineContext.gpuPresent && machineContext.gpuPowerWatts > 0;
+  const gpuTemperatureAvailable = machineContext.gpuPresent && machineContext.gpuTemperatureC > 0;
+  const pcie = context.gpuPcie ? ` | ${context.gpuPcie}` : "";
+
+  panel.hidden = false;
+  title.textContent = `${machineContext.host} live resources`;
+  badge.textContent = ageSeconds === null ? "Live" : `Updated ${ageSeconds}s ago`;
+  badge.dataset.tone = ageSeconds !== null && ageSeconds <= 12 ? "good" : "watch";
+
+  grid.replaceChildren(
+    liveResourceCard({
+      label: "CPU",
+      value: pct(machineContext.cpuUsagePct),
+      note: `${context.cpuCount || "n/a"} logical CPUs | load ${round(numeric(context.load1))}`,
+      percent: machineContext.cpuUsagePct,
+      tone: inverseGrade(machineContext.cpuUsagePct, 70, 90).key
+    }),
+    liveResourceCard({
+      label: "RAM",
+      value: pct(machineContext.memoryUsedPct),
+      note: memoryTotal ? `${formatBytes(memoryUsed)} / ${formatBytes(memoryTotal)}` : "Host memory pressure",
+      percent: machineContext.memoryUsedPct,
+      tone: inverseGrade(machineContext.memoryUsedPct, 75, 90).key
+    }),
+    liveResourceCard({
+      label: "GPU",
+      value: machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : pct(machineContext.gpuUtilizationPct),
+      note: machineContext.driverUnavailable ? "Driver telemetry blocked" : machineContext.noGpu ? "No NVIDIA counter source" : `${machineContext.gpuProcesses.length} compute process${machineContext.gpuProcesses.length === 1 ? "" : "es"}`,
+      percent: machineContext.gpuPresent ? machineContext.gpuUtilizationPct : null,
+      tone: machineContext.driverUnavailable || machineContext.noGpu ? "poor" : machineContext.gpuUtilizationPct > 0 ? grade(machineContext.gpuUtilizationPct, 30, 70).key : "watch"
+    }),
+    liveResourceCard({
+      label: "GPU power",
+      value: gpuPowerAvailable ? `${round(machineContext.gpuPowerWatts)} W` : "not reported",
+      note: gpuTemperatureAvailable ? `${round(machineContext.gpuTemperatureC)} C${pcie}` : gpuMemoryNote,
+      percent: gpuPowerAvailable ? clamp((machineContext.gpuPowerWatts / 450) * 100) : null,
+      tone: gpuPowerAvailable ? inverseGrade(machineContext.gpuPowerWatts, 330, 430).key : "watch"
+    }),
+    liveResourceCard({
+      label: "GPU memory",
+      value: machineContext.gpuPresent ? pct(machineContext.gpuMemoryUsedPct) : "unavailable",
+      note: gpuMemoryNote,
+      percent: machineContext.gpuPresent ? machineContext.gpuMemoryUsedPct : null,
+      tone: machineContext.gpuPresent ? inverseGrade(machineContext.gpuMemoryUsedPct, 82, 94).key : "poor"
+    }),
+    liveResourceCard({
+      label: "Disk",
+      value: pct(machineContext.diskUsedPct),
+      note: context.diskTotalBytes ? `${formatBytes(context.diskUsedBytes)} / ${formatBytes(context.diskTotalBytes)}` : "Root filesystem",
+      percent: machineContext.diskUsedPct,
+      tone: inverseGrade(machineContext.diskUsedPct, 75, 90).key
+    }),
+    liveResourceCard({
+      label: "Docker",
+      value: `${machineContext.dockerContainers.length}`,
+      note: `${pct(dockerCpu)} aggregate container CPU`,
+      percent: clamp(dockerCpu),
+      tone: machineContext.dockerContainers.length ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Signals",
+      value: `${machineDemoServices(context.observedServices).length}`,
+      note: machineContext.adapters,
+      percent: null,
+      tone: "good"
+    })
+  );
+}
+
+function liveResourceCard({ label, value, note, percent = null, tone = "watch" }) {
+  const item = document.createElement("div");
+  item.className = "live-resource-card";
+  item.dataset.tone = tone;
+
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement("strong");
+  valueEl.textContent = value;
+
+  const noteEl = document.createElement("small");
+  noteEl.textContent = note;
+
+  item.append(labelEl, valueEl, noteEl);
+
+  const track = document.createElement("div");
+  track.className = "live-resource-track";
+  const fill = document.createElement("span");
+  fill.style.width = Number.isFinite(percent) ? `${clamp(percent)}%` : "100%";
+  track.append(fill);
+  item.append(track);
+
+  return item;
 }
 
 function renderSchedulerSimulator(simulator, summary = null) {
@@ -5364,6 +5484,15 @@ function round(value) {
 
 function pct(value) {
   return analytics.pct(value);
+}
+
+function formatBytes(value) {
+  const bytes = numeric(value, 0);
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const scaled = bytes / (1024 ** index);
+  return `${scaled >= 10 || index === 0 ? round(scaled) : scaled.toFixed(1)} ${units[index]}`;
 }
 
 function titleCase(value) {
