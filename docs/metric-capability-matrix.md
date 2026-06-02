@@ -6,6 +6,7 @@ Status values:
 
 - `native_dcgm`: available from DCGM/DCGM Exporter where the target GPU and driver support the field.
 - `native_nvml`: available from NVML or an attestation SDK where the host supports it.
+- `native_os`: available from Linux host OS counters.
 - `profiler_required`: requires Nsight, CUPTI, or another profiler path.
 - `app_instrumentation_required`: requires framework, runtime, or application metrics.
 - `external_system_required`: requires rack, CDU, BMC, Redfish, or facility telemetry.
@@ -49,6 +50,10 @@ Status values:
 | C2C traffic | C2C link count, status, max bandwidth, TX/RX bytes | `native_dcgm` | This is C2C traffic, not full semantic cache-coherency tracing. |
 | Confidential-computing status | optional NVML collector metrics | `native_nvml` | Availability depends on host, driver, and NVML or attestation SDK support. |
 | Confidential-computing no-performance-drop guarantee | support report recommendation only | `benchmark_required` | No live status metric proves this; run controlled benchmarks. |
+| GB10 NVML/nvidia-smi | `gb10-nvml-nvidia-smi`, GPU source context, `nvidia-smi` counters | `native_nvml` | On GB10 hosts, NVML/nvidia-smi is the low-overhead GPU inventory, utilization, power, temperature, PCIe, and process path. |
+| Linux UMA memory | `linux-uma-memory`, `linuxUmaMemory*` from `/proc/meminfo` | `native_os` | GB10 unified memory pressure is represented through Linux host memory counters rather than unsupported HBM framebuffer claims. |
+| App metrics | `app-metrics`, `gb100_app_*`, `appMetricsReachable` | `app_instrumentation_required` | Tokens/sec, request rate, batch, precision mode, KV cache, and framework signals must come from the app exporter. |
+| Nsight/CUPTI optional profiling exporter | `nsight-cupti-profiling`, `collectors/profiling/*` | `profiler_required` | Per-kernel or per-format GB10 attribution should use optional Nsight/CUPTI hooks, not synthetic always-on counters. |
 
 ## Label Policy
 

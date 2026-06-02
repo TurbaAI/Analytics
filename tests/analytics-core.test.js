@@ -166,6 +166,94 @@ assert.equal(regressions[0].grade.key, "poor");
 assert.equal(regressions[2].text, "15% drop");
 assert.equal(regressions[4].note, "$20 per million tokens");
 
+const priorTaskSnapshot = analytics.taskUtilizationSnapshot({
+  ...finalized,
+  scope: "job",
+  key: "run-7421",
+  label: "llama-70b-pretrain-7421",
+  count: 1,
+  gpus: 192,
+  models: ["Llama 70B"],
+  teams: ["Frontier"],
+  clusters: ["h100-prod-west"],
+  gpuModels: ["H100 SXM"],
+  provider: {
+    tenants: ["Apex AI"],
+    accounts: ["Apex frontier platform"],
+    reservations: ["H100 Frontier Q2"]
+  },
+  placement: [{ node: "A1-01", partial: false }],
+  schedulerEvidence: {
+    queueNames: ["frontier-reserved"],
+    requestedGpuShapes: ["24x8-h100"]
+  },
+  sourceItems: [{
+    id: "run-7421",
+    model: "Llama 70B",
+    team: "Frontier",
+    cluster: "h100-prod-west",
+    gpuModel: "H100 SXM",
+    source: { adapters: ["prometheus", "dcgm"], context: { hostname: "host-a" } }
+  }]
+}, { classifier, sourceLabel: "Prior run", capturedAt: "2026-05-30T10:00:00.000Z" });
+
+const changedTaskSummary = analytics.finalizeSummary({
+  ...baseSummary,
+  usefulCompute: 28,
+  gpuUtil: 39,
+  ncclTime: 41,
+  networkWait: 18,
+  placementQuality: 42,
+  crossPodTraffic: 58,
+  queueWaitMinutes: 36
+}, 6.2);
+const changedTaskSnapshot = analytics.taskUtilizationSnapshot({
+  ...changedTaskSummary,
+  scope: "job",
+  key: "run-7510",
+  label: "llama-70b-pretrain-7510",
+  count: 1,
+  gpus: 192,
+  models: ["Llama 70B"],
+  teams: ["Frontier"],
+  clusters: ["h100-prod-east"],
+  gpuModels: ["H100 SXM"],
+  provider: {
+    tenants: ["Apex AI"],
+    accounts: ["Apex frontier platform"],
+    reservations: ["H100 Frontier Q2"]
+  },
+  placement: [{ node: "B1-01", partial: false }],
+  schedulerEvidence: {
+    queueNames: ["frontier-reserved"],
+    requestedGpuShapes: ["24x8-h100"]
+  },
+  sourceItems: [{
+    id: "run-7510",
+    model: "Llama 70B",
+    team: "Frontier",
+    cluster: "h100-prod-east",
+    gpuModel: "H100 SXM",
+    source: { adapters: ["prometheus", "dcgm", "scheduler"], context: { hostname: "host-b" } }
+  }]
+}, { sourceLabel: "Current run", capturedAt: "2026-05-31T10:00:00.000Z" });
+
+assert.equal(changedTaskSnapshot.taskKey, priorTaskSnapshot.taskKey);
+assert.ok(changedTaskSnapshot.resources.adapters.includes("scheduler"));
+assert.ok(changedTaskSnapshot.categories.all.includes("underutilized-accelerators"));
+
+const taskComparison = analytics.compareTaskUtilizationPattern(changedTaskSnapshot, [priorTaskSnapshot]);
+assert.equal(taskComparison.previousRuns, 1);
+assert.equal(taskComparison.status, "changed");
+assert.ok(["changed", "major"].includes(taskComparison.differenceLevel));
+assert.ok(taskComparison.significantChanges.some((change) => change.key === "usefulCompute"));
+assert.ok(taskComparison.resourceChanges.some((change) => change.key === "clusters"));
+assert.ok(taskComparison.summary.includes("previous run"));
+
+const learningComparison = analytics.compareTaskUtilizationPattern(changedTaskSnapshot, []);
+assert.equal(learningComparison.differenceLevel, "learning");
+assert.equal(analytics.normalizeTaskUtilizationRecord({}), null);
+
 const efficiencyTrend = analytics.summarizeTrend([
   { capturedAt: "2026-05-28T10:00:00.000Z", value: 41 },
   { capturedAt: "2026-05-29T10:00:00.000Z", value: 49 },

@@ -68,6 +68,11 @@ selectorMatches.forEach((selector) => {
   "opportunityBadge",
   "opportunityStats",
   "opportunityList",
+  "taskMemoryPanel",
+  "taskMemoryBadge",
+  "taskMemoryIdentity",
+  "taskMemoryResources",
+  "taskMemoryChanges",
   "exportEvidencePackButton",
   "liveTelemetryAlerts",
   "trendChart",
@@ -90,6 +95,10 @@ assert.ok(app.includes("renderGrafanaHandoff"));
 assert.ok(app.includes("summarizeProviderEconomics"));
 assert.ok(app.includes("simulateSchedulerScenarios"));
 assert.ok(app.includes("generateOpportunities"));
+assert.ok(app.includes("renderTaskMemory"));
+assert.ok(app.includes("taskUtilizationSnapshot"));
+assert.ok(app.includes("compareTaskUtilizationPattern"));
+assert.ok(app.includes("taskHistory"));
 assert.ok(app.includes("importSchedulerSamples"));
 assert.ok(app.includes("importGrafanaSamples"));
 assert.ok(app.includes("exportEvidencePack"));
@@ -103,8 +112,16 @@ assert.ok(app.includes("MACHINE_DEMO_REFRESH_MS = 1000"));
 assert.ok(app.includes("LIVE_TELEMETRY_LIMIT = 300"));
 assert.ok(app.includes("renderLiveResources"));
 assert.ok(app.includes("renderLiveResourceHeartbeatBadge"));
+assert.ok(app.includes("GB10_OPERATOR_SOURCE_ORDER"));
+assert.ok(app.includes("gb10MonitoringAvailable"));
+assert.ok(app.includes("GB10 monitor"));
+assert.ok(app.includes("UMA memory"));
+assert.ok(app.includes("Nsight/CUPTI"));
 assert.ok(app.includes("renderOperatorCockpit"));
 assert.ok(app.includes("buildOperatorCockpitContext"));
+assert.ok(app.includes("renderOperatorLaunchpad"));
+assert.ok(app.includes("operatorLaunchpadCommandSignature"));
+assert.ok(app.includes("showManualCopyPrompt"));
 assert.ok(app.includes("formatHostSampleAgeMilliseconds"));
 assert.ok(app.includes("since host sample"));
 assert.ok(app.includes("ollamaTokensPerSecond"));
@@ -143,6 +160,8 @@ assert.ok(html.includes("operatorCockpitPanel"));
 assert.ok(html.includes("sourceHeartbeatStrip"));
 assert.ok(html.includes("eventTimeline"));
 assert.ok(html.includes("demoLaunchpad"));
+assert.ok(app.includes("operatorLaunchpadSignature"));
+assert.ok(app.includes("document.execCommand(\"copy\")"));
 assert.ok(html.includes("kafkaStreamPanel"));
 assert.ok(html.includes("fleetTiles"));
 assert.ok(html.includes("liveResourceGrid"));

@@ -7,6 +7,31 @@
 
   root.TurbaAnalytics = api;
 })(typeof globalThis !== "undefined" ? globalThis : window, function createAnalyticsCore() {
+  const TASK_UTILIZATION_SCHEMA_VERSION = "turba.task-utilization.v1";
+  const TASK_UTILIZATION_METRICS = [
+    { key: "usefulCompute", label: "Useful compute", unit: "points", threshold: 7, higherIsBetter: true },
+    { key: "gpuUtil", label: "GPU utilization", unit: "points", threshold: 8, higherIsBetter: true },
+    { key: "smOccupancy", label: "SM occupancy", unit: "points", threshold: 8, higherIsBetter: true },
+    { key: "tensorCoreUtil", label: "Tensor-core use", unit: "points", threshold: 8, higherIsBetter: true },
+    { key: "ncclTime", label: "NCCL time", unit: "points", threshold: 6, higherIsBetter: false },
+    { key: "networkWait", label: "Network wait", unit: "points", threshold: 5, higherIsBetter: false },
+    { key: "dataloaderStall", label: "Dataloader stall", unit: "points", threshold: 6, higherIsBetter: false },
+    { key: "storageWait", label: "Storage wait", unit: "points", threshold: 5, higherIsBetter: false },
+    { key: "cpuPrep", label: "CPU prep", unit: "points", threshold: 5, higherIsBetter: false },
+    { key: "hbmCapacity", label: "HBM capacity", unit: "points", threshold: 10, higherIsBetter: false },
+    { key: "hbmBandwidth", label: "HBM bandwidth", unit: "points", threshold: 10, higherIsBetter: false },
+    { key: "memoryFragmentation", label: "Memory fragmentation", unit: "points", threshold: 7, higherIsBetter: false },
+    { key: "placementQuality", label: "Placement fit", unit: "points", threshold: 8, higherIsBetter: true },
+    { key: "crossPodTraffic", label: "Cross-pod traffic", unit: "points", threshold: 8, higherIsBetter: false },
+    { key: "crossRackTraffic", label: "Cross-rack traffic", unit: "points", threshold: 8, higherIsBetter: false },
+    { key: "queueWaitMinutes", label: "Queue wait", unit: "minutes", threshold: 6, higherIsBetter: false },
+    { key: "idleGpus", label: "Idle GPUs", unit: "count", threshold: 2, higherIsBetter: false },
+    { key: "partialNodes", label: "Partial nodes", unit: "count", threshold: 1, higherIsBetter: false },
+    { key: "allocatedGpuHours", label: "Allocated GPU-hours", unit: "GPU-hours", threshold: 40, higherIsBetter: false },
+    { key: "wastedGpuHours", label: "Wasted GPU-hours", unit: "GPU-hours", threshold: 30, higherIsBetter: false },
+    { key: "costPerUsefulGpuHour", label: "Cost per useful GPU-hour", unit: "USD", threshold: 2, higherIsBetter: false }
+  ];
+
   function finalizeSummary(summary, rate = 0) {
     const hourlyRate = numeric(rate);
     const usefulGpuHours = summary.allocatedGpuHours * (summary.usefulCompute / 100);
@@ -504,6 +529,420 @@
     ];
   }
 
+  function taskUtilizationSnapshot(summary, options = {}) {
+    const classifier = options.classifier || classifyBottlenecks(summary);
+    const identity = identifyTask(summary);
+    const resources = associateTaskResources(summary);
+    const categories = categorizeTaskUtilization(summary, classifier);
+    const utilization = taskUtilizationMetrics(summary);
+    const capturedAt = validIso(options.capturedAt) || new Date().toISOString();
+
+    return normalizeTaskUtilizationRecord({
+      schemaVersion: TASK_UTILIZATION_SCHEMA_VERSION,
+      capturedAt,
+      source: options.sourceLabel || options.source || "Analysis",
+      scope: String(summary.scope || "job"),
+      key: String(summary.key || summary.id || identity.runIds[0] || identity.taskKey),
+      label: String(summary.label || summary.name || identity.taskLabel),
+      taskKey: identity.taskKey,
+      taskLabel: identity.taskLabel,
+      taskFamily: identity.taskFamily,
+      runIds: identity.runIds,
+      primaryBottleneck: classifier.primary?.short || "Unknown",
+      utilization,
+      resources,
+      categories
+    });
+  }
+
+  function compareTaskUtilizationPattern(currentSnapshot, history = [], options = {}) {
+    const current = normalizeTaskUtilizationRecord(currentSnapshot);
+    if (!current) {
+      return emptyTaskComparison(null, "No current task snapshot");
+    }
+
+    const previous = normalizeTaskHistory(history)
+      .filter((record) => record.taskKey === current.taskKey)
+      .filter((record) => !options.excludeCapturedAt || record.capturedAt !== validIso(options.excludeCapturedAt))
+      .filter((record) => !options.excludeSource || record.source !== options.excludeSource);
+
+    if (previous.length === 0) {
+      return {
+        current,
+        previousRuns: 0,
+        latestPrevious: null,
+        baseline: null,
+        status: "learning",
+        differenceLevel: "learning",
+        summary: "First observed utilization pattern for this task family.",
+        changes: [],
+        significantChanges: [],
+        categoryChange: null,
+        resourceChanges: []
+      };
+    }
+
+    const baseline = taskHistoryBaseline(previous);
+    const latestPrevious = previous[previous.length - 1];
+    const changes = TASK_UTILIZATION_METRICS
+      .map((definition) => taskMetricChange(definition, current, baseline))
+      .filter(Boolean)
+      .sort((a, b) => b.weight - a.weight || Math.abs(b.delta) - Math.abs(a.delta));
+    const significantChanges = changes.filter((change) => change.significant);
+    const categoryChange = taskCategoryChange(current, baseline);
+    const resourceChanges = compareTaskResources(current.resources, latestPrevious.resources);
+    const differenceLevel = taskDifferenceLevel(significantChanges, categoryChange, resourceChanges);
+
+    return {
+      current,
+      previousRuns: previous.length,
+      latestPrevious,
+      baseline,
+      status: differenceLevel === "same" ? "stable" : "changed",
+      differenceLevel,
+      summary: taskDifferenceSummary(differenceLevel, previous.length, significantChanges, categoryChange, resourceChanges),
+      changes,
+      significantChanges,
+      categoryChange,
+      resourceChanges
+    };
+  }
+
+  function normalizeTaskUtilizationRecord(record) {
+    if (!record || typeof record !== "object") return null;
+
+    const capturedAt = validIso(record.capturedAt);
+    const taskKey = String(record.taskKey || "").trim();
+    if (!capturedAt || !taskKey) return null;
+
+    return {
+      schemaVersion: record.schemaVersion || TASK_UTILIZATION_SCHEMA_VERSION,
+      capturedAt,
+      source: String(record.source || "Analysis"),
+      scope: String(record.scope || "job"),
+      key: String(record.key || taskKey),
+      label: String(record.label || record.taskLabel || taskKey),
+      taskKey,
+      taskLabel: String(record.taskLabel || record.label || taskKey),
+      taskFamily: String(record.taskFamily || record.taskLabel || taskKey),
+      runIds: uniqueStrings(record.runIds || []),
+      primaryBottleneck: String(record.primaryBottleneck || "Unknown"),
+      utilization: normalizeTaskUtilizationMetrics(record.utilization),
+      resources: normalizeTaskResources(record.resources),
+      categories: normalizeTaskCategories(record.categories)
+    };
+  }
+
+  function identifyTask(summary) {
+    const sourceItems = Array.isArray(summary.sourceItems) ? summary.sourceItems : (Array.isArray(summary.jobs) ? summary.jobs : []);
+    const runIds = uniqueStrings([
+      summary.scope === "job" ? summary.key : "",
+      summary.id,
+      ...sourceItems.map((item) => item.id || item.source?.runId || item.key)
+    ]);
+    const label = String(summary.label || summary.name || runIds[0] || "task");
+    const taskFamily = normalizedTaskFamily(label);
+    const model = firstLabel(summary.models) || firstLabel(sourceItems.map((item) => item.model));
+    const team = firstLabel(summary.teams) || firstLabel(sourceItems.map((item) => item.team));
+    const parts = [taskFamily, model, team, summary.scope === "job" ? "" : summary.scope].filter(Boolean);
+    const taskKey = `task:${slugify(parts.join("|")) || slugify(label) || "unknown"}`;
+
+    return {
+      taskKey,
+      taskLabel: titleCase(taskFamily.replace(/[-_]+/g, " ")),
+      taskFamily,
+      runIds
+    };
+  }
+
+  function associateTaskResources(summary) {
+    const sourceItems = Array.isArray(summary.sourceItems) ? summary.sourceItems : (Array.isArray(summary.jobs) ? summary.jobs : []);
+    const placementRows = Array.isArray(summary.placement) ? summary.placement : [];
+    const contexts = sourceItems.map((item) => item.source?.context || {}).filter((context) => context && typeof context === "object");
+    const evidence = summary.schedulerEvidence || {};
+    const schedulerList = (field, pluralField) => uniqueStrings([
+      ...(Array.isArray(evidence[pluralField]) ? evidence[pluralField] : []),
+      evidence[field]
+    ]);
+
+    return normalizeTaskResources({
+      gpus: numeric(summary.gpus),
+      allocatedGpuHours: numeric(summary.allocatedGpuHours),
+      gpuModels: uniqueStrings(summary.gpuModels || sourceItems.map((item) => item.gpuModel)),
+      clusters: uniqueStrings(summary.clusters || sourceItems.map((item) => item.cluster)),
+      nodes: uniqueStrings(placementRows.map((row) => typeof row === "string" ? row : row.node)),
+      partialNodes: uniqueStrings(placementRows.filter((row) => row && typeof row === "object" && row.partial).map((row) => row.node)),
+      tenants: uniqueStrings(summary.provider?.tenants || summary.tenants || sourceItems.map((item) => item.tenant)),
+      accounts: uniqueStrings(summary.provider?.accounts || summary.accounts || sourceItems.map((item) => item.account)),
+      reservations: uniqueStrings(summary.provider?.reservations || summary.reservations || sourceItems.map((item) => item.reservation)),
+      schedulerNames: schedulerList("schedulerName", "schedulerNames"),
+      queueNames: schedulerList("queueName", "queueNames"),
+      priorityClasses: schedulerList("priorityClass", "priorityClasses"),
+      admissionClasses: schedulerList("admissionClass", "admissionClasses"),
+      requestedGpuShapes: schedulerList("requestedGpuShape", "requestedGpuShapes"),
+      localityPreferences: schedulerList("localityPreference", "localityPreferences"),
+      adapters: uniqueStrings(sourceItems.flatMap((item) => item.source?.adapters || [])),
+      hosts: uniqueStrings(contexts.flatMap((context) => [context.hostname, context.host, context.node]))
+    });
+  }
+
+  function categorizeTaskUtilization(summary, classifier = null) {
+    const primary = classifier?.primary?.short || classifyBottlenecks(summary).primary.short;
+    const categories = [];
+
+    if (numeric(summary.usefulCompute) >= 72 && numeric(summary.gpuUtil) >= 75) categories.push("efficient-accelerator-use");
+    if (numeric(summary.usefulCompute) < 35 || numeric(summary.gpuUtil) < 40) categories.push("underutilized-accelerators");
+    if (primary === "Communication" || numeric(summary.ncclTime) + numeric(summary.networkWait) >= 30) categories.push("communication-heavy");
+    if (primary === "Input" || numeric(summary.dataloaderStall) + numeric(summary.storageWait) + numeric(summary.cpuPrep) >= 28) categories.push("input-pipeline-limited");
+    if (primary === "Memory" || numeric(summary.hbmCapacity) >= 82 || numeric(summary.memoryFragmentation) >= 28) categories.push("memory-pressure");
+    if (primary === "Scheduler" || numeric(summary.partialNodes) > 0 || numeric(summary.idleGpus) > 0) categories.push("scheduler-fragmented");
+    if (primary === "Placement" || numeric(summary.crossPodTraffic) >= 20 || numeric(summary.crossRackTraffic) >= 45) categories.push("topology-sensitive");
+    if (primary === "Noisy neighbor" || numeric(summary.contentionPct) >= 20 || numeric(summary.noiseEvents) > 0) categories.push("host-contention-risk");
+    if (numeric(summary.inferenceRequestsM) > 0 || numeric(summary.latencyTail) > 35 || numeric(summary.kvCachePressure) > 45) categories.push("inference-serving");
+    if (categories.length === 0) categories.push("steady-state-training");
+
+    return normalizeTaskCategories({
+      primary: categories[0],
+      all: uniqueStrings(categories),
+      bottleneck: primary
+    });
+  }
+
+  function taskUtilizationMetrics(summary) {
+    return normalizeTaskUtilizationMetrics({
+      gpuUtil: summary.gpuUtil,
+      usefulCompute: summary.usefulCompute,
+      smOccupancy: summary.smOccupancy,
+      tensorCoreUtil: summary.tensorCoreUtil,
+      ncclTime: summary.ncclTime,
+      networkWait: summary.networkWait,
+      dataloaderStall: summary.dataloaderStall,
+      storageWait: summary.storageWait,
+      cpuPrep: summary.cpuPrep,
+      hbmCapacity: summary.hbmCapacity,
+      hbmBandwidth: summary.hbmBandwidth,
+      memoryFragmentation: summary.memoryFragmentation,
+      placementQuality: summary.placementQuality,
+      crossPodTraffic: summary.crossPodTraffic,
+      crossRackTraffic: summary.crossRackTraffic,
+      queueWaitMinutes: summary.queueWaitMinutes,
+      idleGpus: summary.idleGpus,
+      partialNodes: summary.partialNodes,
+      allocatedGpuHours: summary.allocatedGpuHours,
+      usefulGpuHours: summary.usefulGpuHours,
+      wastedGpuHours: summary.wastedGpuHours,
+      costPerUsefulGpuHour: summary.costPerUsefulGpuHour
+    });
+  }
+
+  function taskHistoryBaseline(records) {
+    const safeRecords = normalizeTaskHistory(records);
+    const utilization = {};
+
+    TASK_UTILIZATION_METRICS.forEach((definition) => {
+      const values = safeRecords
+        .map((record) => numeric(record.utilization?.[definition.key], Number.NaN))
+        .filter(Number.isFinite);
+      if (values.length > 0) {
+        utilization[definition.key] = values.reduce((total, value) => total + value, 0) / values.length;
+      }
+    });
+
+    const primaryCategories = categoryCounts(safeRecords.map((record) => record.categories?.primary));
+    const primaryCategory = primaryCategories[0]?.name || "";
+    const bottlenecks = categoryCounts(safeRecords.map((record) => record.categories?.bottleneck || record.primaryBottleneck));
+
+    return {
+      runCount: safeRecords.length,
+      capturedAtFirst: safeRecords[0]?.capturedAt || null,
+      capturedAtLatest: safeRecords[safeRecords.length - 1]?.capturedAt || null,
+      utilization,
+      categories: {
+        primary: primaryCategory,
+        bottleneck: bottlenecks[0]?.name || "",
+        all: uniqueStrings(safeRecords.flatMap((record) => record.categories?.all || []))
+      }
+    };
+  }
+
+  function taskMetricChange(definition, current, baseline) {
+    const currentValue = numeric(current.utilization?.[definition.key], Number.NaN);
+    const baselineValue = numeric(baseline.utilization?.[definition.key], Number.NaN);
+    if (!Number.isFinite(currentValue) || !Number.isFinite(baselineValue)) return null;
+
+    const delta = currentValue - baselineValue;
+    const magnitude = Math.abs(delta);
+    const significant = magnitude >= definition.threshold;
+    const direction = magnitude < 0.01
+      ? "flat"
+      : definition.higherIsBetter
+        ? delta > 0 ? "improved" : "regressed"
+        : delta < 0 ? "improved" : "regressed";
+
+    return {
+      key: definition.key,
+      label: definition.label,
+      unit: definition.unit,
+      current: currentValue,
+      baseline: baselineValue,
+      delta,
+      threshold: definition.threshold,
+      significant,
+      direction,
+      weight: definition.threshold > 0 ? magnitude / definition.threshold : magnitude
+    };
+  }
+
+  function taskCategoryChange(current, baseline) {
+    const previous = baseline.categories?.primary || "";
+    const next = current.categories?.primary || "";
+    if (!previous || !next || previous === next) return null;
+
+    return {
+      previous,
+      current: next,
+      text: `${taskCategoryLabel(previous)} to ${taskCategoryLabel(next)}`
+    };
+  }
+
+  function compareTaskResources(currentResources = {}, previousResources = {}) {
+    const fields = [
+      { key: "gpuModels", label: "GPU model" },
+      { key: "clusters", label: "Cluster" },
+      { key: "nodes", label: "Nodes" },
+      { key: "partialNodes", label: "Partial nodes" },
+      { key: "queueNames", label: "Queue" },
+      { key: "requestedGpuShapes", label: "GPU shape" },
+      { key: "hosts", label: "Host" },
+      { key: "adapters", label: "Source adapters" }
+    ];
+
+    return fields.flatMap((field) => {
+      const currentValues = uniqueStrings(currentResources[field.key] || []);
+      const previousValues = uniqueStrings(previousResources[field.key] || []);
+      const added = currentValues.filter((value) => !previousValues.includes(value));
+      const removed = previousValues.filter((value) => !currentValues.includes(value));
+      if (added.length === 0 && removed.length === 0) return [];
+
+      return {
+        key: field.key,
+        label: field.label,
+        added,
+        removed,
+        text: [
+          added.length ? `added ${added.join(", ")}` : "",
+          removed.length ? `removed ${removed.join(", ")}` : ""
+        ].filter(Boolean).join("; ")
+      };
+    });
+  }
+
+  function taskDifferenceLevel(significantChanges, categoryChange, resourceChanges) {
+    const maxWeight = significantChanges.reduce((max, change) => Math.max(max, change.weight), 0);
+    const regressedCount = significantChanges.filter((change) => change.direction === "regressed").length;
+
+    if (maxWeight >= 2.5 || regressedCount >= 4) return "major";
+    if (significantChanges.length >= 2 || categoryChange || resourceChanges.length >= 2) return "changed";
+    if (significantChanges.length === 1 || resourceChanges.length === 1) return "minor";
+    return "same";
+  }
+
+  function taskDifferenceSummary(differenceLevel, previousRuns, significantChanges, categoryChange, resourceChanges) {
+    if (differenceLevel === "same") {
+      return `No material utilization difference across ${previousRuns} previous ${previousRuns === 1 ? "run" : "runs"}.`;
+    }
+
+    const parts = [];
+    if (significantChanges[0]) {
+      const change = significantChanges[0];
+      parts.push(`${change.label} ${change.direction} by ${round(Math.abs(change.delta))} ${change.unit}`);
+    }
+    if (categoryChange) parts.push(`category shifted ${categoryChange.text}`);
+    if (resourceChanges[0]) parts.push(`${resourceChanges[0].label.toLowerCase()} changed`);
+
+    return parts.length
+      ? `${titleCase(differenceLevel)} difference versus ${previousRuns} previous ${previousRuns === 1 ? "run" : "runs"}: ${parts.join("; ")}.`
+      : `${titleCase(differenceLevel)} difference versus ${previousRuns} previous ${previousRuns === 1 ? "run" : "runs"}.`;
+  }
+
+  function emptyTaskComparison(current, summary) {
+    return {
+      current,
+      previousRuns: 0,
+      latestPrevious: null,
+      baseline: null,
+      status: "unavailable",
+      differenceLevel: "unavailable",
+      summary,
+      changes: [],
+      significantChanges: [],
+      categoryChange: null,
+      resourceChanges: []
+    };
+  }
+
+  function normalizeTaskHistory(records = []) {
+    if (!Array.isArray(records)) return [];
+    return records
+      .map(normalizeTaskUtilizationRecord)
+      .filter(Boolean)
+      .sort((a, b) => new Date(a.capturedAt) - new Date(b.capturedAt));
+  }
+
+  function normalizeTaskUtilizationMetrics(metrics = {}) {
+    return Object.fromEntries(
+      Object.entries(metrics)
+        .map(([key, value]) => [key, numeric(value, Number.NaN)])
+        .filter(([, value]) => Number.isFinite(value))
+    );
+  }
+
+  function normalizeTaskResources(resources = {}) {
+    return {
+      gpus: numeric(resources.gpus),
+      allocatedGpuHours: numeric(resources.allocatedGpuHours),
+      gpuModels: uniqueStrings(resources.gpuModels || []),
+      clusters: uniqueStrings(resources.clusters || []),
+      nodes: uniqueStrings(resources.nodes || []),
+      partialNodes: uniqueStrings(resources.partialNodes || []),
+      tenants: uniqueStrings(resources.tenants || []),
+      accounts: uniqueStrings(resources.accounts || []),
+      reservations: uniqueStrings(resources.reservations || []),
+      schedulerNames: uniqueStrings(resources.schedulerNames || []),
+      queueNames: uniqueStrings(resources.queueNames || []),
+      priorityClasses: uniqueStrings(resources.priorityClasses || []),
+      admissionClasses: uniqueStrings(resources.admissionClasses || []),
+      requestedGpuShapes: uniqueStrings(resources.requestedGpuShapes || []),
+      localityPreferences: uniqueStrings(resources.localityPreferences || []),
+      adapters: uniqueStrings(resources.adapters || []),
+      hosts: uniqueStrings(resources.hosts || [])
+    };
+  }
+
+  function normalizeTaskCategories(categories = {}) {
+    const all = uniqueStrings(categories.all || []);
+    const primary = String(categories.primary || all[0] || "uncategorized");
+    return {
+      primary,
+      all: all.length ? all : [primary],
+      bottleneck: String(categories.bottleneck || "")
+    };
+  }
+
+  function categoryCounts(values = []) {
+    const counts = new Map();
+    values.map((value) => String(value || "").trim()).filter(Boolean).forEach((value) => {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }
+
+  function taskCategoryLabel(value) {
+    return titleCase(String(value || "uncategorized").replace(/[-_]+/g, " "));
+  }
+
   function generateOpportunities(summary, options = {}) {
     const classifier = options.classifier || classifyBottlenecks(summary);
     const provider = options.provider || summarizeProviderEconomics(summary, options);
@@ -897,6 +1336,46 @@
     return value === undefined ? Number.NaN : value;
   }
 
+  function validIso(value) {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
+  }
+
+  function uniqueStrings(values = []) {
+    const source = Array.isArray(values) ? values : [values];
+    return Array.from(new Set(
+      source
+        .flatMap((value) => Array.isArray(value) ? value : [value])
+        .map((value) => String(value || "").trim())
+        .filter((value) => value && value !== "Unknown" && value !== "n/a")
+    ));
+  }
+
+  function firstLabel(values = []) {
+    return uniqueStrings(values)[0] || "";
+  }
+
+  function normalizedTaskFamily(value) {
+    return String(value || "task")
+      .trim()
+      .toLowerCase()
+      .replace(/\b(run|job|svc|eval)[-_]?\d+\b/g, "")
+      .replace(/[-_](run|job|svc|eval)?[-_]?\d{3,}$/g, "")
+      .replace(/[-_]\d{8,}$/g, "")
+      .replace(/\b[0-9a-f]{8}-[0-9a-f-]{13,}\b/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "task";
+  }
+
+  function slugify(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 96);
+  }
+
   function round(value) {
     return Math.round(numeric(value));
   }
@@ -948,12 +1427,15 @@
     gradeColor,
     generateOpportunities,
     inverseGrade,
+    compareTaskUtilizationPattern,
     pct,
     recommendationFor,
     regressionRows,
     round,
     scoreComponents,
     simulateSchedulerScenarios,
+    taskUtilizationSnapshot,
+    normalizeTaskUtilizationRecord,
     summarizeProviderEconomics,
     summarizeTrend,
     titleCase

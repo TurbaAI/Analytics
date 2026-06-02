@@ -991,20 +991,24 @@ const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
+const TASK_HISTORY_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
+const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
 let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
+let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let liveTelemetryHistory = [];
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
+let operatorLaunchpadSignature = "";
 
 const state = {
   scope: "job",
@@ -1025,6 +1029,9 @@ const state = {
 
 if (snapshotHistory.length === 0) {
   captureAnalysisSnapshot("Seeded sample", state.lastAnalysis);
+  persistWorkspaceStore();
+} else if (taskHistory.length === 0) {
+  captureTaskMemorySnapshot("Task memory seed", state.lastAnalysis);
   persistWorkspaceStore();
 }
 
@@ -1123,6 +1130,7 @@ function loadWorkspaceStore(defaultIngestion) {
     return {
       ...persisted,
       snapshots: normalizeSnapshotStore(persisted.snapshots),
+      taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
       storageLabel: "Loaded locally",
       storageTone: "good"
     };
@@ -1145,7 +1153,8 @@ function persistWorkspaceStore() {
   const nextStore = createWorkspaceStore(activeIngestion, {
     savedAt: new Date(),
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory
   });
   const saved = writeWorkspaceStore(nextStore);
 
@@ -1175,6 +1184,7 @@ function restoreWorkspaceStore(store, label) {
   activeIngestion = applyPersistedBaselines(store.ingestion, store.baselines);
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = normalizeSnapshotStore(store.snapshots);
+  taskHistory = normalizeTaskHistoryStore(store.taskHistory);
   state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
   state.ingestLabel = label;
@@ -1189,7 +1199,7 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [] }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [] }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
@@ -1197,7 +1207,8 @@ function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = 
     lastAnalysisAt: dateIso(lastAnalysisAt),
     ingestion,
     baselines: buildBaselineStore(ingestion.runs),
-    snapshots: normalizeSnapshotStore(snapshots)
+    snapshots: normalizeSnapshotStore(snapshots),
+    taskHistory: normalizeTaskHistoryStore(taskHistory)
   };
 }
 
@@ -1233,16 +1244,33 @@ function isValidWorkspaceStore(store) {
 function captureAnalysisSnapshot(sourceLabel, capturedAt = new Date()) {
   const capturedAtIso = dateIso(capturedAt);
   const records = [];
+  const taskRecords = [];
 
   SNAPSHOT_SCOPES.forEach((scope) => {
     buildEntries(scope).forEach((entry) => {
       const summary = summarizeEntry(entry);
       const classifier = classifyBottlenecks(summary);
       records.push(snapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso));
+
+      if (scope === "job") {
+        taskRecords.push(taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso));
+      }
     });
   });
 
   snapshotHistory = normalizeSnapshotStore([...snapshotHistory, ...records]).slice(-SNAPSHOT_LIMIT);
+  taskHistory = normalizeTaskHistoryStore([...taskHistory, ...taskRecords]).slice(-TASK_HISTORY_LIMIT);
+}
+
+function captureTaskMemorySnapshot(sourceLabel, capturedAt = new Date()) {
+  const capturedAtIso = dateIso(capturedAt);
+  const taskRecords = buildEntries("job").map((entry) => {
+    const summary = summarizeEntry(entry);
+    const classifier = classifyBottlenecks(summary);
+    return taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso);
+  });
+
+  taskHistory = normalizeTaskHistoryStore([...taskHistory, ...taskRecords]).slice(-TASK_HISTORY_LIMIT);
 }
 
 function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
@@ -1320,6 +1348,24 @@ function normalizeSnapshotMetrics(metrics = {}) {
       .map(([key, value]) => [key, numeric(value, Number.NaN)])
       .filter(([, value]) => Number.isFinite(value))
   );
+}
+
+function taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
+  return analytics.taskUtilizationSnapshot(summary, {
+    classifier,
+    sourceLabel,
+    capturedAt
+  });
+}
+
+function normalizeTaskHistoryStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map((record) => analytics.normalizeTaskUtilizationRecord(record))
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.capturedAt) - new Date(b.capturedAt))
+    .slice(-TASK_HISTORY_LIMIT);
 }
 
 function validDateIso(value) {
@@ -2640,7 +2686,8 @@ function exportWorkspace({ redacted = false } = {}) {
   const rawStore = createWorkspaceStore(activeIngestion, {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory
   });
   const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
   const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
@@ -2667,7 +2714,8 @@ function exportEvidencePack() {
   const store = createWorkspaceStore(activeIngestion, {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory
   });
   const plan = buildRedactionPlan(store);
   const markdown = buildEvidencePackMarkdown({
@@ -2981,6 +3029,7 @@ function redactWorkspaceStore(store) {
   redacted.ingestion = redactIngestion(redacted.ingestion, plan);
   redacted.baselines = redactBaselineStore(redacted.baselines, plan);
   redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
+  redacted.taskHistory = redactTaskHistory(redacted.taskHistory, plan);
   redacted.redaction = {
     redactedAt: dateIso(new Date()),
     strategy: "deterministic surrogate IDs",
@@ -3003,9 +3052,11 @@ function buildRedactionPlan(store) {
   const ingestion = store.ingestion || {};
   const runs = Array.isArray(ingestion.runs) ? ingestion.runs : [];
   const entities = ingestion.entities || {};
+  const taskRecords = Array.isArray(store.taskHistory) ? store.taskHistory : [];
   const plan = {
     entities: {},
     runs: buildValueMap(runs.map((run) => run.id), "run"),
+    taskKeys: buildValueMap(taskRecords.map((record) => record.taskKey), "task"),
     contracts: buildValueMap(runs.map((run) => run.commercial?.contractId), "contract"),
     tickets: buildValueMap(runs.map((run) => run.slo?.supportTicketId), "ticket"),
     namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
@@ -3043,7 +3094,14 @@ function buildRedactionPlan(store) {
     priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
     admissionClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
     requestedGpuShapes: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
-    localityPreferences: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality")
+    localityPreferences: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality"),
+    taskGpuModels: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.gpuModels || []), "gpu-model"),
+    taskClusters: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.clusters || []), "cluster"),
+    taskNodes: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.nodes || []), "node"),
+    taskTenants: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.tenants || []), "tenant"),
+    taskAccounts: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.accounts || []), "account"),
+    taskReservations: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.reservations || []), "reservation"),
+    taskHosts: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.hosts || []), "host")
   };
 
   Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
@@ -3257,6 +3315,46 @@ function redactSnapshots(snapshots = [], plan) {
   });
 }
 
+function redactTaskHistory(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records.map((record) => {
+    const taskKey = mappedValue(plan.taskKeys, record.taskKey, "task");
+    const key = record.scope === "job" ? mappedValue(plan.runs, record.key, "run") : record.key;
+
+    return {
+      ...record,
+      key,
+      label: redactedLabel(taskKey),
+      taskKey,
+      taskLabel: redactedLabel(taskKey),
+      taskFamily: taskKey,
+      runIds: redactValueList(plan.runs, record.runIds, "run"),
+      resources: redactTaskResources(record.resources || {}, plan)
+    };
+  });
+}
+
+function redactTaskResources(resources = {}, plan) {
+  return {
+    ...resources,
+    gpuModels: redactValueList(plan.taskGpuModels, resources.gpuModels, "gpu-model"),
+    clusters: redactValueList(plan.taskClusters, resources.clusters, "cluster"),
+    nodes: redactValueList(plan.taskNodes, resources.nodes, "node"),
+    partialNodes: redactValueList(plan.taskNodes, resources.partialNodes, "node"),
+    tenants: redactValueList(plan.taskTenants, resources.tenants, "tenant"),
+    accounts: redactValueList(plan.taskAccounts, resources.accounts, "account"),
+    reservations: redactValueList(plan.taskReservations, resources.reservations, "reservation"),
+    schedulerNames: redactValueList(plan.schedulerNames, resources.schedulerNames, "scheduler"),
+    queueNames: redactValueList(plan.schedulerQueues, resources.queueNames, "queue"),
+    priorityClasses: redactValueList(plan.priorityClasses, resources.priorityClasses, "priority"),
+    admissionClasses: redactValueList(plan.admissionClasses, resources.admissionClasses, "admission"),
+    requestedGpuShapes: redactValueList(plan.requestedGpuShapes, resources.requestedGpuShapes, "shape"),
+    localityPreferences: redactValueList(plan.localityPreferences, resources.localityPreferences, "locality"),
+    hosts: redactValueList(plan.taskHosts, resources.hosts, "host")
+  };
+}
+
 function redactSnapshotKey(scope, key, plan) {
   if (scope === "job") return mappedValue(plan.runs, key, "run");
 
@@ -3443,6 +3541,7 @@ function render() {
   renderMetricRibbon(summary);
   renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
+  renderTaskMemory(buildTaskMemory(summary, classifier));
   renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
@@ -3692,6 +3791,8 @@ function machineDemoContext(summary) {
     && !/no nvidia|unavailable|none/i.test(gpuModel)
   );
   const driverUnavailable = !gpuPresent && context.gpuSource === "nvidia-smi-unavailable";
+  const gb10MonitoringList = Array.isArray(context.gb10MonitoringList) ? context.gb10MonitoringList : [];
+  const gb10Present = Boolean(context.gb10Present) || isGb10GpuModel(gpuModel);
 
   return {
     host: context.hostname || summary.clusters[0] || "this host",
@@ -3708,6 +3809,13 @@ function machineDemoContext(summary) {
     ollamaProbeCached: Boolean(context.ollamaProbeCached),
     ollamaProbeAgeMs: numeric(context.ollamaProbeAgeMs),
     ollamaProbeError: String(context.ollamaProbeError || ""),
+    gb10Present,
+    gb10MonitoringList,
+    linuxUmaMemoryTotalBytes: numeric(context.linuxUmaMemoryTotalBytes, context.memoryTotalBytes),
+    linuxUmaMemoryAvailableBytes: numeric(context.linuxUmaMemoryAvailableBytes, context.memoryAvailableBytes),
+    linuxUmaMemoryUsedPct: numeric(context.linuxUmaMemoryUsedPct, context.memoryUsedPct),
+    appMetricsReachable: Boolean(context.appMetricsReachable),
+    nsightCuptiProfilingStatus: String(context.nsightCuptiProfilingStatus || ""),
     context,
     gpuUtilizationPct: numeric(context.gpuUtilizationPct, summary.gpuUtil),
     gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
@@ -3786,6 +3894,10 @@ function machineDemoGpuModel(context, summary, machineItem) {
   if (context.gpuName) return context.gpuName;
   if (context.gpuSource === "nvidia-smi-unavailable") return "NVIDIA telemetry unavailable";
   return machineItem.gpuModel || "No NVIDIA GPU telemetry";
+}
+
+function isGb10GpuModel(label) {
+  return /(^|[^A-Za-z0-9])GB10([^A-Za-z0-9]|$)|DGX[ -]?Spark/i.test(String(label || ""));
 }
 
 function machineDemoServices(observedServices) {
@@ -3875,6 +3987,12 @@ function renderLiveResources(summary) {
     : machineContext.ollamaTelemetryStatus === "no-running-model"
       ? `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"} | no loaded model`
       : machineContext.ollamaProbeError || `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"}`;
+  const gb10MonitorTotal = machineContext.gb10MonitoringList.length;
+  const gb10MonitorAvailable = machineContext.gb10MonitoringList.filter(gb10MonitoringAvailable).length;
+  const umaMemoryTotal = machineContext.linuxUmaMemoryTotalBytes || memoryTotal;
+  const umaMemoryAvailable = machineContext.linuxUmaMemoryAvailableBytes || memoryAvailable;
+  const umaMemoryUsed = Math.max(0, umaMemoryTotal - umaMemoryAvailable);
+  const umaMemoryUsedPct = machineContext.linuxUmaMemoryUsedPct || machineContext.memoryUsedPct;
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -3895,6 +4013,15 @@ function renderLiveResources(summary) {
       percent: machineContext.memoryUsedPct,
       tone: inverseGrade(machineContext.memoryUsedPct, 75, 90).key
     }),
+    ...(machineContext.gb10Present ? [
+      liveResourceCard({
+        label: "UMA memory",
+        value: pct(umaMemoryUsedPct),
+        note: umaMemoryTotal ? `${formatBytes(umaMemoryUsed)} / ${formatBytes(umaMemoryTotal)} Linux UMA` : "Linux UMA meminfo",
+        percent: umaMemoryUsedPct,
+        tone: inverseGrade(umaMemoryUsedPct, 75, 90).key
+      })
+    ] : []),
     liveResourceCard({
       label: "GPU",
       value: machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : pct(machineContext.gpuUtilizationPct),
@@ -3947,6 +4074,15 @@ function renderLiveResources(summary) {
       percent: null,
       tone: ollamaReachable ? (machineContext.ollamaTelemetryAvailable ? "good" : "watch") : "poor"
     }),
+    ...(machineContext.gb10Present ? [
+      liveResourceCard({
+        label: "GB10 monitor",
+        value: `${gb10MonitorAvailable}/${Math.max(1, gb10MonitorTotal)}`,
+        note: "NVML/nvidia-smi, UMA, app metrics, Nsight/CUPTI",
+        percent: null,
+        tone: gb10MonitorAvailable === gb10MonitorTotal ? "good" : gb10MonitorAvailable >= 2 ? "watch" : "poor"
+      })
+    ] : []),
     liveResourceCard({
       label: "Signals",
       value: `${observedServiceList.length}`,
@@ -4016,6 +4152,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     heartbeatStrip.replaceChildren();
     timeline.replaceChildren();
     launchpad.replaceChildren();
+    operatorLaunchpadSignature = "";
     kafkaPanel.replaceChildren();
     confidencePanel.replaceChildren();
     replayPanel.replaceChildren();
@@ -4037,7 +4174,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
 
   heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
   timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
-  launchpad.replaceChildren(...cockpit.commands.map(operatorCommandButton));
+  renderOperatorLaunchpad(launchpad, cockpit.commands);
   kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
   confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
@@ -4095,6 +4232,7 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
   const contextItems = summary.sourceItems || [];
   const hasContextField = (field) => contextItems.some((item) => Boolean(item.source?.context?.[field]));
   const generatedFresh = ageMilliseconds === null || ageMilliseconds <= 12000;
+  const gb10Monitors = machineContext?.gb10Present ? machineContext.gb10MonitoringList : [];
   const sourceFlags = {
     host: Boolean(machineContext) || adapters.includes("local-machine") || adapters.includes("procfs") || adapters.includes("os-counters"),
     kubernetes: adapters.includes("kubernetes") || hasContextField("namespace") || hasContextField("podSelector"),
@@ -4110,7 +4248,29 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     "nccl-trace": adapters.includes("nccl-trace")
   };
 
-  return OPERATOR_SOURCE_ORDER.map((id) => {
+  const sourceOrder = machineContext?.gb10Present
+    ? [...OPERATOR_SOURCE_ORDER, ...GB10_OPERATOR_SOURCE_ORDER]
+    : OPERATOR_SOURCE_ORDER;
+
+  return sourceOrder.map((id) => {
+    const gb10Monitor = gb10Monitors.find((item) => item.id === id);
+    if (gb10Monitor) {
+      const present = gb10MonitoringAvailable(gb10Monitor);
+      const monitorStatus = gb10Monitor.status === "ready" ? "live" : gb10Monitor.status === "hooks-present" ? "attached" : gb10Monitor.status;
+      const status = !present ? "missing" : monitorStatus === "live" ? "live" : monitorStatus === "attached" ? "attached" : "watch";
+      return {
+        id,
+        label: operatorSourceLabel(id),
+        status,
+        present,
+        fresh: present,
+        ageSeconds,
+        ageMilliseconds,
+        note: gb10Monitor.detail || gb10Monitor.label,
+        tone: status === "live" || status === "attached" ? "good" : status === "watch" ? "watch" : "poor"
+      };
+    }
+
     const present = Boolean(sourceFlags[id]);
     const liveTimed = ["host", "kafka", "docker", "ollama", "node-exporter"].includes(id);
     const fresh = present && (!liveTimed || generatedFresh);
@@ -4145,8 +4305,16 @@ function operatorSourceLabel(id) {
     "node-exporter": "Node Exporter",
     ebpf: "eBPF",
     provider: "Provider",
-    "nccl-trace": "NCCL"
+    "nccl-trace": "NCCL",
+    "gb10-nvml-nvidia-smi": "GB10 NVML",
+    "linux-uma-memory": "Linux UMA",
+    "app-metrics": "App Metrics",
+    "nsight-cupti-profiling": "Nsight/CUPTI"
   }[id] || titleCase(id);
+}
+
+function gb10MonitoringAvailable(item) {
+  return Boolean(item && item.status && item.status !== "missing");
 }
 
 function formatHostSampleAgeMilliseconds(ageMilliseconds) {
@@ -4228,6 +4396,11 @@ function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedul
   if (adapters.includes("dcgm")) add({ time: generatedAt, source: "dcgm", label: "DCGM GPU counters imported", note: `${pct(summary.smOccupancy)} SM occupancy`, tone: "good" });
   if (summary.grafana?.links?.length) add({ time: generatedAt, source: "grafana", label: "Grafana handoff attached", note: summary.grafana.links[0].label || "Dashboard link", tone: "good" });
   if (machineContext) add({ time: generatedAt, source: "host", label: "Host sample refreshed", note: ageMilliseconds === null ? machineContext.adapters : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} old | ${machineContext.adapters}`, tone: ageMilliseconds !== null && ageMilliseconds > 12000 ? "watch" : "good" });
+  if (machineContext?.gb10Present) {
+    const available = machineContext.gb10MonitoringList.filter(gb10MonitoringAvailable).length;
+    const total = machineContext.gb10MonitoringList.length;
+    add({ time: generatedAt, source: "gb10", label: "GB10 monitoring list refreshed", note: `${available}/${Math.max(1, total)} monitors available`, tone: available === total ? "good" : "watch" });
+  }
   if (machineContext?.ollamaTelemetryAvailable) add({ time: generatedAt, source: "ollama", label: "Ollama generation probe", note: `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`, tone: "good" });
   if (observedServices.length) add({ time: generatedAt, source: "services", label: "Local services checked", note: observedServices.join(", "), tone: "good" });
   if (classifier?.primary?.name) add({ time: generatedAt, source: "analyzer", label: "Analyzer classified bottleneck", note: classifier.primary.name, tone: summary.usefulCompute >= 60 ? "good" : "watch" });
@@ -4343,6 +4516,26 @@ function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
   return commands;
 }
 
+function renderOperatorLaunchpad(launchpad, commands) {
+  const signature = operatorLaunchpadCommandSignature(commands);
+  if (operatorLaunchpadSignature === signature && launchpad.children.length === commands.length) {
+    return;
+  }
+
+  operatorLaunchpadSignature = signature;
+  launchpad.replaceChildren(...commands.map(operatorCommandButton));
+}
+
+function operatorLaunchpadCommandSignature(commands) {
+  return JSON.stringify(commands.map((command) => ({
+    label: command.label,
+    detail: command.detail,
+    command: command.command || "",
+    url: command.url || "",
+    action: Boolean(command.action)
+  })));
+}
+
 function operatorHeartbeatCard(source) {
   const item = document.createElement("div");
   item.className = "source-heartbeat-card";
@@ -4399,6 +4592,7 @@ function operatorTimelineIcon(source) {
     dcgm: "GPU",
     kafka: "K",
     grafana: "G",
+    gb10: "G10",
     analyzer: "A",
     opportunity: "$",
     simulator: "S",
@@ -4416,19 +4610,54 @@ function operatorCommandButton(command) {
   detail.textContent = command.detail;
   button.append(label, detail);
   button.addEventListener("click", async () => {
-    if (command.action) {
-      command.action();
-      return;
+    button.disabled = true;
+    button.dataset.state = "working";
+    try {
+      if (command.action) {
+        command.action();
+        setLaunchpadButtonFeedback(button, detail, "Started");
+        return;
+      }
+      if (command.url) {
+        const opened = window.open(command.url, "_blank");
+        if (opened) {
+          opened.opener = null;
+          setIngestStatus(`${command.label} opened`, "good");
+          setLaunchpadButtonFeedback(button, detail, "Opened");
+          return;
+        }
+        const copied = await copyTextToClipboard(command.url);
+        setIngestStatus(copied ? `${command.label} link copied` : `${command.label} link ready to copy`, copied ? "good" : "watch");
+        setLaunchpadButtonFeedback(button, detail, copied ? "Link copied" : "Link ready");
+        if (!copied) showManualCopyPrompt(command.label, command.url);
+        return;
+      }
+      const copied = await copyTextToClipboard(command.command);
+      setIngestStatus(copied ? `${command.label} command copied` : `${command.label} command ready to copy`, copied ? "good" : "watch");
+      setLaunchpadButtonFeedback(button, detail, copied ? "Command copied" : "Command ready");
+      if (!copied) showManualCopyPrompt(command.label, command.command);
+    } catch (error) {
+      setIngestStatus(`${command.label} failed`, "poor");
+      setLaunchpadButtonFeedback(button, detail, "Try again");
+    } finally {
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.dataset.state = "";
+        detail.textContent = command.detail;
+      }, 1400);
     }
-    if (command.url) {
-      window.open(command.url, "_blank", "noopener,noreferrer");
-      setIngestStatus(`${command.label} opened`, "good");
-      return;
-    }
-    await copyTextToClipboard(command.command);
-    setIngestStatus(`${command.label} command copied`, "good");
   });
   return button;
+}
+
+function setLaunchpadButtonFeedback(button, detail, message) {
+  button.dataset.state = "done";
+  detail.textContent = message;
+}
+
+function showManualCopyPrompt(label, text) {
+  if (!text || typeof window.prompt !== "function") return;
+  window.prompt(`${label}: copy this`, text);
 }
 
 function operatorKafkaNodes(kafka) {
@@ -5378,6 +5607,191 @@ function safeExternalUrl(value) {
   } catch {
     return "";
   }
+}
+
+function buildTaskMemory(summary, classifier) {
+  if (summary.scope !== "job") {
+    return { visible: false };
+  }
+
+  const current = taskSnapshotFromSummary(summary, classifier, "Current analysis", state.lastAnalysis);
+  const comparison = analytics.compareTaskUtilizationPattern(current, taskHistory, {
+    excludeCapturedAt: state.lastAnalysis
+  });
+
+  return {
+    visible: true,
+    ...comparison
+  };
+}
+
+function renderTaskMemory(memory) {
+  const panel = document.querySelector("#taskMemoryPanel");
+  const badge = document.querySelector("#taskMemoryBadge");
+  const identity = document.querySelector("#taskMemoryIdentity");
+  const resources = document.querySelector("#taskMemoryResources");
+  const changes = document.querySelector("#taskMemoryChanges");
+  if (!panel || !badge || !identity || !resources || !changes) return;
+
+  if (!memory?.visible || !memory.current) {
+    panel.hidden = true;
+    identity.replaceChildren();
+    resources.replaceChildren();
+    changes.replaceChildren();
+    return;
+  }
+
+  const current = memory.current;
+  const resource = current.resources || {};
+  const category = current.categories || {};
+
+  panel.hidden = false;
+  badge.textContent = taskMemoryBadgeText(memory);
+  badge.dataset.tone = taskMemoryTone(memory.differenceLevel);
+
+  identity.replaceChildren(
+    taskMemoryIdentityItem("Task family", current.taskLabel),
+    taskMemoryIdentityItem("Current run", listLabel(current.runIds.length ? current.runIds : [current.key], 2)),
+    taskMemoryIdentityItem("Category", taskMemoryCategoryLabel(category.primary)),
+    taskMemoryIdentityItem("History", memory.previousRuns > 0 ? `${memory.previousRuns} previous ${memory.previousRuns === 1 ? "run" : "runs"}` : "Learning")
+  );
+
+  resources.replaceChildren(
+    taskMemoryResourceCard("Accelerators", `${number.format(resource.gpus)} GPUs`, listLabel(resource.gpuModels, 2) || "GPU model unknown"),
+    taskMemoryResourceCard("Placement", `${number.format(resource.nodes.length)} nodes`, `${listLabel(resource.clusters, 2)} | ${number.format(resource.partialNodes.length)} partial`),
+    taskMemoryResourceCard("Scheduler", listLabel(resource.queueNames, 2) || "No queue", listLabel(resource.requestedGpuShapes, 2) || listLabel(resource.priorityClasses, 2) || "No shape"),
+    taskMemoryResourceCard("Owner", listLabel(resource.tenants, 1), listLabel(resource.reservations, 1)),
+    taskMemoryResourceCard("Sources", `${number.format(resource.adapters.length)} adapters`, listLabel(resource.adapters, 3) || "Seeded run")
+  );
+
+  changes.replaceChildren();
+  const changeRows = [
+    ...(memory.categoryChange ? [taskMemoryCategoryChangeRow(memory.categoryChange)] : []),
+    ...memory.significantChanges.slice(0, 5).map(taskMemoryMetricChangeRow),
+    ...memory.resourceChanges.slice(0, 3).map(taskMemoryResourceChangeRow)
+  ];
+
+  if (changeRows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "task-memory-empty";
+    empty.textContent = memory.summary;
+    changes.append(empty);
+    return;
+  }
+
+  changeRows.forEach((row) => changes.append(row));
+}
+
+function taskMemoryBadgeText(memory) {
+  if (memory.differenceLevel === "learning") return "Learning";
+  if (memory.differenceLevel === "same") return "Stable";
+  if (memory.differenceLevel === "major") return "Major drift";
+  if (memory.differenceLevel === "changed") return "Changed";
+  if (memory.differenceLevel === "minor") return "Minor drift";
+  return "Task memory";
+}
+
+function taskMemoryTone(level) {
+  if (level === "same") return "good";
+  if (level === "major" || level === "changed") return "poor";
+  return "watch";
+}
+
+function taskMemoryIdentityItem(label, value) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = value || "n/a";
+  item.append(labelEl, valueEl);
+  return item;
+}
+
+function taskMemoryResourceCard(label, value, note) {
+  const card = document.createElement("div");
+  card.className = "task-memory-resource";
+
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  const noteEl = document.createElement("small");
+  labelEl.textContent = label;
+  valueEl.textContent = value || "n/a";
+  noteEl.textContent = note || "n/a";
+
+  card.append(labelEl, valueEl, noteEl);
+  return card;
+}
+
+function taskMemoryMetricChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = change.direction;
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = change.label;
+  value.textContent = `${formatTaskMetricValue(change.current, change.unit)} now`;
+  note.textContent = `${formatTaskDelta(change.delta, change.unit)} vs ${formatTaskMetricValue(change.baseline, change.unit)} historical average`;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryCategoryChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = "changed";
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = "Utilization category";
+  value.textContent = taskMemoryCategoryLabel(change.current);
+  note.textContent = `Was ${taskMemoryCategoryLabel(change.previous)}`;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryResourceChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = "changed";
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = change.label;
+  value.textContent = change.added.length ? `Added ${listLabel(change.added, 2)}` : "Resource removed";
+  note.textContent = change.text;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryCategoryLabel(value) {
+  return titleCase(String(value || "uncategorized").replace(/[-_]+/g, " "));
+}
+
+function formatTaskMetricValue(value, unit) {
+  if (unit === "USD") return currency.format(value);
+  if (unit === "points") return pct(value);
+  if (unit === "minutes") return `${round(value)} min`;
+  if (unit === "count") return number.format(value);
+  return number.format(value);
+}
+
+function formatTaskDelta(value, unit) {
+  if (unit === "USD") return signedCurrency(value);
+  if (unit === "points") return `${signedNumber(value)} pts`;
+  if (unit === "minutes") return `${signedNumber(value)} min`;
+  if (unit === "count") return signedNumber(value);
+  if (unit === "GPU-hours") return `${signedNumber(value)} GPU-hours`;
+  return signedNumber(value);
 }
 
 function renderTrend(summary) {
@@ -6873,14 +7287,31 @@ async function copyReport() {
 }
 
 async function copyTextToClipboard(text) {
+  const value = String(text || "");
+  if (!value) return false;
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
   } catch {
+    // Fall through to the textarea copy path for non-secure local HTTP contexts.
+  }
+
+  try {
     const textarea = document.createElement("textarea");
-    textarea.value = text;
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
     document.body.append(textarea);
+    textarea.focus();
     textarea.select();
-    document.execCommand("copy");
+    const copied = document.execCommand("copy");
     textarea.remove();
+    return copied;
+  } catch {
+    return false;
   }
 }

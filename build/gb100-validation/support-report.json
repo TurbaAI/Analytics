@@ -1,6 +1,6 @@
 {
   "schemaVersion": "gb100.telemetry.support-report.v1",
-  "generatedAt": "2026-06-02T17:14:17.801Z",
+  "generatedAt": "2026-06-02T20:57:40.499Z",
   "nodeInventory": {
     "hostname": "Mac.localdomain",
     "platform": "darwin",
@@ -161,6 +161,26 @@
       "metric": "confidential_compute_performance_guarantee",
       "status": "benchmark_required",
       "reason": "No live counter proves no performance drop-off. This must be measured with controlled workload benchmarks."
+    },
+    {
+      "metric": "gb10_nvml_nvidia_smi",
+      "status": "native_nvml",
+      "reason": "On GB10 hosts, nvidia-smi/NVML is the primary strict low-overhead GPU inventory, utilization, power, temperature, PCIe, and process counter path."
+    },
+    {
+      "metric": "gb10_linux_uma_memory",
+      "status": "native_os",
+      "reason": "GB10 exposes unified CPU/GPU memory pressure through Linux host memory counters; this stack labels it as UMA memory instead of pretending HBM framebuffer fields exist."
+    },
+    {
+      "metric": "gb10_app_metrics",
+      "status": "app_instrumentation_required",
+      "reason": "Tokens/sec, request rate, batch, precision mode, KV cache, and framework signals must come from the app metrics exporter."
+    },
+    {
+      "metric": "gb10_nsight_cupti_optional_profiling_exporter",
+      "status": "profiler_required",
+      "reason": "Per-kernel or per-format GB10 attribution should use optional Nsight/CUPTI profiling hooks, not always-on synthetic counters."
     }
   ],
   "enabledCollectors": {

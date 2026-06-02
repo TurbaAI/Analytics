@@ -115,7 +115,11 @@ function validateCapabilities() {
     transformer_engine_activity: "app_instrumentation_required",
     decompression_engine_utilization: "app_instrumentation_required",
     coolant_temperature: "external_system_required",
-    ras_engine_internals: "unsupported_currently"
+    ras_engine_internals: "unsupported_currently",
+    gb10_nvml_nvidia_smi: "native_nvml",
+    gb10_linux_uma_memory: "native_os",
+    gb10_app_metrics: "app_instrumentation_required",
+    gb10_nsight_cupti_optional_profiling_exporter: "profiler_required"
   })) {
     assert.equal(nonNative[metric]?.status, expected, `${metric} should be ${expected}`);
     assert.ok(nonNative[metric]?.reason, `${metric} should include a reason`);

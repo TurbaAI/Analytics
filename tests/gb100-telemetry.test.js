@@ -44,6 +44,8 @@ const collectorOutput = run("python3", [
 assert.match(collectorOutput, /gb100_app_llm_workload_info/, "collector should emit LLM workload marker");
 assert.match(collectorOutput, /status="profiler_required"/, "collector should label profiler-only metrics");
 assert.match(collectorOutput, /status="external_system_required"/, "collector should label external facility metrics");
+assert.match(collectorOutput, /metric="gb10_linux_uma_memory",status="native_os"/, "collector should emit GB10 Linux UMA capability");
+assert.match(collectorOutput, /metric="gb10_nsight_cupti_optional_profiling_exporter",status="profiler_required"/, "collector should emit GB10 optional profiler capability");
 
 const report = JSON.parse(read("build/gb100-validation/support-report.json"));
 assert.ok(Array.isArray(report.unavailableDcgmFields), "support report should include unavailable fields");

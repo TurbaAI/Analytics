@@ -1,6 +1,6 @@
 # GB100/GB200 Telemetry Support Report
 
-Generated: 2026-06-02T17:14:17.801Z
+Generated: 2026-06-02T20:57:40.499Z
 
 ## Node
 
@@ -137,6 +137,10 @@ Generated: 2026-06-02T17:14:17.801Z
 | coolant_temperature | external_system_required | GPU APIs expose GPU and memory temperature. Coolant temperature must come from CDU rack BMC Redfish or facility telemetry. |
 | confidential_compute_attestation | native_nvml | Confidential-computing status may be available through NVML or an attestation SDK depending on host and driver support. |
 | confidential_compute_performance_guarantee | benchmark_required | No live counter proves no performance drop-off. This must be measured with controlled workload benchmarks. |
+| gb10_nvml_nvidia_smi | native_nvml | On GB10 hosts, nvidia-smi/NVML is the primary strict low-overhead GPU inventory, utilization, power, temperature, PCIe, and process counter path. |
+| gb10_linux_uma_memory | native_os | GB10 exposes unified CPU/GPU memory pressure through Linux host memory counters; this stack labels it as UMA memory instead of pretending HBM framebuffer fields exist. |
+| gb10_app_metrics | app_instrumentation_required | Tokens/sec, request rate, batch, precision mode, KV cache, and framework signals must come from the app metrics exporter. |
+| gb10_nsight_cupti_optional_profiling_exporter | profiler_required | Per-kernel or per-format GB10 attribution should use optional Nsight/CUPTI profiling hooks, not always-on synthetic counters. |
 
 ## Current Health Signals
 

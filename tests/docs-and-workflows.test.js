@@ -412,6 +412,10 @@ assert.ok(demoLogistics.includes("DGX-pat"));
 assert.ok(demoLogistics.includes("1 second"));
 assert.ok(demoLogistics.includes("tokens-per-second"));
 assert.ok(demoLogistics.includes("time-to-first-token"));
+assert.ok(demoLogistics.includes("GB10 NVML/nvidia-smi"));
+assert.ok(demoLogistics.includes("Linux UMA memory"));
+assert.ok(demoLogistics.includes("App metrics"));
+assert.ok(demoLogistics.includes("Nsight/CUPTI optional profiling exporter"));
 assert.ok(demoLogistics.includes("does not pretend Kubernetes, DCGM, eBPF"));
 assert.ok(demoLogistics.includes("fixtures/neo-cloud-provider-bundle.json"));
 assert.ok(demoLogistics.includes("MPS/MIG"));
@@ -419,5 +423,12 @@ assert.ok(demoLogistics.includes("one Linux NVIDIA GPU node"));
 assert.ok(demoLogistics.includes("NVIDIA GeForce RTX 4090"));
 assert.ok(demoLogistics.includes("scripts/check-spark1-kafka.js"));
 assert.ok(demoLogistics.includes("SPARK1 Kafka smoke test passed"));
+
+const metricCapabilityMatrix = read("docs/metric-capability-matrix.md");
+assert.ok(metricCapabilityMatrix.includes("native_os"));
+assert.ok(metricCapabilityMatrix.includes("GB10 NVML/nvidia-smi"));
+assert.ok(metricCapabilityMatrix.includes("Linux UMA memory"));
+assert.ok(metricCapabilityMatrix.includes("App metrics"));
+assert.ok(metricCapabilityMatrix.includes("Nsight/CUPTI optional profiling exporter"));
 
 console.log("docs and workflows tests passed");

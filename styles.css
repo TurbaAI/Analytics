@@ -1149,6 +1149,16 @@ input[type="url"] {
   box-shadow: 0 0 0 3px rgba(15, 172, 128, 0.08);
 }
 
+.demo-command-button:disabled {
+  cursor: wait;
+  opacity: 0.82;
+}
+
+.demo-command-button[data-state="done"] {
+  border-color: rgba(15, 172, 128, 0.55);
+  background: rgba(233, 248, 244, 0.9);
+}
+
 .demo-command-button strong,
 .demo-command-button small,
 .replay-mode-panel p,
@@ -1729,6 +1739,14 @@ input[type="url"] {
 
 .opportunity-panel {
   grid-column: span 12;
+}
+
+.task-memory-panel {
+  grid-column: span 12;
+}
+
+.task-memory-panel[hidden] {
+  display: none;
 }
 
 .simulator-panel {
@@ -2567,6 +2585,139 @@ input[type="url"] {
   font-weight: 800;
 }
 
+#taskMemoryBadge[data-tone="good"] {
+  color: var(--green);
+}
+
+#taskMemoryBadge[data-tone="watch"] {
+  color: var(--amber);
+}
+
+#taskMemoryBadge[data-tone="poor"] {
+  color: var(--red);
+}
+
+.task-memory-identity,
+.task-memory-resources,
+.task-memory-changes {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+}
+
+.task-memory-identity {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+}
+
+.task-memory-resources {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-bottom: 1px solid var(--line);
+}
+
+.task-memory-identity div,
+.task-memory-resource,
+.task-memory-change,
+.task-memory-empty {
+  min-width: 0;
+  background: var(--surface);
+}
+
+.task-memory-identity div,
+.task-memory-resource {
+  display: grid;
+  gap: 5px;
+  min-height: 78px;
+  padding: 13px 14px;
+}
+
+.task-memory-identity span,
+.task-memory-resource span,
+.task-memory-change small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.3;
+}
+
+.task-memory-identity span,
+.task-memory-resource span {
+  text-transform: uppercase;
+}
+
+.task-memory-identity strong,
+.task-memory-resource strong,
+.task-memory-resource small,
+.task-memory-change strong,
+.task-memory-change span,
+.task-memory-change small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.task-memory-identity strong,
+.task-memory-resource strong {
+  font-size: 0.98rem;
+  line-height: 1.18;
+}
+
+.task-memory-resource small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 740;
+  line-height: 1.3;
+}
+
+.task-memory-changes {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.task-memory-change {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  padding: 14px;
+  border-left: 4px solid var(--amber);
+}
+
+.task-memory-change[data-direction="improved"] {
+  border-left-color: var(--green);
+}
+
+.task-memory-change[data-direction="regressed"],
+.task-memory-change[data-direction="changed"] {
+  border-left-color: var(--red);
+}
+
+.task-memory-change strong {
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.task-memory-change span {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.task-memory-change[data-direction="improved"] span {
+  color: var(--green);
+}
+
+.task-memory-change[data-direction="regressed"] span,
+.task-memory-change[data-direction="changed"] span {
+  color: var(--red);
+}
+
+.task-memory-empty {
+  grid-column: 1 / -1;
+  min-height: 82px;
+  padding: 18px 16px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
 .simulator-controls {
   margin: 14px 16px 0;
   width: calc(100% - 32px);
@@ -2927,6 +3078,7 @@ input[type="url"] {
   .provider-summary-panel,
   .grafana-panel,
   .opportunity-panel,
+  .task-memory-panel,
   .simulator-panel,
   .efficiency-panel,
   .topology-panel,
@@ -3081,6 +3233,9 @@ input[type="url"] {
   .grafana-links,
   .opportunity-stats,
   .opportunity-list,
+  .task-memory-identity,
+  .task-memory-resources,
+  .task-memory-changes,
   .simulator-stats,
   .simulator-narrative,
   .simulator-scenarios,

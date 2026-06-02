@@ -295,6 +295,9 @@ function collectServices(hostUrl) {
   const ollama = httpJson("http://127.0.0.1:11434/api/tags");
   const ollamaPs = ollama.ok ? httpJson("http://127.0.0.1:11434/api/ps") : { ok: false, body: null };
   const ollamaTelemetry = ollama.ok ? collectOllamaTelemetry({ running: ollamaPs.body }) : null;
+  const appMetricsText = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9500/metrics"]);
+  const appMetricsUp = /gb100_app_collector_up\s+1\b/.test(appMetricsText) || appMetricsText.includes("gb100_metric_capability");
+  const profilingExporter = collectProfilingExporter();
   const nodeExporter = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9100/metrics"]);
   const hostAddress = primaryAddress();
   const kafkaReachable = tcpReachable("127.0.0.1", 30992)
@@ -308,6 +311,8 @@ function collectServices(hostUrl) {
     ollama: ollama.ok ? ollama.body : null,
     ollamaRunning: ollamaPs.ok ? ollamaPs.body : null,
     ollamaTelemetry,
+    appMetricsUp,
+    profilingExporter,
     kafka: kafkaReachable ? {
       bootstrapServers: "spark1-kafka.turbalance-demo.svc.cluster.local:9092",
       nodePortBootstrap: `${hostAddress}:30992`,
@@ -318,6 +323,7 @@ function collectServices(hostUrl) {
       grafana.ok ? "grafana" : null,
       netdata.ok ? "netdata" : null,
       ollama.ok ? "ollama" : null,
+      appMetricsUp ? "app-metrics" : null,
       kafkaReachable ? "kafka" : null,
       nodeExporter.includes("# HELP") ? "node-exporter" : null
     ].filter(Boolean)
@@ -378,6 +384,8 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
 function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes }) {
   const primaryGpu = gpu.gpus[0] || {};
   const gpuName = gpuLabel(primaryGpu, gpu);
+  const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
+  const gb10MonitoringList = gb10Present ? buildGb10MonitoringList({ host, gpu, services }) : [];
   const modelKey = safeId(primaryGpu.name || gpuName);
   const clusterKey = safeId(host.hostname);
   const tenant = "local-lab";
@@ -574,9 +582,18 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpuSampleCached: Boolean(gpu.sampleCached),
             gpuSampleAgeMs: round(finite(gpu.sampleAgeMs, 0), 0),
             gpuPcie: primaryGpu.pcieGen ? `gen${primaryGpu.pcieGen} x${primaryGpu.pcieWidth || "?"}` : "",
+            gb10Present,
+            gb10MonitoringList,
+            gb10MonitoringSummary: gb10MonitoringList.map((item) => `${item.label}: ${item.status}`).join("; "),
+            linuxUmaMemoryTotalBytes: gb10Present ? host.memoryTotalBytes : 0,
+            linuxUmaMemoryAvailableBytes: gb10Present ? host.memoryAvailableBytes : 0,
+            linuxUmaMemoryUsedPct: gb10Present ? round(metrics.memoryUsedPct, 2) : 0,
+            appMetricsReachable: Boolean(services.appMetricsUp),
+            nsightCuptiProfilingStatus: services.profilingExporter?.status || "missing",
+            nsightCuptiProfilingScripts: services.profilingExporter?.scripts || [],
             sourceAdapters,
             unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],
-            workloadCountersObserved: false,
+            workloadCountersObserved: Boolean(services.appMetricsUp),
             generatedAt: generatedIso
           }
         }
@@ -589,15 +606,81 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
 
 function machineSourceAdapters(gpu, services) {
   const hostCounters = fs.existsSync("/proc/stat") ? "procfs" : "os-counters";
+  const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
 
-  return [
+  return [...new Set([
     "local-machine",
+    gb10Present ? "gb10" : null,
     gpu.present ? "nvidia-smi" : null,
     !gpu.present && gpu.source === "nvidia-smi-unavailable" ? "nvidia-smi-unavailable" : null,
     hostCounters,
+    gb10Present ? "linux-uma-memory" : null,
     command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
+    services.appMetricsUp ? "app-metrics" : null,
+    gb10Present && services.profilingExporter?.hooksPresent ? "nsight-cupti-profiling" : null,
     ...services.observedServices
-  ].filter(Boolean);
+  ].filter(Boolean))];
+}
+
+function isGb10GpuName(name) {
+  return /(^|[^A-Za-z0-9])GB10([^A-Za-z0-9]|$)|DGX[ -]?Spark/i.test(String(name || ""));
+}
+
+function buildGb10MonitoringList({ host, gpu, services }) {
+  const primaryGpu = gpu.gpus.find((entry) => isGb10GpuName(entry.name)) || gpu.gpus[0] || {};
+  const appMetricsLive = Boolean(services.appMetricsUp);
+  const profiling = services.profilingExporter || {};
+  const profilingAvailable = profiling.status === "ready" || profiling.status === "hooks-present";
+  return [
+    {
+      id: "gb10-nvml-nvidia-smi",
+      label: "GB10 NVML/nvidia-smi",
+      status: gpu.present ? "live" : "missing",
+      detail: gpu.present ? `${primaryGpu.name || "GB10"} via ${gpu.source}` : gpu.error || "No NVIDIA GPU counters"
+    },
+    {
+      id: "linux-uma-memory",
+      label: "Linux UMA memory",
+      status: host.memoryTotalBytes > 0 ? "live" : "missing",
+      detail: host.memoryTotalBytes > 0
+        ? `${formatBytesLocal(Math.max(0, host.memoryTotalBytes - host.memoryAvailableBytes))} / ${formatBytesLocal(host.memoryTotalBytes)} host UMA`
+        : "Linux meminfo unavailable"
+    },
+    {
+      id: "app-metrics",
+      label: "App metrics",
+      status: appMetricsLive ? "live" : "missing",
+      detail: appMetricsLive ? "gb100 app metrics exporter reachable on :9500" : "Start collectors/app_telemetry_exporter.py on :9500"
+    },
+    {
+      id: "nsight-cupti-profiling",
+      label: "Nsight/CUPTI optional profiling exporter",
+      status: profilingAvailable ? profiling.status : "missing",
+      detail: profilingAvailable
+        ? `${(profiling.scripts || []).length} profiling hook${(profiling.scripts || []).length === 1 ? "" : "s"} present`
+        : "Optional Nsight/CUPTI hooks not configured"
+    }
+  ];
+}
+
+function collectProfilingExporter() {
+  const scripts = [
+    "collectors/profiling/run-nsight-compute-sample.sh",
+    "collectors/profiling/run-nsight-systems-sample.sh",
+    "collectors/profiling/run-cupti-sample.sh"
+  ].filter((relativePath) => fs.existsSync(path.join(__dirname, "..", relativePath)));
+  const ncu = command("which", ["ncu"]).trim();
+  const nsys = command("which", ["nsys"]).trim();
+  const cuptiConfigured = Boolean(process.env.CUPTI_LIBRARY_PATH);
+  const ready = Boolean(ncu || nsys || cuptiConfigured);
+  return {
+    status: ready ? "ready" : scripts.length ? "hooks-present" : "missing",
+    hooksPresent: scripts.length > 0,
+    scripts,
+    ncuInstalled: Boolean(ncu),
+    nsysInstalled: Boolean(nsys),
+    cuptiConfigured
+  };
 }
 
 function gpuLabel(primaryGpu, gpu) {
@@ -1053,6 +1136,15 @@ function round(value, digits = 2) {
 function clamp(value, min, max) {
   const parsed = finite(value, min);
   return Math.min(max, Math.max(min, parsed));
+}
+
+function formatBytesLocal(value) {
+  const bytes = finite(value, 0);
+  if (bytes <= 0) return "0 B";
+  const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+  const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const scaled = bytes / (1024 ** index);
+  return `${Math.round(scaled * 10) / 10} ${units[index]}`;
 }
 
 function sleep(ms) {

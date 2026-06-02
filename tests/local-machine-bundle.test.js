@@ -53,6 +53,15 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTokensPerSecond
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTimeToFirstTokenMs, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaProbeCached, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaProbeAgeMs, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gb10Present, "boolean");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.gb10MonitoringList));
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gb10MonitoringSummary, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryTotalBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryAvailableBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryUsedPct, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.appMetricsReachable, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingStatus, "string");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingScripts));
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
 const localCollectorSource = fs.readFileSync(path.join(root, "scripts/collect-local-machine-bundle.js"), "utf8");
@@ -60,6 +69,11 @@ assert.ok(localCollectorSource.includes("collectKafkaSmokeEvidence"));
 assert.ok(localCollectorSource.includes("kafkaSmokeMessageId"));
 assert.ok(localCollectorSource.includes("collectOllamaTelemetry"));
 assert.ok(localCollectorSource.includes("timeToFirstTokenMs"));
+assert.ok(localCollectorSource.includes("buildGb10MonitoringList"));
+assert.ok(localCollectorSource.includes("gb10-nvml-nvidia-smi"));
+assert.ok(localCollectorSource.includes("linux-uma-memory"));
+assert.ok(localCollectorSource.includes("app-metrics"));
+assert.ok(localCollectorSource.includes("nsight-cupti-profiling"));
 
 const fastOutPath = path.join(tempDir, "live-machine-bundle-fast.json");
 const fastResult = spawnSync(process.execPath, [
