@@ -991,8 +991,8 @@ const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
-const MACHINE_DEMO_REFRESH_MS = 5000;
-const LIVE_TELEMETRY_LIMIT = 72;
+const MACHINE_DEMO_REFRESH_MS = 1000;
+const LIVE_TELEMETRY_LIMIT = 300;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
@@ -3676,6 +3676,9 @@ function machineDemoContext(summary) {
     gpuTemperatureC: numeric(context.gpuTemperatureC),
     gpuPowerWatts: numeric(context.gpuPowerWatts),
     gpuProcesses: Array.isArray(context.gpuComputeProcesses) ? context.gpuComputeProcesses : [],
+    gpuProcessQuerySkipped: Boolean(context.gpuComputeProcessQuerySkipped),
+    gpuSampleCached: Boolean(context.gpuSampleCached),
+    gpuSampleAgeMs: numeric(context.gpuSampleAgeMs),
     cpuUsagePct: numeric(context.cpuUsagePct),
     memoryUsedPct: numeric(context.memoryUsedPct),
     diskUsedPct: numeric(context.diskUsedPct),
@@ -3720,6 +3723,9 @@ function machineDemoNarrative(machineContext) {
   }
   if (machineContext.noGpu) {
     return `Observed from ${machineContext.adapters}. No usable NVIDIA GPU counter source was detected; ${serviceText}, and ${modelText} are installed.`;
+  }
+  if (machineContext.idle && machineContext.gpuProcessQuerySkipped) {
+    return `Observed from ${machineContext.adapters}. NVIDIA process lookup is skipped in high-rate refresh mode; ${serviceText}, and ${modelText} are installed. This is a live utilization view, not a workload bottleneck claim.`;
   }
   if (machineContext.idle) {
     return `Observed from ${machineContext.adapters}. No active NVIDIA compute process was detected; ${serviceText}, and ${modelText} are installed. This is an idle-capacity observation, not a workload bottleneck claim.`;
@@ -3816,6 +3822,9 @@ function renderLiveResources(summary) {
   const gpuPowerAvailable = machineContext.gpuPresent && machineContext.gpuPowerWatts > 0;
   const gpuTemperatureAvailable = machineContext.gpuPresent && machineContext.gpuTemperatureC > 0;
   const pcie = context.gpuPcie ? ` | ${context.gpuPcie}` : "";
+  const gpuSampleNote = machineContext.gpuSampleCached
+    ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
+    : "nvidia-smi live sample";
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -3840,7 +3849,13 @@ function renderLiveResources(summary) {
     liveResourceCard({
       label: "GPU",
       value: machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : pct(machineContext.gpuUtilizationPct),
-      note: machineContext.driverUnavailable ? "Driver telemetry blocked" : machineContext.noGpu ? "No NVIDIA counter source" : `${machineContext.gpuProcesses.length} compute process${machineContext.gpuProcesses.length === 1 ? "" : "es"}`,
+      note: machineContext.driverUnavailable
+        ? "Driver telemetry blocked"
+        : machineContext.noGpu
+          ? "No NVIDIA counter source"
+          : machineContext.gpuProcessQuerySkipped
+            ? gpuSampleNote
+            : `${machineContext.gpuProcesses.length} compute process${machineContext.gpuProcesses.length === 1 ? "" : "es"}`,
       percent: machineContext.gpuPresent ? machineContext.gpuUtilizationPct : null,
       tone: machineContext.driverUnavailable || machineContext.noGpu ? "poor" : machineContext.gpuUtilizationPct > 0 ? grade(machineContext.gpuUtilizationPct, 30, 70).key : "watch"
     }),
@@ -3951,7 +3966,11 @@ function renderLiveTelemetryGraphs(container, machineContext, history) {
       history,
       latestLabel,
       valueText: machineContext.gpuPresent ? pct(latest.gpu) : "unavailable",
-      note: machineContext.gpuPresent ? "nvidia-smi utilization.gpu" : "Driver telemetry blocked",
+      note: machineContext.gpuPresent
+        ? machineContext.gpuSampleCached
+          ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
+          : "nvidia-smi utilization.gpu"
+        : "Driver telemetry blocked",
       max: 100,
       tone: machineContext.gpuPresent ? grade(latest.gpu, 30, 70).key : "poor"
     }),
@@ -4110,7 +4129,7 @@ function renderSchedulerSimulator(simulator, summary = null) {
     controls.forEach((button) => button.setAttribute("aria-selected", "false"));
     badge.textContent = "No scheduler export";
     stats.replaceChildren(
-      simulatorStat("GPU process", machineContext.gpuProcesses.length ? `${machineContext.gpuProcesses.length} active` : "none", machineContext.gpuProcesses.length ? "good" : "watch"),
+      simulatorStat("GPU process", machineContext.gpuProcessQuerySkipped ? "skipped" : machineContext.gpuProcesses.length ? `${machineContext.gpuProcesses.length} active` : "none", machineContext.gpuProcesses.length ? "good" : "watch"),
       simulatorStat("Docker", `${machineContext.dockerContainers.length} containers`, machineContext.dockerContainers.length ? "good" : "watch"),
       simulatorStat("Services", `${machineDemoServices(machineContext.context.observedServices).length} reachable`, "good"),
       simulatorStat("Workload counters", machineContext.workloadCountersObserved ? "present" : "not collected", machineContext.workloadCountersObserved ? "good" : "watch")
@@ -4118,7 +4137,7 @@ function renderSchedulerSimulator(simulator, summary = null) {
     narrative.replaceChildren(
       simulatorNarrativeItem("Scope", "Single Linux host observation"),
       simulatorNarrativeItem("Scheduler", "No Kubernetes, Slurm, admission, or provider scheduler export is attached"),
-      simulatorNarrativeItem("Next signal", machineContext.driverUnavailable ? "Fix NVIDIA driver access before expecting GPU counters" : machineContext.idle ? "Start a controlled GPU workload to measure active behavior" : "Join request or training counters to the host sample")
+      simulatorNarrativeItem("Next signal", machineContext.driverUnavailable ? "Fix NVIDIA driver access before expecting GPU counters" : machineContext.gpuProcessQuerySkipped ? "Use a slower diagnostic collection when process attribution matters" : machineContext.idle ? "Start a controlled GPU workload to measure active behavior" : "Join request or training counters to the host sample")
     );
     list.replaceChildren();
     return;
@@ -4606,8 +4625,8 @@ function renderBottleneck(summary, classifier) {
   const machineContext = machineDemoContext(summary);
   if (machineContext) {
     document.querySelector("#primaryBottleneck").textContent = machineContext.driverUnavailable ? "NVIDIA telemetry unavailable" : machineContext.noGpu ? "Host-only telemetry" : machineContext.idle ? "Idle GPU capacity" : "Live host utilization";
-    document.querySelector("#secondaryBottleneck").textContent = machineContext.driverUnavailable ? "nvidia-smi cannot reach driver" : machineContext.gpuProcesses.length ? "Active NVIDIA process" : "No NVIDIA compute process";
-    document.querySelector("#improvementEstimate").textContent = machineContext.driverUnavailable ? "Repair driver access or use a supported GPU counter source, then collect again." : machineContext.idle ? "Start a controlled workload, then compare the next live sample." : "Attach request or training counters before tuning.";
+    document.querySelector("#secondaryBottleneck").textContent = machineContext.driverUnavailable ? "nvidia-smi cannot reach driver" : machineContext.gpuProcessQuerySkipped ? "Process query skipped for 1s refresh" : machineContext.gpuProcesses.length ? "Active NVIDIA process" : "No NVIDIA compute process";
+    document.querySelector("#improvementEstimate").textContent = machineContext.driverUnavailable ? "Repair driver access or use a supported GPU counter source, then collect again." : machineContext.gpuProcessQuerySkipped ? "Use high-rate graphs for resource movement, then run slower process attribution only when needed." : machineContext.idle ? "Start a controlled workload, then compare the next live sample." : "Attach request or training counters before tuning.";
     document.querySelector("#bottleneckBadge").textContent = "Live host";
 
     const list = document.querySelector("#bottleneckBars");

@@ -24,7 +24,7 @@ node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.1
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 30 seconds while the tab is visible. That bundle reflects the actual machine state for NUC14E and SPARK1: host OS counters, Docker state, reachable Grafana/Netdata/Ollama/node-exporter services, NUC14E's RTX 4090 through `nvidia-smi`, and SPARK1's current NVIDIA driver telemetry availability. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
+Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 1 second while the tab is visible. That bundle reflects the actual machine state for NUC14E and SPARK1: host OS counters, Docker state, reachable Grafana/Netdata/Ollama/node-exporter services, NUC14E's RTX 4090 through `nvidia-smi`, and SPARK1's current NVIDIA driver telemetry availability. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
 
 For the standalone `DGX-pat` demo on `100.96.89.98`, run the local collector on that machine and serve the same static app:
 
@@ -42,7 +42,7 @@ node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundl
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Then open `http://192.168.10.20:8000/`. Treat it as a single observed Linux machine. The live resources panel updates from `build/demo/live-machine-bundle.json` every 5 seconds in the browser and should show CPU, RAM, disk, Docker, signal freshness, live telemetry graphs, and any GPU utilization, GPU power, GPU memory, or temperature counters exposed by `nvidia-smi`. If `nvidia-smi` cannot communicate with the NVIDIA driver, the dashboard should present that as the current telemetry state and use `?demo=sample` for the richer provider-value walkthrough.
+Then open `http://192.168.10.20:8000/`. Treat it as a single observed Linux machine. The live resources panel updates from `build/demo/live-machine-bundle.json` every 1 second in the browser and should show CPU, RAM, disk, Docker, signal freshness, live telemetry graphs, and any GPU utilization, GPU power, GPU memory, or temperature counters exposed by `nvidia-smi`. The SPARK1 high-rate collector runs as a resident loop, skips the slower NVIDIA process-attribution query, and may reuse a very recent GPU sample when `nvidia-smi` is slower than the one-second UI cadence; use a slower diagnostic collection only when process ownership matters. If `nvidia-smi` cannot communicate with the NVIDIA driver, the dashboard should present that as the current telemetry state and use `?demo=sample` for the richer provider-value walkthrough.
 
 ## Hardware Needed
 

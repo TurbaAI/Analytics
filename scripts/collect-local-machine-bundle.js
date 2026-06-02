@@ -4,37 +4,87 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { execFileSync, spawnSync } = require("node:child_process");
+const { execFileSync, spawn, spawnSync } = require("node:child_process");
 const { assertValidSourceBundle } = require("../lib/source-bundle-validator.js");
 
 const args = parseArgs(process.argv.slice(2));
 const outPath = args.out || "";
 const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || `http://${primaryAddress()}:8000`;
 const windowMinutes = numberArg(args["window-minutes"], 60);
-const generatedAt = new Date();
-const host = collectHost();
-const gpu = collectGpu();
-const docker = collectDocker();
-const services = collectServices(hostUrl);
-const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
-const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
-const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes });
+const fastRefresh = args["fast-refresh"] === "1" || args["skip-gpu-processes"] === "1";
+const loopMs = numberArg(args["loop-ms"], 0);
+const gpuSampleMs = numberArg(args["gpu-sample-ms"], fastRefresh ? 2000 : 0);
+const skipValidation = args["skip-validation"] === "1";
+let previousGpu = null;
 
-assertValidSourceBundle(bundle);
-
-const output = `${JSON.stringify(bundle, null, 2)}\n`;
-if (outPath) {
-  const fullPath = path.resolve(outPath);
-  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-  fs.writeFileSync(fullPath, output);
+if (loopMs > 0) {
+  runLoop().catch((error) => {
+    console.error(error?.stack || error);
+    process.exitCode = 1;
+  });
 } else {
-  process.stdout.write(output);
+  collectAndWrite();
 }
 
-function collectHost() {
+async function runLoop() {
+  const includeProcesses = !fastRefresh;
+  previousGpu = collectGpu({ includeProcesses });
+  let gpuRefreshInFlight = null;
+
+  while (true) {
+    const startedAt = Date.now();
+    const nowMs = Date.now();
+    const gpuAgeMs = previousGpu ? nowMs - previousGpu.collectedAtMs : Number.POSITIVE_INFINITY;
+    if (!gpuRefreshInFlight && gpuAgeMs >= gpuSampleMs) {
+      gpuRefreshInFlight = collectGpuAsync({ includeProcesses })
+        .then((gpu) => {
+          previousGpu = gpu;
+        })
+        .catch(() => {})
+        .finally(() => {
+          gpuRefreshInFlight = null;
+        });
+    }
+
+    collectAndWrite({ gpuOverride: gpuSampleForWrite(previousGpu, Date.now(), includeProcesses) });
+    await delay(Math.max(0, loopMs - (Date.now() - startedAt)));
+  }
+}
+
+function collectAndWrite({ gpuOverride = null } = {}) {
+  const generatedAt = new Date();
+  const host = collectHost({ cpuSampleMs: fastRefresh ? 80 : 250 });
+  const gpu = gpuOverride || collectGpu({
+    includeProcesses: !fastRefresh,
+    previousGpu,
+    maxAgeMs: gpuSampleMs,
+    nowMs: generatedAt.getTime()
+  });
+  if (!gpuOverride) previousGpu = gpu;
+  const docker = collectDocker();
+  const services = collectServices(hostUrl);
+  const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
+  const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
+  const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes });
+
+  if (!skipValidation) {
+    assertValidSourceBundle(bundle);
+  }
+
+  const output = `${JSON.stringify(bundle, null, 2)}\n`;
+  if (outPath) {
+    const fullPath = path.resolve(outPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    writeFileAtomic(fullPath, output);
+  } else {
+    process.stdout.write(output);
+  }
+}
+
+function collectHost({ cpuSampleMs = 250 } = {}) {
   const meminfo = readMeminfo();
   const disk = diskInfo("/");
-  const cpuSample = cpuUsageSample();
+  const cpuSample = cpuUsageSample(cpuSampleMs);
   const net = primaryNetworkStats();
   const load = os.loadavg();
   const cpus = os.cpus();
@@ -66,7 +116,17 @@ function collectHost() {
   };
 }
 
-function collectGpu() {
+function collectGpu({ includeProcesses = true, previousGpu: cachedGpu = null, maxAgeMs = 0, nowMs = Date.now() } = {}) {
+  if (cachedGpu && maxAgeMs > 0 && nowMs - cachedGpu.collectedAtMs < maxAgeMs) {
+    return cloneGpuSample({
+      ...cachedGpu,
+      sampleCached: true,
+      sampleAgeMs: nowMs - cachedGpu.collectedAtMs,
+      processesSkipped: !includeProcesses || cachedGpu.processesSkipped,
+      processesObserved: includeProcesses && cachedGpu.processesObserved
+    });
+  }
+
   const queryResult = commandResult("nvidia-smi", [
     "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
     "--format=csv,noheader,nounits"
@@ -81,11 +141,65 @@ function collectGpu() {
       present: false,
       count: 0,
       gpus: [],
+      processes: [],
+      processesObserved: false,
+      processesSkipped: !includeProcesses,
+      collectedAtMs: Date.now(),
+      sampleCached: false,
+      sampleAgeMs: 0,
       source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
       error: compactWhitespace(queryResult.stderr || query || queryResult.errorMessage || "nvidia-smi returned no GPU rows")
     };
   }
 
+  const processesText = includeProcesses
+    ? command("nvidia-smi", [
+      "--query-compute-apps=pid,process_name,used_memory",
+      "--format=csv,noheader,nounits"
+    ])
+    : "";
+  return parseGpuQuery(query, { includeProcesses, processesText });
+}
+
+async function collectGpuAsync({ includeProcesses = true } = {}) {
+  const queryResult = await commandResultAsync("nvidia-smi", [
+    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
+    "--format=csv,noheader,nounits"
+  ]);
+  if (
+    queryResult.status !== 0
+    || /nvidia-smi has failed|couldn't communicate with the nvidia driver|failed to initialize/i.test(queryResult.stdout)
+    || !queryResult.stdout.trim()
+  ) {
+    return {
+      present: false,
+      count: 0,
+      gpus: [],
+      processes: [],
+      processesObserved: false,
+      processesSkipped: !includeProcesses,
+      collectedAtMs: Date.now(),
+      sampleCached: false,
+      sampleAgeMs: 0,
+      source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
+      error: compactWhitespace(queryResult.stderr || queryResult.stdout || queryResult.errorMessage || "nvidia-smi returned no GPU rows")
+    };
+  }
+
+  const processResult = includeProcesses
+    ? await commandResultAsync("nvidia-smi", [
+      "--query-compute-apps=pid,process_name,used_memory",
+      "--format=csv,noheader,nounits"
+    ])
+    : { stdout: "" };
+
+  return parseGpuQuery(queryResult.stdout, {
+    includeProcesses,
+    processesText: processResult.stdout || ""
+  });
+}
+
+function parseGpuQuery(query, { includeProcesses, processesText }) {
   const gpus = query.trim().split("\n").map((line) => {
     const [
       name,
@@ -116,28 +230,31 @@ function collectGpu() {
     };
   }).filter((entry) => entry.name);
 
-  const processesText = command("nvidia-smi", [
-    "--query-compute-apps=pid,process_name,used_memory",
-    "--format=csv,noheader,nounits"
-  ]);
-  const processes = processesText.trim().split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [pid, processName, usedMemoryMiB] = line.split(",").map((item) => item.trim());
-      return {
-        pid: Number(pid),
-        processName,
-        usedMemoryMiB: finite(usedMemoryMiB)
-      };
-    })
-    .filter((entry) => Number.isFinite(entry.pid));
+  const processes = includeProcesses
+    ? processesText.trim().split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [pid, processName, usedMemoryMiB] = line.split(",").map((item) => item.trim());
+        return {
+          pid: Number(pid),
+          processName,
+          usedMemoryMiB: finite(usedMemoryMiB)
+        };
+      })
+      .filter((entry) => Number.isFinite(entry.pid))
+    : [];
 
   return {
     present: gpus.length > 0,
     count: gpus.length,
     gpus,
     processes,
+    processesObserved: includeProcesses,
+    processesSkipped: !includeProcesses,
+    collectedAtMs: Date.now(),
+    sampleCached: false,
+    sampleAgeMs: 0,
     source: "nvidia-smi",
     error: ""
   };
@@ -194,7 +311,9 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
   const primaryGpu = gpu.gpus[0] || {};
   const gpuUtil = finite(primaryGpu.utilizationGpuPct, 0);
   const gpuMemoryPct = primaryGpu.memoryTotalMiB > 0 ? (primaryGpu.memoryUsedMiB / primaryGpu.memoryTotalMiB) * 100 : 0;
-  const hasActiveGpuProcess = (gpu.processes || []).length > 0;
+  const hasActiveGpuProcess = gpu.processesObserved
+    ? (gpu.processes || []).length > 0
+    : gpu.present && gpuUtil > 1;
   const cpuBusyPct = finite(host.cpuUsagePct, 0);
   const loadPressurePct = clamp((host.load1 / Math.max(1, host.cpuCount)) * 100, 0, 100);
   const memoryUsedPct = host.memoryTotalBytes > 0
@@ -231,7 +350,7 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
     cpuPrep: clamp(Math.max(cpuBusyPct, dockerCpuPct) * 0.75, 0, 45),
     contentionPct: clamp(Math.max(loadPressurePct, dockerCpuPct), 0, 45),
     latencyTail: clamp(loadPressurePct * 0.6 + (host.network.txDrops > 0 ? 6 : 0), 0, 35),
-    noGpuProcess: gpu.present && !hasActiveGpuProcess
+    noGpuProcess: gpu.present && gpu.processesObserved && !hasActiveGpuProcess
   };
 }
 
@@ -406,6 +525,9 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpuPowerWatts: round(finite(primaryGpu.powerDrawWatts, 0), 2),
             gpuTemperatureC: round(finite(primaryGpu.temperatureC, 0), 2),
             gpuComputeProcesses: gpu.processes || [],
+            gpuComputeProcessQuerySkipped: Boolean(gpu.processesSkipped),
+            gpuSampleCached: Boolean(gpu.sampleCached),
+            gpuSampleAgeMs: round(finite(gpu.sampleAgeMs, 0), 0),
             gpuPcie: primaryGpu.pcieGen ? `gen${primaryGpu.pcieGen} x${primaryGpu.pcieWidth || "?"}` : "",
             sourceAdapters,
             unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],
@@ -478,9 +600,9 @@ function primaryNetworkStats() {
   };
 }
 
-function cpuUsageSample() {
+function cpuUsageSample(sampleMs = 250) {
   const first = readCpuStat();
-  sleep(250);
+  sleep(sampleMs);
   const second = readCpuStat();
   const idleDelta = second.idle - first.idle;
   const totalDelta = second.total - first.total;
@@ -553,6 +675,102 @@ function commandResult(bin, args = []) {
   };
 }
 
+function commandResultAsync(bin, args = []) {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, {
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      settled = true;
+      child.kill("SIGTERM");
+      resolve({
+        status: 124,
+        stdout,
+        stderr,
+        errorCode: "ETIMEDOUT",
+        errorMessage: `${bin} timed out`
+      });
+    }, 5000);
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve({
+        status: 1,
+        stdout,
+        stderr,
+        errorCode: error.code || "",
+        errorMessage: error.message || ""
+      });
+    });
+    child.on("close", (status) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolve({
+        status,
+        stdout,
+        stderr,
+        errorCode: "",
+        errorMessage: ""
+      });
+    });
+  });
+}
+
+function gpuSampleForWrite(gpu, nowMs, includeProcesses) {
+  if (!gpu) {
+    return {
+      present: false,
+      count: 0,
+      gpus: [],
+      processes: [],
+      processesObserved: false,
+      processesSkipped: !includeProcesses,
+      collectedAtMs: nowMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      source: "nvidia-smi-unavailable",
+      error: "No GPU sample collected yet"
+    };
+  }
+
+  const sampleAgeMs = Math.max(0, nowMs - gpu.collectedAtMs);
+  return cloneGpuSample({
+    ...gpu,
+    processesObserved: includeProcesses && gpu.processesObserved,
+    processesSkipped: !includeProcesses || gpu.processesSkipped,
+    sampleCached: sampleAgeMs > 250,
+    sampleAgeMs
+  });
+}
+
+function cloneGpuSample(gpu) {
+  return {
+    ...gpu,
+    gpus: (gpu.gpus || []).map((entry) => ({ ...entry })),
+    processes: (gpu.processes || []).map((entry) => ({ ...entry }))
+  };
+}
+
+function writeFileAtomic(filePath, content) {
+  const tempPath = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tempPath, content);
+  fs.renameSync(tempPath, filePath);
+}
+
 function readFile(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8").trim();
@@ -596,6 +814,10 @@ function clamp(value, min, max) {
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function timestampId(date) {

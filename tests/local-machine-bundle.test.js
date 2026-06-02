@@ -42,8 +42,33 @@ assert.ok(!bundle.ingestion.runs[0].importedSources.includes("scheduler"));
 assert.ok(!bundle.ingestion.runs[0].importedSources.includes("provider"));
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.dockerContainers));
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.observedServices));
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuComputeProcessQuerySkipped, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleCached, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleAgeMs, "number");
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
+
+const fastOutPath = path.join(tempDir, "live-machine-bundle-fast.json");
+const fastResult = spawnSync(process.execPath, [
+  "scripts/collect-local-machine-bundle.js",
+  "--out",
+  fastOutPath,
+  "--host-url",
+  "http://192.168.10.101:8000",
+  "--run-id",
+  "machine-demo-fast-test",
+  "--fast-refresh"
+], {
+  cwd: root,
+  encoding: "utf8",
+  maxBuffer: 20 * 1024 * 1024
+});
+
+assert.equal(fastResult.status, 0, fastResult.stderr);
+const fastBundle = JSON.parse(fs.readFileSync(fastOutPath, "utf8"));
+assert.equal(fastBundle.ingestion.runs[0].id, "machine-demo-fast-test");
+assert.equal(fastBundle.ingestion.runs[0].sourceContext.gpuComputeProcessQuerySkipped, true);
+assert.equal(fastBundle.ingestion.runs[0].sourceContext.gpuSampleCached, false);
 
 const fleetResult = spawnSync(process.execPath, [
   "scripts/collect-machine-fleet-bundle.js",
