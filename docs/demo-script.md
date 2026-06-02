@@ -51,7 +51,7 @@ When showing `http://100.96.89.98:8000/`, position it as a standalone `DGX-pat` 
 
 When showing `http://192.168.10.20:8000/`, position it as a standalone `SPARK1` observation with the same source-boundary rule. If NVIDIA telemetry is unavailable, say that plainly, then switch to `?demo=sample` to show the full provider analytics workflow.
 
-On SPARK1, start by showing the live resources panel: CPU, RAM, disk, Docker, signal freshness, and GPU utilization/power/memory only when the NVIDIA driver path exposes those counters. This makes the value concrete before moving into the provider fixture: turbalance separates live host reality from richer source-export analytics.
+On SPARK1, start by showing the live resources panel and telemetry graphs: CPU, RAM, disk, Docker, signal freshness, and GPU utilization/power/memory only when the NVIDIA driver path exposes those counters. Leave the page open for a few refreshes so the graphs visibly fill in. This makes the value concrete before moving into the provider fixture: turbalance separates live host reality from richer source-export analytics.
 
 If asked about hardware, use `docs/demo-logistics.md`: a laptop or small VM is enough for the demo; one Linux NVIDIA GPU node is enough for integration smoke testing; two to four or more GPU nodes are better for realistic placement and topology behavior.
 

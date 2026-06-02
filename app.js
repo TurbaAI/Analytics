@@ -992,12 +992,14 @@ const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 5000;
+const LIVE_TELEMETRY_LIMIT = 72;
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
 let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
+let liveTelemetryHistory = [];
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
 
@@ -3788,17 +3790,21 @@ function renderLiveResources(summary) {
   const title = document.querySelector("#liveResourceTitle");
   const badge = document.querySelector("#liveResourceBadge");
   const grid = document.querySelector("#liveResourceGrid");
-  if (!panel || !title || !badge || !grid) return;
+  const graphs = document.querySelector("#liveTelemetryGraphs");
+  if (!panel || !title || !badge || !grid || !graphs) return;
 
   const machineContext = machineDemoContext(summary);
   if (!machineContext) {
     panel.hidden = true;
     grid.replaceChildren();
+    graphs.replaceChildren();
+    liveTelemetryHistory = [];
     return;
   }
 
   const context = machineContext.context || {};
   const generatedAt = context.generatedAt ? safeDate(context.generatedAt, new Date(0)) : null;
+  const telemetry = recordLiveTelemetrySample(machineContext, generatedAt);
   const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
   const memoryTotal = numeric(context.memoryTotalBytes);
   const memoryAvailable = numeric(context.memoryAvailableBytes);
@@ -3874,6 +3880,195 @@ function renderLiveResources(summary) {
       tone: "good"
     })
   );
+
+  renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
+}
+
+function recordLiveTelemetrySample(machineContext, generatedAt) {
+  const context = machineContext.context || {};
+  const timestampMs = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime())
+    ? generatedAt.getTime()
+    : Date.now();
+  const host = machineContext.host || "host";
+  const last = liveTelemetryHistory[liveTelemetryHistory.length - 1];
+  if (last && last.host !== host) {
+    liveTelemetryHistory = [];
+  }
+  if (last && last.host === host && last.timestampMs === timestampMs) {
+    return liveTelemetryHistory;
+  }
+
+  liveTelemetryHistory.push({
+    host,
+    timestampMs,
+    label: new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    cpu: clamp(machineContext.cpuUsagePct),
+    ram: clamp(machineContext.memoryUsedPct),
+    disk: clamp(machineContext.diskUsedPct),
+    dockerCpu: clamp(machineContext.dockerContainers.reduce((total, container) => total + numeric(container.cpuPct), 0)),
+    gpu: machineContext.gpuPresent ? clamp(machineContext.gpuUtilizationPct) : null,
+    gpuMemory: machineContext.gpuPresent ? clamp(machineContext.gpuMemoryUsedPct) : null,
+    gpuPower: machineContext.gpuPresent && machineContext.gpuPowerWatts > 0 ? numeric(machineContext.gpuPowerWatts) : null,
+    gpuTemperature: machineContext.gpuPresent && machineContext.gpuTemperatureC > 0 ? numeric(machineContext.gpuTemperatureC) : null,
+    memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes))
+  });
+
+  if (liveTelemetryHistory.length > LIVE_TELEMETRY_LIMIT) {
+    liveTelemetryHistory = liveTelemetryHistory.slice(-LIVE_TELEMETRY_LIMIT);
+  }
+
+  return liveTelemetryHistory;
+}
+
+function renderLiveTelemetryGraphs(container, machineContext, history) {
+  const sampleCount = history.length;
+  const latest = history[sampleCount - 1] || {};
+  const latestLabel = latest.label ? `Latest sample ${latest.label}` : "Waiting for live samples";
+  container.replaceChildren(
+    liveTelemetryGraphCard({
+      label: "CPU",
+      valueKey: "cpu",
+      history,
+      latestLabel,
+      valueText: pct(latest.cpu),
+      note: "Host CPU usage",
+      max: 100,
+      tone: inverseGrade(latest.cpu, 70, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "RAM",
+      valueKey: "ram",
+      history,
+      latestLabel,
+      valueText: pct(latest.ram),
+      note: latest.memoryUsedBytes ? `${formatBytes(latest.memoryUsedBytes)} used` : "Host memory usage",
+      max: 100,
+      tone: inverseGrade(latest.ram, 75, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU util",
+      valueKey: "gpu",
+      history,
+      latestLabel,
+      valueText: machineContext.gpuPresent ? pct(latest.gpu) : "unavailable",
+      note: machineContext.gpuPresent ? "nvidia-smi utilization.gpu" : "Driver telemetry blocked",
+      max: 100,
+      tone: machineContext.gpuPresent ? grade(latest.gpu, 30, 70).key : "poor"
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU power",
+      valueKey: "gpuPower",
+      history,
+      latestLabel,
+      valueText: latest.gpuPower ? `${round(latest.gpuPower)} W` : "not reported",
+      note: latest.gpuTemperature ? `${round(latest.gpuTemperature)} C` : "Power counter unavailable",
+      max: adaptiveGraphMax(history, "gpuPower", 450),
+      tone: latest.gpuPower ? inverseGrade(latest.gpuPower, 330, 430).key : "watch"
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU memory",
+      valueKey: "gpuMemory",
+      history,
+      latestLabel,
+      valueText: machineContext.gpuPresent ? pct(latest.gpuMemory) : "unavailable",
+      note: machineContext.gpuPresent ? "GPU memory in use" : "Driver telemetry blocked",
+      max: 100,
+      tone: machineContext.gpuPresent ? inverseGrade(latest.gpuMemory, 82, 94).key : "poor"
+    }),
+    liveTelemetryGraphCard({
+      label: "Disk",
+      valueKey: "disk",
+      history,
+      latestLabel,
+      valueText: pct(latest.disk),
+      note: "Root filesystem usage",
+      max: 100,
+      tone: inverseGrade(latest.disk, 75, 90).key
+    })
+  );
+}
+
+function liveTelemetryGraphCard({ label, valueKey, history, latestLabel, valueText, note, max = 100, tone = "watch" }) {
+  const item = document.createElement("div");
+  item.className = "live-telemetry-card";
+  item.dataset.tone = tone;
+
+  const head = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = valueText;
+  head.append(labelEl, valueEl);
+
+  const svg = buildTelemetrySparkline(history, valueKey, max);
+  const noteEl = document.createElement("small");
+  noteEl.textContent = `${note} | ${latestLabel}`;
+
+  item.append(head, svg, noteEl);
+  return item;
+}
+
+function buildTelemetrySparkline(history, valueKey, max) {
+  const width = 260;
+  const height = 78;
+  const pad = 8;
+  const innerWidth = width - pad * 2;
+  const innerHeight = height - pad * 2;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `${valueKey} telemetry graph`);
+
+  [0.25, 0.5, 0.75].forEach((ratio) => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = pad + innerHeight * ratio;
+    line.setAttribute("x1", pad);
+    line.setAttribute("x2", width - pad);
+    line.setAttribute("y1", y);
+    line.setAttribute("y2", y);
+    line.setAttribute("class", "telemetry-grid-line");
+    svg.append(line);
+  });
+
+  const validPoints = history
+    .map((sample, index) => {
+      const value = numeric(sample[valueKey], Number.NaN);
+      if (!Number.isFinite(value)) return null;
+      const x = pad + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
+      const y = pad + innerHeight - (clamp(value, 0, max) / Math.max(max, 1)) * innerHeight;
+      return { x, y };
+    })
+    .filter(Boolean);
+
+  if (validPoints.length >= 2) {
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    polyline.setAttribute("points", validPoints.map((point) => `${round(point.x)},${round(point.y)}`).join(" "));
+    polyline.setAttribute("class", "telemetry-line");
+    svg.append(polyline);
+  } else if (validPoints.length === 1) {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", validPoints[0].x);
+    dot.setAttribute("cy", validPoints[0].y);
+    dot.setAttribute("r", 3);
+    dot.setAttribute("class", "telemetry-dot");
+    svg.append(dot);
+  } else {
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", width / 2);
+    text.setAttribute("y", height / 2 + 4);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "telemetry-empty");
+    text.textContent = "no live counter";
+    svg.append(text);
+  }
+
+  return svg;
+}
+
+function adaptiveGraphMax(history, key, fallback) {
+  const observed = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  if (!observed.length) return fallback;
+  return Math.max(10, Math.ceil(Math.max(...observed, fallback * 0.2) * 1.25));
 }
 
 function liveResourceCard({ label, value, note, percent = null, tone = "watch" }) {

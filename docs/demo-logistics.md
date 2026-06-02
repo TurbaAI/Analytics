@@ -42,7 +42,7 @@ node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundl
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Then open `http://192.168.10.20:8000/`. Treat it as a single observed Linux machine. The live resources panel updates from `build/demo/live-machine-bundle.json` every 5 seconds in the browser and should show CPU, RAM, disk, Docker, signal freshness, and any GPU utilization, GPU power, GPU memory, or temperature counters exposed by `nvidia-smi`. If `nvidia-smi` cannot communicate with the NVIDIA driver, the dashboard should present that as the current telemetry state and use `?demo=sample` for the richer provider-value walkthrough.
+Then open `http://192.168.10.20:8000/`. Treat it as a single observed Linux machine. The live resources panel updates from `build/demo/live-machine-bundle.json` every 5 seconds in the browser and should show CPU, RAM, disk, Docker, signal freshness, live telemetry graphs, and any GPU utilization, GPU power, GPU memory, or temperature counters exposed by `nvidia-smi`. If `nvidia-smi` cannot communicate with the NVIDIA driver, the dashboard should present that as the current telemetry state and use `?demo=sample` for the richer provider-value walkthrough.
 
 ## Hardware Needed
 
