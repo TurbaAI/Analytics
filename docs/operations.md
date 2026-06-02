@@ -200,19 +200,27 @@ node scripts/fetch-source-system-export.js \
 
 Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`. Prometheus/DCGM collection remains in `scripts/fetch-prometheus-source-export.js` because it uses Prometheus query semantics.
 
-For the SPARK1 single-node Kubernetes demo, use the local `kubectl` plus Prometheus collector instead of a source-owner HTTP gateway:
+For the SPARK1 single-node Kubernetes demo, use the local `kubectl` plus Prometheus collector instead of a source-owner HTTP gateway. After a reboot, restart the SPARK1 observability stack and local forwards before collecting:
 
 ```sh
+kubectl apply -f ops/kubernetes/spark1-observability.yaml
+kubectl -n turbalance-observability rollout status daemonset/dcgm-exporter
+kubectl -n turbalance-observability rollout status deployment/prometheus
+kubectl -n turbalance-observability rollout status deployment/grafana
+nohup kubectl -n turbalance-observability port-forward svc/prometheus 9090:9090 --address 127.0.0.1 > build/demo/prometheus-port-forward.log 2>&1 &
+nohup kubectl -n turbalance-observability port-forward svc/grafana 3000:3000 --address 0.0.0.0 > build/demo/grafana-port-forward.log 2>&1 &
+
 kubectl apply -f ops/kubernetes/spark1-gpu-demo-job.yaml
 
 node scripts/collect-spark1-kubernetes-demo.js \
   --run-id spark1-k8s-demo-001 \
   --namespace turbalance-demo \
   --prometheus-url http://127.0.0.1:9090 \
+  --grafana-url http://192.168.10.20:3000/d/spark1-dcgm/spark1-dcgm-gpu-demo \
   --out build/demo/spark1-k8s-bundle.json
 ```
 
-That bundle includes `sources.kubernetes`, `sources.scheduler`, and, when reachable, `sources.prometheus` and `sources.dcgm`. Use it only for observed SPARK1 lab evidence; keep provider queue, billing, topology, and SLO claims tied to provider-approved exports.
+That bundle includes `sources.kubernetes`, `sources.scheduler`, and, when reachable, `sources.prometheus`, `sources.dcgm`, and `sources.grafana`. Use it only for observed SPARK1 lab evidence; keep provider queue, billing, topology, and SLO claims tied to provider-approved exports.
 
 To enable and verify Kafka on SPARK1's lab `k3s` cluster, run the broker manifest plus smoke-check helper:
 

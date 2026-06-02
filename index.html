@@ -33,15 +33,6 @@
           <input id="samePodToggle" type="checkbox">
           <span>Same-pod what-if</span>
         </label>
-        <button id="analyzeButton" class="primary-button" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 13.5a8 8 0 1 0 2.35-5.66"></path>
-            <path d="M4 4v6h6"></path>
-            <path d="M9 12h6"></path>
-            <path d="M12 9v6"></path>
-          </svg>
-          <span>Analyze</span>
-        </button>
       </div>
     </header>
 
@@ -315,7 +306,16 @@
                   <p>Snapshots</p>
                   <h2>Trend view</h2>
                 </div>
-                <span id="trendBadge">0 points</span>
+                <div class="panel-actions">
+                  <span id="trendBadge">0 points</span>
+                  <button id="captureSnapshotButton" class="icon-button" type="button" title="Capture trend snapshot" aria-label="Capture trend snapshot">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 19h16"></path>
+                      <path d="M5 15l4-4 3 3 7-8"></path>
+                      <path d="M15 6h4v4"></path>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="trend-body">
                 <div class="trend-toolbar">

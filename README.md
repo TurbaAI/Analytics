@@ -89,6 +89,7 @@ On a target host, unpack the tarball and run one of:
 sudo ./install.sh --mode docker --prefix /opt/turbalance-analytics
 sudo ./install.sh --mode k8s --prefix /opt/turbalance-analytics
 ./install.sh --mode static --prefix "$HOME/turbalance-analytics"
+sudo ./install.sh --mode static --prefix /opt/turbalance-analytics --with-systemd --live-machine --live-machine-host-url http://192.168.10.20:8000
 ```
 
 Key files:
@@ -392,7 +393,7 @@ Focused test entry points:
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
-- `scripts/collect-local-machine-bundle.js`: samples the current Linux host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle
+- `scripts/collect-local-machine-bundle.js`: samples the current Linux host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle; when Ollama has an already-loaded model in `/api/ps`, it records a tiny generation probe for tokens per second and time to first token
 - `scripts/collect-machine-fleet-bundle.js`: combines strict live observations from the demo host plus approved SSH machines such as `user@192.168.10.20` into one live machine bundle without synthesizing provider/source overlays
 - `scripts/check-spark1-kafka.js`: applies the SPARK1 single-node Kafka broker, waits for readiness, and runs a produce/consume smoke Job
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
@@ -429,7 +430,182 @@ node scripts/prepare-demo.js --out-dir build/demo
 
 This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
-When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.101` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, and `100.96.89.98` for the standalone `DGX-pat` view. The live resources panel surfaces CPU, RAM, GPU utilization, GPU power, GPU memory, disk, Docker, and signal freshness from the strict machine bundle, plus in-browser telemetry graphs for roughly the latest five minutes of sample history. It also computes short-window trend slopes and cross-metric relationships, then raises relationship alerts for conditions such as idle accelerators, CPU rising while GPU is flat, memory/disk pressure drift, thermal drift, lagging GPU counters, and power/utilization divergence. High-rate collectors can run as resident loops and label very recent cached GPU samples when `nvidia-smi` is slower than the browser cadence. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
+When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.101` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, and `100.96.89.98` for the standalone `DGX-pat` view. The live resources panel surfaces CPU, RAM, GPU utilization, GPU power, GPU memory, disk, Docker, Ollama generation telemetry, and signal freshness from the strict machine bundle, plus in-browser telemetry graphs for roughly the latest five minutes of sample history. It also computes short-window trend slopes and cross-metric relationships, then raises relationship alerts for conditions such as idle accelerators, CPU rising while GPU is flat, memory/disk pressure drift, thermal drift, lagging GPU counters, and power/utilization divergence. High-rate collectors can run as resident loops and label very recent cached GPU samples when `nvidia-smi` is slower than the browser cadence. When Ollama is reachable and `/api/ps` reports a loaded model, the collector sends a tiny streaming prompt to the loaded model and caches the resulting tokens-per-second and time-to-first-token reading for 30 seconds; use `--ollama-probe 0` to disable that probe or `--ollama-probe-ms <milliseconds>` to change the cache interval. If no model is loaded, the dashboard reports Ollama as reachable without fabricating throughput. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, Ollama, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
+
+SPARK1 after reboot:
+
+If `systemctl restart turbalance-analytics.service turbalance-gb100-app-collector.service` reports `Unit ... not found`, the static installer has not created systemd units on SPARK1 yet. Start the standalone SPARK1 demo from the checkout:
+
+```sh
+cd /home/user/Analytics
+mkdir -p build/demo
+
+nohup node scripts/collect-local-machine-bundle.js \
+  --out build/demo/live-machine-bundle.json \
+  --host-url http://192.168.10.20:8000 \
+  --loop-ms 1000 \
+  --fast-refresh 1 \
+  > build/demo/live-machine-collector.log 2>&1 &
+
+nohup python3 -m http.server 8000 --bind 0.0.0.0 \
+  > build/demo/static-server.log 2>&1 &
+```
+
+Then open `http://192.168.10.20:8000/`. Confirm the app and live bundle are available with:
+
+```sh
+curl -I http://127.0.0.1:8000/
+ls -lh build/demo/live-machine-bundle.json
+tail -50 build/demo/live-machine-collector.log
+```
+
+To install restartable static services for future boots, run:
+
+```sh
+cd /home/user/Analytics
+pwd
+ls -la install.sh scripts/collect-local-machine-bundle.js
+
+sudo ./install.sh \
+  --mode static \
+  --prefix /opt/turbalance-analytics \
+  --with-systemd \
+  --live-machine \
+  --live-machine-host-url http://192.168.10.20:8000
+```
+
+If `sudo ./install.sh` prints `sudo: ./install.sh: command not found`, the shell is not in a checkout that contains the installer, or the SPARK1 copy is older than this reboot-safe installer change. Find the real checkout or refresh the copy before installing:
+
+```sh
+find /home/user -maxdepth 4 -name install.sh -print
+git -C /home/user/Analytics status
+```
+
+If `install.sh` exists but is not executable, run the installer through `sh`:
+
+```sh
+sudo sh ./install.sh \
+  --mode static \
+  --prefix /opt/turbalance-analytics \
+  --with-systemd \
+  --live-machine \
+  --live-machine-host-url http://192.168.10.20:8000
+```
+
+If `install.sh` is missing but `scripts/collect-local-machine-bundle.js` exists, create the reboot-safe services manually from the current checkout:
+
+```sh
+cd /home/user/Analytics
+test -f index.html
+test -f scripts/collect-local-machine-bundle.js
+NODE_BIN="$(command -v node)"
+PYTHON_BIN="$(command -v python3)"
+test -n "$NODE_BIN"
+test -n "$PYTHON_BIN"
+mkdir -p build/demo
+
+sudo tee /etc/systemd/system/turbalance-analytics.service >/dev/null <<EOF
+[Unit]
+Description=turbalance Analytics static app
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=user
+Group=user
+WorkingDirectory=/home/user/Analytics
+ExecStart=$PYTHON_BIN -m http.server 8000 --bind 0.0.0.0
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo tee /etc/systemd/system/turbalance-live-machine-collector.service >/dev/null <<EOF
+[Unit]
+Description=turbalance live machine bundle collector
+After=network-online.target turbalance-analytics.service
+Wants=network-online.target
+
+[Service]
+User=user
+Group=user
+WorkingDirectory=/home/user/Analytics
+ExecStart=$NODE_BIN scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://192.168.10.20:8000 --loop-ms 1000 --fast-refresh 1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now turbalance-analytics.service turbalance-live-machine-collector.service
+```
+
+If `/opt/turbalance-analytics` already exists from an earlier install, add `--force` after confirming the checkout contains the version you want to run. That creates and starts `turbalance-analytics.service`, `turbalance-gb100-app-collector.service`, and `turbalance-live-machine-collector.service`. The live-machine service is the piece that keeps `build/demo/live-machine-bundle.json` fresh after reboot.
+
+After installation or reboot, verify all three static-mode services and the live bundle:
+
+```sh
+sudo systemctl status \
+  turbalance-analytics.service \
+  turbalance-gb100-app-collector.service \
+  turbalance-live-machine-collector.service
+
+curl -fsS http://127.0.0.1:8000/ >/dev/null
+curl -fsS http://127.0.0.1:8000/build/demo/live-machine-bundle.json | head -c 300
+journalctl -u turbalance-live-machine-collector.service -n 80 --no-pager
+```
+
+For the SPARK1 Kubernetes, Prometheus, DCGM, and Grafana path after reboot, first confirm that the node and NVIDIA GPU resource are visible:
+
+```sh
+nvidia-smi
+kubectl get nodes
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPUS:.status.allocatable.nvidia\\.com/gpu
+```
+
+Then restart the local observability stack and keep the local forwards open. Prometheus is used by the collector on SPARK1; Grafana is exposed for the dashboard handoff link:
+
+```sh
+kubectl apply -f ops/kubernetes/spark1-observability.yaml
+kubectl -n turbalance-observability rollout status daemonset/dcgm-exporter
+kubectl -n turbalance-observability rollout status deployment/prometheus
+kubectl -n turbalance-observability rollout status deployment/grafana
+
+nohup kubectl -n turbalance-observability port-forward svc/prometheus 9090:9090 \
+  --address 127.0.0.1 > build/demo/prometheus-port-forward.log 2>&1 &
+
+nohup kubectl -n turbalance-observability port-forward svc/grafana 3000:3000 \
+  --address 0.0.0.0 > build/demo/grafana-port-forward.log 2>&1 &
+```
+
+Run or refresh the labeled Kubernetes GPU workload, then collect a fresh SPARK1 source bundle with Kubernetes, scheduler, Prometheus, DCGM, and Grafana context:
+
+```sh
+kubectl apply -f ops/kubernetes/spark1-gpu-demo-job.yaml
+kubectl -n turbalance-demo get pods -l turba.ai/run-id=spark1-k8s-demo-001 -w
+
+node scripts/collect-spark1-kubernetes-demo.js \
+  --run-id spark1-k8s-demo-001 \
+  --namespace turbalance-demo \
+  --prometheus-url http://127.0.0.1:9090 \
+  --grafana-url http://192.168.10.20:3000/d/spark1-dcgm/spark1-dcgm-gpu-demo \
+  --out build/demo/spark1-k8s-bundle.json
+```
+
+Quick checks:
+
+```sh
+kubectl -n turbalance-observability get pods,svc
+curl -fsS http://127.0.0.1:9090/-/ready
+curl -I http://127.0.0.1:3000/
+curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=DCGM_FI_DEV_GPU_UTIL' | head -c 500
+```
+
+Import `build/demo/spark1-k8s-bundle.json` in the analyzer when you want the Kubernetes/DCGM/Grafana evidence path. If the bundle only has `kubernetes` and `scheduler`, Prometheus or DCGM was not reachable at collection time; check the rollout and port-forward logs before claiming live GPU counter evidence.
 
 ## Deployment
 

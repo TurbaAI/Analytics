@@ -210,7 +210,6 @@ input[type="url"] {
   accent-color: var(--teal);
 }
 
-.primary-button,
 .secondary-button,
 .icon-button {
   display: inline-flex;
@@ -218,16 +217,6 @@ input[type="url"] {
   justify-content: center;
   border: 1px solid transparent;
   border-radius: 7px;
-}
-
-.primary-button {
-  gap: 8px;
-  min-height: 38px;
-  padding: 0 14px;
-  background: linear-gradient(135deg, #04c797 0%, var(--teal) 100%);
-  color: #031426;
-  font-weight: 800;
-  box-shadow: 0 10px 22px rgba(8, 216, 168, 0.22);
 }
 
 .secondary-button {
@@ -241,7 +230,6 @@ input[type="url"] {
   white-space: nowrap;
 }
 
-.primary-button svg,
 .secondary-button svg,
 .icon-button svg {
   width: 18px;
@@ -261,7 +249,6 @@ input[type="url"] {
   border-color: var(--line-strong);
 }
 
-.primary-button:hover,
 .secondary-button:hover,
 .icon-button:hover,
 .entity-row:hover,
@@ -401,6 +388,80 @@ input[type="url"] {
 .analysis-stamp time {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+@media (min-width: 901px) {
+  .topbar {
+    gap: 16px;
+    min-height: 72px;
+    padding: 8px 22px;
+  }
+
+  .brand {
+    min-width: 280px;
+  }
+
+  .brand-wordmark {
+    width: min(276px, 30vw);
+    height: 42px;
+  }
+
+  .brand-copy > span {
+    font-size: 0.72rem;
+    line-height: 1.1;
+  }
+
+  .top-actions {
+    gap: 8px 10px;
+  }
+
+  .topbar select,
+  .topbar input[type="number"],
+  .topbar .toggle {
+    min-height: 34px;
+  }
+
+  .shell {
+    padding-top: 12px;
+  }
+
+  .scope-strip {
+    min-height: 46px;
+    margin-bottom: 8px;
+    padding: 6px 9px;
+  }
+
+  .segmented {
+    min-height: 36px;
+    padding: 2px;
+  }
+
+  .segmented button {
+    min-height: 30px;
+    padding: 0 11px;
+  }
+
+  .ingest-strip {
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 8px 10px;
+  }
+
+  .ingest-strip .api-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: min(100%, 360px);
+  }
+
+  .ingest-strip .api-label input {
+    width: 260px;
+  }
+
+  .ingest-strip .secondary-button {
+    min-height: 36px;
+  }
 }
 
 .workspace {
@@ -619,6 +680,32 @@ input[type="url"] {
   color: rgba(233, 247, 249, 0.74);
   font-size: 0.8rem;
   font-weight: 800;
+}
+
+@media (min-width: 901px) {
+  .diagnosis-band {
+    grid-template-columns: minmax(0, 1fr) 176px;
+    min-height: 154px;
+    padding: 18px 20px;
+  }
+
+  .diagnosis-copy h2 {
+    margin: 5px 0 8px;
+    font-size: 1.68rem;
+  }
+
+  .diagnosis-copy p:last-child {
+    font-size: 0.96rem;
+  }
+
+  .score-dial svg {
+    width: 112px;
+    height: 112px;
+  }
+
+  .score-dial strong {
+    font-size: 1.78rem;
+  }
 }
 
 .live-resource-panel {
@@ -3080,7 +3167,6 @@ input[type="url"] {
   .rate-label input,
   .api-label input,
   .top-actions select,
-  .primary-button,
   .secondary-button {
     width: 100%;
   }

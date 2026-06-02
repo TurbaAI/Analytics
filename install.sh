@@ -14,6 +14,12 @@ REMOVE_DATA=0
 APP_PORT="${TURBALANCE_APP_PORT:-8000}"
 COLLECTOR_PORT="${GB100_APP_COLLECTOR_PORT:-9500}"
 ENV_FILE=""
+LIVE_MACHINE=0
+LIVE_MACHINE_HOST_URL="${TURBALANCE_MACHINE_DEMO_URL:-}"
+LIVE_MACHINE_LOOP_MS="${TURBALANCE_LIVE_MACHINE_LOOP_MS:-1000}"
+LIVE_MACHINE_FAST_REFRESH="${TURBALANCE_LIVE_MACHINE_FAST_REFRESH:-1}"
+LIVE_MACHINE_BUNDLE="${TURBALANCE_LIVE_MACHINE_BUNDLE:-build/demo/live-machine-bundle.json}"
+NODE_BIN="${TURBALANCE_NODE_BIN:-node}"
 
 usage() {
   cat <<'EOF'
@@ -42,6 +48,19 @@ Options:
 
   --with-systemd
       Install systemd units for static mode or Docker Compose mode on Linux hosts.
+
+  --live-machine
+      In static mode, run the high-rate live machine bundle collector.
+      With --with-systemd this creates turbalance-live-machine-collector.service.
+
+  --live-machine-host-url URL
+      URL embedded in the live machine bundle. Default: http://<primary-ip>:APP_PORT
+
+  --live-machine-loop-ms MS
+      Refresh interval for the live machine bundle collector. Default: 1000
+
+  --node-bin PATH
+      Node.js executable for --live-machine. Default: node
 
   --no-start
       Install files only. Do not start services.
@@ -79,6 +98,40 @@ fail() {
 
 have() {
   command -v "$1" >/dev/null 2>&1
+}
+
+have_executable() {
+  case "$1" in
+    */*) [ -x "$1" ] ;;
+    *) have "$1" ;;
+  esac
+}
+
+primary_address() {
+  if have hostname; then
+    # shellcheck disable=SC2086
+    set -- $(hostname -I 2>/dev/null || true)
+    if [ -n "${1:-}" ]; then
+      printf '%s' "$1"
+      return 0
+    fi
+  fi
+  if have ip; then
+    address="$(ip route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.][0-9.]*\).*/\1/p' | head -n 1)"
+    if [ -n "$address" ]; then
+      printf '%s' "$address"
+      return 0
+    fi
+  fi
+  printf '%s' "127.0.0.1"
+}
+
+live_machine_url() {
+  if [ -n "$LIVE_MACHINE_HOST_URL" ]; then
+    printf '%s' "$LIVE_MACHINE_HOST_URL"
+  else
+    printf 'http://%s:%s' "$(primary_address)" "$APP_PORT"
+  fi
 }
 
 run() {
@@ -145,6 +198,22 @@ parse_args() {
         WITH_SYSTEMD=1
         shift
         ;;
+      --live-machine)
+        LIVE_MACHINE=1
+        shift
+        ;;
+      --live-machine-host-url)
+        LIVE_MACHINE_HOST_URL="${2:-}"
+        shift 2
+        ;;
+      --live-machine-loop-ms)
+        LIVE_MACHINE_LOOP_MS="${2:-}"
+        shift 2
+        ;;
+      --node-bin)
+        NODE_BIN="${2:-}"
+        shift 2
+        ;;
       --no-start)
         START=0
         shift
@@ -183,6 +252,8 @@ parse_args() {
   [ -n "$PREFIX" ] || fail "--prefix cannot be empty"
   [ -n "$APP_PORT" ] || fail "--app-port cannot be empty"
   [ -n "$COLLECTOR_PORT" ] || fail "--collector-port cannot be empty"
+  [ -n "$LIVE_MACHINE_LOOP_MS" ] || fail "--live-machine-loop-ms cannot be empty"
+  [ -n "$NODE_BIN" ] || fail "--node-bin cannot be empty"
 }
 
 detect_mode() {
@@ -206,9 +277,12 @@ check_prereqs() {
       ;;
     static)
       have python3 || fail "python3 is required for --mode static"
+      if [ "$LIVE_MACHINE" -eq 1 ]; then
+        have_executable "$NODE_BIN" || fail "$NODE_BIN is required for --live-machine"
+      fi
       ;;
   esac
-  if [ "$WITH_SYSTEMD" -eq 1 ] && ! have systemctl; then
+  if [ "$WITH_SYSTEMD" -eq 1 ] && [ "$DRY_RUN" -ne 1 ] && ! have systemctl; then
     fail "--with-systemd requires systemctl"
   fi
 }
@@ -268,10 +342,23 @@ TURBALANCE_APP_PORT=$APP_PORT
 GB100_APP_COLLECTOR_PORT=$COLLECTOR_PORT
 EOF
   fi
+  cat >> "$dest" <<EOF
+
+# Values written by install.sh for this installation.
+TURBALANCE_APP_PORT=$APP_PORT
+GB100_APP_COLLECTOR_PORT=$COLLECTOR_PORT
+TURBALANCE_NODE_BIN=$NODE_BIN
+TURBALANCE_MACHINE_DEMO_URL=$(live_machine_url)
+TURBALANCE_LIVE_MACHINE_LOOP_MS=$LIVE_MACHINE_LOOP_MS
+TURBALANCE_LIVE_MACHINE_FAST_REFRESH=$LIVE_MACHINE_FAST_REFRESH
+TURBALANCE_LIVE_MACHINE_BUNDLE=$LIVE_MACHINE_BUNDLE
+EOF
 }
 
 write_state() {
   state="$PREFIX/deploy/install/install-state.json"
+  live_machine_json=false
+  [ "$LIVE_MACHINE" -eq 1 ] && live_machine_json=true
   run mkdir -p "$PREFIX/deploy/install"
   if [ "$DRY_RUN" -eq 1 ]; then
     log "Would write $state"
@@ -285,15 +372,21 @@ write_state() {
   "prefix": "$PREFIX",
   "mode": "$MODE",
   "appPort": "$APP_PORT",
-  "collectorPort": "$COLLECTOR_PORT"
+  "collectorPort": "$COLLECTOR_PORT",
+  "liveMachine": $live_machine_json,
+  "liveMachineHostUrl": "$(live_machine_url)",
+  "liveMachineBundle": "$LIVE_MACHINE_BUNDLE"
 }
 EOF
 }
 
 start_static_processes() {
-  run mkdir -p "$PREFIX/.run" "$PREFIX/build/gb100-runtime"
+  run mkdir -p "$PREFIX/.run" "$PREFIX/build/demo" "$PREFIX/build/gb100-runtime"
   if [ "$DRY_RUN" -eq 1 ]; then
     log "Would start static analyzer on :$APP_PORT and app collector on :$COLLECTOR_PORT"
+    if [ "$LIVE_MACHINE" -eq 1 ]; then
+      log "Would start live machine bundle collector writing $LIVE_MACHINE_BUNDLE"
+    fi
     return 0
   fi
 
@@ -308,11 +401,19 @@ start_static_processes() {
   else
     (cd "$PREFIX" && nohup python3 collectors/app_telemetry_exporter.py --listen 0.0.0.0 --port "$COLLECTOR_PORT" > "$PREFIX/build/gb100-runtime/app-collector.log" 2>&1 & echo $! > "$PREFIX/.run/gb100-app-collector.pid")
   fi
+
+  if [ "$LIVE_MACHINE" -eq 1 ]; then
+    if [ -f "$PREFIX/.run/turbalance-live-machine-collector.pid" ] && kill -0 "$(cat "$PREFIX/.run/turbalance-live-machine-collector.pid")" >/dev/null 2>&1; then
+      log "Live machine collector already running with PID $(cat "$PREFIX/.run/turbalance-live-machine-collector.pid")"
+    else
+      (cd "$PREFIX" && nohup "$NODE_BIN" scripts/collect-local-machine-bundle.js --out "$LIVE_MACHINE_BUNDLE" --host-url "$(live_machine_url)" --loop-ms "$LIVE_MACHINE_LOOP_MS" --fast-refresh "$LIVE_MACHINE_FAST_REFRESH" > "$PREFIX/build/gb100-runtime/live-machine-collector.log" 2>&1 & echo $! > "$PREFIX/.run/turbalance-live-machine-collector.pid")
+    fi
+  fi
 }
 
 install_systemd_units() {
   [ "$WITH_SYSTEMD" -eq 1 ] || return 0
-  [ "$(id -u)" -eq 0 ] || fail "--with-systemd must be run as root or through sudo"
+  [ "$DRY_RUN" -eq 1 ] || [ "$(id -u)" -eq 0 ] || fail "--with-systemd must be run as root or through sudo"
 
   if [ "$MODE" = "docker" ]; then
     compose="$(compose_command)"
@@ -347,8 +448,12 @@ EOF
   if [ "$MODE" = "static" ]; then
     analytics_unit="/etc/systemd/system/turbalance-analytics.service"
     collector_unit="/etc/systemd/system/turbalance-gb100-app-collector.service"
+    live_machine_unit="/etc/systemd/system/turbalance-live-machine-collector.service"
     if [ "$DRY_RUN" -eq 1 ]; then
       log "Would write $analytics_unit and $collector_unit"
+      if [ "$LIVE_MACHINE" -eq 1 ]; then
+        log "Would write $live_machine_unit"
+      fi
     else
       cat > "$analytics_unit" <<EOF
 [Unit]
@@ -382,11 +487,36 @@ RestartSec=3
 [Install]
 WantedBy=multi-user.target
 EOF
+      if [ "$LIVE_MACHINE" -eq 1 ]; then
+        cat > "$live_machine_unit" <<EOF
+[Unit]
+Description=turbalance live machine bundle collector
+After=network-online.target turbalance-analytics.service
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=$PREFIX
+EnvironmentFile=-$PREFIX/deploy/install/gb100-telemetry.env
+ExecStartPre=/bin/mkdir -p $PREFIX/build/demo
+ExecStart=/bin/sh -lc 'exec "\${TURBALANCE_NODE_BIN:-$NODE_BIN}" scripts/collect-local-machine-bundle.js --out "\${TURBALANCE_LIVE_MACHINE_BUNDLE:-$LIVE_MACHINE_BUNDLE}" --host-url "\${TURBALANCE_MACHINE_DEMO_URL:-$(live_machine_url)}" --loop-ms "\${TURBALANCE_LIVE_MACHINE_LOOP_MS:-$LIVE_MACHINE_LOOP_MS}" --fast-refresh "\${TURBALANCE_LIVE_MACHINE_FAST_REFRESH:-$LIVE_MACHINE_FAST_REFRESH}"'
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+      fi
     fi
     run systemctl daemon-reload
     run systemctl enable turbalance-analytics.service turbalance-gb100-app-collector.service
+    if [ "$LIVE_MACHINE" -eq 1 ]; then
+      run systemctl enable turbalance-live-machine-collector.service
+    fi
     if [ "$START" -ne 0 ]; then
       run systemctl restart turbalance-analytics.service turbalance-gb100-app-collector.service
+      if [ "$LIVE_MACHINE" -eq 1 ]; then
+        run systemctl restart turbalance-live-machine-collector.service
+      fi
     fi
   fi
 }
@@ -438,9 +568,10 @@ uninstall() {
   fi
   stop_pid_file "$PREFIX/.run/turbalance-analytics.pid"
   stop_pid_file "$PREFIX/.run/gb100-app-collector.pid"
+  stop_pid_file "$PREFIX/.run/turbalance-live-machine-collector.pid"
   if have systemctl; then
-    run systemctl stop turbalance-gb100-telemetry.service turbalance-analytics.service turbalance-gb100-app-collector.service 2>/dev/null || true
-    run systemctl disable turbalance-gb100-telemetry.service turbalance-analytics.service turbalance-gb100-app-collector.service 2>/dev/null || true
+    run systemctl stop turbalance-gb100-telemetry.service turbalance-analytics.service turbalance-gb100-app-collector.service turbalance-live-machine-collector.service 2>/dev/null || true
+    run systemctl disable turbalance-gb100-telemetry.service turbalance-analytics.service turbalance-gb100-app-collector.service turbalance-live-machine-collector.service 2>/dev/null || true
   fi
   if [ "$REMOVE_DATA" -eq 1 ]; then
     run rm -rf "$PREFIX"
@@ -462,6 +593,10 @@ print_summary() {
     static)
       log "Analyzer: http://127.0.0.1:$APP_PORT"
       log "App collector: http://127.0.0.1:$COLLECTOR_PORT/metrics"
+      if [ "$LIVE_MACHINE" -eq 1 ]; then
+        log "Live machine bundle: $PREFIX/$LIVE_MACHINE_BUNDLE"
+        log "Live machine URL: $(live_machine_url)"
+      fi
       ;;
     k8s)
       log "Kubernetes namespace: gb100-telemetry"

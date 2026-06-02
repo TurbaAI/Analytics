@@ -29,6 +29,7 @@ assert.ok(exists("docs/install.md"), "installer docs should exist");
 const help = run("sh", ["install.sh", "--help"]);
 assert.match(help, /--mode auto\|docker\|k8s\|static/, "installer help should explain modes");
 assert.match(help, /--with-systemd/, "installer help should document systemd option");
+assert.match(help, /--live-machine/, "installer help should document the live machine collector option");
 
 const dryRunPrefix = fs.mkdtempSync(path.join(os.tmpdir(), "turba-gb100-dry-"));
 const dryRun = run("sh", [
@@ -42,6 +43,24 @@ const dryRun = run("sh", [
 ]);
 assert.match(dryRun, /Would copy repository files/, "dry run should avoid copying files");
 assert.equal(fs.existsSync(path.join(dryRunPrefix, "install", "index.html")), false, "dry run should not write install files");
+
+const systemdDryRun = run("sh", [
+  "install.sh",
+  "--mode",
+  "static",
+  "--prefix",
+  path.join(dryRunPrefix, "systemd-install"),
+  "--with-systemd",
+  "--live-machine",
+  "--live-machine-host-url",
+  "http://192.168.10.20:8000",
+  "--node-bin",
+  process.execPath,
+  "--no-start",
+  "--dry-run"
+]);
+assert.match(systemdDryRun, /turbalance-live-machine-collector\.service/, "dry run should plan the live machine service");
+assert.match(systemdDryRun, /systemctl enable turbalance-live-machine-collector\.service/, "dry run should enable the live machine service");
 
 const installPrefix = fs.mkdtempSync(path.join(os.tmpdir(), "turba-gb100-install-"));
 run("sh", [
@@ -64,7 +83,29 @@ for (const relativePath of [
   assert.ok(fs.existsSync(path.join(installPrefix, "app", relativePath)), `installed prefix missing ${relativePath}`);
 }
 
-const packageOut = path.join(root, "build", "package-test");
+const liveInstallPrefix = fs.mkdtempSync(path.join(os.tmpdir(), "turba-gb100-live-install-"));
+const liveAppPrefix = path.join(liveInstallPrefix, "app");
+run("sh", [
+  "install.sh",
+  "--mode",
+  "static",
+  "--prefix",
+  liveAppPrefix,
+  "--no-start",
+  "--live-machine",
+  "--live-machine-host-url",
+  "http://192.168.10.20:8000",
+  "--node-bin",
+  process.execPath
+]);
+const liveState = JSON.parse(fs.readFileSync(path.join(liveAppPrefix, "deploy/install/install-state.json"), "utf8"));
+const liveEnv = fs.readFileSync(path.join(liveAppPrefix, "deploy/install/gb100-telemetry.env"), "utf8");
+assert.equal(liveState.liveMachine, true, "live install state should preserve live machine setting");
+assert.equal(liveState.liveMachineHostUrl, "http://192.168.10.20:8000");
+assert.ok(liveEnv.includes("TURBALANCE_MACHINE_DEMO_URL=http://192.168.10.20:8000"));
+assert.ok(liveEnv.includes("TURBALANCE_LIVE_MACHINE_BUNDLE=build/demo/live-machine-bundle.json"));
+
+const packageOut = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "turba-gb100-package-")), "package-test");
 fs.rmSync(packageOut, { recursive: true, force: true });
 run(process.execPath, [
   "scripts/package-gb100-telemetry.js",
@@ -79,6 +120,7 @@ const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 assert.equal(manifest.schemaVersion, "turbalance.gb100.package.v1");
 assert.ok(manifest.files.includes("install.sh"), "package should include installer");
 assert.ok(manifest.files.includes("metrics/gb100-dcgm-fields.csv"), "package should include DCGM allowlist");
+assert.ok(manifest.files.includes("deploy/install/gb100-telemetry.env.example"), "package should include install env defaults");
 assert.ok(manifest.files.includes("grafana/gb100-overview.json"), "package should include Grafana dashboards");
 assert.ok(!manifest.files.some((file) => file.startsWith("build/")), "package should exclude build artifacts");
 

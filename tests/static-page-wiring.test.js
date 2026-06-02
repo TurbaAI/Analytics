@@ -43,7 +43,6 @@ selectorMatches.forEach((selector) => {
   "windowSelect",
   "rateInput",
   "samePodToggle",
-  "analyzeButton",
   "ingestFile",
   "apiInput",
   "fetchApiButton",
@@ -65,6 +64,7 @@ selectorMatches.forEach((selector) => {
   "grafanaBadge",
   "grafanaContext",
   "grafanaLinks",
+  "captureSnapshotButton",
   "opportunityBadge",
   "opportunityStats",
   "opportunityList",
@@ -105,6 +105,11 @@ assert.ok(app.includes("renderLiveResources"));
 assert.ok(app.includes("renderLiveResourceHeartbeatBadge"));
 assert.ok(app.includes("renderOperatorCockpit"));
 assert.ok(app.includes("buildOperatorCockpitContext"));
+assert.ok(app.includes("formatHostSampleAgeMilliseconds"));
+assert.ok(app.includes("since host sample"));
+assert.ok(app.includes("ollamaTokensPerSecond"));
+assert.ok(app.includes("tok/s"));
+assert.ok(app.includes("TTFT"));
 assert.ok(app.includes("sourceHeartbeatStrip"));
 assert.ok(app.includes("eventTimeline"));
 assert.ok(app.includes("kafkaStreamPanel"));

@@ -14,8 +14,11 @@ const windowMinutes = numberArg(args["window-minutes"], 60);
 const fastRefresh = args["fast-refresh"] === "1" || args["skip-gpu-processes"] === "1";
 const loopMs = numberArg(args["loop-ms"], 0);
 const gpuSampleMs = numberArg(args["gpu-sample-ms"], fastRefresh ? 2000 : 0);
+const ollamaProbeEnabled = args["ollama-probe"] !== "0";
+const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
 let previousGpu = null;
+let previousOllamaTelemetry = null;
 
 if (loopMs > 0) {
   runLoop().catch((error) => {
@@ -290,6 +293,8 @@ function collectServices(hostUrl) {
   const grafana = httpJson("http://127.0.0.1:3000/api/health");
   const netdata = httpJson("http://127.0.0.1:19999/api/v1/info");
   const ollama = httpJson("http://127.0.0.1:11434/api/tags");
+  const ollamaPs = ollama.ok ? httpJson("http://127.0.0.1:11434/api/ps") : { ok: false, body: null };
+  const ollamaTelemetry = ollama.ok ? collectOllamaTelemetry({ running: ollamaPs.body }) : null;
   const nodeExporter = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9100/metrics"]);
   const hostAddress = primaryAddress();
   const kafkaReachable = tcpReachable("127.0.0.1", 30992)
@@ -301,6 +306,8 @@ function collectServices(hostUrl) {
     grafana: grafana.ok ? grafana.body : null,
     netdata: netdata.ok ? netdata.body : null,
     ollama: ollama.ok ? ollama.body : null,
+    ollamaRunning: ollamaPs.ok ? ollamaPs.body : null,
+    ollamaTelemetry,
     kafka: kafkaReachable ? {
       bootstrapServers: "spark1-kafka.turbalance-demo.svc.cluster.local:9092",
       nodePortBootstrap: `${hostAddress}:30992`,
@@ -335,6 +342,8 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
   const largeModelCount = Array.isArray(services.ollama?.models)
     ? services.ollama.models.filter((model) => /70b|120b|116\.8B/i.test(`${model.name} ${model.details?.parameter_size || ""}`)).length
     : 0;
+  const ollamaTokensPerSecond = finite(services.ollamaTelemetry?.tokensPerSecond, 0);
+  const ollamaTimeToFirstTokenMs = finite(services.ollamaTelemetry?.timeToFirstTokenMs, 0);
 
   return {
     gpuUtil,
@@ -350,6 +359,8 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
     dockerCpuPct,
     modelCount,
     largeModelCount,
+    ollamaTokensPerSecond,
+    ollamaTimeToFirstTokenMs,
     allocatedGpuHours: gpu.present ? gpu.count * (windowMinutes / 60) : 0,
     durationHours: windowMinutes / 60,
     gpus: gpu.count,
@@ -376,6 +387,8 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   const activeModelNames = Array.isArray(services.ollama?.models)
     ? services.ollama.models.slice(0, 6).map((model) => model.name)
     : [];
+  const runningOllamaModels = ollamaRunningModelNames(services.ollamaRunning);
+  const ollamaTelemetry = services.ollamaTelemetry || {};
   const sourceAdapters = machineSourceAdapters(gpu, services);
 
   return {
@@ -531,6 +544,20 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             kafkaSmokePayload: services.kafka?.smokePayload || "",
             kafkaSmokeProcessedMessages: services.kafka?.smokeProcessedMessages || 0,
             ollamaModels: activeModelNames,
+            ollamaRunningModels: runningOllamaModels,
+            ollamaTelemetryStatus: ollamaTelemetry.status || (services.ollama ? "reachable" : ""),
+            ollamaProbeModel: ollamaTelemetry.probeModel || "",
+            ollamaTokensPerSecond: round(metrics.ollamaTokensPerSecond, 2),
+            ollamaTimeToFirstTokenMs: round(metrics.ollamaTimeToFirstTokenMs, 0),
+            ollamaEvalCount: round(finite(ollamaTelemetry.evalCount, 0), 0),
+            ollamaEvalDurationMs: round(finite(ollamaTelemetry.evalDurationMs, 0), 0),
+            ollamaTotalDurationMs: round(finite(ollamaTelemetry.totalDurationMs, 0), 0),
+            ollamaLoadDurationMs: round(finite(ollamaTelemetry.loadDurationMs, 0), 0),
+            ollamaPromptEvalCount: round(finite(ollamaTelemetry.promptEvalCount, 0), 0),
+            ollamaPromptEvalDurationMs: round(finite(ollamaTelemetry.promptEvalDurationMs, 0), 0),
+            ollamaProbeCached: Boolean(ollamaTelemetry.sampleCached),
+            ollamaProbeAgeMs: round(finite(ollamaTelemetry.sampleAgeMs, 0), 0),
+            ollamaProbeError: ollamaTelemetry.error || "",
             gpuPresent: gpu.present,
             gpuName: primaryGpu.name || "",
             gpuSource: gpu.source,
@@ -652,6 +679,152 @@ function httpJson(url) {
   }
 }
 
+function collectOllamaTelemetry({ running }) {
+  const runningModels = ollamaRunningModelNames(running);
+  const nowMs = Date.now();
+
+  if (!ollamaProbeEnabled) {
+    return {
+      status: "disabled",
+      runningModels,
+      probeModel: runningModels[0] || "",
+      tokensPerSecond: 0,
+      timeToFirstTokenMs: 0,
+      collectedAtMs: nowMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      error: "Ollama probe disabled with --ollama-probe 0"
+    };
+  }
+
+  const probeModel = runningModels[0] || "";
+  if (!probeModel) {
+    previousOllamaTelemetry = null;
+    return {
+      status: "no-running-model",
+      runningModels,
+      probeModel: "",
+      tokensPerSecond: 0,
+      timeToFirstTokenMs: 0,
+      collectedAtMs: nowMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      error: "Ollama is reachable, but no model is currently loaded in /api/ps; generation probe skipped."
+    };
+  }
+
+  if (
+    previousOllamaTelemetry
+    && previousOllamaTelemetry.probeModel === probeModel
+    && nowMs - previousOllamaTelemetry.collectedAtMs < ollamaProbeMs
+  ) {
+    return cloneOllamaTelemetry({
+      ...previousOllamaTelemetry,
+      runningModels,
+      sampleCached: true,
+      sampleAgeMs: nowMs - previousOllamaTelemetry.collectedAtMs
+    });
+  }
+
+  previousOllamaTelemetry = probeOllamaGenerate(probeModel, runningModels);
+  return cloneOllamaTelemetry(previousOllamaTelemetry);
+}
+
+function probeOllamaGenerate(probeModel, runningModels) {
+  const request = {
+    model: probeModel,
+    prompt: "Count from 1 to 24 separated by spaces. No prose.",
+    stream: true,
+    options: {
+      temperature: 0,
+      num_predict: 32
+    }
+  };
+  const result = commandResult("curl", [
+    "-sS",
+    "--no-buffer",
+    "--max-time",
+    "10",
+    "-X",
+    "POST",
+    "http://127.0.0.1:11434/api/generate",
+    "-H",
+    "Content-Type: application/json",
+    "-d",
+    JSON.stringify(request),
+    "-w",
+    "\n__CURL_TTFB__:%{time_starttransfer}\n"
+  ], { timeout: 12000 });
+  const collectedAtMs = Date.now();
+
+  if (result.status !== 0) {
+    return {
+      status: "probe-failed",
+      runningModels,
+      probeModel,
+      tokensPerSecond: 0,
+      timeToFirstTokenMs: 0,
+      collectedAtMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      error: compactWhitespace(result.stderr || result.errorMessage || `curl exited ${result.status}`)
+    };
+  }
+
+  const lines = result.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+  const ttfbLine = lines.find((line) => line.startsWith("__CURL_TTFB__:"));
+  const ttfbSeconds = ttfbLine ? Number(ttfbLine.split(":").slice(1).join(":")) : 0;
+  const timeToFirstTokenMs = Number.isFinite(ttfbSeconds) ? ttfbSeconds * 1000 : 0;
+  const chunks = lines
+    .filter((line) => line.startsWith("{"))
+    .map(parseJsonObject)
+    .filter((chunk) => Object.keys(chunk).length > 0);
+  const finalChunk = chunks.find((chunk) => chunk.done === true) || chunks.at(-1) || {};
+  const evalCount = finite(finalChunk.eval_count, 0);
+  const evalDurationMs = nanosecondsToMilliseconds(finalChunk.eval_duration);
+  const tokensPerSecond = evalCount > 0 && evalDurationMs > 0
+    ? evalCount / (evalDurationMs / 1000)
+    : 0;
+
+  return {
+    status: evalCount > 0 || timeToFirstTokenMs > 0 ? "sampled" : "observed",
+    runningModels,
+    probeModel,
+    tokensPerSecond,
+    timeToFirstTokenMs,
+    evalCount,
+    evalDurationMs,
+    totalDurationMs: nanosecondsToMilliseconds(finalChunk.total_duration),
+    loadDurationMs: nanosecondsToMilliseconds(finalChunk.load_duration),
+    promptEvalCount: finite(finalChunk.prompt_eval_count, 0),
+    promptEvalDurationMs: nanosecondsToMilliseconds(finalChunk.prompt_eval_duration),
+    collectedAtMs,
+    sampleCached: false,
+    sampleAgeMs: 0,
+    error: ""
+  };
+}
+
+function ollamaRunningModelNames(running) {
+  return Array.isArray(running?.models)
+    ? running.models
+      .map((model) => String(model.model || model.name || "").trim())
+      .filter(Boolean)
+    : [];
+}
+
+function cloneOllamaTelemetry(telemetry) {
+  return {
+    ...telemetry,
+    runningModels: [...(telemetry.runningModels || [])]
+  };
+}
+
+function nanosecondsToMilliseconds(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed / 1_000_000 : 0;
+}
+
 function collectKafkaSmokeEvidence() {
   const logs = command("kubectl", ["-n", "turbalance-demo", "logs", "job/spark1-kafka-smoke", "--tail=80"]);
   if (!logs.trim()) return {};
@@ -728,11 +901,11 @@ function command(bin, args = []) {
   }
 }
 
-function commandResult(bin, args = []) {
+function commandResult(bin, args = [], { timeout = 5000 } = {}) {
   const result = spawnSync(bin, args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
-    timeout: 5000,
+    timeout,
     maxBuffer: 10 * 1024 * 1024
   });
 

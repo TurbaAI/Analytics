@@ -69,6 +69,22 @@ Use `--no-start` to install files only:
 ./install.sh --mode static --prefix "$HOME/turbalance-analytics" --no-start
 ```
 
+Use `--with-systemd --live-machine` when a standalone live-machine demo must survive reboot. This adds `turbalance-live-machine-collector.service`, which writes `build/demo/live-machine-bundle.json` continuously for the browser:
+
+```sh
+sudo ./install.sh \
+  --mode static \
+  --prefix /opt/turbalance-analytics \
+  --with-systemd \
+  --live-machine \
+  --live-machine-host-url http://192.168.10.20:8000
+
+sudo systemctl status \
+  turbalance-analytics.service \
+  turbalance-gb100-app-collector.service \
+  turbalance-live-machine-collector.service
+```
+
 ## Configuration
 
 The installer writes `deploy/install/gb100-telemetry.env` under the install prefix. Start from:
@@ -83,6 +99,7 @@ Important settings:
 - `DCGM_REMOTE_HOSTENGINE_INFO`: blank for embedded hostengine, or `host:port` for a remote hostengine.
 - `ENABLE_NVML_COLLECTOR`: optional confidential-computing collector.
 - `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`: change before exposing Grafana outside localhost.
+- `TURBALANCE_MACHINE_DEMO_URL`, `TURBALANCE_LIVE_MACHINE_LOOP_MS`, `TURBALANCE_LIVE_MACHINE_BUNDLE`, and `TURBALANCE_NODE_BIN`: live-machine bundle collector settings used by static mode with `--live-machine`.
 
 ## Validate A Target Host
 

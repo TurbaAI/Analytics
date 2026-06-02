@@ -1017,7 +1017,6 @@ const state = {
   operatorReplay: false,
   operatorReplayStartedAt: null,
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
-  analyzing: false,
   storageLabel: workspaceStore.storageLabel,
   storageTone: workspaceStore.storageTone,
   ingestLabel: "Sample feed",
@@ -3362,6 +3361,14 @@ function resetWorkspace() {
   render();
 }
 
+function captureManualAnalysisSnapshot() {
+  state.lastAnalysis = new Date();
+  captureAnalysisSnapshot("Manual snapshot", state.lastAnalysis);
+  persistWorkspaceStore();
+  setIngestStatus("Trend snapshot captured", "good");
+  render();
+}
+
 function bindEvents() {
   document.querySelectorAll("#scopeControls button").forEach((button) => {
     button.addEventListener("click", () => {
@@ -3400,18 +3407,7 @@ function bindEvents() {
     });
   });
 
-  document.querySelector("#analyzeButton").addEventListener("click", () => {
-    state.analyzing = true;
-    renderAnalysisStamp();
-    window.setTimeout(() => {
-      state.analyzing = false;
-      state.lastAnalysis = new Date();
-      captureAnalysisSnapshot("Manual analysis", state.lastAnalysis);
-      persistWorkspaceStore();
-      render();
-    }, 520);
-  });
-
+  document.querySelector("#captureSnapshotButton").addEventListener("click", captureManualAnalysisSnapshot);
   document.querySelector("#copyReport").addEventListener("click", copyReport);
   document.querySelector("#ingestFile").addEventListener("change", handleFileIngest);
   document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
@@ -3584,7 +3580,7 @@ function renderAnalysisStamp() {
   const storageEl = document.querySelector("#storageState");
   const timeEl = document.querySelector("#analysisTime");
 
-  stateEl.textContent = state.analyzing ? "Analyzing" : "Ready";
+  stateEl.textContent = "Ready";
   storageEl.textContent = state.storageLabel;
   storageEl.dataset.status = state.storageTone;
   timeEl.textContent = formatAnalysisTime(state.lastAnalysis);
@@ -3685,6 +3681,9 @@ function machineDemoContext(summary) {
   const context = machineItem.source?.context || {};
   const services = machineDemoServices(context.observedServices);
   const ollamaModels = Array.isArray(context.ollamaModels) ? context.ollamaModels : [];
+  const ollamaRunningModels = Array.isArray(context.ollamaRunningModels) ? context.ollamaRunningModels : [];
+  const ollamaTokensPerSecond = numeric(context.ollamaTokensPerSecond, 0);
+  const ollamaTimeToFirstTokenMs = numeric(context.ollamaTimeToFirstTokenMs, 0);
   const idleStatus = sourceItems.some((item) => /gpu idle|idle capacity/i.test(String(item.status || "")));
   const adapters = unique(["local-machine", ...(machineItem.source?.adapters || [])]);
   const gpuModel = machineDemoGpuModel(context, summary, machineItem);
@@ -3700,6 +3699,15 @@ function machineDemoContext(summary) {
     adapters: adapters.join(", "),
     services: services.length ? services.join(", ") : "local observability services",
     modelCount: ollamaModels.length,
+    ollamaRunningModels,
+    ollamaTelemetryStatus: String(context.ollamaTelemetryStatus || ""),
+    ollamaProbeModel: String(context.ollamaProbeModel || ""),
+    ollamaTokensPerSecond,
+    ollamaTimeToFirstTokenMs,
+    ollamaTelemetryAvailable: ollamaTokensPerSecond > 0 || ollamaTimeToFirstTokenMs > 0,
+    ollamaProbeCached: Boolean(context.ollamaProbeCached),
+    ollamaProbeAgeMs: numeric(context.ollamaProbeAgeMs),
+    ollamaProbeError: String(context.ollamaProbeError || ""),
     context,
     gpuUtilizationPct: numeric(context.gpuUtilizationPct, summary.gpuUtil),
     gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
@@ -3859,6 +3867,14 @@ function renderLiveResources(summary) {
   const gpuSampleNote = machineContext.gpuSampleCached
     ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
     : "nvidia-smi live sample";
+  const observedServiceList = machineDemoServices(context.observedServices);
+  const ollamaReachable = observedServiceList.includes("ollama");
+  const ollamaModelLabel = machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || (Array.isArray(context.ollamaModels) ? context.ollamaModels[0] : "") || "";
+  const ollamaNote = machineContext.ollamaTelemetryAvailable
+    ? `${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT${ollamaModelLabel ? ` | ${ollamaModelLabel}` : ""}`
+    : machineContext.ollamaTelemetryStatus === "no-running-model"
+      ? `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"} | no loaded model`
+      : machineContext.ollamaProbeError || `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"}`;
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -3921,8 +3937,19 @@ function renderLiveResources(summary) {
       tone: machineContext.dockerContainers.length ? "good" : "watch"
     }),
     liveResourceCard({
+      label: "Ollama",
+      value: ollamaReachable
+        ? machineContext.ollamaTelemetryAvailable
+          ? `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s`
+          : "reachable"
+        : "offline",
+      note: ollamaReachable ? ollamaNote : "Local model API not observed",
+      percent: null,
+      tone: ollamaReachable ? (machineContext.ollamaTelemetryAvailable ? "good" : "watch") : "poor"
+    }),
+    liveResourceCard({
       label: "Signals",
-      value: `${machineDemoServices(context.observedServices).length}`,
+      value: `${observedServiceList.length}`,
       note: machineContext.adapters,
       percent: null,
       tone: "good"
@@ -4031,12 +4058,13 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     ...contexts.map((context) => context.generatedAt),
     ...contexts.map((context) => context.kafkaSmokeTimestamp)
   ]);
-  const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
+  const ageMilliseconds = generatedAt ? Math.max(0, Date.now() - generatedAt.getTime()) : null;
+  const ageSeconds = ageMilliseconds === null ? null : Math.round(ageMilliseconds / 1000);
   const visible = sourceItems.length > 0 || Boolean(machineContext);
   const kafka = buildOperatorKafkaState(contexts, observedServices, adapters);
-  const heartbeats = buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, kafka });
+  const heartbeats = buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, ageMilliseconds, kafka });
   const confidence = buildOperatorConfidence(heartbeats, summary, machineContext);
-  const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageSeconds, kafka, confidence });
+  const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence });
   const grafana = buildOperatorGrafanaState(summary);
   const fleet = buildOperatorFleetTiles(summary, machineContext);
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
@@ -4052,6 +4080,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     observedServices,
     generatedAt,
     ageSeconds,
+    ageMilliseconds,
     kafka,
     heartbeats,
     confidence,
@@ -4062,10 +4091,10 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   };
 }
 
-function buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, kafka }) {
+function buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, ageMilliseconds, kafka }) {
   const contextItems = summary.sourceItems || [];
   const hasContextField = (field) => contextItems.some((item) => Boolean(item.source?.context?.[field]));
-  const generatedFresh = ageSeconds === null || ageSeconds <= 12;
+  const generatedFresh = ageMilliseconds === null || ageMilliseconds <= 12000;
   const sourceFlags = {
     host: Boolean(machineContext) || adapters.includes("local-machine") || adapters.includes("procfs") || adapters.includes("os-counters"),
     kubernetes: adapters.includes("kubernetes") || hasContextField("namespace") || hasContextField("podSelector"),
@@ -4087,7 +4116,7 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     const fresh = present && (!liveTimed || generatedFresh);
     const attached = present && !liveTimed;
     const status = !present ? "missing" : fresh ? "live" : attached ? "attached" : "stale";
-    const note = operatorSourceNote({ id, present, status, ageSeconds, summary, machineContext, kafka, observedServices });
+    const note = operatorSourceNote({ id, present, status, ageMilliseconds, summary, machineContext, kafka, observedServices });
 
     return {
       id,
@@ -4096,6 +4125,7 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
       present,
       fresh,
       ageSeconds,
+      ageMilliseconds,
       note,
       tone: status === "live" || status === "attached" ? "good" : status === "stale" ? "watch" : "poor"
     };
@@ -4119,16 +4149,30 @@ function operatorSourceLabel(id) {
   }[id] || titleCase(id);
 }
 
-function operatorSourceNote({ id, present, status, ageSeconds, summary, machineContext, kafka, observedServices }) {
+function formatHostSampleAgeMilliseconds(ageMilliseconds) {
+  const parsed = Number(ageMilliseconds);
+  const rounded = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+  return `${number.format(rounded)}ms`;
+}
+
+function operatorSourceNote({ id, present, status, ageMilliseconds, summary, machineContext, kafka, observedServices }) {
   if (!present) return "No signal attached";
-  if (id === "host") return ageSeconds === null ? "Host sample attached" : `${ageSeconds}s since host sample`;
+  if (id === "host") return ageMilliseconds === null ? "Host sample attached" : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} since host sample`;
   if (id === "kafka") return kafka.messageId ? `Smoke message ${kafka.messageId}` : kafka.nodePortBootstrap || "Broker reachable";
   if (id === "grafana") return summary.grafana?.links?.[0]?.label || summary.grafana?.dashboards?.[0] || (observedServices.includes("grafana") ? "Service reachable" : "Dashboard handoff");
   if (id === "kubernetes") return summary.schedulerEvidence?.schedulerNames?.[0] || machineContext?.context?.namespace || "Pod/job evidence";
   if (id === "prometheus") return "Prometheus source metrics";
   if (id === "dcgm") return "GPU counter source";
   if (id === "docker") return `${machineContext?.dockerContainers?.length || 0} containers observed`;
-  if (id === "ollama") return `${machineContext?.modelCount || 0} local models`;
+  if (id === "ollama") {
+    if (machineContext?.ollamaTelemetryAvailable) {
+      return `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`;
+    }
+    if (machineContext?.ollamaTelemetryStatus === "no-running-model") {
+      return `${machineContext.modelCount || 0} local models | no loaded model`;
+    }
+    return `${machineContext?.modelCount || 0} local models`;
+  }
   if (status === "attached") return "Source export attached";
   return "Live service reachable";
 }
@@ -4164,7 +4208,7 @@ function buildOperatorConfidence(heartbeats, summary, machineContext) {
   };
 }
 
-function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageSeconds, kafka, confidence }) {
+function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence }) {
   const events = [];
   const add = (event) => events.push({
     time: event.time instanceof Date ? event.time : (event.time ? safeDate(event.time, generatedAt || new Date()) : null),
@@ -4183,7 +4227,8 @@ function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedul
   if (adapters.includes("prometheus")) add({ time: generatedAt, source: "prometheus", label: "Prometheus sample imported", note: `${pct(summary.gpuUtil)} GPU utilization`, tone: "good" });
   if (adapters.includes("dcgm")) add({ time: generatedAt, source: "dcgm", label: "DCGM GPU counters imported", note: `${pct(summary.smOccupancy)} SM occupancy`, tone: "good" });
   if (summary.grafana?.links?.length) add({ time: generatedAt, source: "grafana", label: "Grafana handoff attached", note: summary.grafana.links[0].label || "Dashboard link", tone: "good" });
-  if (machineContext) add({ time: generatedAt, source: "host", label: "Host sample refreshed", note: ageSeconds === null ? machineContext.adapters : `${ageSeconds}s old | ${machineContext.adapters}`, tone: ageSeconds !== null && ageSeconds > 12 ? "watch" : "good" });
+  if (machineContext) add({ time: generatedAt, source: "host", label: "Host sample refreshed", note: ageMilliseconds === null ? machineContext.adapters : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} old | ${machineContext.adapters}`, tone: ageMilliseconds !== null && ageMilliseconds > 12000 ? "watch" : "good" });
+  if (machineContext?.ollamaTelemetryAvailable) add({ time: generatedAt, source: "ollama", label: "Ollama generation probe", note: `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`, tone: "good" });
   if (observedServices.length) add({ time: generatedAt, source: "services", label: "Local services checked", note: observedServices.join(", "), tone: "good" });
   if (classifier?.primary?.name) add({ time: generatedAt, source: "analyzer", label: "Analyzer classified bottleneck", note: classifier.primary.name, tone: summary.usefulCompute >= 60 ? "good" : "watch" });
   if (opportunityEngine?.opportunities?.[0]) add({ time: generatedAt, source: "opportunity", label: "Top action ranked", note: opportunityEngine.opportunities[0].title, tone: "watch" });
@@ -4476,7 +4521,7 @@ function operatorReplayNodes(cockpit) {
 
   const note = document.createElement("small");
   note.textContent = cockpit.generatedAt
-    ? `Latest live sample ${cockpit.ageSeconds}s old. Replay is browser-local and uses the current session history.`
+    ? `Latest live sample ${formatHostSampleAgeMilliseconds(cockpit.ageMilliseconds)} old. Replay is browser-local and uses the current session history.`
     : "Replay will activate once live samples are collected.";
   return [status, controls, note];
 }

@@ -16,7 +16,9 @@ const result = spawnSync(process.execPath, [
   "--host-url",
   "http://192.168.10.101:8000",
   "--run-id",
-  "machine-demo-test"
+  "machine-demo-test",
+  "--ollama-probe",
+  "0"
 ], {
   cwd: root,
   encoding: "utf8",
@@ -45,11 +47,19 @@ assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.observedServices)
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuComputeProcessQuerySkipped, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleCached, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleAgeMs, "number");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.ollamaRunningModels));
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTelemetryStatus, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTokensPerSecond, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTimeToFirstTokenMs, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaProbeCached, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaProbeAgeMs, "number");
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
 const localCollectorSource = fs.readFileSync(path.join(root, "scripts/collect-local-machine-bundle.js"), "utf8");
 assert.ok(localCollectorSource.includes("collectKafkaSmokeEvidence"));
 assert.ok(localCollectorSource.includes("kafkaSmokeMessageId"));
+assert.ok(localCollectorSource.includes("collectOllamaTelemetry"));
+assert.ok(localCollectorSource.includes("timeToFirstTokenMs"));
 
 const fastOutPath = path.join(tempDir, "live-machine-bundle-fast.json");
 const fastResult = spawnSync(process.execPath, [
@@ -60,7 +70,9 @@ const fastResult = spawnSync(process.execPath, [
   "http://192.168.10.101:8000",
   "--run-id",
   "machine-demo-fast-test",
-  "--fast-refresh"
+  "--fast-refresh",
+  "--ollama-probe",
+  "0"
 ], {
   cwd: root,
   encoding: "utf8",

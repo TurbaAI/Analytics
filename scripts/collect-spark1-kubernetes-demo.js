@@ -875,7 +875,7 @@ function parseArgs(argv) {
 
 function usage() {
   process.stdout.write([
-    "usage: collect-spark1-kubernetes-demo.js [--run-id spark1-k8s-demo-001] [--namespace turbalance-demo] [--selector turba.ai/run-id=...] [--prometheus-url http://127.0.0.1:9090] [--out build/demo/spark1-k8s-bundle.json]",
+    "usage: collect-spark1-kubernetes-demo.js [--run-id spark1-k8s-demo-001] [--namespace turbalance-demo] [--selector turba.ai/run-id=...] [--prometheus-url http://127.0.0.1:9090] [--grafana-url http://192.168.10.20:3000/d/spark1-dcgm/spark1-dcgm-gpu-demo] [--out build/demo/spark1-k8s-bundle.json]",
     "",
     "Fixture options for tests/offline review:",
     "  --pods-json pods.json --jobs-json jobs.json --events-json events.json --nodes-json nodes.json",

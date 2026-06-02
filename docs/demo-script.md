@@ -4,7 +4,7 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 ## Setup
 
-1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000 --remote-machine user@192.168.10.20` on the NUC demo machine, run `node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://192.168.10.20:8000` on standalone `SPARK1`, or run `/home/user/.lmstudio/.internal/utils/node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://100.96.89.98:8000` on `DGX-pat`.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000 --remote-machine user@192.168.10.20` on the NUC demo machine, run `sudo ./install.sh --mode static --prefix /opt/turbalance-analytics --with-systemd --live-machine --live-machine-host-url http://192.168.10.20:8000` on standalone `SPARK1`, or run `/home/user/.lmstudio/.internal/utils/node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://100.96.89.98:8000` on `DGX-pat`.
 2. Open `http://192.168.10.20:8000/` for the standalone `SPARK1` live-machine view, `http://100.96.89.98:8000/` for the standalone `DGX-pat` view, `http://192.168.10.101:8000/` for the NUC14E plus SPARK1 view, or the deployed Pages URL/local `index.html` for the static fixture view.
 3. Confirm the status chips show the sample feed and local storage state.
 4. Keep `fixtures/external-source-bundle.json` ready for import.
