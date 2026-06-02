@@ -59,6 +59,17 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gb10MonitoringSummary
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryTotalBytes, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryAvailableBytes, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryUsedPct, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkInterface, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkLinkSpeedMbps, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxDrops, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxDrops, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxErrors, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxErrors, "number");
+if ("networkUtilizationPct" in bundle.ingestion.runs[0].sourceContext) {
+  assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkUtilizationPct, "number");
+}
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.appMetricsReachable, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingStatus, "string");
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingScripts));

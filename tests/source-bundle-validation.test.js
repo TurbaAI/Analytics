@@ -127,7 +127,7 @@ const ebpfBundle = context.buildIngestionFromExternalPayload({
         cgroupPath: "/kubepods.slice/training/trainer-0",
         cpu: { offCpuTimePct: 11, cpuThrottlePct: 7 },
         scheduler: { runQueueLatencyMsP95: 21 },
-        network: { tcpRetransmitPct: 3, socketLatencyMsP95: 42 },
+        network: { tcpRetransmitPct: 3, socketLatencyMsP95: 42, utilizationPct: 63 },
         storage: { blockIoLatencyMsP95: 11, filesystemLatencyMsP95: 16 },
         noise: { noisyNeighborScore: 67, noiseEvents: 2 }
       }
@@ -137,6 +137,7 @@ const ebpfBundle = context.buildIngestionFromExternalPayload({
 const ebpfRun = ebpfBundle.runs[0];
 assert.ok(ebpfBundle.sourceAdapters.includes("ebpf"));
 assert.ok(ebpfRun.communication.networkWait > 0);
+assert.equal(ebpfRun.communication.networkUtilization, 63);
 assert.ok(ebpfRun.inputPipeline.storageWait > 0);
 assert.ok(ebpfRun.inputPipeline.cpuPrep > 0);
 assert.equal(ebpfRun.reliability.noiseEvents, 2);

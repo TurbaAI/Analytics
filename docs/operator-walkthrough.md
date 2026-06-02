@@ -19,7 +19,7 @@ Open `index.html` in a browser. The app loads a seeded workspace into browser-lo
 3. Read NCCL trace attribution by topology tier.
 4. Toggle `Same-pod what-if` to estimate the locality improvement range.
 
-When an eBPF host overlay is present, treat higher network wait, storage wait, CPU preprocessing pressure, contention, latency tail, or noise events as host-side evidence. Use it to separate Linux scheduling, socket, filesystem, or noisy-neighbor symptoms from GPU/NCCL issues.
+When an eBPF host overlay is present, treat higher network wait, network utilization, storage wait, CPU preprocessing pressure, contention, latency tail, or noise events as host-side evidence. Use it to separate Linux scheduling, socket, filesystem, link pressure, or noisy-neighbor symptoms from GPU/NCCL issues.
 
 ## Simulate Scheduler Moves
 

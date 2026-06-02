@@ -177,7 +177,7 @@ Real production use still requires operator-provided exports from the relevant s
 ### Linux eBPF Support
 
 - `sources.ebpf` host-summary importer for CPU scheduling, socket/network, storage, and noisy-neighbor evidence
-- Mapping of eBPF summaries into existing lanes: network wait, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events
+- Mapping of eBPF summaries into existing lanes: network wait, network utilization, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events
 - Exporter example in `scripts/build-ebpf-overlay.js`
 - Sample input in `fixtures/ebpf-export-inputs/host-samples.json`
 
@@ -188,7 +188,7 @@ The primary normalized feed is `turba.ingestion.v1`. Each run can include:
 - `refs`: model, user, team, cluster, tenant, account, and reservation keys
 - `allocation`: duration, GPU count, allocated GPU-hours, and GPU model
 - `utilization`: GPU utilization, useful compute, SM occupancy, and tensor-core use
-- `communication`: NCCL time, network wait, cross-rack traffic, cross-pod traffic, and all-to-all time
+- `communication`: NCCL time, network wait, network utilization, cross-rack traffic, cross-pod traffic, and all-to-all time
 - `inputPipeline`: dataloader, storage, and CPU preprocessing stalls
 - `memory`: HBM capacity, HBM bandwidth, fragmentation, and KV-cache pressure
 - `scheduler`: placement quality, idle GPUs, partial nodes, queue wait, admission attempts, placement retries, and related capacity signals
@@ -225,7 +225,7 @@ Source overlays let teams keep existing observability and business systems in pl
 
 | Source | Purpose | Example |
 | --- | --- | --- |
-| `sources.prometheus` | Ratios and counters for utilization, useful compute, NCCL time, network wait, input stalls, queue wait, tokens, steps, and requests | `fixtures/external-source-bundle.json` |
+| `sources.prometheus` | Ratios and counters for utilization, useful compute, NCCL time, network wait, network utilization, input stalls, queue wait, tokens, steps, and requests | `fixtures/external-source-bundle.json` |
 | `sources.dcgm` | NVIDIA/DCGM hardware counters for SM, tensor core, HBM, fragmentation, and KV-cache pressure | `docs/telemetry-integration.md` |
 | `sources.kubernetes` | Pod/job state, namespace, selectors, allocation, scheduler state, and placement | `fixtures/provider-export-inputs/kubernetes-jobs.json` |
 | `sources.scheduler` | Queue, admission, placement retry, locality miss, preemption, backfill, and requested GPU shape evidence | `fixtures/scheduler-export-inputs/scheduler-events.json` |

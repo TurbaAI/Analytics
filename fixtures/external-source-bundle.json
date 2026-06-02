@@ -8,6 +8,7 @@
           "turba_useful_compute_ratio": 0.52,
           "turba_nccl_time_ratio": 0.18,
           "turba_network_wait_ratio": 0.08,
+          "turba_network_utilization_ratio": 0.62,
           "turba_dataloader_stall_ratio": 0.04,
           "turba_storage_wait_ratio": 0.03,
           "turba_cpu_prep_ratio": 0.04,
@@ -153,7 +154,8 @@
         },
         "network": {
           "tcpRetransmitPct": 2.4,
-          "socketLatencyMsP95": 34
+          "socketLatencyMsP95": 34,
+          "utilizationPct": 62
         },
         "storage": {
           "blockIoLatencyMsP95": 6,

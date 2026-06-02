@@ -5,6 +5,7 @@ const path = require("node:path");
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
 const idSet = new Set(ids);
@@ -16,12 +17,13 @@ const selectorMatches = [
   ...app.matchAll(/document\.querySelector(?:All)?\("([^"]+)"\)/g)
 ].map((match) => match[1]);
 const scripts = [...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((match) => match[1]);
+const normalizedScripts = scripts.map((script) => script.split("?")[0]);
 
 assert.equal(ids.length, idSet.size, "HTML ids should be unique");
 assert.ok(html.includes("assets/turbalance-mark.png"));
 assert.ok(html.includes("assets/turbalance-analytics-logo.png"));
 assert.ok(html.includes("<title>turbalance Analytics</title>"));
-assert.deepEqual(scripts, [
+assert.deepEqual(normalizedScripts, [
   "analytics-core.js",
   "nccl-trace-parser.js",
   "nccl-trace-fixtures.js",
@@ -75,6 +77,7 @@ selectorMatches.forEach((selector) => {
   "taskMemoryChanges",
   "exportEvidencePackButton",
   "liveTelemetryAlerts",
+  "liveObservationLog",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -82,7 +85,7 @@ selectorMatches.forEach((selector) => {
 });
 
 assert.equal((html.match(/data-scope="/g) || []).length, 8);
-assert.equal((html.match(/data-trend-metric="/g) || []).length, 9);
+assert.equal((html.match(/data-trend-metric="/g) || []).length, 10);
 assert.equal((html.match(/data-scheduler-scenario="/g) || []).length, 4);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
@@ -133,7 +136,23 @@ assert.ok(app.includes("kafkaStreamPanel"));
 assert.ok(app.includes("operatorReplay"));
 assert.ok(app.includes("liveResourceCard"));
 assert.ok(app.includes("renderLiveTelemetryGraphs"));
+assert.ok(app.includes("renderAnalysisResourceFallback"));
+assert.ok(app.includes("analyzeAnalysisResourceRelationships"));
+assert.ok(app.includes("renderAnalysisResourceGraphs"));
 assert.ok(app.includes("buildTelemetrySparkline"));
+assert.ok(app.includes("networkUtilization"));
+assert.ok(app.includes("Network/GPU"));
+assert.ok(app.includes("Network/CPU"));
+assert.ok(app.includes("liveNetworkDisplay"));
+{
+  const liveGridStart = app.indexOf("grid.replaceChildren(");
+  const liveNetworkIndex = app.indexOf('label: "Network utilization"', liveGridStart);
+  const liveGpuIndex = app.indexOf('label: "GPU"', liveGridStart);
+  assert.ok(liveNetworkIndex > liveGridStart);
+  assert.ok(liveNetworkIndex < liveGpuIndex);
+  assert.ok(app.indexOf('telemetryRelationship("Network/GPU"') < app.indexOf('telemetryRelationship("CPU/GPU"'));
+  assert.ok(app.indexOf('telemetryRelationship("Network/CPU"') < app.indexOf('telemetryRelationship("CPU/GPU"'));
+}
 assert.ok(app.includes("gpuProcessQuerySkipped"));
 assert.ok(app.includes("gpuSampleCached"));
 assert.ok(app.includes("analyzeLiveTelemetryRelationships"));
@@ -166,7 +185,19 @@ assert.ok(html.includes("kafkaStreamPanel"));
 assert.ok(html.includes("fleetTiles"));
 assert.ok(html.includes("liveResourceGrid"));
 assert.ok(html.includes("liveTelemetryAlerts"));
+assert.ok(html.includes("liveObservationLog"));
 assert.ok(html.includes("liveTelemetryGraphs"));
+assert.ok(html.includes("app.js?v=observation-log-filter"));
+assert.ok(app.includes("renderLiveObservationLog"));
+assert.ok(app.includes("liveObservationActions"));
+assert.ok(app.includes("liveSignificantSampleObservations"));
+assert.ok(app.includes("liveSampleObservationEvents"));
+assert.ok(app.includes("No meaningful observation events"));
+assert.ok(app.includes("hostWorkObserved"));
+assert.ok(app.includes("formatLiveObservationLog"));
+assert.ok(app.includes("Observation log copied"));
+assert.ok(css.includes("live-observation-action"));
+assert.ok(app.includes("liveSampleObservation"));
 assert.ok(app.includes("redactWorkspaceStore"));
 assert.ok(app.includes("exportWorkspace({ redacted: true })"));
 assert.ok(app.includes('"tenant", "account", "reservation"'));

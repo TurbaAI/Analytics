@@ -3,6 +3,7 @@
     "turba_gpu_utilization_ratio": "avg(DCGM_FI_DEV_GPU_UTIL) / 100",
     "turba_useful_compute_ratio": "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) / 100",
     "turba_network_wait_ratio": "avg(turbalance_network_wait_ratio)",
+    "turba_network_utilization_ratio": "avg(turbalance_network_utilization_ratio)",
     "turba_queue_wait_minutes": "avg(turbalance_queue_wait_minutes)"
   },
   "dcgm": {

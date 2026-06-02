@@ -19,6 +19,7 @@ const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
 let previousGpu = null;
 let previousOllamaTelemetry = null;
+let previousNetwork = null;
 
 if (loopMs > 0) {
   runLoop().catch((error) => {
@@ -57,6 +58,8 @@ async function runLoop() {
 function collectAndWrite({ gpuOverride = null } = {}) {
   const generatedAt = new Date();
   const host = collectHost({ cpuSampleMs: fastRefresh ? 80 : 250 });
+  host.network = withNetworkRates(host.network, previousNetwork);
+  previousNetwork = host.network;
   const gpu = gpuOverride || collectGpu({
     includeProcesses: !fastRefresh,
     previousGpu,
@@ -372,6 +375,9 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
     gpus: gpu.count,
     powerWatts: finite(primaryGpu.powerDrawWatts, 0),
     temperatureC: finite(primaryGpu.temperatureC, 0),
+    networkUtilizationPct: optionalFinite(host.network.utilizationPct),
+    networkRxBytesPerSecond: optionalFinite(host.network.rxBytesPerSecond),
+    networkTxBytesPerSecond: optionalFinite(host.network.txBytesPerSecond),
     networkWait: clamp(loadPressurePct * 0.15 + (host.network.txDrops > 0 ? 4 : 0), 0, 25),
     storageWait: clamp(Math.max(0, diskUsedPct - 75) * 0.6, 0, 35),
     cpuPrep: clamp(Math.max(cpuBusyPct, dockerCpuPct) * 0.75, 0, 45),
@@ -470,6 +476,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
           communication: {
             ncclTime: 0,
             networkWait: round(metrics.networkWait, 2),
+            networkUtilization: roundOptional(metrics.networkUtilizationPct, 2),
             allToAllTime: 0,
             crossRackTraffic: 0,
             crossPodTraffic: 0
@@ -533,6 +540,16 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             diskUsedBytes: host.disk.usedBytes,
             diskUsedPct: round(metrics.diskUsedPct, 2),
             networkInterface: host.network.iface,
+            networkLinkSpeedMbps: roundOptional(host.network.linkSpeedMbps, 0),
+            networkRxBytes: round(host.network.rxBytes, 0),
+            networkTxBytes: round(host.network.txBytes, 0),
+            networkRxBytesPerSecond: roundOptional(metrics.networkRxBytesPerSecond, 2),
+            networkTxBytesPerSecond: roundOptional(metrics.networkTxBytesPerSecond, 2),
+            networkUtilizationPct: roundOptional(metrics.networkUtilizationPct, 2),
+            networkRxDrops: round(host.network.rxDrops, 0),
+            networkTxDrops: round(host.network.txDrops, 0),
+            networkRxErrors: round(host.network.rxErrors, 0),
+            networkTxErrors: round(host.network.txErrors, 0),
             dockerContainers: docker.map((container) => ({
               name: container.name,
               image: container.image,
@@ -717,14 +734,67 @@ function primaryNetworkStats() {
     .flatMap(([name, entries]) => (entries || []).map((entry) => ({ name, ...entry })))
     .find((entry) => entry.family === "IPv4" && !entry.internal)?.name || "";
   const base = iface ? `/sys/class/net/${iface}/statistics` : "";
+  const bsd = iface ? bsdNetworkStats(iface) : {};
   return {
     iface,
-    rxBytes: finite(readFile(path.join(base, "rx_bytes")), 0),
-    txBytes: finite(readFile(path.join(base, "tx_bytes")), 0),
-    rxDrops: finite(readFile(path.join(base, "rx_dropped")), 0),
-    txDrops: finite(readFile(path.join(base, "tx_dropped")), 0),
-    rxErrors: finite(readFile(path.join(base, "rx_errors")), 0),
-    txErrors: finite(readFile(path.join(base, "tx_errors")), 0)
+    collectedAtMs: Date.now(),
+    linkSpeedMbps: iface ? Math.max(0, finite(readFile(`/sys/class/net/${iface}/speed`), 0)) : 0,
+    rxBytes: networkCounter(readFile(path.join(base, "rx_bytes")), finite(bsd.rxBytes, 0)),
+    txBytes: networkCounter(readFile(path.join(base, "tx_bytes")), finite(bsd.txBytes, 0)),
+    rxDrops: networkCounter(readFile(path.join(base, "rx_dropped")), finite(bsd.rxDrops, 0)),
+    txDrops: networkCounter(readFile(path.join(base, "tx_dropped")), finite(bsd.txDrops, 0)),
+    rxErrors: networkCounter(readFile(path.join(base, "rx_errors")), finite(bsd.rxErrors, 0)),
+    txErrors: networkCounter(readFile(path.join(base, "tx_errors")), finite(bsd.txErrors, 0))
+  };
+}
+
+function networkCounter(value, fallback = 0) {
+  return String(value || "").trim() === "" ? fallback : finite(value, fallback);
+}
+
+function bsdNetworkStats(iface) {
+  const line = command("netstat", ["-ibn"])
+    .split("\n")
+    .map((entry) => entry.trim())
+    .find((entry) => entry.startsWith(`${iface} `) && /\s<Link#\d+>\s/.test(entry));
+  if (!line) return {};
+
+  const parts = line.split(/\s+/);
+  return {
+    rxBytes: finite(parts[6], 0),
+    txBytes: finite(parts[9], 0),
+    rxDrops: 0,
+    txDrops: 0,
+    rxErrors: finite(parts[5], 0),
+    txErrors: finite(parts[8], 0)
+  };
+}
+
+function withNetworkRates(current, previous) {
+  if (!current || !previous || current.iface !== previous.iface) {
+    return current;
+  }
+
+  const elapsedSeconds = (finite(current.collectedAtMs, 0) - finite(previous.collectedAtMs, 0)) / 1000;
+  const rxDelta = finite(current.rxBytes, 0) - finite(previous.rxBytes, 0);
+  const txDelta = finite(current.txBytes, 0) - finite(previous.txBytes, 0);
+  if (elapsedSeconds <= 0 || rxDelta < 0 || txDelta < 0) {
+    return current;
+  }
+
+  const rxBytesPerSecond = rxDelta / elapsedSeconds;
+  const txBytesPerSecond = txDelta / elapsedSeconds;
+  const linkSpeedMbps = finite(current.linkSpeedMbps, finite(previous.linkSpeedMbps, 0));
+  const linkBytesPerSecond = linkSpeedMbps > 0 ? (linkSpeedMbps * 1000 * 1000) / 8 : 0;
+
+  return {
+    ...current,
+    linkSpeedMbps,
+    rxBytesPerSecond,
+    txBytesPerSecond,
+    utilizationPct: linkBytesPerSecond > 0
+      ? clamp((Math.max(rxBytesPerSecond, txBytesPerSecond) / linkBytesPerSecond) * 100, 0, 100)
+      : undefined
   };
 }
 
@@ -1119,6 +1189,12 @@ function finite(value, fallback = undefined) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function optionalFinite(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const parsed = Number(String(value).replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function percentText(value) {
   return finite(String(value || "").replace("%", ""), 0);
 }
@@ -1129,6 +1205,13 @@ function pctRatio(percentValue) {
 
 function round(value, digits = 2) {
   const parsed = finite(value, 0);
+  const factor = 10 ** digits;
+  return Math.round(parsed * factor) / factor;
+}
+
+function roundOptional(value, digits = 2) {
+  const parsed = optionalFinite(value);
+  if (!Number.isFinite(parsed)) return undefined;
   const factor = 10 ** digits;
   return Math.round(parsed * factor) / factor;
 }

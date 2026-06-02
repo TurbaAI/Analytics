@@ -97,7 +97,7 @@ Each run should include:
 - `status`: run state shown in inventory
 - `allocation`: duration, GPU count, and allocated GPU-hours
 - `utilization`: GPU utilization and useful compute signals
-- `communication`: NCCL, network wait, cross-rack, and cross-pod signals
+- `communication`: NCCL, network wait, network utilization, cross-rack, and cross-pod signals
 - `inputPipeline`: dataloader, storage, and CPU preprocessing signals
 - `memory`: HBM, fragmentation, and KV-cache pressure signals
 - `scheduler`: placement, idle GPU, partial-node, and queue-wait signals
@@ -220,7 +220,7 @@ Evidence packs and redacted workspaces replace Grafana base URLs, dashboard IDs,
 
 ## eBPF Host Overlay
 
-Linux eBPF summaries should use `sources.ebpf`. This source is optional and should be treated as host-side evidence, not as a replacement for DCGM, CUDA, NCCL, or provider billing data. It is useful for explaining input stalls, socket/network latency, CPU throttling, runqueue pressure, and noisy-neighbor symptoms.
+Linux eBPF summaries should use `sources.ebpf`. This source is optional and should be treated as host-side evidence, not as a replacement for DCGM, CUDA, NCCL, or provider billing data. It is useful for explaining input stalls, socket/network latency, network link utilization, CPU throttling, runqueue pressure, and noisy-neighbor symptoms.
 
 ```json
 {
@@ -247,7 +247,8 @@ Linux eBPF summaries should use `sources.ebpf`. This source is optional and shou
         },
         "network": {
           "tcpRetransmitPct": 2.4,
-          "socketLatencyMsP95": 34
+          "socketLatencyMsP95": 34,
+          "utilizationPct": 62
         },
         "storage": {
           "blockIoLatencyMsP95": 6,
@@ -266,12 +267,15 @@ Linux eBPF summaries should use `sources.ebpf`. This source is optional and shou
 The app maps eBPF summaries into existing normalized sections:
 
 - `communication.networkWait` from TCP retransmits and socket latency
+- `communication.networkUtilization` from NIC/link throughput percent when a trusted collector can provide it
 - `inputPipeline.storageWait` from block I/O and filesystem latency
 - `inputPipeline.cpuPrep` from off-CPU time, CPU throttling, and runqueue pressure
 - `reliability.contentionPct`, `latencyTail`, and `noiseEvents` from host contention and noisy-neighbor signals
 - `sourceContext` for eBPF export ID, collector, kernel release, host, node, pod, container, and cgroup provenance
 
 Prefer summary values by `runId`, pod, container, or cgroup. Do not import raw event streams into the browser prototype unless they have been aggregated and redacted upstream.
+
+Live machine bundles may also include `sourceContext.networkInterface`, `networkLinkSpeedMbps`, `networkRxBytes`, `networkTxBytes`, `networkRxBytesPerSecond`, `networkTxBytesPerSecond`, `networkUtilizationPct`, `networkRxDrops`, `networkTxDrops`, `networkRxErrors`, and `networkTxErrors`. Byte counters are cumulative; bytes-per-second and utilization are only present after the collector has two samples for the same interface.
 
 ## Neo-Cloud Provider Overlay
 

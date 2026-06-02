@@ -58,7 +58,8 @@ const ebpf = hostSamples
     }),
     network: compactObject({
       tcpRetransmitPct: numeric(row.tcpRetransmitPct),
-      socketLatencyMsP95: numeric(row.socketLatencyMsP95)
+      socketLatencyMsP95: numeric(row.socketLatencyMsP95),
+      utilizationPct: numeric(row.networkUtilizationPct)
     }),
     storage: compactObject({
       blockIoLatencyMsP95: numeric(row.blockIoLatencyMsP95),

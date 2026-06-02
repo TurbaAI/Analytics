@@ -402,7 +402,8 @@
         },
         "network": {
           "tcpRetransmitPct": 3.2,
-          "socketLatencyMsP95": 46
+          "socketLatencyMsP95": 46,
+          "utilizationPct": 74
         },
         "storage": {
           "blockIoLatencyMsP95": 7,
@@ -434,7 +435,8 @@
         },
         "network": {
           "tcpRetransmitPct": 1.3,
-          "socketLatencyMsP95": 22
+          "socketLatencyMsP95": 22,
+          "utilizationPct": 38
         },
         "storage": {
           "blockIoLatencyMsP95": 4,
@@ -482,6 +484,7 @@
           "turba_useful_compute_ratio": 0.43,
           "turba_nccl_time_ratio": 0.27,
           "turba_network_wait_ratio": 0.13,
+          "turba_network_utilization_ratio": 0.74,
           "turba_dataloader_stall_ratio": 0.04,
           "turba_storage_wait_ratio": 0.03,
           "turba_cpu_prep_ratio": 0.04,
@@ -501,6 +504,7 @@
           "turba_useful_compute_ratio": 0.39,
           "turba_nccl_time_ratio": 0.05,
           "turba_network_wait_ratio": 0.09,
+          "turba_network_utilization_ratio": 0.58,
           "turba_dataloader_stall_ratio": 0.03,
           "turba_storage_wait_ratio": 0.05,
           "turba_cpu_prep_ratio": 0.08,

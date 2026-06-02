@@ -134,6 +134,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 29,
         networkWait: 12,
+        networkUtilization: 64,
         crossRackTraffic: 68,
         crossPodTraffic: 41,
         allToAllTime: 2
@@ -234,6 +235,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 7,
         networkWait: 4,
+        networkUtilization: 36,
         crossRackTraffic: 19,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -327,6 +329,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 4,
         networkWait: 7,
+        networkUtilization: 52,
         crossRackTraffic: 24,
         crossPodTraffic: 0,
         allToAllTime: 13
@@ -420,6 +423,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 9,
         networkWait: 5,
+        networkUtilization: 41,
         crossRackTraffic: 18,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -513,6 +517,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 2,
         networkWait: 3,
+        networkUtilization: 22,
         crossRackTraffic: 8,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -684,6 +689,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.41,
         turba_nccl_time_ratio: 0.29,
         turba_network_wait_ratio: 0.12,
+        turba_network_utilization_ratio: 0.64,
         turba_dataloader_stall_ratio: 0.05,
         turba_storage_wait_ratio: 0.03,
         turba_cpu_prep_ratio: 0.04,
@@ -703,6 +709,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.35,
         turba_nccl_time_ratio: 0.07,
         turba_network_wait_ratio: 0.04,
+        turba_network_utilization_ratio: 0.36,
         turba_dataloader_stall_ratio: 0.18,
         turba_storage_wait_ratio: 0.15,
         turba_cpu_prep_ratio: 0.12,
@@ -722,6 +729,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.44,
         turba_nccl_time_ratio: 0.04,
         turba_network_wait_ratio: 0.07,
+        turba_network_utilization_ratio: 0.52,
         turba_dataloader_stall_ratio: 0.03,
         turba_storage_wait_ratio: 0.04,
         turba_cpu_prep_ratio: 0.09,
@@ -741,6 +749,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.73,
         turba_nccl_time_ratio: 0.09,
         turba_network_wait_ratio: 0.05,
+        turba_network_utilization_ratio: 0.41,
         turba_dataloader_stall_ratio: 0.04,
         turba_storage_wait_ratio: 0.02,
         turba_cpu_prep_ratio: 0.03,
@@ -760,6 +769,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.21,
         turba_nccl_time_ratio: 0.02,
         turba_network_wait_ratio: 0.03,
+        turba_network_utilization_ratio: 0.22,
         turba_dataloader_stall_ratio: 0.09,
         turba_storage_wait_ratio: 0.05,
         turba_cpu_prep_ratio: 0.07,
@@ -996,6 +1006,7 @@ const MACHINE_DEMO_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
+const LIVE_OBSERVATION_LIMIT = 8;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
 
@@ -1006,6 +1017,7 @@ let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let liveTelemetryHistory = [];
+let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
 let operatorLaunchpadSignature = "";
@@ -1067,6 +1079,13 @@ const TREND_METRIC_DEFS = {
   },
   ncclTime: {
     label: "NCCL time",
+    unit: "points",
+    higherIsBetter: false,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  networkUtilization: {
+    label: "Network utilization",
     unit: "points",
     higherIsBetter: false,
     format: (value) => pct(value),
@@ -1303,6 +1322,7 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       grossMarginPct: provider.grossMarginPct,
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
+      networkUtilization: summary.networkUtilization,
       placementQuality: summary.placementQuality,
       crossPodTraffic: summary.crossPodTraffic,
       queueWaitMinutes: summary.queueWaitMinutes
@@ -1463,6 +1483,7 @@ function importPrometheusSamples(samples = []) {
         communication: {
           ncclTime: ratioPercent(metrics.turba_nccl_time_ratio),
           networkWait: ratioPercent(metrics.turba_network_wait_ratio),
+          networkUtilization: optionalPercent(metrics.turba_network_utilization_ratio),
           allToAllTime: ratioPercent(metrics.turba_all_to_all_time_ratio)
         },
         inputPipeline: {
@@ -1806,6 +1827,12 @@ function importEbpfSamples(samples = []) {
       metrics.turba_tcp_retransmit_pct,
       network.tcpRetransmitPct
     ));
+    const networkUtilization = optionalPercent(firstFinite(
+      metrics.turba_network_utilization_ratio,
+      metrics.turba_network_utilization_pct,
+      signals.networkUtilization,
+      network.utilizationPct
+    ));
     const socketLatency = firstFinite(
       metrics.turba_socket_latency_ms_p95,
       network.socketLatencyMsP95
@@ -1868,7 +1895,8 @@ function importEbpfSamples(samples = []) {
       runId: sample.runId,
       sections: compactSections({
         communication: compactMetrics({
-          networkWait
+          networkWait,
+          networkUtilization
         }),
         inputPipeline: compactMetrics({
           storageWait,
@@ -2246,6 +2274,7 @@ function normalizeMetrics(run) {
     tensorCoreUtil: metric(run.utilization, "tensorCoreUtil"),
     ncclTime: metric(run.communication, "ncclTime"),
     networkWait: metric(run.communication, "networkWait"),
+    networkUtilization: metric(run.communication, "networkUtilization"),
     dataloaderStall: metric(run.inputPipeline, "dataloaderStall"),
     storageWait: metric(run.inputPipeline, "storageWait"),
     cpuPrep: metric(run.inputPipeline, "cpuPrep"),
@@ -3616,6 +3645,7 @@ function summarizeEntry(entry) {
     tensorCoreUtil: weighted("tensorCoreUtil"),
     ncclTime: weighted("ncclTime"),
     networkWait: weighted("networkWait"),
+    networkUtilization: weighted("networkUtilization"),
     dataloaderStall: weighted("dataloaderStall"),
     storageWait: weighted("storageWait"),
     cpuPrep: weighted("cpuPrep"),
@@ -3830,6 +3860,18 @@ function machineDemoContext(summary) {
     cpuUsagePct: numeric(context.cpuUsagePct),
     memoryUsedPct: numeric(context.memoryUsedPct),
     diskUsedPct: numeric(context.diskUsedPct),
+    networkInterface: String(context.networkInterface || ""),
+    networkLinkSpeedMbps: optionalMetric(context, "networkLinkSpeedMbps"),
+    networkRxBytes: optionalMetric(context, "networkRxBytes"),
+    networkTxBytes: optionalMetric(context, "networkTxBytes"),
+    networkRxBytesPerSecond: optionalMetric(context, "networkRxBytesPerSecond"),
+    networkTxBytesPerSecond: optionalMetric(context, "networkTxBytesPerSecond"),
+    networkUtilizationPct: optionalMetric(context, "networkUtilizationPct"),
+    networkThroughputBps: maxFinite(context.networkRxBytesPerSecond, context.networkTxBytesPerSecond),
+    networkRxDrops: optionalMetric(context, "networkRxDrops"),
+    networkTxDrops: optionalMetric(context, "networkTxDrops"),
+    networkRxErrors: optionalMetric(context, "networkRxErrors"),
+    networkTxErrors: optionalMetric(context, "networkTxErrors"),
     dockerContainers: Array.isArray(context.dockerContainers) ? context.dockerContainers : [],
     workloadCountersObserved: Boolean(context.workloadCountersObserved),
     unavailableExports: Array.isArray(context.unavailableExports) ? context.unavailableExports : [],
@@ -3949,16 +3991,13 @@ function renderLiveResources(summary) {
   const badge = document.querySelector("#liveResourceBadge");
   const grid = document.querySelector("#liveResourceGrid");
   const alerts = document.querySelector("#liveTelemetryAlerts");
+  const observationLog = document.querySelector("#liveObservationLog");
   const graphs = document.querySelector("#liveTelemetryGraphs");
-  if (!panel || !title || !badge || !grid || !alerts || !graphs) return;
+  if (!panel || !title || !badge || !grid || !alerts || !observationLog || !graphs) return;
 
   const machineContext = machineDemoContext(summary);
   if (!machineContext) {
-    panel.hidden = true;
-    grid.replaceChildren();
-    alerts.replaceChildren();
-    graphs.replaceChildren();
-    liveTelemetryHistory = [];
+    renderAnalysisResourceFallback(summary, { panel, title, badge, grid, alerts, observationLog, graphs });
     return;
   }
 
@@ -3993,6 +4032,7 @@ function renderLiveResources(summary) {
   const umaMemoryAvailable = machineContext.linuxUmaMemoryAvailableBytes || memoryAvailable;
   const umaMemoryUsed = Math.max(0, umaMemoryTotal - umaMemoryAvailable);
   const umaMemoryUsedPct = machineContext.linuxUmaMemoryUsedPct || machineContext.memoryUsedPct;
+  const networkDisplay = liveNetworkDisplay(machineContext);
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -4012,6 +4052,13 @@ function renderLiveResources(summary) {
       note: memoryTotal ? `${formatBytes(memoryUsed)} / ${formatBytes(memoryTotal)}` : "Host memory pressure",
       percent: machineContext.memoryUsedPct,
       tone: inverseGrade(machineContext.memoryUsedPct, 75, 90).key
+    }),
+    liveResourceCard({
+      label: "Network utilization",
+      value: networkDisplay.value,
+      note: networkDisplay.note,
+      percent: networkDisplay.percent,
+      tone: networkDisplay.tone
     }),
     ...(machineContext.gb10Present ? [
       liveResourceCard({
@@ -4050,18 +4097,18 @@ function renderLiveResources(summary) {
       tone: machineContext.gpuPresent ? inverseGrade(machineContext.gpuMemoryUsedPct, 82, 94).key : "poor"
     }),
     liveResourceCard({
-      label: "Disk",
-      value: pct(machineContext.diskUsedPct),
-      note: context.diskTotalBytes ? `${formatBytes(context.diskUsedBytes)} / ${formatBytes(context.diskTotalBytes)}` : "Root filesystem",
-      percent: machineContext.diskUsedPct,
-      tone: inverseGrade(machineContext.diskUsedPct, 75, 90).key
-    }),
-    liveResourceCard({
       label: "Docker",
       value: `${machineContext.dockerContainers.length}`,
       note: `${pct(dockerCpu)} aggregate container CPU`,
       percent: clamp(dockerCpu),
       tone: machineContext.dockerContainers.length ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Disk",
+      value: pct(machineContext.diskUsedPct),
+      note: context.diskTotalBytes ? `${formatBytes(context.diskUsedBytes)} / ${formatBytes(context.diskTotalBytes)}` : "Root filesystem",
+      percent: machineContext.diskUsedPct,
+      tone: inverseGrade(machineContext.diskUsedPct, 75, 90).key
     }),
     liveResourceCard({
       label: "Ollama",
@@ -4092,8 +4139,80 @@ function renderLiveResources(summary) {
     })
   );
 
-  renderLiveTelemetryAlerts(alerts, analyzeLiveTelemetryRelationships(telemetry, machineContext));
+  const analysis = analyzeLiveTelemetryRelationships(telemetry, machineContext);
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, machineContext, telemetry);
   renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
+}
+
+function renderAnalysisResourceFallback(summary, nodes) {
+  const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
+  const analysis = analyzeAnalysisResourceRelationships(summary);
+  liveTelemetryHistory = [];
+
+  panel.hidden = false;
+  title.textContent = `${summary.label} resource signals`;
+  renderAnalysisResourceBadge(badge);
+
+  grid.replaceChildren(
+    liveResourceCard({
+      label: "Network utilization",
+      value: pct(summary.networkUtilization),
+      note: `${pct(summary.networkWait)} network wait | ${pct(summary.ncclTime)} NCCL`,
+      percent: summary.networkUtilization,
+      tone: inverseGrade(summary.networkUtilization, 70, 88).key
+    }),
+    liveResourceCard({
+      label: "GPU utilization",
+      value: pct(summary.gpuUtil),
+      note: `${pct(summary.usefulCompute)} useful compute | ${number.format(summary.gpus)} GPUs`,
+      percent: summary.gpuUtil,
+      tone: grade(summary.gpuUtil, 45, 70).key
+    }),
+    liveResourceCard({
+      label: "CPU prep",
+      value: pct(summary.cpuPrep),
+      note: "Host-side CPU/preprocessing proxy",
+      percent: summary.cpuPrep,
+      tone: inverseGrade(summary.cpuPrep, 20, 35).key
+    }),
+    liveResourceCard({
+      label: "Network wait",
+      value: pct(summary.networkWait),
+      note: "Latency/loss/stall pressure, separate from utilization",
+      percent: summary.networkWait,
+      tone: inverseGrade(summary.networkWait, 10, 20).key
+    }),
+    liveResourceCard({
+      label: "NCCL time",
+      value: pct(summary.ncclTime),
+      note: "Collective communication time",
+      percent: summary.ncclTime,
+      tone: inverseGrade(summary.ncclTime, 15, 30).key
+    }),
+    liveResourceCard({
+      label: "Placement fit",
+      value: pct(summary.placementQuality),
+      note: `${pct(summary.crossPodTraffic)} cross-pod | ${pct(summary.crossRackTraffic)} cross-rack`,
+      percent: summary.placementQuality,
+      tone: grade(summary.placementQuality, 65, 82).key
+    })
+  );
+
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, null, analysis.history);
+  renderAnalysisResourceGraphs(graphs, summary, analysis.history);
+}
+
+function renderAnalysisResourceBadge(badge) {
+  const label = document.createElement("span");
+  label.className = "live-resource-badge-text";
+  label.textContent = "Analysis snapshot";
+  badge.replaceChildren(label);
+  badge.dataset.tone = "watch";
+  badge.dataset.fresh = "false";
+  badge.title = "Showing interpreted run metrics until live host counters are available";
+  badge.setAttribute("aria-label", `${label.textContent}. ${badge.title}.`);
 }
 
 function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
@@ -4124,6 +4243,28 @@ function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
   badge.dataset.fresh = fresh ? "true" : "false";
   badge.title = fresh ? "Live data is coming in" : "Waiting for a fresh live sample";
   badge.setAttribute("aria-label", `${text}. ${badge.title}.`);
+}
+
+function liveNetworkDisplay(machineContext) {
+  const hasPercent = Number.isFinite(machineContext.networkUtilizationPct);
+  const throughput = Number.isFinite(machineContext.networkThroughputBps) ? machineContext.networkThroughputBps : 0;
+  const interfaceLabel = machineContext.networkInterface || "primary interface";
+  const linkText = Number.isFinite(machineContext.networkLinkSpeedMbps) && machineContext.networkLinkSpeedMbps > 0
+    ? `${compactNumber.format(machineContext.networkLinkSpeedMbps)} Mbps link`
+    : "link speed unavailable";
+  const issueCount = numeric(machineContext.networkRxDrops)
+    + numeric(machineContext.networkTxDrops)
+    + numeric(machineContext.networkRxErrors)
+    + numeric(machineContext.networkTxErrors);
+
+  return {
+    value: hasPercent ? pct(machineContext.networkUtilizationPct) : throughput > 0 ? formatBytesPerSecond(throughput) : "learning",
+    note: hasPercent
+      ? `${interfaceLabel} | ${formatBytesPerSecond(throughput)} | ${linkText}`
+      : `${interfaceLabel} | ${linkText}`,
+    percent: hasPercent ? machineContext.networkUtilizationPct : null,
+    tone: issueCount > 0 ? "watch" : hasPercent ? inverseGrade(machineContext.networkUtilizationPct, 70, 88).key : "watch"
+  };
 }
 
 function renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator) {
@@ -4863,7 +5004,9 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
     gpuMemory: machineContext.gpuPresent ? clamp(machineContext.gpuMemoryUsedPct) : null,
     gpuPower: machineContext.gpuPresent && machineContext.gpuPowerWatts > 0 ? numeric(machineContext.gpuPowerWatts) : null,
     gpuTemperature: machineContext.gpuPresent && machineContext.gpuTemperatureC > 0 ? numeric(machineContext.gpuTemperatureC) : null,
-    memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes))
+    memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes)),
+    networkUtilization: Number.isFinite(machineContext.networkUtilizationPct) ? clamp(machineContext.networkUtilizationPct) : null,
+    networkThroughputBps: Number.isFinite(machineContext.networkThroughputBps) ? Math.max(0, machineContext.networkThroughputBps) : null
   });
 
   if (liveTelemetryHistory.length > LIVE_TELEMETRY_LIMIT) {
@@ -4885,12 +5028,17 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
     cpu: telemetryTrend(window, "cpu"),
     ram: telemetryTrend(window, "ram"),
     disk: telemetryTrend(window, "disk"),
+    networkUtilization: telemetryTrend(window, "networkUtilization"),
+    networkThroughputBps: telemetryTrend(window, "networkThroughputBps"),
     gpu: telemetryTrend(window, "gpu"),
     gpuPower: telemetryTrend(window, "gpuPower"),
     gpuMemory: telemetryTrend(window, "gpuMemory"),
     gpuTemperature: telemetryTrend(window, "gpuTemperature")
   };
+  const networkRelationshipKey = telemetryRelationshipKey(window, ["networkUtilization", "networkThroughputBps"]);
   const relationships = [
+    telemetryRelationship("Network/GPU", telemetryCorrelation(window, networkRelationshipKey, "gpu"), networkRelationshipKey === "networkUtilization" ? "Link utilization vs accelerator work" : "Network throughput vs accelerator work"),
+    telemetryRelationship("Network/CPU", telemetryCorrelation(window, networkRelationshipKey, "cpu"), networkRelationshipKey === "networkUtilization" ? "Link utilization vs host activity" : "Network throughput vs host activity"),
     telemetryRelationship("CPU/GPU", telemetryCorrelation(window, "cpu", "gpu"), "Host pressure vs accelerator work"),
     telemetryRelationship("Power/GPU", telemetryCorrelation(window, "gpuPower", "gpu"), "Power draw vs useful accelerator motion"),
     telemetryRelationship("RAM/CPU", telemetryCorrelation(window, "ram", "cpu"), "Memory pressure vs host activity")
@@ -4899,6 +5047,7 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
 
   if (sampleCount < 6) {
     return {
+      contextKey: liveObservationContextKey(null, machineContext, window),
       sampleCount,
       windowSeconds,
       alerts,
@@ -4909,16 +5058,22 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
 
   const avgGpu = telemetryAverage(window, "gpu");
   const avgCpu = telemetryAverage(window, "cpu");
+  const avgDockerCpu = telemetryAverage(window, "dockerCpu");
+  const avgNetworkThroughput = telemetryAverage(window, "networkThroughputBps");
+  const hostWorkObserved = (avgCpu !== null && avgCpu >= 15)
+    || (avgDockerCpu !== null && avgDockerCpu >= 8)
+    || (avgNetworkThroughput !== null && avgNetworkThroughput >= 1024 * 1024);
   const latestGpu = numeric(latest.gpu, 0);
   const latestCpu = numeric(latest.cpu, 0);
   const latestRam = numeric(latest.ram, 0);
   const latestDisk = numeric(latest.disk, 0);
+  const latestNetworkUtilization = telemetryValue(latest, "networkUtilization");
   const latestPower = numeric(latest.gpuPower, 0);
   const latestTemp = numeric(latest.gpuTemperature, 0);
   const cpuGpuCorrelation = telemetryCorrelation(window, "cpu", "gpu");
   const powerGpuCorrelation = telemetryCorrelation(window, "gpuPower", "gpu");
 
-  if (machineContext.gpuPresent && avgGpu !== null && avgGpu <= 5 && sampleCount >= 10) {
+  if (machineContext.gpuPresent && hostWorkObserved && avgGpu !== null && avgGpu <= 5 && sampleCount >= 10) {
     alerts.push(liveTelemetryAlert({
       severity: avgCpu !== null && avgCpu > 35 ? "high" : "medium",
       title: "Accelerator is trending idle",
@@ -4987,6 +5142,36 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
 
   if (
     machineContext.gpuPresent
+    && Number.isFinite(latestNetworkUtilization)
+    && latestNetworkUtilization >= 70
+    && (trends.gpu.slopePerMinute < 1 || latestGpu < 20)
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestNetworkUtilization >= 88 ? "high" : "medium",
+      title: "Network utilization is high while GPU is flat",
+      evidence: `Network utilization is ${pct(latestNetworkUtilization)} while GPU is moving ${signedRate(trends.gpu.slopePerMinute, "pts/min")}.`,
+      recommendation: "Inspect data ingress, model shard traffic, all-reduce placement, and host NIC saturation before adding accelerator capacity.",
+      confidence: 0.78
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
+    && Number.isFinite(latestNetworkUtilization)
+    && trends.networkUtilization.slopePerMinute > 8
+    && trends.gpu.slopePerMinute < 1
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestNetworkUtilization >= 60 ? "high" : "medium",
+      title: "Network pressure is rising ahead of GPU work",
+      evidence: `Network utilization is moving ${signedRate(trends.networkUtilization.slopePerMinute, "pts/min")} while GPU is moving ${signedRate(trends.gpu.slopePerMinute, "pts/min")}.`,
+      recommendation: "Check input streaming, collective fan-out, and cross-node placement while the window is still short.",
+      confidence: 0.74
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
     && cpuGpuCorrelation !== null
     && cpuGpuCorrelation < -0.35
     && trends.cpu.slopePerMinute > 2
@@ -5015,12 +5200,169 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
   alerts.sort((left, right) => severityRank[right.severity] - severityRank[left.severity] || right.confidence - left.confidence);
 
   return {
+    contextKey: liveObservationContextKey(null, machineContext, window),
     sampleCount,
     windowSeconds,
     alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
     relationships,
     status: alerts.length ? `${alerts.length} active` : "Stable"
   };
+}
+
+function analyzeAnalysisResourceRelationships(summary) {
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  const cpuPrep = numeric(summary.cpuPrep);
+  const networkWait = numeric(summary.networkWait);
+  const nccl = numeric(summary.ncclTime);
+  const placement = numeric(summary.placementQuality);
+  const crossPod = numeric(summary.crossPodTraffic);
+  const alerts = [];
+  const relationships = [
+    analysisRelationship(
+      "Network/GPU",
+      `${pct(network)} / ${pct(gpu)}`,
+      networkGpuSnapshotNote(summary),
+      network >= 70 && gpu < 45 ? "poor" : network >= 70 || gpu < 35 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Network/CPU",
+      `${pct(network)} / ${pct(cpuPrep)}`,
+      networkCpuSnapshotNote(summary),
+      network >= 70 && cpuPrep >= 20 ? "poor" : network >= 70 || cpuPrep >= 20 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Network wait/GPU",
+      `${pct(networkWait)} / ${pct(gpu)}`,
+      "Network wait tracks stall/latency pressure against accelerator utilization",
+      networkWait >= 18 && gpu < 55 ? "poor" : networkWait >= 10 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Placement/Network",
+      `${pct(placement)} / ${pct(crossPod)}`,
+      "Placement fit compared with cross-pod traffic pressure",
+      placement < 60 && crossPod >= 30 ? "poor" : crossPod >= 20 || placement < 75 ? "watch" : "good"
+    )
+  ];
+
+  if (network >= 70 && gpu < 45) {
+    alerts.push(liveTelemetryAlert({
+      severity: network >= 88 ? "high" : "medium",
+      title: "Network utilization may be limiting GPU work",
+      evidence: `Network utilization is ${pct(network)} while GPU utilization is ${pct(gpu)} in this run snapshot.`,
+      recommendation: "Check input streaming, collective traffic, placement, and NIC capacity before adding accelerator capacity.",
+      confidence: 0.74
+    }));
+  }
+
+  if (network >= 70 && cpuPrep >= 20) {
+    alerts.push(liveTelemetryAlert({
+      severity: network >= 88 || cpuPrep >= 35 ? "high" : "medium",
+      title: "Network and CPU prep are both elevated",
+      evidence: `Network utilization is ${pct(network)} and CPU prep is ${pct(cpuPrep)} in the interpreted metrics.`,
+      recommendation: "Inspect host data loading, tokenization, serialization, and ingress fan-in for CPU-side network pressure.",
+      confidence: 0.7
+    }));
+  }
+
+  if (network >= 60 && networkWait >= 10) {
+    alerts.push(liveTelemetryAlert({
+      severity: networkWait >= 20 ? "high" : "medium",
+      title: "Throughput pressure and network wait coexist",
+      evidence: `Network utilization is ${pct(network)} while network wait is ${pct(networkWait)} and NCCL time is ${pct(nccl)}.`,
+      recommendation: "Separate capacity saturation from latency/loss stalls by checking interface errors, drops, and collective topology.",
+      confidence: 0.76
+    }));
+  }
+
+  return {
+    contextKey: `snapshot:${summary.scope}:${summary.key}`,
+    sampleCount: 1,
+    windowSeconds: 0,
+    badgeText: "Analysis snapshot",
+    emptyAlertText: "No adverse snapshot relationship detected in the selected run.",
+    alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
+    relationships,
+    observations: analysisResourceObservations(summary, alerts),
+    history: analysisResourceHistory(summary),
+    status: alerts.length ? `${alerts.length} snapshot ${alerts.length === 1 ? "signal" : "signals"}` : "Snapshot stable"
+  };
+}
+
+function analysisRelationship(label, value, note, tone = "watch") {
+  return { label, value, note, tone };
+}
+
+function networkGpuSnapshotNote(summary) {
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  if (network >= 70 && gpu < 45) return "High link pressure with low GPU use points to data-motion bottlenecks";
+  if (network >= 70) return "Link utilization is material; compare against network wait and NCCL";
+  if (gpu >= 70 && network <= 40) return "GPU is busy without heavy link pressure";
+  return "Snapshot comparison of link pressure against accelerator work";
+}
+
+function networkCpuSnapshotNote(summary) {
+  const network = numeric(summary.networkUtilization);
+  const cpuPrep = numeric(summary.cpuPrep);
+  if (network >= 70 && cpuPrep >= 20) return "CPU prep is the host-side proxy for Network/CPU in this snapshot";
+  if (network >= 70) return "Network pressure is elevated; CPU prep is not elevated in this run";
+  if (cpuPrep >= 20) return "CPU prep is elevated without matching link utilization";
+  return "Uses CPU prep as the host-side CPU proxy until live CPU counters arrive";
+}
+
+function analysisResourceObservations(summary, alerts) {
+  const alertRows = alerts.map((alert) => ({
+    tone: alert.severity === "critical" || alert.severity === "high" ? "poor" : alert.severity === "medium" ? "watch" : "good",
+    label: titleCase(alert.severity),
+    title: alert.title,
+    detail: alert.evidence
+  }));
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  const cpuPrep = numeric(summary.cpuPrep);
+  const rows = [
+    {
+      tone: inverseGrade(network, 70, 88).key,
+      label: "Snapshot",
+      title: "Network utilization",
+      detail: `${pct(network)} link utilization | ${pct(summary.networkWait)} network wait | ${pct(summary.ncclTime)} NCCL`
+    },
+    {
+      tone: network >= 70 && gpu < 45 ? "poor" : network >= 70 || gpu < 35 ? "watch" : "good",
+      label: "Relationship",
+      title: "Network/GPU",
+      detail: `${pct(network)} network utilization compared with ${pct(gpu)} GPU utilization. ${networkGpuSnapshotNote(summary)}.`
+    },
+    {
+      tone: network >= 70 && cpuPrep >= 20 ? "poor" : network >= 70 || cpuPrep >= 20 ? "watch" : "good",
+      label: "Relationship",
+      title: "Network/CPU",
+      detail: `${pct(network)} network utilization compared with ${pct(cpuPrep)} CPU prep. ${networkCpuSnapshotNote(summary)}.`
+    },
+    {
+      tone: inverseGrade(summary.networkWait, 10, 20).key,
+      label: "Snapshot",
+      title: "Network wait",
+      detail: `${pct(summary.networkWait)} stall/latency pressure, kept separate from ${pct(network)} utilization.`
+    }
+  ];
+
+  return [...alertRows, ...rows].slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function analysisResourceHistory(summary) {
+  return [{
+    host: summary.label,
+    timestampMs: Date.now(),
+    label: "Snapshot",
+    networkUtilization: clamp(summary.networkUtilization),
+    gpu: clamp(summary.gpuUtil),
+    cpuPrep: clamp(summary.cpuPrep),
+    networkWait: clamp(summary.networkWait),
+    ncclTime: clamp(summary.ncclTime),
+    placementQuality: clamp(summary.placementQuality)
+  }];
 }
 
 function renderLiveTelemetryAlerts(container, analysis) {
@@ -5034,9 +5376,9 @@ function renderLiveTelemetryAlerts(container, analysis) {
   const title = document.createElement("h3");
   title.textContent = analysis.status;
   const badge = document.createElement("span");
-  badge.textContent = analysis.sampleCount
+  badge.textContent = analysis.badgeText || (analysis.sampleCount
     ? `${analysis.sampleCount} samples | ${analysis.windowSeconds}s`
-    : "No samples";
+    : "No samples");
   head.append(label, title, badge);
 
   const relationshipGrid = document.createElement("div");
@@ -5050,9 +5392,9 @@ function renderLiveTelemetryAlerts(container, analysis) {
   if (!analysis.alerts.length) {
     const empty = document.createElement("div");
     empty.className = "live-alert-empty";
-    empty.textContent = analysis.sampleCount < 6
+    empty.textContent = analysis.emptyAlertText || (analysis.sampleCount < 6
       ? "Learning enough signal history to score adverse trends."
-      : "No adverse relationship trend detected in the current window.";
+      : "No adverse relationship trend detected in the current window.");
     alertList.append(empty);
   } else {
     analysis.alerts.forEach((alert) => {
@@ -5062,6 +5404,313 @@ function renderLiveTelemetryAlerts(container, analysis) {
 
   wrapper.append(head, relationshipGrid, alertList);
   container.replaceChildren(wrapper);
+}
+
+function renderLiveObservationLog(container, analysis, machineContext, history) {
+  const sampleHistory = Array.isArray(history) ? history : [];
+  const contextKey = liveObservationContextKey(analysis, machineContext, sampleHistory);
+  const rawObservations = Array.isArray(analysis.observations)
+    ? analysis.observations.slice(0, LIVE_OBSERVATION_LIMIT)
+    : liveObservations(analysis, machineContext, sampleHistory);
+  const observations = filterLiveObservationRows(rawObservations, contextKey);
+  const latest = sampleHistory[sampleHistory.length - 1] || {};
+  const wrapper = document.createElement("section");
+  wrapper.className = "live-observation-panel";
+
+  const head = document.createElement("div");
+  head.className = "live-observation-head";
+  const label = document.createElement("p");
+  label.textContent = "Observation Log";
+  const title = document.createElement("h3");
+  title.textContent = `${observations.length} ${observations.length === 1 ? "entry" : "entries"}`;
+  const meta = document.createElement("div");
+  meta.className = "live-observation-meta";
+  const badge = document.createElement("span");
+  badge.textContent = latest.label ? `Latest ${latest.label}` : analysis.badgeText || "Waiting";
+  meta.append(
+    badge,
+    liveObservationActions({
+      observations,
+      contextKey,
+      clearTimestampMs: liveObservationClearTimestamp(rawObservations, sampleHistory),
+      onClear: () => renderLiveObservationLog(container, analysis, machineContext, sampleHistory)
+    })
+  );
+  head.append(label, title, meta);
+
+  if (!observations.length) {
+    const empty = document.createElement("div");
+    empty.className = "live-observation-empty";
+    empty.textContent = liveObservationWasCleared(contextKey) && rawObservations.length
+      ? "Observation log cleared. Waiting for a newer sample."
+      : analysis.emptyObservationText || (sampleHistory.length ? "No meaningful observation events in the current window." : "Waiting for live samples.");
+    wrapper.append(head, empty);
+    container.replaceChildren(wrapper);
+    return;
+  }
+
+  const list = document.createElement("ol");
+  list.className = "live-observation-list";
+  observations.forEach((observation) => {
+    list.append(liveObservationItem(observation));
+  });
+
+  wrapper.append(head, list);
+  container.replaceChildren(wrapper);
+}
+
+function liveObservationActions({ observations, contextKey, clearTimestampMs, onClear }) {
+  const actions = document.createElement("div");
+  actions.className = "live-observation-actions";
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "live-observation-action";
+  copy.textContent = "Copy";
+  copy.disabled = observations.length === 0;
+  copy.setAttribute("aria-label", "Copy observation log");
+  copy.addEventListener("click", async () => {
+    const text = formatLiveObservationLog(observations);
+    copy.disabled = true;
+    const copied = await copyTextToClipboard(text);
+    copy.dataset.state = copied ? "done" : "failed";
+    copy.textContent = copied ? "Copied" : "Copy failed";
+    setIngestStatus(copied ? "Observation log copied" : "Observation log ready to copy", copied ? "good" : "watch");
+    if (!copied) showManualCopyPrompt("Observation log", text);
+    window.setTimeout(() => {
+      copy.dataset.state = "";
+      copy.textContent = "Copy";
+      copy.disabled = observations.length === 0;
+    }, 1200);
+  });
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "live-observation-action";
+  clear.textContent = "Clear";
+  clear.disabled = observations.length === 0;
+  clear.setAttribute("aria-label", "Clear observation log");
+  clear.addEventListener("click", () => {
+    liveObservationClearState = { contextKey, clearedAtMs: clearTimestampMs };
+    setIngestStatus("Observation log cleared", "watch");
+    onClear();
+  });
+
+  actions.append(copy, clear);
+  return actions;
+}
+
+function liveObservationContextKey(analysis, machineContext, history) {
+  if (analysis?.contextKey) return analysis.contextKey;
+  const host = machineContext?.host || history.find((sample) => sample?.host)?.host || "host";
+  return `live:${host}`;
+}
+
+function filterLiveObservationRows(observations, contextKey) {
+  if (!liveObservationWasCleared(contextKey)) return observations;
+  return observations.filter((observation) => Number.isFinite(observation.timestampMs) && observation.timestampMs > liveObservationClearState.clearedAtMs);
+}
+
+function liveObservationWasCleared(contextKey) {
+  return liveObservationClearState.contextKey === contextKey && Number.isFinite(liveObservationClearState.clearedAtMs);
+}
+
+function liveObservationClearTimestamp(observations, history) {
+  const latestSample = history[history.length - 1];
+  if (Number.isFinite(latestSample?.timestampMs)) return latestSample.timestampMs;
+  const stamps = observations.map((observation) => observation.timestampMs).filter(Number.isFinite);
+  return stamps.length ? Math.max(...stamps) : Date.now();
+}
+
+function formatLiveObservationLog(observations) {
+  return observations
+    .map((observation) => {
+      const stamp = observation.dateTime || observation.label || "Observation";
+      return `[${stamp}] ${observation.title}: ${observation.detail}`;
+    })
+    .join("\n");
+}
+
+function liveObservations(analysis, machineContext, history) {
+  const alerts = Array.isArray(analysis.alerts) ? analysis.alerts : [];
+  const sampleHistory = Array.isArray(history) ? history : [];
+  const latest = sampleHistory[sampleHistory.length - 1] || {};
+  const alertRows = alerts.map((alert) => ({
+    tone: alert.severity === "critical" || alert.severity === "high" ? "poor" : alert.severity === "medium" ? "watch" : "good",
+    label: titleCase(alert.severity),
+    title: alert.title,
+    detail: alert.evidence,
+    timestampMs: Number.isFinite(latest.timestampMs) ? latest.timestampMs : Date.now()
+  }));
+  const sampleRows = liveSignificantSampleObservations(sampleHistory, machineContext);
+
+  return [...alertRows, ...sampleRows].slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function liveSignificantSampleObservations(history, machineContext) {
+  const rows = [];
+  const seen = new Set();
+  const window = history.slice(-LIVE_TELEMETRY_RELATIONSHIP_WINDOW);
+
+  for (let index = window.length - 1; index >= 0 && rows.length < LIVE_OBSERVATION_LIMIT; index -= 1) {
+    const sample = window[index];
+    const previous = window[index - 1] || null;
+    const candidates = liveSampleObservationEvents(sample, previous, machineContext);
+
+    candidates.forEach((observation) => {
+      if (rows.length >= LIVE_OBSERVATION_LIMIT) return;
+      const signature = `${observation.eventKey}:${observation.title}`;
+      if (seen.has(signature)) return;
+      seen.add(signature);
+      rows.push(observation);
+    });
+  }
+
+  return rows;
+}
+
+function liveSampleObservationEvents(sample, previous, machineContext) {
+  const timestampMs = Number.isFinite(sample.timestampMs) ? sample.timestampMs : undefined;
+  const dateTime = Number.isFinite(timestampMs) ? new Date(timestampMs).toISOString() : "";
+  const label = sample.label || "sample";
+  const host = sample.host || machineContext?.host || "host";
+  const rows = [];
+  const add = ({ eventKey, tone = "watch", title, detail }) => {
+    rows.push({ eventKey, tone, label, timestampMs, dateTime, title, detail });
+  };
+  const metricConfigs = [
+    { key: "cpu", label: "CPU", warn: 70, poor: 90, delta: 15, floor: 20 },
+    { key: "ram", label: "RAM", warn: 75, poor: 90, delta: 8, floor: 50 },
+    { key: "disk", label: "Disk", warn: 75, poor: 92, delta: 2, floor: 70 },
+    { key: "gpu", label: "GPU", warn: 85, poor: 96, delta: 18, floor: 15 },
+    { key: "networkUtilization", label: "Network", warn: 70, poor: 88, delta: 15, floor: 20 }
+  ];
+
+  metricConfigs.forEach((config) => {
+    const value = telemetryValue(sample, config.key);
+    if (!Number.isFinite(value)) return;
+    const previousValue = previous ? telemetryValue(previous, config.key) : Number.NaN;
+    if (value >= config.poor) {
+      add({
+        eventKey: `${config.key}:poor`,
+        tone: "poor",
+        title: `${config.label} pressure is high`,
+        detail: `${config.label} reached ${pct(value)} on ${host}.`
+      });
+      return;
+    }
+    if (value >= config.warn) {
+      add({
+        eventKey: `${config.key}:watch`,
+        tone: "watch",
+        title: `${config.label} pressure is elevated`,
+        detail: `${config.label} is at ${pct(value)} on ${host}.`
+      });
+      return;
+    }
+    if (Number.isFinite(previousValue) && value >= config.floor && Math.abs(value - previousValue) >= config.delta) {
+      add({
+        eventKey: `${config.key}:delta`,
+        tone: "watch",
+        title: `${config.label} activity changed`,
+        detail: `${config.label} moved ${signedRate(value - previousValue, "pts")} to ${pct(value)} on ${host}.`
+      });
+    }
+  });
+
+  const gpu = telemetryValue(sample, "gpu");
+  const previousGpu = previous ? telemetryValue(previous, "gpu") : Number.NaN;
+  if (machineContext?.gpuPresent && !Number.isFinite(gpu) && Number.isFinite(previousGpu)) {
+    add({
+      eventKey: "gpu:missing",
+      tone: "watch",
+      title: "GPU counter disappeared",
+      detail: "The latest live sample did not include GPU utilization after it was previously present."
+    });
+  }
+
+  const throughput = telemetryValue(sample, "networkThroughputBps");
+  const previousThroughput = previous ? telemetryValue(previous, "networkThroughputBps") : Number.NaN;
+  const throughputDelta = Number.isFinite(previousThroughput) ? throughput - previousThroughput : 0;
+  const materialThroughput = 1024 * 1024;
+  if (Number.isFinite(throughput) && throughput >= materialThroughput && Math.abs(throughputDelta) >= materialThroughput) {
+    add({
+      eventKey: "networkThroughput:delta",
+      tone: "watch",
+      title: "Network throughput changed",
+      detail: `Network throughput moved ${formatBytesPerSecond(Math.abs(throughputDelta))} to ${formatBytesPerSecond(throughput)} on ${host}.`
+    });
+  }
+
+  return rows;
+}
+
+function liveSampleObservation(sample, machineContext) {
+  const parts = [
+    `CPU ${pct(telemetryValue(sample, "cpu"))}`,
+    `RAM ${pct(telemetryValue(sample, "ram"))}`,
+    `Disk ${pct(telemetryValue(sample, "disk"))}`
+  ];
+  const gpu = telemetryValue(sample, "gpu");
+  const networkUtilization = telemetryValue(sample, "networkUtilization");
+  const networkThroughput = telemetryValue(sample, "networkThroughputBps");
+
+  if (Number.isFinite(gpu)) {
+    parts.push(`GPU ${pct(gpu)}`);
+  } else if (machineContext?.gpuPresent) {
+    parts.push("GPU unavailable");
+  }
+
+  if (Number.isFinite(networkUtilization)) {
+    parts.push(`Network ${pct(networkUtilization)}`);
+  } else if (Number.isFinite(networkThroughput)) {
+    parts.push(`Network ${formatBytesPerSecond(networkThroughput)}`);
+  }
+
+  return {
+    tone: liveSampleObservationTone(sample),
+    label: sample.label || "sample",
+    timestampMs: Number.isFinite(sample.timestampMs) ? sample.timestampMs : undefined,
+    dateTime: Number.isFinite(sample.timestampMs) ? new Date(sample.timestampMs).toISOString() : "",
+    title: sample.host || machineContext?.host || "host",
+    detail: parts.join(" | ")
+  };
+}
+
+function liveSampleObservationTone(sample) {
+  const cpu = telemetryValue(sample, "cpu");
+  const ram = telemetryValue(sample, "ram");
+  const disk = telemetryValue(sample, "disk");
+  const network = telemetryValue(sample, "networkUtilization");
+  if (cpu >= 90 || ram >= 90 || disk >= 92 || network >= 88) return "poor";
+  if (cpu >= 70 || ram >= 75 || disk >= 75 || network >= 70) return "watch";
+  return "good";
+}
+
+function liveObservationItem(observation) {
+  const item = document.createElement("li");
+  item.className = "live-observation-item";
+  item.dataset.tone = observation.tone;
+
+  const marker = document.createElement("span");
+  marker.className = "live-observation-marker";
+  marker.setAttribute("aria-hidden", "true");
+
+  const body = document.createElement("div");
+  const head = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = observation.title;
+  const label = observation.dateTime ? document.createElement("time") : document.createElement("span");
+  label.textContent = observation.label;
+  if (observation.dateTime) label.setAttribute("datetime", observation.dateTime);
+  head.append(title, label);
+
+  const detail = document.createElement("small");
+  detail.textContent = observation.detail;
+  body.append(head, detail);
+
+  item.append(marker, body);
+  return item;
 }
 
 function liveRelationshipCard(relationship) {
@@ -5107,6 +5756,16 @@ function liveTelemetryAlert({ severity, title, evidence, recommendation, confide
   return { severity, title, evidence, recommendation, confidence: clamp(confidence, 0, 1) };
 }
 
+function telemetryValue(sample, key) {
+  const value = sample?.[key];
+  if (value === undefined || value === null || value === "") return Number.NaN;
+  return numeric(value, Number.NaN);
+}
+
+function telemetryRelationshipKey(history, keys) {
+  return keys.find((key) => history.filter((sample) => Number.isFinite(telemetryValue(sample, key))).length >= 2) || keys[0];
+}
+
 function telemetryRelationship(label, correlation, note) {
   if (correlation === null) {
     return {
@@ -5130,7 +5789,7 @@ function telemetryTrend(history, key) {
   const points = history
     .map((sample) => ({
       x: numeric(sample.timestampMs, Number.NaN),
-      y: numeric(sample[key], Number.NaN)
+      y: telemetryValue(sample, key)
     }))
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
 
@@ -5166,7 +5825,7 @@ function telemetryTrend(history, key) {
 
 function telemetryCorrelation(history, leftKey, rightKey) {
   const pairs = history
-    .map((sample) => [numeric(sample[leftKey], Number.NaN), numeric(sample[rightKey], Number.NaN)])
+    .map((sample) => [telemetryValue(sample, leftKey), telemetryValue(sample, rightKey)])
     .filter(([left, right]) => Number.isFinite(left) && Number.isFinite(right));
   if (pairs.length < 4) return null;
 
@@ -5180,7 +5839,7 @@ function telemetryCorrelation(history, leftKey, rightKey) {
 }
 
 function telemetryAverage(history, key) {
-  const values = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  const values = history.map((sample) => telemetryValue(sample, key)).filter(Number.isFinite);
   if (!values.length) return null;
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
@@ -5200,10 +5859,69 @@ function formatDecimal(value, digits) {
   return parsed.toFixed(digits);
 }
 
+function renderAnalysisResourceGraphs(container, summary, history = analysisResourceHistory(summary)) {
+  const latest = history[history.length - 1] || {};
+  const latestLabel = "Current analysis snapshot";
+  container.replaceChildren(
+    liveTelemetryGraphCard({
+      label: "Network util",
+      valueKey: "networkUtilization",
+      history,
+      latestLabel,
+      valueText: pct(latest.networkUtilization),
+      note: "NIC/link utilization from run evidence",
+      max: 100,
+      tone: inverseGrade(latest.networkUtilization, 70, 88).key
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU util",
+      valueKey: "gpu",
+      history,
+      latestLabel,
+      valueText: pct(latest.gpu),
+      note: "Accelerator utilization",
+      max: 100,
+      tone: grade(latest.gpu, 45, 70).key
+    }),
+    liveTelemetryGraphCard({
+      label: "CPU prep",
+      valueKey: "cpuPrep",
+      history,
+      latestLabel,
+      valueText: pct(latest.cpuPrep),
+      note: "Host-side CPU proxy",
+      max: 100,
+      tone: inverseGrade(latest.cpuPrep, 20, 35).key
+    }),
+    liveTelemetryGraphCard({
+      label: "Network wait",
+      valueKey: "networkWait",
+      history,
+      latestLabel,
+      valueText: pct(latest.networkWait),
+      note: "Latency/loss/stall pressure",
+      max: 100,
+      tone: inverseGrade(latest.networkWait, 10, 20).key
+    }),
+    liveTelemetryGraphCard({
+      label: "NCCL time",
+      valueKey: "ncclTime",
+      history,
+      latestLabel,
+      valueText: pct(latest.ncclTime),
+      note: "Collective communication time",
+      max: 100,
+      tone: inverseGrade(latest.ncclTime, 15, 30).key
+    })
+  );
+}
+
 function renderLiveTelemetryGraphs(container, machineContext, history) {
   const sampleCount = history.length;
   const latest = history[sampleCount - 1] || {};
   const latestLabel = latest.label ? `Latest sample ${latest.label}` : "Waiting for live samples";
+  const networkGraphKey = Number.isFinite(latest.networkUtilization) ? "networkUtilization" : "networkThroughputBps";
+  const networkGraphHasPercent = networkGraphKey === "networkUtilization";
   container.replaceChildren(
     liveTelemetryGraphCard({
       label: "CPU",
@@ -5268,6 +5986,18 @@ function renderLiveTelemetryGraphs(container, machineContext, history) {
       note: "Root filesystem usage",
       max: 100,
       tone: inverseGrade(latest.disk, 75, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "Network util",
+      valueKey: networkGraphKey,
+      history,
+      latestLabel,
+      valueText: networkGraphHasPercent
+        ? pct(latest.networkUtilization)
+        : Number.isFinite(latest.networkThroughputBps) ? formatBytesPerSecond(latest.networkThroughputBps) : "learning",
+      note: networkGraphHasPercent ? "NIC link utilization" : "NIC throughput",
+      max: networkGraphHasPercent ? 100 : adaptiveGraphMax(history, "networkThroughputBps", 1),
+      tone: networkGraphHasPercent ? inverseGrade(latest.networkUtilization, 70, 88).key : "watch"
     })
   );
 }
@@ -5316,7 +6046,7 @@ function buildTelemetrySparkline(history, valueKey, max) {
 
   const validPoints = history
     .map((sample, index) => {
-      const value = numeric(sample[valueKey], Number.NaN);
+      const value = telemetryValue(sample, valueKey);
       if (!Number.isFinite(value)) return null;
       const x = pad + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
       const y = pad + innerHeight - (clamp(value, 0, max) / Math.max(max, 1)) * innerHeight;
@@ -5350,7 +6080,7 @@ function buildTelemetrySparkline(history, valueKey, max) {
 }
 
 function adaptiveGraphMax(history, key, fallback) {
-  const observed = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  const observed = history.map((sample) => telemetryValue(sample, key)).filter(Number.isFinite);
   if (!observed.length) return fallback;
   return Math.max(10, Math.ceil(Math.max(...observed, fallback * 0.2) * 1.25));
 }
@@ -6025,8 +6755,8 @@ function renderTruthTable(summary) {
     },
     {
       question: "Are GPUs idle because of communication?",
-      metric: `${pct(summary.ncclTime)} collectives time, ${pct(summary.networkWait)} network wait, ${pct(summary.crossPodTraffic)} cross-pod traffic`,
-      status: inverseGrade(summary.ncclTime + summary.networkWait, 18, 32)
+      metric: `${pct(summary.ncclTime)} collectives time, ${pct(summary.networkWait)} network wait, ${pct(summary.networkUtilization)} network utilization`,
+      status: inverseGrade(summary.ncclTime + summary.networkWait + summary.networkUtilization * 0.16, 18, 34)
     },
     {
       question: "Are GPUs idle because of input pipeline?",
@@ -7157,6 +7887,10 @@ function formatBytes(value) {
   const index = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
   const scaled = bytes / (1024 ** index);
   return `${scaled >= 10 || index === 0 ? round(scaled) : scaled.toFixed(1)} ${units[index]}`;
+}
+
+function formatBytesPerSecond(value) {
+  return `${formatBytes(value)}/s`;
 }
 
 function titleCase(value) {

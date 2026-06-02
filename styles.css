@@ -1420,7 +1420,7 @@ input[type="url"] {
 
 .live-relationship-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   border-top: 1px solid var(--line);
   background: var(--line);
@@ -1546,6 +1546,191 @@ input[type="url"] {
 .live-alert-empty {
   color: var(--muted);
   font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
+.live-observation-log {
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.live-observation-panel {
+  display: grid;
+}
+
+.live-observation-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 14px;
+  align-items: end;
+  padding: 15px 16px 13px;
+}
+
+.live-observation-head p,
+.live-observation-head h3,
+.live-observation-meta,
+.live-observation-meta span {
+  min-width: 0;
+  margin: 0;
+}
+
+.live-observation-head p {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-observation-head h3 {
+  font-size: 1.04rem;
+  line-height: 1.15;
+}
+
+.live-observation-meta {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  align-self: center;
+}
+
+.live-observation-meta span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.live-observation-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-observation-action {
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.live-observation-action:hover:not(:disabled) {
+  border-color: rgba(0, 141, 114, 0.35);
+  color: var(--green);
+}
+
+.live-observation-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.live-observation-action[data-state="done"] {
+  border-color: rgba(0, 141, 114, 0.35);
+  background: var(--green-2);
+  color: var(--green);
+}
+
+.live-observation-action[data-state="failed"] {
+  border-color: rgba(184, 73, 59, 0.35);
+  background: var(--red-2);
+  color: var(--red);
+}
+
+.live-observation-list {
+  display: grid;
+  gap: 0;
+  max-height: 310px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+
+.live-observation-item,
+.live-observation-empty {
+  min-width: 0;
+  padding: 13px 16px;
+  background: #f8fbfa;
+}
+
+.live-observation-item {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.live-observation-item:first-child {
+  border-top: 0;
+}
+
+.live-observation-marker {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.live-observation-item[data-tone="watch"] .live-observation-marker {
+  background: var(--amber);
+}
+
+.live-observation-item[data-tone="poor"] .live-observation-marker {
+  background: var(--red);
+}
+
+.live-observation-item > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.live-observation-item > div > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.live-observation-item strong,
+.live-observation-item span,
+.live-observation-item time,
+.live-observation-item small,
+.live-observation-empty {
+  min-width: 0;
+}
+
+.live-observation-item strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.18;
+}
+
+.live-observation-item span,
+.live-observation-item time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.live-observation-item small,
+.live-observation-empty {
+  color: var(--muted);
+  font-size: 0.74rem;
   font-weight: 760;
   line-height: 1.35;
 }
@@ -3123,13 +3308,20 @@ input[type="url"] {
     flex-direction: column;
   }
 
-  .live-relationship-head {
+  .live-relationship-head,
+  .live-observation-head {
     grid-template-columns: 1fr;
   }
 
-  .live-relationship-head span {
+  .live-relationship-head span,
+  .live-observation-meta {
     grid-row: auto;
     grid-column: auto;
+    justify-content: flex-start;
+  }
+
+  .live-relationship-head span,
+  .live-observation-meta span {
     text-align: left;
   }
 

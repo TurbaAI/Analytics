@@ -6,6 +6,7 @@
       "turba_useful_compute_ratio": 0.43,
       "turba_nccl_time_ratio": 0.27,
       "turba_network_wait_ratio": 0.13,
+      "turba_network_utilization_ratio": 0.74,
       "turba_dataloader_stall_ratio": 0.04,
       "turba_storage_wait_ratio": 0.03,
       "turba_cpu_prep_ratio": 0.04,

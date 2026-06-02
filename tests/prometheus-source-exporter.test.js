@@ -11,6 +11,7 @@ const valuesByQuery = new Map([
   ["avg(DCGM_FI_DEV_GPU_UTIL) / 100", 0.71],
   ["avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) / 100", 0.49],
   ["avg(turbalance_network_wait_ratio)", 0.12],
+  ["avg(turbalance_network_utilization_ratio)", 0.64],
   ["avg(turbalance_queue_wait_minutes)", 23],
   ["avg(DCGM_FI_PROF_SM_OCCUPANCY)", 59],
   ["avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)", 52],
@@ -77,6 +78,7 @@ const valuesByQuery = new Map([
   assert.equal(validation.ok, true, validation.errors.join("; "));
   assert.equal(bundle.sources.prometheus[0].runId, "provider-run-live");
   assert.equal(bundle.sources.prometheus[0].metrics.turba_gpu_utilization_ratio, 0.71);
+  assert.equal(bundle.sources.prometheus[0].metrics.turba_network_utilization_ratio, 0.64);
   assert.equal(bundle.sources.dcgm[0].fields.DCGM_FI_PROF_SM_OCCUPANCY, 59);
 
   const stagedPrometheus = JSON.parse(fs.readFileSync(path.join(outputDir, "prometheus.json"), "utf8"));

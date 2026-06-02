@@ -20,7 +20,8 @@
     },
     "network": {
       "tcpRetransmitPct": 3.2,
-      "socketLatencyMsP95": 46
+      "socketLatencyMsP95": 46,
+      "utilizationPct": 74
     },
     "storage": {
       "blockIoLatencyMsP95": 7,

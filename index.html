@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>turbalance Analytics</title>
     <link rel="icon" href="assets/turbalance-mark.png">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=observation-log-filter-20260602-2">
   </head>
   <body>
     <header class="topbar">
@@ -158,6 +158,7 @@
             </div>
             <div id="liveResourceGrid" class="live-resource-grid"></div>
             <div id="liveTelemetryAlerts" class="live-telemetry-alerts" aria-label="Live telemetry relationship alerts"></div>
+            <div id="liveObservationLog" class="live-observation-log" aria-label="Live observation log"></div>
             <div id="liveTelemetryGraphs" class="live-telemetry-graphs"></div>
           </section>
 
@@ -336,6 +337,7 @@
                     <button type="button" data-trend-metric="usefulCompute" aria-selected="true">Efficiency</button>
                     <button type="button" data-trend-metric="wastedGpuHours" aria-selected="false">Waste</button>
                     <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
+                    <button type="button" data-trend-metric="networkUtilization" aria-selected="false">Network</button>
                     <button type="button" data-trend-metric="costPerUsefulGpuHour" aria-selected="false">Cost</button>
                     <button type="button" data-trend-metric="sellableWasteValue" aria-selected="false">Sellable</button>
                     <button type="button" data-trend-metric="opportunityImpactDollars" aria-selected="false">Opportunity</button>
@@ -495,9 +497,9 @@
       </div>
     </main>
 
-    <script src="analytics-core.js"></script>
-    <script src="nccl-trace-parser.js"></script>
-    <script src="nccl-trace-fixtures.js"></script>
-    <script src="app.js"></script>
+    <script src="analytics-core.js?v=observation-log-filter-20260602-2"></script>
+    <script src="nccl-trace-parser.js?v=observation-log-filter-20260602-2"></script>
+    <script src="nccl-trace-fixtures.js?v=observation-log-filter-20260602-2"></script>
+    <script src="app.js?v=observation-log-filter-20260602-2"></script>
   </body>
 </html>

@@ -11,6 +11,7 @@ const DEFAULT_QUERIES = {
     turba_useful_compute_ratio: "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) / 100",
     turba_nccl_time_ratio: "avg(turbalance_nccl_time_ratio)",
     turba_network_wait_ratio: "avg(turbalance_network_wait_ratio)",
+    turba_network_utilization_ratio: "avg(turbalance_network_utilization_ratio)",
     turba_dataloader_stall_ratio: "avg(turbalance_dataloader_stall_ratio)",
     turba_storage_wait_ratio: "avg(turbalance_storage_wait_ratio)",
     turba_cpu_prep_ratio: "avg(turbalance_cpu_prep_ratio)",

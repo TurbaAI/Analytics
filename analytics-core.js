@@ -15,6 +15,7 @@
     { key: "tensorCoreUtil", label: "Tensor-core use", unit: "points", threshold: 8, higherIsBetter: true },
     { key: "ncclTime", label: "NCCL time", unit: "points", threshold: 6, higherIsBetter: false },
     { key: "networkWait", label: "Network wait", unit: "points", threshold: 5, higherIsBetter: false },
+    { key: "networkUtilization", label: "Network utilization", unit: "points", threshold: 8, higherIsBetter: false },
     { key: "dataloaderStall", label: "Dataloader stall", unit: "points", threshold: 6, higherIsBetter: false },
     { key: "storageWait", label: "Storage wait", unit: "points", threshold: 5, higherIsBetter: false },
     { key: "cpuPrep", label: "CPU prep", unit: "points", threshold: 5, higherIsBetter: false },
@@ -301,7 +302,8 @@
   }
 
   function classifyBottlenecks(summary) {
-    const communicationScore = clamp(summary.ncclTime * 1.55 + summary.networkWait * 1.25 + summary.crossRackTraffic * 0.1 + summary.crossPodTraffic * 0.26);
+    const networkUtilization = numeric(summary.networkUtilization);
+    const communicationScore = clamp(summary.ncclTime * 1.55 + summary.networkWait * 1.25 + networkUtilization * 0.18 + summary.crossRackTraffic * 0.1 + summary.crossPodTraffic * 0.26);
     const inputScore = clamp(summary.dataloaderStall * 2.1 + summary.storageWait * 2 + summary.cpuPrep * 1.35);
     const memoryScore = clamp(Math.max(0, summary.hbmCapacity - 65) * 1.1 + Math.max(0, summary.hbmBandwidth - 65) * 1.2 + summary.memoryFragmentation * 0.48 + summary.kvCachePressure * 0.38);
     const placementScore = clamp((100 - summary.placementQuality) * 0.86 + summary.crossPodTraffic * 0.35 + summary.crossRackTraffic * 0.1 + summary.partialNodes * 4.5);
@@ -315,7 +317,7 @@
         name: "Communication-bound",
         short: "Communication",
         score: communicationScore,
-        reason: `${pct(summary.ncclTime)} collectives time and ${pct(summary.networkWait)} network wait`
+        reason: communicationReason(summary)
       },
       {
         name: "Input-bound",
@@ -380,7 +382,7 @@
 
   function scoreComponents(summary, rate = 0, formatCurrency = defaultCurrency) {
     const compute = clamp((summary.smOccupancy * 0.36) + (summary.tensorCoreUtil * 0.34) + (summary.usefulCompute * 0.3));
-    const communication = clamp(100 - (summary.ncclTime * 1.35 + summary.networkWait * 1.1 + summary.crossPodTraffic * 0.18));
+    const communication = clamp(100 - (summary.ncclTime * 1.35 + summary.networkWait * 1.1 + numeric(summary.networkUtilization) * 0.12 + summary.crossPodTraffic * 0.18));
     const memory = clamp(100 - (Math.max(0, summary.hbmCapacity - 74) * 1.2 + Math.max(0, summary.hbmBandwidth - 74) * 1.1 + summary.memoryFragmentation * 0.35 + summary.kvCachePressure * 0.2));
     const input = clamp(100 - (summary.dataloaderStall * 1.8 + summary.storageWait * 1.7 + summary.cpuPrep * 1.25));
     const placement = clamp(summary.placementQuality);
@@ -395,7 +397,7 @@
       {
         name: "Communication efficiency",
         score: communication,
-        note: `${pct(summary.ncclTime + summary.networkWait)} allocated time lost to collectives and network wait`
+        note: communicationEfficiencyNote(summary)
       },
       {
         name: "Memory efficiency",
@@ -692,7 +694,7 @@
 
     if (numeric(summary.usefulCompute) >= 72 && numeric(summary.gpuUtil) >= 75) categories.push("efficient-accelerator-use");
     if (numeric(summary.usefulCompute) < 35 || numeric(summary.gpuUtil) < 40) categories.push("underutilized-accelerators");
-    if (primary === "Communication" || numeric(summary.ncclTime) + numeric(summary.networkWait) >= 30) categories.push("communication-heavy");
+    if (primary === "Communication" || numeric(summary.ncclTime) + numeric(summary.networkWait) >= 30 || numeric(summary.networkUtilization) >= 70) categories.push("communication-heavy");
     if (primary === "Input" || numeric(summary.dataloaderStall) + numeric(summary.storageWait) + numeric(summary.cpuPrep) >= 28) categories.push("input-pipeline-limited");
     if (primary === "Memory" || numeric(summary.hbmCapacity) >= 82 || numeric(summary.memoryFragmentation) >= 28) categories.push("memory-pressure");
     if (primary === "Scheduler" || numeric(summary.partialNodes) > 0 || numeric(summary.idleGpus) > 0) categories.push("scheduler-fragmented");
@@ -716,6 +718,7 @@
       tensorCoreUtil: summary.tensorCoreUtil,
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
+      networkUtilization: summary.networkUtilization,
       dataloaderStall: summary.dataloaderStall,
       storageWait: summary.storageWait,
       cpuPrep: summary.cpuPrep,
@@ -1000,7 +1003,7 @@
   }
 
   function topologyOpportunity(summary, classifier, provider, rate) {
-    const topologyPressure = numeric(summary.ncclTime) + numeric(summary.networkWait) + numeric(summary.crossPodTraffic) * 0.25 + Math.max(0, 100 - numeric(summary.placementQuality)) * 0.18;
+    const topologyPressure = numeric(summary.ncclTime) + numeric(summary.networkWait) + numeric(summary.networkUtilization) * 0.04 + numeric(summary.crossPodTraffic) * 0.25 + Math.max(0, 100 - numeric(summary.placementQuality)) * 0.18;
     if (topologyPressure < 26 && classifier.primary.short !== "Communication" && classifier.primary.short !== "Placement") return null;
 
     const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(topologyPressure / 220, 0.1, 0.42);
@@ -1011,8 +1014,8 @@
       impactDollars: recoverableGpuHours * rate,
       impactGpuHours: recoverableGpuHours,
       riskScore: clamp(topologyPressure),
-      confidence: confidenceFromSignals([summary.ncclTime, summary.networkWait, summary.crossPodTraffic, summary.placementQuality, summary.traceAttribution?.eventCount]),
-      evidence: `${pct(summary.ncclTime + summary.networkWait)} time in collectives/network wait with ${pct(summary.crossPodTraffic)} cross-pod traffic.`,
+      confidence: confidenceFromSignals([summary.ncclTime, summary.networkWait, summary.networkUtilization, summary.crossPodTraffic, summary.placementQuality, summary.traceAttribution?.eventCount]),
+      evidence: topologyEvidence(summary),
       recommendation: "Reserve contiguous locality groups for repeat high-value jobs and compare NCCL trace time before and after the scheduler change.",
       owner: "Scheduler + network"
     };
@@ -1241,10 +1244,28 @@
     return "low";
   }
 
+  function communicationReason(summary) {
+    const utilization = numeric(summary.networkUtilization);
+    const utilizationText = utilization > 0 ? ` and ${pct(utilization)} network utilization` : "";
+    return `${pct(summary.ncclTime)} collectives time, ${pct(summary.networkWait)} network wait${utilizationText}`;
+  }
+
+  function communicationEfficiencyNote(summary) {
+    const utilization = numeric(summary.networkUtilization);
+    const utilizationText = utilization > 0 ? `; link utilization is ${pct(utilization)}` : "";
+    return `Collectives and network wait consume ${pct(summary.ncclTime + summary.networkWait)} of allocated time${utilizationText}`;
+  }
+
+  function topologyEvidence(summary) {
+    const utilization = numeric(summary.networkUtilization);
+    const utilizationText = utilization > 0 ? ` and ${pct(utilization)} network utilization` : "";
+    return `${pct(summary.ncclTime + summary.networkWait)} time in collectives/network wait${utilizationText} with ${pct(summary.crossPodTraffic)} cross-pod traffic.`;
+  }
+
   function reasonFor(shortName, summary) {
     switch (shortName) {
       case "Communication":
-        return `Collectives and network wait consume ${pct(summary.ncclTime + summary.networkWait)} of allocated time, with ${pct(summary.crossPodTraffic)} cross-pod traffic amplifying all-reduce cost.`;
+        return `${communicationEfficiencyNote(summary)}, with ${pct(summary.crossPodTraffic)} cross-pod traffic amplifying all-reduce cost.`;
       case "Input":
         return `Input pipeline stalls account for ${pct(summary.dataloaderStall + summary.storageWait + summary.cpuPrep)} of observed loss across dataloader, storage, and CPU preprocessing.`;
       case "Memory":

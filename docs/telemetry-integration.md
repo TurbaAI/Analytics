@@ -19,6 +19,7 @@ Prometheus exports should use `sources.prometheus`.
           "turba_useful_compute_ratio": 0.52,
           "turba_nccl_time_ratio": 0.18,
           "turba_network_wait_ratio": 0.08,
+          "turba_network_utilization_ratio": 0.62,
           "turba_dataloader_stall_ratio": 0.04,
           "turba_storage_wait_ratio": 0.03,
           "turba_cpu_prep_ratio": 0.04,
@@ -36,6 +37,7 @@ Expected query classes:
 - useful compute ratio by run
 - NCCL time ratio by run
 - network wait ratio by run
+- network utilization ratio by run when NIC/link capacity is known
 - dataloader, storage, and CPU preprocessing stall ratios
 - queue wait minutes
 - training tokens, steps, or inference request counts
@@ -197,6 +199,7 @@ Expected fields:
 - `scheduler.runQueueLatencyMsP95`
 - `network.tcpRetransmitPct`
 - `network.socketLatencyMsP95`
+- `network.utilizationPct`
 - `storage.blockIoLatencyMsP95`
 - `storage.filesystemLatencyMsP95`
 - `noise.noisyNeighborScore`
@@ -240,7 +243,7 @@ Expected fields:
 }
 ```
 
-The browser adapter converts those summaries into the existing dashboard lanes: network wait, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events.
+The browser adapter converts those summaries into the existing dashboard lanes: network wait, network utilization, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events. Keep `networkWait` for socket latency, retransmits, or stall pressure. Use `networkUtilization` for NIC/link throughput pressure.
 
 ## Opportunity Overlay
 

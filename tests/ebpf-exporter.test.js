@@ -30,6 +30,7 @@ assert.equal(apex.containerName, "trainer");
 assert.equal(apex.cpu.offCpuTimePct, 9);
 assert.equal(apex.scheduler.runQueueLatencyMsP95, 12);
 assert.equal(apex.network.tcpRetransmitPct, 3.2);
+assert.equal(apex.network.utilizationPct, 74);
 assert.equal(apex.storage.blockIoLatencyMsP95, 7);
 assert.equal(apex.noise.noiseEvents, 1);
 

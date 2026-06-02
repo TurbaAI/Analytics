@@ -9,6 +9,7 @@ const baseSummary = {
   tensorCoreUtil: 47,
   ncclTime: 29,
   networkWait: 12,
+  networkUtilization: 64,
   dataloaderStall: 5,
   storageWait: 3,
   cpuPrep: 4,
@@ -239,6 +240,7 @@ const changedTaskSnapshot = analytics.taskUtilizationSnapshot({
 }, { sourceLabel: "Current run", capturedAt: "2026-05-31T10:00:00.000Z" });
 
 assert.equal(changedTaskSnapshot.taskKey, priorTaskSnapshot.taskKey);
+assert.equal(priorTaskSnapshot.utilization.networkUtilization, 64);
 assert.ok(changedTaskSnapshot.resources.adapters.includes("scheduler"));
 assert.ok(changedTaskSnapshot.categories.all.includes("underutilized-accelerators"));
 
