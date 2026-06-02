@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    name: Verify static prototype
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Run full suite
+        run: node tests/run-all.js
+
+      - name: Validate source bundles
+        run: node scripts/validate-source-bundle.js --require-source-export
+
+      - name: Run screenshot QA when browser automation is available
+        run: node scripts/run-screenshot-qa.js

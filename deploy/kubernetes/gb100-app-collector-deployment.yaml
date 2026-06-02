@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gb100-app-collector
+  namespace: gb100-telemetry
+  labels:
+    app.kubernetes.io/name: gb100-app-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gb100-app-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gb100-app-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9500"
+    spec:
+      containers:
+        - name: collector
+          image: python:3.12-slim
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ENABLE_NVML_COLLECTOR
+              value: "false"
+          command:
+            - python
+            - /opt/gb100/collectors/app_telemetry_exporter.py
+            - --listen
+            - "0.0.0.0"
+            - --port
+            - "9500"
+            - --capabilities
+            - /opt/gb100/metrics/gb100-metric-capabilities.json
+          ports:
+            - name: metrics
+              containerPort: 9500
+          volumeMounts:
+            - name: collectors
+              mountPath: /opt/gb100/collectors
+              readOnly: true
+            - name: capabilities
+              mountPath: /opt/gb100/metrics
+              readOnly: true
+      volumes:
+        - name: collectors
+          configMap:
+            name: gb100-app-collector-source
+        - name: capabilities
+          configMap:
+            name: gb100-metric-capabilities
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gb100-app-collector
+  namespace: gb100-telemetry
+  labels:
+    app.kubernetes.io/name: gb100-app-collector
+spec:
+  selector:
+    app.kubernetes.io/name: gb100-app-collector
+  ports:
+    - name: metrics
+      port: 9500
+      targetPort: metrics

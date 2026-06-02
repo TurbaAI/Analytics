@@ -1,0 +1,38 @@
+{
+  "uid": "gb100-overview",
+  "title": "GB100 Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["gb100", "gb200", "blackwell", "dcgm"],
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts, cluster)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts{cluster=~\"$cluster\"}, node)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "gpu_uuid", "label": "GPU UUID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts{cluster=~\"$cluster\",node=~\"$node\"}, gpu_uuid)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second, namespace)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "pod", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{namespace=~\"$namespace\"}, pod)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}},
+      {"name": "container", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{namespace=~\"$namespace\",pod=~\"$pod\"}, container)", "refresh": 1, "includeAll": true, "current": {"text": "All", "value": "$__all"}}
+    ]
+  },
+  "panels": [
+    {"id": 1, "title": "GPU Inventory", "type": "table", "gridPos": {"x": 0, "y": 0, "w": 24, "h": 5}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "DCGM_FI_DEV_NAME{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 2, "title": "GPU Utilization", "type": "timeseries", "gridPos": {"x": 0, "y": 5, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "DCGM_FI_DEV_GPU_UTIL{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 3, "title": "Power Draw", "type": "timeseries", "gridPos": {"x": 6, "y": 5, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_power_watts{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_power_instant_watts{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 4, "title": "Core Temperature", "type": "timeseries", "gridPos": {"x": 12, "y": 5, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_temperature_celsius{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 5, "title": "Memory Temperature", "type": "timeseries", "gridPos": {"x": 18, "y": 5, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_memory_temperature_celsius{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 6, "title": "HBM Usage", "type": "timeseries", "gridPos": {"x": 0, "y": 11, "w": 8, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_memory_used_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_memory_used_bytes{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 7, "title": "SM Active", "type": "timeseries", "gridPos": {"x": 8, "y": 11, "w": 4, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_sm_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 8, "title": "SM Occupancy", "type": "timeseries", "gridPos": {"x": 12, "y": 11, "w": 4, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_sm_occupancy_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 9, "title": "Tensor Pipe Active", "type": "timeseries", "gridPos": {"x": 16, "y": 11, "w": 4, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_tensor_pipe_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 10, "title": "DRAM Active", "type": "timeseries", "gridPos": {"x": 20, "y": 11, "w": 4, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_dram_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 11, "title": "PCIe Throughput", "type": "timeseries", "gridPos": {"x": 0, "y": 17, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_pcie_tx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_pcie_rx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 12, "title": "NVLink Throughput", "type": "timeseries", "gridPos": {"x": 6, "y": 17, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_nvlink_tx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_nvlink_rx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 13, "title": "C2C Throughput", "type": "timeseries", "gridPos": {"x": 12, "y": 17, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_c2c_tx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_c2c_rx_bytes_per_second{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 14, "title": "ECC Errors", "type": "timeseries", "gridPos": {"x": 18, "y": 17, "w": 6, "h": 6}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_ecc_sbe_total{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_ecc_dbe_total{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 15, "title": "XID Errors", "type": "stat", "gridPos": {"x": 0, "y": 23, "w": 8, "h": 4}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "max(gpu_xid_error_code{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"})"}]},
+    {"id": 16, "title": "Fabric Health", "type": "stat", "gridPos": {"x": 8, "y": 23, "w": 8, "h": 4}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "max(DCGM_FI_DEV_FABRIC_HEALTH_MASK{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"})"}]},
+    {"id": 17, "title": "Metric Capability", "type": "table", "gridPos": {"x": 16, "y": 23, "w": 8, "h": 4}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_metric_capability"}]}
+  ]
+}

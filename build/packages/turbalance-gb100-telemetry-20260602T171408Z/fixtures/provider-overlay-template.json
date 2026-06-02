@@ -1,0 +1,113 @@
+{
+  "sources": {
+    "provider": [
+      {
+        "runId": "replace-with-run-id",
+        "tenant": "tenant-surrogate-1",
+        "account": "account-surrogate-1",
+        "reservation": "reservation-surrogate-1",
+        "providerExportId": "provider-export-1",
+        "billingAccountId": "billing-account-1",
+        "reservationWindow": "2026-Q2",
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "contract-surrogate-1",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 240,
+          "billableGpuHours": 2227,
+          "sellableGpuHours": 2227
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 55,
+          "supportTicketId": "ticket-surrogate-1"
+        }
+      }
+    ],
+    "scheduler": [
+      {
+        "runId": "replace-with-run-id",
+        "schedulerExportId": "scheduler-export-1",
+        "schedulerName": "scheduler-surrogate-1",
+        "queueName": "queue-surrogate-1",
+        "priorityClass": "priority-surrogate-1",
+        "admissionClass": "admission-surrogate-1",
+        "requestedGpuShape": "shape-surrogate-1",
+        "localityPreference": "same-pod",
+        "queueWaitMinutes": 20,
+        "placementQuality": 65,
+        "partialNodes": 2,
+        "idleGpus": 0,
+        "placementRetries": 3,
+        "localityMisses": 1,
+        "backfillCandidates": 4,
+        "pendingJobsAhead": 5,
+        "pendingGpuHoursAhead": 400,
+        "gpusPerNode": 8,
+        "events": [
+          {
+            "type": "placement_retry",
+            "timestamp": "2026-05-30T10:00:00Z",
+            "reason": "redacted scheduler event"
+          }
+        ]
+      }
+    ],
+    "grafana": [
+      {
+        "runId": "replace-with-run-id",
+        "grafanaBaseUrl": "https://grafana.example.invalid",
+        "instanceName": "grafana-instance-1",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-datasource-1",
+        "datasourceName": "Prometheus redacted",
+        "timeRange": {
+          "from": "now-6h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "replace-with-run-id",
+          "tenant": "tenant-surrogate-1",
+          "reservation": "reservation-surrogate-1"
+        },
+        "dashboardUrl": "https://grafana.example.invalid/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=replace-with-run-id",
+        "exploreUrl": "https://grafana.example.invalid/explore?orgId=1",
+        "links": [
+          {
+            "label": "Provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.example.invalid/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=replace-with-run-id"
+          },
+          {
+            "label": "Explore query",
+            "type": "explore",
+            "url": "https://grafana.example.invalid/explore?orgId=1"
+          }
+        ]
+      }
+    ],
+    "opportunities": [
+      {
+        "runId": "replace-with-run-id",
+        "opportunityId": "opportunity-surrogate-1",
+        "category": "Scheduler + Capacity",
+        "title": "Replace with ranked provider action",
+        "impactDollars": 0,
+        "impactGpuHours": 0,
+        "riskScore": 0,
+        "confidence": 0,
+        "evidence": "Replace with redacted source evidence.",
+        "recommendation": "Replace with the provider action to validate.",
+        "owner": "provider-team"
+      }
+    ]
+  }
+}

@@ -1,0 +1,275 @@
+#!/usr/bin/env node
+"use strict";
+
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
+
+const root = path.resolve(__dirname, "..");
+
+function parseArgs(argv) {
+  const args = {
+    outDir: path.join(root, "build", "gb100-support"),
+    dcgmUrl: "http://127.0.0.1:9400/metrics",
+    collectorUrl: "http://127.0.0.1:9500/metrics",
+    skipLive: false
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--out-dir") args.outDir = path.resolve(argv[++index]);
+    else if (arg === "--dcgm-url") args.dcgmUrl = argv[++index];
+    else if (arg === "--collector-url") args.collectorUrl = argv[++index];
+    else if (arg === "--skip-live") args.skipLive = true;
+    else if (arg === "--help") {
+      console.log("usage: gb100-telemetry-report [--out-dir DIR] [--dcgm-url URL] [--collector-url URL] [--skip-live]");
+      process.exit(0);
+    } else {
+      throw new Error(`unknown argument: ${arg}`);
+    }
+  }
+  return args;
+}
+
+function run(command, args) {
+  try {
+    return {
+      ok: true,
+      stdout: execFileSync(command, args, {
+        cwd: root,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+        timeout: 10_000
+      }).trim()
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      stdout: "",
+      error: error.message
+    };
+  }
+}
+
+async function fetchText(url, skipLive) {
+  if (skipLive || !url) return { ok: false, skipped: true, text: "", error: "live scrape skipped" };
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    const text = await response.text();
+    return { ok: response.ok, status: response.status, text, error: response.ok ? "" : `HTTP ${response.status}` };
+  } catch (error) {
+    return { ok: false, text: "", error: error.message };
+  }
+}
+
+function readDcgmFields() {
+  const csvPath = path.join(root, "metrics", "gb100-dcgm-fields.csv");
+  return fs.readFileSync(csvPath, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line) => line.split(",")[0].trim());
+}
+
+function readCapabilities() {
+  const capabilityPath = path.join(root, "metrics", "gb100-metric-capabilities.json");
+  return JSON.parse(fs.readFileSync(capabilityPath, "utf8"));
+}
+
+function parseGpuInventory() {
+  const result = run("nvidia-smi", [
+    "--query-gpu=name,uuid,pci.bus_id,driver_version",
+    "--format=csv,noheader,nounits"
+  ]);
+  if (!result.ok) return { gpus: [], error: result.error };
+  const gpus = result.stdout.split(/\r?\n/).filter(Boolean).map((line) => {
+    const [name, uuid, pciBusId, driverVersion] = line.split(",").map((item) => item.trim());
+    return { name, uuid, pciBusId, driverVersion };
+  });
+  return { gpus };
+}
+
+function parseMetrics(text) {
+  const metricNames = new Set();
+  const values = {};
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith("#")) continue;
+    const name = line.split(/[{\s]/)[0];
+    metricNames.add(name);
+    if (["DCGM_FI_DEV_XID_ERRORS", "gpu_xid_error_code", "DCGM_FI_DEV_FABRIC_HEALTH_MASK", "DCGM_FI_DEV_FABRIC_MANAGER_STATUS"].includes(name)) {
+      values[name] = line;
+    }
+  }
+  return { metricNames, values };
+}
+
+function listUnsupported(capabilities) {
+  return Object.entries(capabilities.nonNative || {}).map(([metric, info]) => ({
+    metric,
+    status: info.status,
+    reason: info.reason
+  }));
+}
+
+function versions() {
+  return {
+    driver: run("nvidia-smi", ["--query-gpu=driver_version", "--format=csv,noheader,nounits"]).stdout.split(/\r?\n/)[0] || "unavailable",
+    cuda: run("nvidia-smi", ["--query-gpu=cuda_version", "--format=csv,noheader,nounits"]).stdout.split(/\r?\n/)[0] || "unavailable",
+    dcgm: run("dcgmi", ["-v"]).stdout || "unavailable",
+    dcgmExporter: run("dcgm-exporter", ["--version"]).stdout || "unavailable"
+  };
+}
+
+function renderMarkdown(report) {
+  const unsupportedRows = report.unsupportedMetrics
+    .map((item) => `| ${item.metric} | ${item.status} | ${item.reason} |`)
+    .join("\n");
+  const unavailable = report.unavailableDcgmFields.length
+    ? report.unavailableDcgmFields.map((field) => `- ${field}`).join("\n")
+    : "- None detected from the live scrape.";
+  const gpus = report.gpuInventory.length
+    ? report.gpuInventory.map((gpu) => `- ${gpu.name || "unknown"} ${gpu.uuid || ""} ${gpu.pciBusId || ""}`).join("\n")
+    : "- No GPU inventory was available from nvidia-smi.";
+
+  return `# GB100/GB200 Telemetry Support Report
+
+Generated: ${report.generatedAt}
+
+## Node
+
+- Hostname: ${report.nodeInventory.hostname}
+- Platform: ${report.nodeInventory.platform}
+- Architecture: ${report.nodeInventory.arch}
+
+## Versions
+
+- Driver: ${report.versions.driver}
+- CUDA: ${report.versions.cuda}
+- DCGM: ${report.versions.dcgm}
+- DCGM Exporter: ${report.versions.dcgmExporter}
+
+## GPU Inventory
+
+${gpus}
+
+## Scrape Health
+
+- DCGM Exporter: ${report.scrapeHealth.dcgmExporter.status}
+- App Collector: ${report.scrapeHealth.appCollector.status}
+
+## Metric Coverage
+
+- Requested DCGM fields: ${report.requestedDcgmFieldCount}
+- Available from live scrape: ${report.availableDcgmFields.length}
+- Unavailable from live scrape: ${report.unavailableDcgmFields.length}
+
+### Unavailable DCGM Fields
+
+${unavailable}
+
+## Unsupported Or Non-Native Metrics
+
+| Metric | Status | Reason |
+| --- | --- | --- |
+${unsupportedRows}
+
+## Current Health Signals
+
+- XID: ${report.currentHealth.xid || "unknown"}
+- Fabric status: ${report.currentHealth.fabricManagerStatus || "unknown"}
+- Fabric health mask: ${report.currentHealth.fabricHealthMask || "unknown"}
+
+## Recommendations
+
+${report.recommendations.map((item) => `- ${item}`).join("\n")}
+`;
+}
+
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const fields = readDcgmFields();
+  const capabilities = readCapabilities();
+  const [dcgmScrape, appScrape] = await Promise.all([
+    fetchText(args.dcgmUrl, args.skipLive),
+    fetchText(args.collectorUrl, args.skipLive)
+  ]);
+  const dcgmMetrics = parseMetrics(dcgmScrape.text || "");
+  const availableDcgmFields = fields.filter((field) => dcgmMetrics.metricNames.has(field));
+  const unavailableDcgmFields = fields.filter((field) => !dcgmMetrics.metricNames.has(field));
+  const inventory = parseGpuInventory();
+
+  const missingPermissions = [];
+  for (const [command, commandArgs] of [["nvidia-smi", ["-L"]], ["dcgmi", ["-v"]]]) {
+    const result = run(command, commandArgs);
+    if (!result.ok) missingPermissions.push(`${command}: ${result.error}`);
+  }
+
+  const recommendations = [];
+  if (!dcgmScrape.ok && !dcgmScrape.skipped) recommendations.push(`DCGM Exporter scrape failed at ${args.dcgmUrl}: ${dcgmScrape.error}`);
+  if (!appScrape.ok && !appScrape.skipped) recommendations.push(`App collector scrape failed at ${args.collectorUrl}: ${appScrape.error}`);
+  if (availableDcgmFields.length === 0) recommendations.push("Start DCGM Exporter with metrics/gb100-dcgm-fields.csv and rerun without --skip-live to measure actual field availability.");
+  if (unavailableDcgmFields.length > 0) recommendations.push("Treat unavailable DCGM fields as hardware or driver capability gaps until validated on the target node.");
+  recommendations.push("Use profiler hooks only for forensic precision-specific attribution; keep DCGM as the low-overhead always-on path.");
+
+  const report = {
+    schemaVersion: "gb100.telemetry.support-report.v1",
+    generatedAt: new Date().toISOString(),
+    nodeInventory: {
+      hostname: os.hostname(),
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+      cpus: os.cpus().length,
+      totalMemoryBytes: os.totalmem()
+    },
+    gpuInventory: inventory.gpus,
+    inventoryError: inventory.error || null,
+    versions: versions(),
+    requestedDcgmFieldCount: fields.length,
+    availableDcgmFields,
+    unavailableDcgmFields,
+    unsupportedMetrics: listUnsupported(capabilities),
+    enabledCollectors: {
+      dcgmExporter: dcgmScrape.ok,
+      appCollector: appScrape.ok,
+      nvmlConfidential: process.env.ENABLE_NVML_COLLECTOR === "true"
+    },
+    disabledCollectors: {
+      profiler: "optional forensic path; not enabled for always-on telemetry",
+      facility: "external facility telemetry is optional unless a CDU/BMC adapter is configured"
+    },
+    missingPermissions,
+    scrapeHealth: {
+      dcgmExporter: {
+        url: args.dcgmUrl,
+        status: dcgmScrape.skipped ? "skipped" : dcgmScrape.ok ? "ok" : "failed",
+        error: dcgmScrape.error || null
+      },
+      appCollector: {
+        url: args.collectorUrl,
+        status: appScrape.skipped ? "skipped" : appScrape.ok ? "ok" : "failed",
+        error: appScrape.error || null
+      }
+    },
+    currentHealth: {
+      xid: dcgmMetrics.values.gpu_xid_error_code || dcgmMetrics.values.DCGM_FI_DEV_XID_ERRORS || null,
+      fabricManagerStatus: dcgmMetrics.values.DCGM_FI_DEV_FABRIC_MANAGER_STATUS || null,
+      fabricHealthMask: dcgmMetrics.values.DCGM_FI_DEV_FABRIC_HEALTH_MASK || null
+    },
+    recommendations
+  };
+
+  fs.mkdirSync(args.outDir, { recursive: true });
+  fs.writeFileSync(path.join(args.outDir, "support-report.json"), JSON.stringify(report, null, 2) + "\n");
+  fs.writeFileSync(path.join(args.outDir, "support-report.md"), renderMarkdown(report));
+  console.log(`Wrote ${path.join(args.outDir, "support-report.json")}`);
+  console.log(`Wrote ${path.join(args.outDir, "support-report.md")}`);
+}
+
+main().catch((error) => {
+  console.error(error.stack || error.message);
+  process.exit(1);
+});

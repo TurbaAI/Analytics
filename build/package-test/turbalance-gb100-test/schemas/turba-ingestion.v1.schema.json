@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-ingestion.v1.schema.json",
+  "title": "turbalance ingestion feed",
+  "type": "object",
+  "required": ["schemaVersion", "runs"],
+  "properties": {
+    "schemaVersion": {
+      "const": "turba.ingestion.v1"
+    },
+    "entities": {
+      "type": "object",
+      "properties": {
+        "models": { "type": "object" },
+        "users": { "type": "object" },
+        "teams": { "type": "object" },
+        "tenants": { "type": "object" },
+        "accounts": { "type": "object" },
+        "reservations": { "type": "object" },
+        "clusters": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "name": { "type": "string" },
+          "refs": { "type": "object" },
+          "status": { "type": "string" },
+          "allocation": { "type": "object" },
+          "utilization": { "type": "object" },
+          "communication": { "type": "object" },
+          "inputPipeline": { "type": "object" },
+          "memory": { "type": "object" },
+          "scheduler": { "type": "object" },
+          "reliability": { "type": "object" },
+          "configuration": { "type": "object" },
+          "work": { "type": "object" },
+          "baseline": { "type": "object" },
+          "placement": { "type": ["object", "array"] },
+          "schedulerEvidence": { "type": "object" },
+          "grafanaContext": { "type": "object" },
+          "traceAttribution": { "type": "object" },
+          "sourceContext": { "type": "object" },
+          "opportunities": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/opportunity" }
+          },
+          "commercial": {
+            "type": "object",
+            "properties": {
+              "billingModel": { "type": "string" },
+              "customerTier": { "type": "string" },
+              "contractId": { "type": "string" },
+              "listGpuHourRate": { "type": "number", "minimum": 0 },
+              "floorGpuHourCost": { "type": "number", "minimum": 0 },
+              "committedGpuHours": { "type": "number", "minimum": 0 },
+              "burstGpuHours": { "type": "number", "minimum": 0 },
+              "billableGpuHours": { "type": "number", "minimum": 0 },
+              "sellableGpuHours": { "type": "number", "minimum": 0 }
+            },
+            "additionalProperties": true
+          },
+          "slo": {
+            "type": "object",
+            "properties": {
+              "priority": { "type": "string" },
+              "targetStartMinutes": { "type": "number", "minimum": 0 },
+              "targetEfficiency": { "type": "number", "minimum": 0, "maximum": 100 },
+              "supportTicketId": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "sourceAdapters": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "opportunity": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

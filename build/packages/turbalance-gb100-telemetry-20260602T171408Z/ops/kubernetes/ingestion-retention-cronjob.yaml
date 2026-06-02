@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: turbalance-retention
+  labels:
+    app.kubernetes.io/name: turbalance-ingestion
+    app.kubernetes.io/component: retention
+spec:
+  schedule: "17 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: turbalance-ingestion
+            app.kubernetes.io/component: retention
+        spec:
+          serviceAccountName: turbalance-ingestion
+          restartPolicy: Never
+          containers:
+            - name: retention
+              image: registry.provider.example/ai-ops/turbalance-ingestion:2026.06
+              imagePullPolicy: IfNotPresent
+              command: ["node", "scripts/run-retention-job.js", "--json"]
+              envFrom:
+                - configMapRef:
+                    name: turbalance-ingestion-config
+              env:
+                - name: TURBALANCE_POSTGRES_URL_FILE
+                  value: /var/run/turbalance-secrets/postgres-url
+                - name: TURBALANCE_TENANT_TOKENS_FILE
+                  value: /var/run/turbalance-secrets/tenant-tokens
+                - name: TURBALANCE_UPLOAD_SECRET_FILE
+                  value: /var/run/turbalance-secrets/upload-secret
+                - name: TURBALANCE_JWT_SECRET_FILE
+                  value: /var/run/turbalance-secrets/jwt-secret
+              volumeMounts:
+                - name: secrets
+                  mountPath: /var/run/turbalance-secrets
+                  readOnly: true
+          volumes:
+            - name: secrets
+              secret:
+                secretName: turbalance-ingestion-secrets

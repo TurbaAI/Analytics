@@ -1,0 +1,419 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-source-bundle.v1.schema.json",
+  "title": "turbalance source metric bundle",
+  "type": "object",
+  "anyOf": [
+    { "required": ["ingestion"] },
+    { "required": ["sources"] },
+    { "required": ["sourceExports"] },
+    { "required": ["runs"] },
+    { "required": ["scheduler"] },
+    { "required": ["grafana"] },
+    { "required": ["opportunities"] },
+    { "required": ["ncclTraces"] },
+    { "required": ["traces"] },
+    { "required": ["nccl"] }
+  ],
+  "properties": {
+    "ingestion": {
+      "$ref": "./turba-ingestion.v1.schema.json"
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "runs": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "sources": {
+      "$ref": "#/$defs/sourceExports"
+    },
+    "sourceExports": {
+      "$ref": "#/$defs/sourceExports"
+    },
+    "opportunities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/opportunitySample" }
+    },
+    "scheduler": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/schedulerSample" }
+    },
+    "grafana": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/grafanaSample" }
+    },
+    "ncclTraces": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    },
+    "traces": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    },
+    "nccl": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/traceSample" }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "sourceExports": {
+      "type": "object",
+      "properties": {
+        "prometheus": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metricSample" }
+        },
+        "dcgm": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/metricSample" }
+        },
+        "kubernetes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/kubernetesSample" }
+        },
+        "scheduler": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/schedulerSample" }
+        },
+        "grafana": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/grafanaSample" }
+        },
+        "ebpf": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ebpfSample" }
+        },
+        "provider": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/providerSample" }
+        },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/opportunitySample" }
+        },
+        "ncclTraces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        },
+        "traces": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        },
+        "nccl": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceSample" }
+        }
+      },
+      "additionalProperties": {
+        "type": "array"
+      }
+    },
+    "metricSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "kubernetesSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "namespace": { "type": "string" },
+        "podSelector": { "type": "string" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "schedulerSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "schedulerExportId": { "type": "string" },
+        "schedulerName": { "type": "string" },
+        "queueName": { "type": "string" },
+        "priorityClass": { "type": "string" },
+        "admissionClass": { "type": "string" },
+        "requestedGpuShape": { "type": "string" },
+        "localityPreference": { "type": "string" },
+        "queuedAt": { "type": "string" },
+        "admittedAt": { "type": "string" },
+        "startedAt": { "type": "string" },
+        "queueWaitMinutes": { "type": "number", "minimum": 0 },
+        "placementQuality": { "type": "number", "minimum": 0, "maximum": 100 },
+        "idleGpus": { "type": "number", "minimum": 0 },
+        "partialNodes": { "type": "number", "minimum": 0 },
+        "preemptionCount": { "type": "number", "minimum": 0 },
+        "placementRetries": { "type": "number", "minimum": 0 },
+        "localityMisses": { "type": "number", "minimum": 0 },
+        "backfillCandidates": { "type": "number", "minimum": 0 },
+        "pendingJobsAhead": { "type": "number", "minimum": 0 },
+        "pendingGpuHoursAhead": { "type": "number", "minimum": 0 },
+        "gpusPerNode": { "type": "number", "minimum": 1 },
+        "targetStartMinutes": { "type": "number", "minimum": 0 },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "events": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "traceSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "rankCount": { "type": "number", "minimum": 0 },
+        "events": {
+          "type": "array",
+          "items": { "type": "object" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "grafanaSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "grafanaBaseUrl": { "type": "string" },
+        "baseUrl": { "type": "string" },
+        "instanceName": { "type": "string" },
+        "grafanaInstance": { "type": "string" },
+        "orgId": { "type": ["string", "number"] },
+        "dashboardUid": { "type": "string" },
+        "dashboardSlug": { "type": "string" },
+        "dashboardTitle": { "type": "string" },
+        "folder": { "type": "string" },
+        "datasourceUid": { "type": "string" },
+        "datasourceName": { "type": "string" },
+        "dashboardUrl": { "type": "string" },
+        "exploreUrl": { "type": "string" },
+        "timeRange": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string" },
+            "to": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "variables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "label": { "type": "string" },
+              "title": { "type": "string" },
+              "type": { "type": "string" },
+              "url": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "ebpfSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "ebpfExportId": { "type": "string" },
+        "collector": { "type": "string" },
+        "kernelRelease": { "type": "string" },
+        "host": { "type": "string" },
+        "node": { "type": "string" },
+        "namespace": { "type": "string" },
+        "podName": { "type": "string" },
+        "containerName": { "type": "string" },
+        "cgroupPath": { "type": "string" },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "cpu": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "scheduler": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "network": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "storage": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "noise": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "signals": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "providerSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "tenant": { "type": "string" },
+        "account": { "type": "string" },
+        "reservation": { "type": "string" },
+        "providerExportId": { "type": "string" },
+        "billingAccountId": { "type": "string" },
+        "reservationWindow": { "type": "string" },
+        "sourceContext": {
+          "type": "object",
+          "properties": {
+            "namespace": { "type": "string" },
+            "podSelector": { "type": "string" },
+            "slurmJobId": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "commercial": {
+          "$ref": "#/$defs/commercial"
+        },
+        "slo": {
+          "$ref": "#/$defs/slo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "opportunitySample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "opportunityId": { "type": "string" },
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "action": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "opportunities": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/opportunitySampleItem" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "opportunitySampleItem": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "title": { "type": "string" },
+        "impactDollars": { "type": "number", "minimum": 0 },
+        "impactGpuHours": { "type": "number", "minimum": 0 },
+        "riskScore": { "type": "number", "minimum": 0, "maximum": 100 },
+        "score": { "type": "number", "minimum": 0, "maximum": 100 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 100 },
+        "evidence": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "action": { "type": "string" },
+        "owner": { "type": "string" },
+        "sourceSignals": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "commercial": {
+      "type": "object",
+      "properties": {
+        "billingModel": { "type": "string" },
+        "customerTier": { "type": "string" },
+        "contractId": { "type": "string" },
+        "listGpuHourRate": { "type": "number", "minimum": 0 },
+        "floorGpuHourCost": { "type": "number", "minimum": 0 },
+        "committedGpuHours": { "type": "number", "minimum": 0 },
+        "burstGpuHours": { "type": "number", "minimum": 0 },
+        "billableGpuHours": { "type": "number", "minimum": 0 },
+        "sellableGpuHours": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "slo": {
+      "type": "object",
+      "properties": {
+        "priority": { "type": "string" },
+        "targetStartMinutes": { "type": "number", "minimum": 0 },
+        "targetEfficiency": { "type": "number", "minimum": 0, "maximum": 100 },
+        "supportTicketId": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

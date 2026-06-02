@@ -1,0 +1,22 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "rankCount": 256,
+    "events": [
+      {
+        "op": "all_reduce",
+        "startMs": 0,
+        "durationMs": 580,
+        "bytes": 12884901888,
+        "nodes": ["A1-01", "A1-02", "A2-01", "B1-01"]
+      },
+      {
+        "op": "broadcast",
+        "startMs": 700,
+        "durationMs": 140,
+        "bytes": 1073741824,
+        "nodes": ["A1-01", "A1-02"]
+      }
+    ]
+  }
+]

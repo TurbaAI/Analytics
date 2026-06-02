@@ -1,0 +1,14 @@
+{
+  "prometheus": {
+    "turba_gpu_utilization_ratio": "avg(DCGM_FI_DEV_GPU_UTIL) / 100",
+    "turba_useful_compute_ratio": "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) / 100",
+    "turba_network_wait_ratio": "avg(turbalance_network_wait_ratio)",
+    "turba_queue_wait_minutes": "avg(turbalance_queue_wait_minutes)"
+  },
+  "dcgm": {
+    "DCGM_FI_PROF_SM_OCCUPANCY": "avg(DCGM_FI_PROF_SM_OCCUPANCY)",
+    "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE": "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)",
+    "DCGM_FI_DEV_FB_USED_RATIO": "avg(DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL) * 100",
+    "DCGM_FI_PROF_DRAM_ACTIVE": "avg(DCGM_FI_PROF_DRAM_ACTIVE)"
+  }
+}

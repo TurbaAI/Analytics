@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: turbalance-demo
+  labels:
+    app.kubernetes.io/name: turbalance-demo
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spark1-kafka-smoke
+  namespace: turbalance-demo
+  labels:
+    app.kubernetes.io/name: spark1-kafka-smoke
+    app.kubernetes.io/part-of: turbalance-spark1-demo
+    turba.ai/demo: spark1-kafka
+data:
+  smoke.sh: |
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    BOOTSTRAP="${BOOTSTRAP_SERVERS:-spark1-kafka.turbalance-demo.svc.cluster.local:9092}"
+    RUN_ID="${TURBALANCE_RUN_ID:-spark1-kafka-demo-001}"
+    TOPIC="${TOPIC:-spark1.kafka.smoke.${RUN_ID}.$(date +%s)}"
+    MESSAGE_ID="${RUN_ID}-$(date +%s%N)"
+    PAYLOAD="{\"runId\":\"${RUN_ID}\",\"messageId\":\"${MESSAGE_ID}\",\"source\":\"spark1-kafka-smoke\",\"status\":\"produce-consume-ok\",\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    KAFKA_BIN="${KAFKA_BIN:-/opt/kafka/bin}"
+
+    echo "bootstrap=${BOOTSTRAP}"
+    echo "topic=${TOPIC}"
+    echo "messageId=${MESSAGE_ID}"
+
+    "${KAFKA_BIN}/kafka-topics.sh" \
+      --bootstrap-server "${BOOTSTRAP}" \
+      --create \
+      --if-not-exists \
+      --topic "${TOPIC}" \
+      --partitions 1 \
+      --replication-factor 1
+
+    "${KAFKA_BIN}/kafka-topics.sh" \
+      --bootstrap-server "${BOOTSTRAP}" \
+      --describe \
+      --topic "${TOPIC}"
+
+    printf '%s\n' "${PAYLOAD}" | "${KAFKA_BIN}/kafka-console-producer.sh" \
+      --bootstrap-server "${BOOTSTRAP}" \
+      --topic "${TOPIC}"
+
+    "${KAFKA_BIN}/kafka-console-consumer.sh" \
+      --bootstrap-server "${BOOTSTRAP}" \
+      --topic "${TOPIC}" \
+      --from-beginning \
+      --timeout-ms 20000 \
+      --max-messages 1 > /tmp/spark1-kafka-consumed.txt
+
+    cat /tmp/spark1-kafka-consumed.txt
+    grep -F "\"messageId\":\"${MESSAGE_ID}\"" /tmp/spark1-kafka-consumed.txt
+    echo "SPARK1 Kafka smoke test passed for ${RUN_ID}"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: spark1-kafka-smoke
+  namespace: turbalance-demo
+  labels:
+    app.kubernetes.io/name: spark1-kafka-smoke
+    app.kubernetes.io/part-of: turbalance-spark1-demo
+    turba.ai/demo: spark1-kafka
+    turba.ai/run-id: spark1-kafka-demo-001
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: spark1-kafka-smoke
+        app.kubernetes.io/part-of: turbalance-spark1-demo
+        turba.ai/demo: spark1-kafka
+        turba.ai/run-id: spark1-kafka-demo-001
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: smoke
+          image: apache/kafka:4.3.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/bash
+            - /etc/turbalance/smoke.sh
+          env:
+            - name: BOOTSTRAP_SERVERS
+              value: spark1-kafka.turbalance-demo.svc.cluster.local:9092
+            - name: TURBALANCE_RUN_ID
+              value: spark1-kafka-demo-001
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: smoke-script
+              mountPath: /etc/turbalance
+              readOnly: true
+      volumes:
+        - name: smoke-script
+          configMap:
+            name: spark1-kafka-smoke

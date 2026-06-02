@@ -1,0 +1,10 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "tenant": "apex-ai",
+    "priority": "p1",
+    "targetStartMinutes": 20,
+    "targetEfficiency": 56,
+    "supportTicketId": "CS-2044"
+  }
+]

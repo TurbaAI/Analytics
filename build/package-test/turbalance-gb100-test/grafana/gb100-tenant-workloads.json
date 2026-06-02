@@ -1,0 +1,25 @@
+{
+  "uid": "gb100-tenant-workloads",
+  "title": "GB100 Tenant Workloads",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["gb100", "tenant", "workloads"],
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": [
+    {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts, cluster)", "includeAll": true},
+    {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts{cluster=~\"$cluster\"}, node)", "includeAll": true},
+    {"name": "gpu_uuid", "label": "GPU UUID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_power_watts{cluster=~\"$cluster\",node=~\"$node\"}, gpu_uuid)", "includeAll": true},
+    {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second, namespace)", "includeAll": true},
+    {"name": "pod", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{namespace=~\"$namespace\"}, pod)", "includeAll": true},
+    {"name": "container", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{pod=~\"$pod\"}, container)", "includeAll": true}
+  ]},
+  "panels": [
+    {"id": 1, "title": "Tokens Per Second", "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_tokens_per_second{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 2, "title": "Requests Per Second", "type": "timeseries", "gridPos": {"x": 8, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_requests_per_second{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 3, "title": "Batch And Sequence", "type": "timeseries", "gridPos": {"x": 16, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_batch_size{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}, {"expr": "gb100_app_sequence_length{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 4, "title": "Precision And Transformer Engine", "type": "table", "gridPos": {"x": 0, "y": 7, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_transformer_engine_enabled{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 5, "title": "Decompression Offload", "type": "timeseries", "gridPos": {"x": 8, "y": 7, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_compressed_bytes_per_second{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}, {"expr": "gb100_app_decompressed_bytes_per_second{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}, {"expr": "gb100_app_decompression_errors_total{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 6, "title": "App Capability Notes", "type": "table", "gridPos": {"x": 16, "y": 7, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_metric_capability{status=~\"app_instrumentation_required|profiler_required\"}"}]}
+  ]
+}

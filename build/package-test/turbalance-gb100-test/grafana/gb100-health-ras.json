@@ -1,0 +1,25 @@
+{
+  "uid": "gb100-health-ras",
+  "title": "GB100 Health RAS",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["gb100", "ras", "ecc", "xid"],
+  "time": {"from": "now-6h", "to": "now"},
+  "templating": {"list": [
+    {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_xid_error_code, cluster)", "includeAll": true},
+    {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_xid_error_code{cluster=~\"$cluster\"}, node)", "includeAll": true},
+    {"name": "gpu_uuid", "label": "GPU UUID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_xid_error_code{cluster=~\"$cluster\",node=~\"$node\"}, gpu_uuid)", "includeAll": true},
+    {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second, namespace)", "includeAll": true},
+    {"name": "pod", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{namespace=~\"$namespace\"}, pod)", "includeAll": true},
+    {"name": "container", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{pod=~\"$pod\"}, container)", "includeAll": true}
+  ]},
+  "panels": [
+    {"id": 1, "title": "XID Errors", "type": "stat", "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "max(gpu_xid_error_code{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"})"}]},
+    {"id": 2, "title": "ECC Errors", "type": "timeseries", "gridPos": {"x": 6, "y": 0, "w": 9, "h": 5}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_ecc_sbe_total{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "gpu_ecc_dbe_total{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 3, "title": "Retired Pages", "type": "timeseries", "gridPos": {"x": 15, "y": 0, "w": 9, "h": 5}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_retired_pages_total{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_DEV_RETIRED_PENDING{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 4, "title": "Remapped Rows", "type": "timeseries", "gridPos": {"x": 0, "y": 5, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "DCGM_FI_DEV_CORRECTABLE_REMAPPED_ROWS{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_DEV_UNCORRECTABLE_REMAPPED_ROWS{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_DEV_ROW_REMAP_FAILURE{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 5, "title": "RAS Capability Notes", "type": "table", "gridPos": {"x": 8, "y": 5, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_metric_capability{metric=~\"ras_engine_internals|gpu_ecc.*|gpu_xid.*\"}"}]},
+    {"id": 6, "title": "Confidential Compute", "type": "table", "gridPos": {"x": 16, "y": 5, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_confidential_compute_collector_available or gpu_attestation_available or gpu_confidential_compute_collector_warning"}]}
+  ]
+}

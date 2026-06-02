@@ -1,0 +1,25 @@
+{
+  "namespace": "turbalance-sandbox",
+  "releaseName": "turbalance-sandbox",
+  "image": "127.0.0.1:5000/turbalance-ingestion:2026.06",
+  "serviceAccountName": "turbalance-ingestion",
+  "configMapName": "turbalance-ingestion-config",
+  "secretName": "turbalance-ingestion-secrets",
+  "secretStoreName": "turbalance-sandbox-secret-store",
+  "secretProvider": "aws",
+  "serviceAccountAnnotations": {
+    "eks.amazonaws.com/role-arn": "arn:aws:iam::210987654321:role/turbalance-sandbox-ingestion-secrets"
+  },
+  "aws": {
+    "region": "us-west-2",
+    "service": "SecretsManager"
+  },
+  "objectBucket": "turbalance-sandbox-ai-ops-ingestion",
+  "objectPrefix": "sandbox/provider-a",
+  "postgresSecretName": "turbalance/sandbox/provider-a/postgres-url",
+  "tenantTokensSecretName": "turbalance/sandbox/provider-a/tenant-tokens",
+  "uploadSecretName": "turbalance/sandbox/provider-a/upload-secret",
+  "jwtSecretName": "turbalance/sandbox/provider-a/jwt-secret",
+  "exporterTokenSecretName": "turbalance/sandbox/provider-a/exporter-token",
+  "ingestTenant": "provider-a"
+}

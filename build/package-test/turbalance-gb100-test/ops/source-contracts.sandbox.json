@@ -1,0 +1,38 @@
+{
+  "runId": "provider-run-9001",
+  "contracts": [
+    {
+      "system": "prometheus",
+      "url": "http://127.0.0.1:8891",
+      "queriesFile": "fixtures/prometheus-collector-queries.json"
+    },
+    {
+      "system": "kubernetes",
+      "url": "http://127.0.0.1:8891/kubernetes/jobs"
+    },
+    {
+      "system": "scheduler-admission",
+      "url": "http://127.0.0.1:8891/scheduler/export"
+    },
+    {
+      "system": "grafana",
+      "url": "http://127.0.0.1:8891/grafana/handoffs"
+    },
+    {
+      "system": "billing-slo",
+      "url": "http://127.0.0.1:8891/billing-slo/export"
+    },
+    {
+      "system": "ebpf",
+      "url": "http://127.0.0.1:8891/ebpf/summary"
+    },
+    {
+      "system": "nccl",
+      "url": "http://127.0.0.1:8891/nccl/traces"
+    },
+    {
+      "system": "opportunities",
+      "url": "http://127.0.0.1:8891/opportunities/export"
+    }
+  ]
+}

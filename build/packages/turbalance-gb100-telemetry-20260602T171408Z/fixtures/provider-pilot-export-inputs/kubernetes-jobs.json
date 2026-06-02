@@ -1,0 +1,14 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "namespace": "frontier-training",
+    "podSelector": "job-name=apex-70b-pretrain-9001",
+    "labels": {
+      "turba.ai/tenant": "apex-ai",
+      "turba.ai/account": "acct-apex-frontier",
+      "turba.ai/reservation": "rsv-h100-frontier-q2",
+      "turba.ai/support-ticket": "CS-2044",
+      "turba.ai/priority": "p1"
+    }
+  }
+]

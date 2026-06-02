@@ -1,0 +1,24 @@
+{
+  "uid": "gb100-compute",
+  "title": "GB100 Compute",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["gb100", "compute", "dcgm"],
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": [
+    {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_sm_active_ratio, cluster)", "includeAll": true},
+    {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_sm_active_ratio{cluster=~\"$cluster\"}, node)", "includeAll": true},
+    {"name": "gpu_uuid", "label": "GPU UUID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_sm_active_ratio{cluster=~\"$cluster\",node=~\"$node\"}, gpu_uuid)", "includeAll": true},
+    {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second, namespace)", "includeAll": true},
+    {"name": "pod", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{namespace=~\"$namespace\"}, pod)", "includeAll": true},
+    {"name": "container", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_tokens_per_second{pod=~\"$pod\"}, container)", "includeAll": true}
+  ]},
+  "panels": [
+    {"id": 1, "title": "SM Active", "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_sm_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 2, "title": "SM Occupancy", "type": "timeseries", "gridPos": {"x": 8, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_sm_occupancy_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 3, "title": "Tensor Pipe Active", "type": "timeseries", "gridPos": {"x": 16, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_tensor_pipe_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 4, "title": "Compute Pipe Mix", "type": "timeseries", "gridPos": {"x": 0, "y": 7, "w": 12, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "DCGM_FI_PROF_PIPE_FP64_ACTIVE{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_PROF_PIPE_FP32_ACTIVE{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_PROF_PIPE_FP16_ACTIVE{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}, {"expr": "DCGM_FI_PROF_PIPE_INT_ACTIVE{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 5, "title": "Precision-Specific Status", "type": "table", "gridPos": {"x": 12, "y": 7, "w": 12, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_metric_capability{metric=~\".*tensor_core_utilization|transformer_engine_activity\"}"}]}
+  ]
+}

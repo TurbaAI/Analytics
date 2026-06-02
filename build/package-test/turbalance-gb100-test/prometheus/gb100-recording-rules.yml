@@ -1,0 +1,46 @@
+groups:
+  - name: gb100.dcgm.normalized
+    interval: 15s
+    rules:
+      - record: gpu_power_watts
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_power_instant_watts
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_POWER_USAGE_INSTANT, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_temperature_celsius
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_GPU_TEMP, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_memory_temperature_celsius
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_MEMORY_TEMP, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_memory_used_bytes
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_FB_USED * 1024 * 1024, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_memory_used_ratio
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_sm_active_ratio
+        expr: label_replace(label_replace(label_replace(DCGM_FI_PROF_SM_ACTIVE, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_sm_occupancy_ratio
+        expr: label_replace(label_replace(label_replace(DCGM_FI_PROF_SM_OCCUPANCY, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_tensor_pipe_active_ratio
+        expr: label_replace(label_replace(label_replace(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_dram_active_ratio
+        expr: label_replace(label_replace(label_replace(DCGM_FI_PROF_DRAM_ACTIVE, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_pcie_tx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_PCIE_TX_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_pcie_rx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_PCIE_RX_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_nvlink_tx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_NVLINK_TX_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_nvlink_rx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_NVLINK_RX_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_c2c_tx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_C2C_TX_ALL_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_c2c_rx_bytes_per_second
+        expr: label_replace(label_replace(label_replace(rate(DCGM_FI_PROF_C2C_RX_ALL_BYTES[1m]), "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_xid_error_code
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_XID_ERRORS, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_ecc_sbe_total
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_ECC_SBE_VOL_TOTAL + DCGM_FI_DEV_ECC_SBE_AGG_TOTAL, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_ecc_dbe_total
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_ECC_DBE_VOL_TOTAL + DCGM_FI_DEV_ECC_DBE_AGG_TOTAL, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_retired_pages_total
+        expr: label_replace(label_replace(label_replace(DCGM_FI_DEV_RETIRED_SBE + DCGM_FI_DEV_RETIRED_DBE, "gpu_index", "$1", "gpu", "(.+)"), "gpu_uuid", "$1", "UUID", "(.+)"), "hostname", "$1", "Hostname", "(.+)")
+      - record: gpu_nvlink_errors_total
+        expr: DCGM_FI_DEV_NVLINK_COUNT_RX_ERRORS + DCGM_FI_DEV_NVLINK_COUNT_RX_REMOTE_ERRORS + DCGM_FI_DEV_NVLINK_COUNT_RX_MALFORMED_PACKET_ERRORS + DCGM_FI_DEV_NVLINK_COUNT_RX_BUFFER_OVERRUN_ERRORS

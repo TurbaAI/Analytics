@@ -1,0 +1,24 @@
+{
+  "uid": "gb100-memory",
+  "title": "GB100 Memory",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["gb100", "memory", "hbm"],
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": [
+    {"name": "cluster", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_memory_used_ratio, cluster)", "includeAll": true},
+    {"name": "node", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_memory_used_ratio{cluster=~\"$cluster\"}, node)", "includeAll": true},
+    {"name": "gpu_uuid", "label": "GPU UUID", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gpu_memory_used_ratio{cluster=~\"$cluster\",node=~\"$node\"}, gpu_uuid)", "includeAll": true},
+    {"name": "namespace", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_kv_cache_used_bytes, namespace)", "includeAll": true},
+    {"name": "pod", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_kv_cache_used_bytes{namespace=~\"$namespace\"}, pod)", "includeAll": true},
+    {"name": "container", "type": "query", "datasource": {"type": "prometheus", "uid": "prometheus"}, "query": "label_values(gb100_app_kv_cache_used_bytes{pod=~\"$pod\"}, container)", "includeAll": true}
+  ]},
+  "panels": [
+    {"id": 1, "title": "HBM Used Ratio", "type": "timeseries", "gridPos": {"x": 0, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_memory_used_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 2, "title": "HBM Used Bytes", "type": "timeseries", "gridPos": {"x": 8, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_memory_used_bytes{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 3, "title": "DRAM Active", "type": "timeseries", "gridPos": {"x": 16, "y": 0, "w": 8, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gpu_dram_active_ratio{cluster=~\"$cluster\",gpu_uuid=~\"$gpu_uuid\"}"}]},
+    {"id": 4, "title": "KV Cache Used", "type": "timeseries", "gridPos": {"x": 0, "y": 7, "w": 12, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_app_kv_cache_used_bytes{namespace=~\"$namespace\",pod=~\"$pod\",container=~\"$container\"}"}]},
+    {"id": 5, "title": "Memory Capability Notes", "type": "table", "gridPos": {"x": 12, "y": 7, "w": 12, "h": 7}, "datasource": {"type": "prometheus", "uid": "prometheus"}, "targets": [{"expr": "gb100_metric_capability{metric=~\"gpu_memory_used_bytes|hbm_gb_per_second_per_workload\"}"}]}
+  ]
+}
