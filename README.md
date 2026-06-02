@@ -135,7 +135,7 @@ Real production use still requires operator-provided exports from the relevant s
 - Same-pod placement what-if toggle
 - Baseline and regression checks
 - Workload fingerprinting
-- Persisted trend snapshots for efficiency, waste, NCCL time, cost, sellable waste, opportunity impact, commit burn, queue SLO, and gross margin
+- Persisted trend snapshots for efficiency, waste, NCCL time, network utilization, cost, sellable waste, opportunity impact, commit burn, queue SLO, and gross margin
 
 ### Topology And Trace Evidence
 
@@ -173,6 +173,15 @@ Real production use still requires operator-provided exports from the relevant s
 - Grafana Handoff GUI panel with dashboard, datasource, variables, time range, and links
 - Redaction for Grafana base URLs, instance names, org IDs, dashboard UIDs, dashboard slugs, dashboard titles, folders, datasource UIDs, datasource names, variables, and full dashboard/Explore URLs
 - Ready-to-import dashboard template at `grafana/turbalance-provider-overview.json`
+
+### Live Telemetry And Observation Log
+
+- Live System Resources card for network utilization. It shows NIC/link utilization percent when link speed is known, otherwise falls back to aggregate RX/TX throughput.
+- Network source context fields for interface name, link speed, RX/TX bytes, RX/TX bytes per second, drops, and errors.
+- Relationship Watch includes `Network/GPU` and `Network/CPU`; live mode uses actual CPU telemetry, while analysis snapshots use CPU prep as the host-side proxy.
+- Network pressure alerts cover high or rising utilization while GPU utilization is flat or falling.
+- Observation Log records interpreted events rather than every one-second sample. It keeps alerts, threshold crossings, material resource deltas, GPU counter loss, and material network throughput changes while suppressing steady-state noise.
+- Observation Log controls include `Copy` for the visible interpreted entries and `Clear` to hide current entries until newer meaningful events arrive.
 
 ### Linux eBPF Support
 
@@ -216,6 +225,8 @@ The app accepts these import shapes:
 - Source bundles with `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, and `ncclTraces`
 - A bare `runs` array with compatible entities
 - Full `turba.workspace.v2` workspace exports
+
+For live-machine and source-context telemetry, network utilization is intentionally separate from network wait. `networkWait` means latency, loss, or stall pressure; `networkUtilization` means NIC/link throughput pressure. Optional source context can include `networkInterface`, `networkLinkSpeedMbps`, `networkRxBytes`, `networkTxBytes`, `networkRxBytesPerSecond`, `networkTxBytesPerSecond`, `networkUtilizationPct`, `networkRxDrops`, `networkTxDrops`, `networkRxErrors`, and `networkTxErrors`.
 
 See `docs/data-contract.md` for field-level examples and validation behavior.
 
@@ -395,7 +406,7 @@ Focused test entry points:
 - `tests/docs-and-workflows.test.js`: docs, screenshots, schemas, scripts, Grafana template, and GitHub workflow entry points
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
-- `scripts/collect-local-machine-bundle.js`: samples the current Linux host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle; when Ollama has an already-loaded model in `/api/ps`, it records a tiny generation probe for tokens per second and time to first token
+- `scripts/collect-local-machine-bundle.js`: samples the current Linux/macOS/BSD host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle; network fields include interface counters, link speed where available, byte-rate deltas, drops/errors, and utilization percent only when link speed is known; when Ollama has an already-loaded model in `/api/ps`, it records a tiny generation probe for tokens per second and time to first token
 - `scripts/collect-machine-fleet-bundle.js`: combines strict live observations from the demo host plus approved SSH machines such as `user@192.168.10.20` into one live machine bundle without synthesizing provider/source overlays
 - `scripts/check-spark1-kafka.js`: applies the SPARK1 single-node Kafka broker, waits for readiness, and runs a produce/consume smoke Job
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
@@ -432,7 +443,15 @@ node scripts/prepare-demo.js --out-dir build/demo
 
 This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
-When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.101` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, and `100.96.89.98` for the standalone `DGX-pat` view. The live resources panel surfaces CPU, RAM, GPU utilization, GPU power, GPU memory, disk, Docker, Ollama generation telemetry, and signal freshness from the strict machine bundle, plus in-browser telemetry graphs for roughly the latest five minutes of sample history. On GB10 hosts it also shows the GB10 monitor count and Linux UMA memory from `/proc/meminfo`, with monitor rows for NVML/nvidia-smi, app metrics on `:9500`, and optional Nsight/CUPTI profiling hooks. It computes short-window trend slopes and cross-metric relationships, then raises relationship alerts for conditions such as idle accelerators, CPU rising while GPU is flat, memory/disk pressure drift, thermal drift, lagging GPU counters, and power/utilization divergence. High-rate collectors can run as resident loops and label very recent cached GPU samples when `nvidia-smi` is slower than the browser cadence. When Ollama is reachable and `/api/ps` reports a loaded model, the collector sends a tiny streaming prompt to the loaded model and caches the resulting tokens-per-second and time-to-first-token reading for 30 seconds; use `--ollama-probe 0` to disable that probe or `--ollama-probe-ms <milliseconds>` to change the cache interval. If no model is loaded, the dashboard reports Ollama as reachable without fabricating throughput. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, Ollama, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
+When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.101` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, and `100.96.89.98` for the standalone `DGX-pat` view.
+
+The live resources panel surfaces CPU, RAM, network utilization, GPU utilization, GPU power, GPU memory, Docker, disk, Ollama generation telemetry, and signal freshness from the strict machine bundle. Network utilization appears as NIC/link percent when link speed is known, and falls back to RX/TX throughput when capacity is unavailable. The same live samples drive in-browser telemetry graphs for roughly the latest five minutes of sample history.
+
+Relationship Watch computes short-window trend slopes and cross-metric relationships. It includes `Network/GPU` and `Network/CPU` alongside CPU/GPU, Power/GPU, and RAM/CPU, and it raises relationship alerts for conditions such as CPU rising while GPU is flat, high or rising network utilization while GPU is flat/falling, memory/disk pressure drift, thermal drift, lagging GPU counters, and power/utilization divergence. The idle-accelerator alert is gated on host-side work so an idle machine does not create a false bottleneck.
+
+The Observation Log records interpreted events rather than raw one-second sample noise. It keeps active alerts, threshold crossings, material resource deltas, GPU counter loss, and material network throughput changes; steady CPU/RAM/Disk/GPU/Network samples are suppressed. The log has `Copy` and `Clear` controls: copy exports the visible interpreted entries as plain text, and clear hides current entries until a newer meaningful event arrives.
+
+On GB10 hosts it also shows the GB10 monitor count and Linux UMA memory from `/proc/meminfo`, with monitor rows for NVML/nvidia-smi, app metrics on `:9500`, and optional Nsight/CUPTI profiling hooks. High-rate collectors can run as resident loops and label very recent cached GPU samples when `nvidia-smi` is slower than the browser cadence. When Ollama is reachable and `/api/ps` reports a loaded model, the collector sends a tiny streaming prompt to the loaded model and caches the resulting tokens-per-second and time-to-first-token reading for 30 seconds; use `--ollama-probe 0` to disable that probe or `--ollama-probe-ms <milliseconds>` to change the cache interval. If no model is loaded, the dashboard reports Ollama as reachable without fabricating throughput. The live-machine bundle is strict: it only claims observed `nvidia-smi`, host OS counters, Docker, Ollama, and reachable local services, and it does not synthesize Kubernetes, DCGM, eBPF, scheduler, provider, or billing overlays. Use `?demo=sample` to keep the seeded sample feed, or `?demo=machine` to force the live-machine bundle on another host.
 
 SPARK1 after reboot:
 
@@ -457,6 +476,7 @@ Then open `http://192.168.10.20:8000/`. Confirm the app and live bundle are avai
 
 ```sh
 curl -I http://127.0.0.1:8000/
+curl -fsS http://127.0.0.1:8000/app.js | grep -E 'Network/GPU|liveSignificantSampleObservations'
 ls -lh build/demo/live-machine-bundle.json
 tail -50 build/demo/live-machine-collector.log
 ```
