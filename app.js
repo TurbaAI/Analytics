@@ -1006,6 +1006,12 @@ const MACHINE_DEMO_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
+const LIVE_COVARIANCE_METRICS = [
+  { key: "cpu", label: "CPU load", shortLabel: "CPU" },
+  { key: "gpu", label: "GPU utilization", shortLabel: "GPU" },
+  { key: "ram", label: "RAM usage", shortLabel: "RAM" },
+  { key: "networkUtilization", label: "Network utilization", shortLabel: "Net" }
+];
 const LIVE_OBSERVATION_LIMIT = 8;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
@@ -5043,6 +5049,7 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
     telemetryRelationship("Power/GPU", telemetryCorrelation(window, "gpuPower", "gpu"), "Power draw vs useful accelerator motion"),
     telemetryRelationship("RAM/CPU", telemetryCorrelation(window, "ram", "cpu"), "Memory pressure vs host activity")
   ];
+  const covarianceMatrix = buildLiveCovarianceMatrix(window);
   const alerts = [];
 
   if (sampleCount < 6) {
@@ -5052,6 +5059,7 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
       windowSeconds,
       alerts,
       relationships,
+      covarianceMatrix,
       status: "Learning baseline"
     };
   }
@@ -5205,6 +5213,7 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
     windowSeconds,
     alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
     relationships,
+    covarianceMatrix,
     status: alerts.length ? `${alerts.length} active` : "Stable"
   };
 }
@@ -5387,6 +5396,10 @@ function renderLiveTelemetryAlerts(container, analysis) {
     relationshipGrid.append(liveRelationshipCard(relationship));
   });
 
+  const covariancePanel = analysis.covarianceMatrix
+    ? liveCovarianceMatrixPanel(analysis.covarianceMatrix, analysis)
+    : null;
+
   const alertList = document.createElement("div");
   alertList.className = "live-alert-list";
   if (!analysis.alerts.length) {
@@ -5402,7 +5415,9 @@ function renderLiveTelemetryAlerts(container, analysis) {
     });
   }
 
-  wrapper.append(head, relationshipGrid, alertList);
+  wrapper.append(head, relationshipGrid);
+  if (covariancePanel) wrapper.append(covariancePanel);
+  wrapper.append(alertList);
   container.replaceChildren(wrapper);
 }
 
@@ -5713,6 +5728,119 @@ function liveObservationItem(observation) {
   return item;
 }
 
+function liveCovarianceMatrixPanel(matrix, analysis) {
+  const panel = document.createElement("section");
+  panel.className = "live-covariance-panel";
+
+  const head = document.createElement("div");
+  head.className = "live-covariance-head";
+  const label = document.createElement("p");
+  label.textContent = "Covariance Matrix";
+  const title = document.createElement("h3");
+  title.textContent = "CPU, GPU, RAM, network";
+  const badge = document.createElement("span");
+  badge.textContent = analysis.sampleCount >= 4
+    ? `Rolling ${Math.min(analysis.sampleCount, LIVE_TELEMETRY_RELATIONSHIP_WINDOW)} samples`
+    : "Learning";
+  head.append(label, title, badge);
+
+  const scroller = document.createElement("div");
+  scroller.className = "live-covariance-scroll";
+  const grid = document.createElement("div");
+  grid.className = "live-covariance-grid";
+  grid.setAttribute("role", "table");
+  grid.setAttribute("aria-label", "Rolling live covariance matrix for CPU load, GPU utilization, RAM usage, and network utilization");
+
+  const corner = document.createElement("div");
+  corner.className = "live-covariance-corner";
+  corner.setAttribute("aria-hidden", "true");
+  grid.append(corner);
+
+  matrix.metrics.forEach((metric) => {
+    const columnHeader = document.createElement("div");
+    columnHeader.className = "live-covariance-axis live-covariance-axis-column";
+    columnHeader.setAttribute("role", "columnheader");
+    columnHeader.textContent = metric.shortLabel;
+    columnHeader.title = metric.label;
+    grid.append(columnHeader);
+  });
+
+  matrix.rows.forEach((row) => {
+    const rowHeader = document.createElement("div");
+    rowHeader.className = "live-covariance-axis live-covariance-axis-row";
+    rowHeader.setAttribute("role", "rowheader");
+    rowHeader.textContent = row.metric.shortLabel;
+    rowHeader.title = row.metric.label;
+    grid.append(rowHeader);
+
+    row.cells.forEach((cell) => {
+      grid.append(liveCovarianceMatrixCell(cell));
+    });
+  });
+
+  scroller.append(grid);
+  const foot = document.createElement("div");
+  foot.className = "live-covariance-foot";
+  foot.textContent = "Covariance in percentage-point^2; color follows correlation.";
+  panel.append(head, scroller, foot);
+  return panel;
+}
+
+function liveCovarianceMatrixCell(cell) {
+  const item = document.createElement("div");
+  item.className = "live-covariance-cell";
+  const { stats } = cell;
+  const isDiagonal = cell.rowKey === cell.columnKey;
+  const covariance = Number.isFinite(stats.covariance) ? stats.covariance : null;
+  const correlation = Number.isFinite(stats.correlation) ? stats.correlation : null;
+  const tone = covarianceCellTone(correlation, isDiagonal, stats.sampleCount);
+  item.dataset.tone = tone;
+  item.style.backgroundColor = covarianceCellBackground(correlation, isDiagonal, stats.sampleCount);
+
+  const value = document.createElement("strong");
+  value.textContent = covariance === null ? "learning" : formatCovariance(covariance, isDiagonal);
+  const note = document.createElement("small");
+  note.textContent = covariance === null
+    ? `${stats.sampleCount}/4 pairs`
+    : isDiagonal ? "variance" : formatCorrelation(correlation);
+
+  item.title = covariance === null
+    ? `${cell.rowLabel} and ${cell.columnLabel}: waiting for at least 4 paired live samples.`
+    : `${cell.rowLabel} vs ${cell.columnLabel}: covariance ${formatCovariance(covariance, isDiagonal)} pct-pt^2, ${isDiagonal ? "variance" : formatCorrelation(correlation)}, ${stats.sampleCount} paired samples.`;
+  item.setAttribute("role", "cell");
+  item.setAttribute("aria-label", item.title);
+
+  item.append(value, note);
+  return item;
+}
+
+function covarianceCellTone(correlation, isDiagonal, sampleCount) {
+  if (sampleCount < 4) return "learning";
+  if (isDiagonal) return "self";
+  if (!Number.isFinite(correlation) || Math.abs(correlation) < 0.2) return "weak";
+  return correlation > 0 ? "positive" : "negative";
+}
+
+function covarianceCellBackground(correlation, isDiagonal, sampleCount) {
+  if (sampleCount < 4) return "rgba(98, 117, 129, 0.08)";
+  if (isDiagonal) return "rgba(36, 95, 145, 0.14)";
+  if (!Number.isFinite(correlation)) return "rgba(98, 117, 129, 0.1)";
+  const strength = Math.min(1, Math.abs(correlation));
+  const alpha = 0.08 + strength * 0.34;
+  return correlation >= 0
+    ? `rgba(0, 143, 115, ${formatDecimal(alpha, 3)})`
+    : `rgba(184, 76, 62, ${formatDecimal(alpha, 3)})`;
+}
+
+function formatCovariance(value, unsigned = false) {
+  if (!Number.isFinite(value)) return "learning";
+  const displayValue = Math.abs(value) < 0.005 ? 0 : value;
+  const absValue = Math.abs(displayValue);
+  const digits = absValue >= 100 ? 0 : absValue >= 10 ? 1 : 2;
+  const sign = unsigned || displayValue < 0 ? "" : "+";
+  return `${sign}${displayValue.toFixed(digits)}`;
+}
+
 function liveRelationshipCard(relationship) {
   const item = document.createElement("div");
   item.className = "live-relationship-card";
@@ -5785,6 +5913,24 @@ function telemetryRelationship(label, correlation, note) {
   };
 }
 
+function buildLiveCovarianceMatrix(history) {
+  const rows = LIVE_COVARIANCE_METRICS.map((rowMetric) => ({
+    metric: rowMetric,
+    cells: LIVE_COVARIANCE_METRICS.map((columnMetric) => ({
+      rowKey: rowMetric.key,
+      columnKey: columnMetric.key,
+      rowLabel: rowMetric.label,
+      columnLabel: columnMetric.label,
+      stats: telemetryCovarianceStats(history, rowMetric.key, columnMetric.key)
+    }))
+  }));
+
+  return {
+    metrics: LIVE_COVARIANCE_METRICS,
+    rows
+  };
+}
+
 function telemetryTrend(history, key) {
   const points = history
     .map((sample) => ({
@@ -5836,6 +5982,38 @@ function telemetryCorrelation(history, leftKey, rightKey) {
   const rightVariance = pairs.reduce((total, [, right]) => total + (right - rightAvg) ** 2, 0);
   if (leftVariance === 0 || rightVariance === 0) return null;
   return covariance / Math.sqrt(leftVariance * rightVariance);
+}
+
+function telemetryCovarianceStats(history, leftKey, rightKey) {
+  const pairs = history
+    .map((sample) => [telemetryValue(sample, leftKey), telemetryValue(sample, rightKey)])
+    .filter(([left, right]) => Number.isFinite(left) && Number.isFinite(right));
+
+  if (pairs.length < 4) {
+    return {
+      sampleCount: pairs.length,
+      covariance: null,
+      correlation: null
+    };
+  }
+
+  const leftAvg = pairs.reduce((total, pair) => total + pair[0], 0) / pairs.length;
+  const rightAvg = pairs.reduce((total, pair) => total + pair[1], 0) / pairs.length;
+  const denominator = Math.max(1, pairs.length - 1);
+  const covariance = pairs.reduce((total, [left, right]) => total + (left - leftAvg) * (right - rightAvg), 0) / denominator;
+  const leftVariance = pairs.reduce((total, [left]) => total + (left - leftAvg) ** 2, 0) / denominator;
+  const rightVariance = pairs.reduce((total, [, right]) => total + (right - rightAvg) ** 2, 0) / denominator;
+  const correlation = leftKey === rightKey
+    ? 1
+    : leftVariance === 0 || rightVariance === 0
+      ? null
+      : covariance / Math.sqrt(leftVariance * rightVariance);
+
+  return {
+    sampleCount: pairs.length,
+    covariance,
+    correlation
+  };
 }
 
 function telemetryAverage(history, key) {

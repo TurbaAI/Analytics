@@ -1468,6 +1468,135 @@ input[type="url"] {
   color: var(--red);
 }
 
+.live-covariance-panel {
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.live-covariance-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 14px;
+  align-items: end;
+  padding: 15px 16px 13px;
+}
+
+.live-covariance-head p,
+.live-covariance-head h3,
+.live-covariance-head span {
+  min-width: 0;
+  margin: 0;
+}
+
+.live-covariance-head p {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-covariance-head h3 {
+  font-size: 1.04rem;
+  line-height: 1.15;
+}
+
+.live-covariance-head span {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.live-covariance-scroll {
+  overflow-x: auto;
+  border-top: 1px solid var(--line);
+}
+
+.live-covariance-grid {
+  display: grid;
+  grid-template-columns: minmax(58px, 0.72fr) repeat(4, minmax(76px, 1fr));
+  gap: 1px;
+  min-width: 450px;
+  background: var(--line);
+}
+
+.live-covariance-corner,
+.live-covariance-axis,
+.live-covariance-cell {
+  min-width: 0;
+  background: #f8fbfa;
+}
+
+.live-covariance-corner,
+.live-covariance-axis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-covariance-axis-row {
+  justify-content: flex-start;
+  padding-left: 12px;
+}
+
+.live-covariance-cell {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-height: 76px;
+  padding: 10px;
+}
+
+.live-covariance-cell strong,
+.live-covariance-cell small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.live-covariance-cell strong {
+  color: var(--ink);
+  font-size: 0.98rem;
+  line-height: 1.08;
+}
+
+.live-covariance-cell small {
+  color: rgba(19, 32, 39, 0.68);
+  font-size: 0.68rem;
+  font-weight: 820;
+  line-height: 1.2;
+}
+
+.live-covariance-cell[data-tone="positive"] strong {
+  color: #006f5b;
+}
+
+.live-covariance-cell[data-tone="negative"] strong {
+  color: #9f3f34;
+}
+
+.live-covariance-cell[data-tone="learning"] strong,
+.live-covariance-cell[data-tone="weak"] strong {
+  color: var(--muted);
+}
+
+.live-covariance-foot {
+  padding: 10px 16px 13px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
 .live-alert-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3309,11 +3438,13 @@ input[type="url"] {
   }
 
   .live-relationship-head,
+  .live-covariance-head,
   .live-observation-head {
     grid-template-columns: 1fr;
   }
 
   .live-relationship-head span,
+  .live-covariance-head span,
   .live-observation-meta {
     grid-row: auto;
     grid-column: auto;
@@ -3321,6 +3452,7 @@ input[type="url"] {
   }
 
   .live-relationship-head span,
+  .live-covariance-head span,
   .live-observation-meta span {
     text-align: left;
   }
