@@ -5418,9 +5418,9 @@ function renderLiveTelemetryAlerts(container, analysis) {
     });
   }
 
-  wrapper.append(head, relationshipGrid);
+  wrapper.append(head);
   if (covariancePanel) wrapper.append(covariancePanel);
-  wrapper.append(alertList);
+  wrapper.append(relationshipGrid, alertList);
   container.replaceChildren(wrapper);
 }
 
