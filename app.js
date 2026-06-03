@@ -5289,9 +5289,12 @@ function analyzeAnalysisResourceRelationships(summary) {
     sampleCount: 1,
     windowSeconds: 0,
     badgeText: "Analysis snapshot",
+    covarianceBadgeText: "Waiting for live counters",
+    covarianceFootText: "Live host CPU, GPU, RAM, and network samples are required for covariance; current view is a static run snapshot.",
     emptyAlertText: "No adverse snapshot relationship detected in the selected run.",
     alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
     relationships,
+    covarianceMatrix: buildLiveCovarianceMatrix([]),
     observations: analysisResourceObservations(summary, alerts),
     history: analysisResourceHistory(summary),
     status: alerts.length ? `${alerts.length} snapshot ${alerts.length === 1 ? "signal" : "signals"}` : "Snapshot stable"
@@ -5739,9 +5742,9 @@ function liveCovarianceMatrixPanel(matrix, analysis) {
   const title = document.createElement("h3");
   title.textContent = "CPU, GPU, RAM, network";
   const badge = document.createElement("span");
-  badge.textContent = analysis.sampleCount >= 4
+  badge.textContent = analysis.covarianceBadgeText || (analysis.sampleCount >= 4
     ? `Rolling ${Math.min(analysis.sampleCount, LIVE_TELEMETRY_RELATIONSHIP_WINDOW)} samples`
-    : "Learning";
+    : "Learning");
   head.append(label, title, badge);
 
   const scroller = document.createElement("div");
@@ -5781,7 +5784,7 @@ function liveCovarianceMatrixPanel(matrix, analysis) {
   scroller.append(grid);
   const foot = document.createElement("div");
   foot.className = "live-covariance-foot";
-  foot.textContent = "Covariance in percentage-point^2; color follows correlation.";
+  foot.textContent = analysis.covarianceFootText || "Covariance in percentage-point^2; color follows correlation.";
   panel.append(head, scroller, foot);
   return panel;
 }
