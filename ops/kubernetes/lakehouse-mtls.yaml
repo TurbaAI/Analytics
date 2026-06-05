@@ -1,0 +1,226 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: turbalance-selfsigned-bootstrap
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: turbalance-root-ca
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  isCA: true
+  commonName: turbalance-root-ca
+  secretName: turbalance-root-ca
+  duration: 8760h
+  renewBefore: 720h
+  issuerRef:
+    name: turbalance-selfsigned-bootstrap
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: turbalance-ca
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  ca:
+    secretName: turbalance-root-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: collector-mtls-gateway-server
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  secretName: collector-mtls-gateway-server-tls
+  duration: 2160h
+  renewBefore: 360h
+  usages: ["server auth"]
+  dnsNames:
+    - collector-mtls-gateway
+    - collector-mtls-gateway.turbalance-lakehouse
+    - collector-mtls-gateway.turbalance-lakehouse.svc
+    - collector-mtls-gateway.turbalance-lakehouse.svc.cluster.local
+  issuerRef:
+    name: turbalance-ca
+    kind: Issuer
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbalance-agent-client-ca
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+type: Opaque
+stringData:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    replace-with-agent-client-ca-pem
+    -----END CERTIFICATE-----
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: collector-mtls-envoy-config
+  namespace: turbalance-lakehouse
+  labels: { app: collector-mtls-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+data:
+  envoy.yaml: |
+    static_resources:
+      listeners:
+        - name: collector_mtls_listener
+          address:
+            socket_address:
+              address: 0.0.0.0
+              port_value: 9443
+          filter_chains:
+            - transport_socket:
+                name: envoy.transport_sockets.tls
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+                  require_client_certificate: true
+                  common_tls_context:
+                    tls_certificates:
+                      - certificate_chain:
+                          filename: /etc/envoy/server/tls.crt
+                        private_key:
+                          filename: /etc/envoy/server/tls.key
+                    validation_context:
+                      trusted_ca:
+                        filename: /etc/envoy/client-ca/ca.crt
+              filters:
+                - name: envoy.filters.network.http_connection_manager
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                    stat_prefix: collector_mtls
+                    forward_client_cert_details: SANITIZE_SET
+                    set_current_client_cert_details:
+                      subject: true
+                      uri: true
+                      dns: true
+                      cert: false
+                      chain: false
+                    route_config:
+                      name: collector_routes
+                      virtual_hosts:
+                        - name: collector
+                          domains: ["*"]
+                          routes:
+                            - match: { prefix: "/" }
+                              route:
+                                cluster: collector_gateway
+                                timeout: 15s
+                    http_filters:
+                      - name: envoy.filters.http.router
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      clusters:
+        - name: collector_gateway
+          type: STRICT_DNS
+          connect_timeout: 2s
+          load_assignment:
+            cluster_name: collector_gateway
+            endpoints:
+              - lb_endpoints:
+                  - endpoint:
+                      address:
+                        socket_address:
+                          address: collector-gateway.turbalance-lakehouse.svc.cluster.local
+                          port_value: 8801
+    admin:
+      address:
+        socket_address:
+          address: 127.0.0.1
+          port_value: 9901
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-mtls-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: collector-mtls-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: collector-mtls-gateway }
+  template:
+    metadata:
+      labels: { app: collector-mtls-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: envoy
+          image: envoyproxy/envoy:v1.31-latest
+          imagePullPolicy: IfNotPresent
+          args: ["-c", "/etc/envoy/envoy.yaml", "--service-cluster", "collector-mtls-gateway"]
+          ports:
+            - { name: https, containerPort: 9443 }
+            - { name: admin, containerPort: 9901 }
+          readinessProbe:
+            httpGet: { path: /ready, port: admin, host: 127.0.0.1 }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /server_info, port: admin, host: 127.0.0.1 }
+            periodSeconds: 30
+          volumeMounts:
+            - { name: envoy-config, mountPath: /etc/envoy/envoy.yaml, subPath: envoy.yaml, readOnly: true }
+            - { name: server-tls, mountPath: /etc/envoy/server, readOnly: true }
+            - { name: client-ca, mountPath: /etc/envoy/client-ca, readOnly: true }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: envoy-config
+          configMap: { name: collector-mtls-envoy-config }
+        - name: server-tls
+          secret: { secretName: collector-mtls-gateway-server-tls }
+        - name: client-ca
+          secret: { secretName: turbalance-agent-client-ca }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-mtls-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: collector-mtls-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: collector-mtls-gateway }
+  ports:
+    - { name: https, port: 9443, targetPort: https }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: collector-gateway-mtls-only
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  podSelector:
+    matchLabels: { app: collector-gateway }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: collector-mtls-gateway }
+      ports:
+        - { protocol: TCP, port: 8801 }
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - { protocol: TCP, port: 8801 }

@@ -1,0 +1,29 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: turbalance-alert-routing
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: turbalance-provider-secrets
+  target:
+    name: turbalance-alert-routing
+    creationPolicy: Owner
+    template:
+      type: Opaque
+  data:
+    - secretKey: TURBALANCE_ALERT_WEBHOOK_URL
+      remoteRef:
+        key: lakehouse/alert-routing
+        property: webhook-url
+    - secretKey: TURBALANCE_ALERT_SLACK_WEBHOOK_URL
+      remoteRef:
+        key: lakehouse/alert-routing
+        property: slack-webhook-url
+    - secretKey: TURBALANCE_ALERT_PAGERDUTY_ROUTING_KEY
+      remoteRef:
+        key: lakehouse/alert-routing
+        property: pagerduty-routing-key

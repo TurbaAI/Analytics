@@ -4,9 +4,11 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..");
 const readJson = (relativePath) => JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
+const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "utf8");
 
 const ingestionSchema = readJson("schemas/turba-ingestion.v1.schema.json");
 const sourceBundleSchema = readJson("schemas/turba-source-bundle.v1.schema.json");
+const telemetryBatchSchema = readJson("schemas/turba-telemetry-batch.v1.schema.json");
 const workspaceSchema = readJson("schemas/turba-workspace.v2.schema.json");
 const workspaceFixture = readJson("fixtures/workspace-export.json");
 const sourceFixture = readJson("fixtures/external-source-bundle.json");
@@ -16,9 +18,20 @@ const providerExportBilling = readJson("fixtures/provider-export-inputs/billing-
 const ebpfExportInput = readJson("fixtures/ebpf-export-inputs/host-samples.json");
 const schedulerExportInput = readJson("fixtures/scheduler-export-inputs/scheduler-events.json");
 const grafanaDashboard = readJson("grafana/turbalance-provider-overview.json");
+const telemetryProto = read("proto/telemetry/v1/telemetry_batch.proto");
 
 assert.equal(ingestionSchema.properties.schemaVersion.const, "turba.ingestion.v1");
 assert.equal(sourceBundleSchema.$id, "https://turba.analytics/schemas/turba-source-bundle.v1.schema.json");
+assert.equal(telemetryBatchSchema.properties.schemaVersion.const, "turba.telemetry_batch.v1");
+assert.ok(telemetryBatchSchema.required.includes("tenantId"));
+assert.ok(telemetryBatchSchema.required.includes("samples"));
+assert.ok(telemetryBatchSchema.$defs.sample.properties.sensorType.enum.includes("ebpf_net_socket"));
+assert.ok(telemetryBatchSchema.$defs.metric.required.includes("value"));
+assert.ok(telemetryProto.includes("service TelemetryCollector"));
+assert.ok(telemetryProto.includes("rpc WriteTelemetryBatch"));
+assert.ok(telemetryProto.includes("WriteTelemetryBatchResponse"));
+assert.ok(telemetryProto.includes("CollectorHealthResponse"));
+assert.ok(telemetryProto.includes("rpc Health"));
 assert.equal(workspaceSchema.properties.storageSchemaVersion.const, "turba.workspace.v2");
 assert.equal(workspaceSchema.properties.ingestionSchemaVersion.const, "turba.ingestion.v1");
 assert.ok(workspaceSchema.properties.ingestion.$ref.includes("turba-ingestion.v1.schema.json"));

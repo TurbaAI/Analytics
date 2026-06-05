@@ -9,13 +9,17 @@ let playwright;
 try {
   playwright = require("playwright");
 } catch {
-  const message = "Playwright is not installed; screenshot QA skipped. Set TURBALANCE_SCREENSHOT_QA_REQUIRED=1 to fail instead.";
-  if (process.env.TURBALANCE_SCREENSHOT_QA_REQUIRED === "1") {
-    console.error(message);
-    process.exit(1);
+  try {
+    playwright = require(path.join(__dirname, "..", "build", "playwright", "node_modules", "playwright"));
+  } catch {
+    const message = "Playwright is not installed; run node scripts/prepare-screenshot-qa.js --install --browsers, or set TURBALANCE_SCREENSHOT_QA_REQUIRED=1 to fail instead of skipping.";
+    if (process.env.TURBALANCE_SCREENSHOT_QA_REQUIRED === "1") {
+      console.error(message);
+      process.exit(1);
+    }
+    console.log(message);
+    process.exit(0);
   }
-  console.log(message);
-  process.exit(0);
 }
 
 const root = path.join(__dirname, "..");

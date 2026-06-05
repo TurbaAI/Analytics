@@ -1,0 +1,85 @@
+{
+  "$id": "https://turba.analytics/schemas/turba-telemetry-batch.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "turbalance telemetry batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "tenantId", "hostId", "agentId", "sequenceNo", "samples"],
+  "properties": {
+    "schemaVersion": { "const": "turba.telemetry_batch.v1" },
+    "batchId": { "type": "string", "minLength": 1 },
+    "tenantId": { "type": "string", "minLength": 1 },
+    "hostId": { "type": "string", "minLength": 1 },
+    "agentId": { "type": "string", "minLength": 1 },
+    "sequenceNo": { "type": "integer", "minimum": 0 },
+    "traceId": { "type": "string" },
+    "eventTs": { "type": "string", "format": "date-time" },
+    "ingestTs": { "type": "string", "format": "date-time" },
+    "samples": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/sample" }
+    }
+  },
+  "$defs": {
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sensorType", "source", "eventTs", "metrics"],
+      "properties": {
+        "sampleId": { "type": "string" },
+        "sensorType": {
+          "type": "string",
+          "enum": [
+            "host_heartbeat",
+            "ebpf_cpu_sched",
+            "ebpf_net_socket",
+            "gpu_sample",
+            "memory_sample",
+            "process_sample",
+            "collector_audit",
+            "source_bundle_metric"
+          ]
+        },
+        "source": { "type": "string", "minLength": 1 },
+        "eventTs": { "type": "string", "format": "date-time" },
+        "runId": { "type": "string" },
+        "node": { "type": "string" },
+        "namespace": { "type": "string" },
+        "podName": { "type": "string" },
+        "containerName": { "type": "string" },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "integer", "boolean", "null"]
+          }
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/metric" }
+        }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "value": { "type": "number" },
+        "unit": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["gauge", "counter", "ratio", "percent", "duration", "bytes"]
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "integer", "boolean", "null"]
+          }
+        }
+      }
+    }
+  }
+}

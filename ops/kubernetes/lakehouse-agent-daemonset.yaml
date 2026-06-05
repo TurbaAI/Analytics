@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: turbalance-ebpf-agent
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: turbalance-ebpf-agent
+  namespace: turbalance-lakehouse
+  labels: { app: turbalance-ebpf-agent, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector:
+    matchLabels: { app: turbalance-ebpf-agent }
+  template:
+    metadata:
+      labels: { app: turbalance-ebpf-agent, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-ebpf-agent
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: ebpf-agent
+          image: turbalance/ebpf-agent:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TURBALANCE_TENANT_ID
+              value: tenant-a
+            - name: TURBALANCE_HOST_ID
+              valueFrom:
+                fieldRef: { fieldPath: spec.nodeName }
+            - name: TURBALANCE_AGENT_ID
+              valueFrom:
+                fieldRef: { fieldPath: spec.nodeName }
+            - name: TURBALANCE_COLLECTOR_URL
+              value: http://collector-gateway.turbalance-lakehouse.svc.cluster.local:8801/v1/telemetry/batches
+            - name: TURBALANCE_DISCOVERY_ENROLL_URL
+              value: http://discovery-api.turbalance-lakehouse.svc.cluster.local:8803/v1/agents/enroll
+            - name: TURBALANCE_AGENT_MAX_ITERATIONS
+              value: "0"
+            - name: TURBALANCE_AGENT_INTERVAL_SECONDS
+              value: "15"
+            - name: TURBALANCE_AGENT_IDENTITY_PATH
+              value: /var/lib/turbalance-agent/identity.json
+            - name: TURBALANCE_AGENT_SEQUENCE_PATH
+              value: /var/lib/turbalance-agent/sequence-no
+            - name: TURBALANCE_EBPF_PROBE_COMMAND
+              value: /opt/turbalance/probes/native-ebpf-readiness.sh
+            - name: TURBALANCE_COLLECTOR_TOKEN
+              valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: bearer-token } }
+            - name: TURBALANCE_COLLECTOR_HMAC_SECRET
+              valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: hmac-secret } }
+            - name: TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN
+              valueFrom: { secretKeyRef: { name: turbalance-discovery-auth, key: enrollment-token } }
+          securityContext:
+            privileged: true
+            readOnlyRootFilesystem: true
+            capabilities:
+              add: ["BPF", "PERFMON", "SYS_RESOURCE", "SYS_ADMIN", "NET_ADMIN", "NET_RAW"]
+          volumeMounts:
+            - { name: agent-state, mountPath: /var/lib/turbalance-agent }
+            - { name: host-proc, mountPath: /proc, readOnly: true }
+            - { name: host-sys, mountPath: /sys, readOnly: true }
+            - { name: bpffs, mountPath: /sys/fs/bpf }
+            - { name: tracing, mountPath: /sys/kernel/tracing }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+      volumes:
+        - name: agent-state
+          hostPath: { path: /var/lib/turbalance/agent, type: DirectoryOrCreate }
+        - name: host-proc
+          hostPath: { path: /proc, type: Directory }
+        - name: host-sys
+          hostPath: { path: /sys, type: Directory }
+        - name: bpffs
+          hostPath: { path: /sys/fs/bpf, type: DirectoryOrCreate }
+        - name: tracing
+          hostPath: { path: /sys/kernel/tracing, type: DirectoryOrCreate }

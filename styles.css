@@ -1551,8 +1551,8 @@ input[type="url"] {
 .live-covariance-cell {
   display: grid;
   align-content: center;
-  gap: 4px;
-  min-height: 76px;
+  gap: 5px;
+  min-height: 102px;
   padding: 10px;
 }
 
@@ -1576,6 +1576,42 @@ input[type="url"] {
   line-height: 1.2;
 }
 
+.live-covariance-trend {
+  display: block;
+  width: 100%;
+  height: 30px;
+  overflow: visible;
+}
+
+.live-covariance-trend-line {
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.live-covariance-trend-zero,
+.live-covariance-trend-empty {
+  stroke: rgba(98, 117, 129, 0.32);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.live-covariance-cell[data-tone="positive"] .live-covariance-trend-line,
+.live-covariance-cell[data-tone="self"] .live-covariance-trend-line {
+  stroke: #006f5b;
+}
+
+.live-covariance-cell[data-tone="negative"] .live-covariance-trend-line {
+  stroke: #9f3f34;
+}
+
+.live-covariance-cell[data-tone="learning"] .live-covariance-trend,
+.live-covariance-cell[data-tone="weak"] .live-covariance-trend {
+  opacity: 0.72;
+}
+
 .live-covariance-cell[data-tone="positive"] strong {
   color: #006f5b;
 }
@@ -1587,6 +1623,167 @@ input[type="url"] {
 .live-covariance-cell[data-tone="learning"] strong,
 .live-covariance-cell[data-tone="weak"] strong {
   color: var(--muted);
+}
+
+.live-eigen-panel {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.live-eigen-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 14px;
+  align-items: end;
+  padding: 13px 16px 11px;
+}
+
+.live-eigen-head p,
+.live-eigen-head h3,
+.live-eigen-head span {
+  min-width: 0;
+  margin: 0;
+}
+
+.live-eigen-head p {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-eigen-head h3 {
+  font-size: 1rem;
+  line-height: 1.16;
+}
+
+.live-eigen-head span {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.live-eigen-panel[data-status="learning"] .live-eigen-head span {
+  color: var(--amber);
+}
+
+.live-eigen-loadings,
+.live-eigen-values {
+  display: grid;
+  gap: 1px;
+  border-top: 1px solid var(--line);
+  background: var(--line);
+}
+
+.live-eigen-loadings {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.live-eigen-values {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.live-eigen-loading,
+.live-eigen-value,
+.live-eigen-empty {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #f8fbfa;
+}
+
+.live-eigen-loading,
+.live-eigen-value {
+  display: grid;
+  gap: 3px;
+  align-content: start;
+  min-height: 96px;
+}
+
+.live-eigen-loading span,
+.live-eigen-value span,
+.live-eigen-value small {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-eigen-loading strong,
+.live-eigen-value strong {
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.08;
+}
+
+.live-eigen-loading[data-tone="strong"] strong {
+  color: var(--green);
+}
+
+.live-eigen-loading[data-polarity="negative"][data-tone="strong"] strong {
+  color: var(--red);
+}
+
+.live-eigen-trend {
+  display: block;
+  width: 100%;
+  height: 26px;
+  min-width: 0;
+  margin-top: 2px;
+  overflow: visible;
+}
+
+.live-eigen-trend-empty,
+.live-eigen-trend-zero {
+  stroke: rgba(98, 117, 129, 0.34);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.live-eigen-trend-zero {
+  stroke: rgba(98, 117, 129, 0.22);
+}
+
+.live-eigen-trend-line {
+  fill: none;
+  stroke: var(--blue);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+}
+
+.live-eigen-loading .live-eigen-trend-line {
+  stroke: var(--muted);
+}
+
+.live-eigen-loading[data-tone="strong"] .live-eigen-trend-line {
+  stroke: var(--green);
+}
+
+.live-eigen-loading[data-polarity="negative"][data-tone="strong"] .live-eigen-trend-line {
+  stroke: var(--red);
+}
+
+.live-eigen-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
+.live-eigen-note {
+  padding: 10px 16px 12px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 760;
+  line-height: 1.35;
 }
 
 .live-covariance-foot {
@@ -3439,12 +3636,14 @@ input[type="url"] {
 
   .live-relationship-head,
   .live-covariance-head,
+  .live-eigen-head,
   .live-observation-head {
     grid-template-columns: 1fr;
   }
 
   .live-relationship-head span,
   .live-covariance-head span,
+  .live-eigen-head span,
   .live-observation-meta {
     grid-row: auto;
     grid-column: auto;
@@ -3453,6 +3652,7 @@ input[type="url"] {
 
   .live-relationship-head span,
   .live-covariance-head span,
+  .live-eigen-head span,
   .live-observation-meta span {
     text-align: left;
   }
@@ -3549,6 +3749,8 @@ input[type="url"] {
   .source-heartbeat-strip,
   .operator-cockpit-grid,
   .live-relationship-grid,
+  .live-eigen-loadings,
+  .live-eigen-values,
   .live-alert-list,
   .live-telemetry-graphs,
   .bottleneck-summary,

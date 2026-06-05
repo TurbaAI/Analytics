@@ -1,0 +1,51 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: turbalance-lakehouse
+resources:
+  - ../base
+  - ../../lakehouse-platform-auth-secrets.yaml
+  - ../../lakehouse-managed-storage.yaml
+  - ../../lakehouse-otel-backend-secret.yaml
+  - ../../lakehouse-alert-routing.yaml
+  - ../../lakehouse-mtls.yaml
+patches:
+  - path: production-config-patch.yaml
+  - path: delete-placeholder-secrets.yaml
+  - path: ../otel-backend/otel-backend-config-patch.yaml
+  - target:
+      kind: Deployment
+      name: otel-collector
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom
+        value:
+          - secretRef:
+              name: turbalance-otel-backend
+images:
+  - name: turbalance/collector-gateway
+    newName: ghcr.io/your-org/turbalance/collector-gateway
+    newTag: replace-with-release-tag
+  - name: turbalance/duckdb-query-service
+    newName: ghcr.io/your-org/turbalance/duckdb-query-service
+    newTag: replace-with-release-tag
+  - name: turbalance/api-server
+    newName: ghcr.io/your-org/turbalance/api-server
+    newTag: replace-with-release-tag
+  - name: turbalance/discovery-api
+    newName: ghcr.io/your-org/turbalance/discovery-api
+    newTag: replace-with-release-tag
+  - name: turbalance/queue-gateway
+    newName: ghcr.io/your-org/turbalance/queue-gateway
+    newTag: replace-with-release-tag
+  - name: turbalance/ebpf-agent
+    newName: ghcr.io/your-org/turbalance/ebpf-agent
+    newTag: replace-with-release-tag
+  - name: turbalance/dagster
+    newName: ghcr.io/your-org/turbalance/dagster
+    newTag: replace-with-release-tag
+  - name: turbalance/transform-runner
+    newName: ghcr.io/your-org/turbalance/transform-runner
+    newTag: replace-with-release-tag
+  - name: turbalance/raw-writer
+    newName: ghcr.io/your-org/turbalance/raw-writer
+    newTag: replace-with-release-tag

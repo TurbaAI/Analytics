@@ -1,0 +1,12 @@
+{
+  "hosts": [
+    {
+      "host": "user@192.168.10.20",
+      "sshCommand": "ssh -o BatchMode=yes -o ConnectTimeout=8",
+      "validatorCommand": "cd /home/user/Analytics && node scripts/validate-ebpf-agent-host.js",
+      "probeCommand": "/home/user/Analytics/agents/ebpf-agent/probes/native-ebpf-readiness.sh",
+      "nativeBuildMode": "prebuilt",
+      "strict": true
+    }
+  ]
+}

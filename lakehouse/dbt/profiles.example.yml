@@ -1,0 +1,7 @@
+turbalance_duckdb:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: ../../build/lakehouse/turbalance.duckdb
+      threads: 4

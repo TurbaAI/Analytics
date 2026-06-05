@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: ConfigMap
+      name: turbalance-platform-config
+    patch: |-
+      - op: replace
+        path: /data/TURBALANCE_DISCOVERY_CERTIFICATE_MODE
+        value: spire
+  - target:
+      kind: DaemonSet
+      name: turbalance-ebpf-agent
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: SPIFFE_ENDPOINT_SOCKET
+          value: unix:///run/spire/sockets/agent.sock
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: spire-agent-socket
+          mountPath: /run/spire/sockets
+          readOnly: true
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: spire-agent-socket
+          hostPath:
+            path: /run/spire/sockets
+            type: Directory

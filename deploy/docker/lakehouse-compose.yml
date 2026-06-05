@@ -1,0 +1,218 @@
+services:
+  ebpf-agent:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.ebpf-agent
+    profiles: ["agent"]
+    privileged: true
+    pid: host
+    network_mode: host
+    environment:
+      TURBALANCE_TENANT_ID: tenant-a
+      TURBALANCE_HOST_ID: local-compose
+      TURBALANCE_AGENT_ID: ebpf-agent-compose
+      TURBALANCE_COLLECTOR_URL: http://127.0.0.1:8801/v1/telemetry/batches
+      TURBALANCE_DISCOVERY_ENROLL_URL: http://127.0.0.1:8803/v1/agents/enroll
+      TURBALANCE_AGENT_IDENTITY_PATH: /var/lib/turbalance-agent/identity.json
+      TURBALANCE_AGENT_SEQUENCE_PATH: /var/lib/turbalance-agent/sequence-no
+      TURBALANCE_AGENT_MAX_ITERATIONS: "1"
+      TURBALANCE_EBPF_PROBE_COMMAND: "${TURBALANCE_EBPF_PROBE_COMMAND:-/opt/turbalance/probes/native-ebpf-readiness.sh}"
+      TURBALANCE_COLLECTOR_TOKEN: "${TURBALANCE_COLLECTOR_TOKEN:-}"
+      TURBALANCE_COLLECTOR_HMAC_SECRET: "${TURBALANCE_COLLECTOR_HMAC_SECRET:-}"
+      TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN: "${TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN:-}"
+    volumes:
+      - ../../build/agent:/var/lib/turbalance-agent
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    depends_on:
+      - collector-gateway
+      - discovery-api
+
+  collector-gateway:
+    image: python:3.12-slim
+    working_dir: /workspace
+    ports:
+      - "8801:8801"
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      TURBALANCE_COLLECTOR_MAX_INFLIGHT_WRITES: "8"
+      TURBALANCE_COLLECTOR_SPOOL_DIR: /workspace/build/collector/spool
+      TURBALANCE_COLLECTOR_MAX_SPOOL_FILES: "1000"
+      TURBALANCE_COLLECTOR_REQUIRE_MTLS: "false"
+      TURBALANCE_TRUSTED_SPIFFE_PREFIX: spiffe://turbalance.local/
+      TURBALANCE_COLLECTOR_QUEUE_BACKEND: "${TURBALANCE_COLLECTOR_QUEUE_BACKEND:-}"
+      TURBALANCE_COLLECTOR_QUEUE_URL: "${TURBALANCE_COLLECTOR_QUEUE_URL:-}"
+      TURBALANCE_COLLECTOR_QUEUE_DIR: /workspace/build/collector/queue
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PYTHONPATH: /workspace/services/collector-gateway:/workspace/services/raw-writer:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      uvicorn collector_gateway.app:app --host 0.0.0.0 --port 8801"
+
+  duckdb-query-service:
+    image: python:3.12-slim
+    working_dir: /workspace
+    ports:
+      - "8802:8802"
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PYTHONPATH: /workspace/services/duckdb-query-service:/workspace/services/raw-writer:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      uvicorn duckdb_query_service.app:app --host 0.0.0.0 --port 8802"
+
+  api-server:
+    image: python:3.12-slim
+    working_dir: /workspace
+    ports:
+      - "8080:8080"
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      TURBALANCE_API_REQUIRE_AUTH: "${TURBALANCE_API_REQUIRE_AUTH:-false}"
+      TURBALANCE_API_TOKENS: "${TURBALANCE_API_TOKENS:-}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PYTHONPATH: /workspace/services/api-server:/workspace/services/duckdb-query-service:/workspace/services/raw-writer:/workspace/services/alert-engine:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      uvicorn api_server.app:app --host 0.0.0.0 --port 8080"
+
+  transform-runner:
+    image: python:3.12-slim
+    working_dir: /workspace
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      PYTHONPATH: /workspace/services/transform-runner:/workspace/services/duckdb-query-service:/workspace/services/raw-writer:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      while true; do
+        python -m transform_runner --lake-root /workspace/build/lakehouse || true;
+        python -m transform_runner --lake-root /workspace/build/lakehouse --validate || true;
+        sleep 60;
+      done"
+    depends_on:
+      - collector-gateway
+
+  collector-spool-replay:
+    image: python:3.12-slim
+    working_dir: /workspace
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      TURBALANCE_COLLECTOR_SPOOL_DIR: /workspace/build/collector/spool
+      TURBALANCE_COLLECTOR_PROCESSED_DIR: /workspace/build/collector/processed
+      TURBALANCE_COLLECTOR_DEAD_LETTER_DIR: /workspace/build/collector/dead-letter
+      PYTHONPATH: /workspace/services/collector-gateway:/workspace/services/raw-writer:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      while true; do
+        python -m collector_gateway --replay-spool --lake-root /workspace/build/lakehouse --spool-dir /workspace/build/collector/spool --processed-dir /workspace/build/collector/processed --dead-letter-dir /workspace/build/collector/dead-letter --limit 100 || true;
+        sleep 30;
+      done"
+    depends_on:
+      - collector-gateway
+
+  queue-gateway:
+    image: python:3.12-slim
+    working_dir: /workspace
+    profiles: ["runtime"]
+    ports:
+      - "8804:8804"
+    environment:
+      PORT: "8804"
+      TURBALANCE_QUEUE_GATEWAY_BACKEND: file
+      TURBALANCE_QUEUE_GATEWAY_FILE_DIR: /workspace/build/queue-gateway
+      TURBALANCE_QUEUE_GATEWAY_BROKER_URL: "${TURBALANCE_QUEUE_GATEWAY_BROKER_URL:-}"
+      TURBALANCE_QUEUE_GATEWAY_TOPIC: "${TURBALANCE_QUEUE_GATEWAY_TOPIC:-turbalance.collector.telemetry}"
+      TURBALANCE_QUEUE_GATEWAY_PRODUCER_COMMAND: "${TURBALANCE_QUEUE_GATEWAY_PRODUCER_COMMAND:-}"
+      TURBALANCE_QUEUE_GATEWAY_DRY_RUN: "${TURBALANCE_QUEUE_GATEWAY_DRY_RUN:-false}"
+      TURBALANCE_QUEUE_GATEWAY_TOKEN: "${TURBALANCE_QUEUE_GATEWAY_TOKEN:-}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PYTHONPATH: /workspace/services/queue-gateway:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      uvicorn queue_gateway.app:app --host 0.0.0.0 --port 8804"
+
+  sqlmesh-runner:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.sqlmesh
+    environment:
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+    volumes:
+      - ../..:/workspace
+    profiles: ["runtime"]
+    depends_on:
+      - transform-runner
+
+  dagster:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dagster
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: "3002"
+      TURBALANCE_LAKE_ROOT: /workspace/build/lakehouse
+      TURBALANCE_RETENTION_DAYS: "30"
+      TURBALANCE_COMPACTION_TABLE: raw_source_bundle_metric
+      TURBALANCE_COMPACTION_TENANT_ID: tenant-a
+    volumes:
+      - ../..:/workspace
+    depends_on:
+      - collector-gateway
+      - transform-runner
+
+  discovery-api:
+    image: python:3.12-slim
+    working_dir: /workspace
+    ports:
+      - "8803:8803"
+    environment:
+      TURBALANCE_DISCOVERY_DB: /workspace/build/discovery/catalog.sqlite
+      TURBALANCE_DISCOVERY_DATABASE_URL: "${TURBALANCE_DISCOVERY_DATABASE_URL:-}"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PYTHONPATH: /workspace/services/discovery-api:/workspace/services/platform_common
+    volumes:
+      - ../..:/workspace
+    command: >
+      sh -lc "pip install -r requirements-platform.txt &&
+      uvicorn discovery_api.app:app --host 0.0.0.0 --port 8803"
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: "${GRAFANA_ADMIN_USER:-admin}"
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_INSTALL_PLUGINS: marcusolsson-json-datasource
+    volumes:
+      - ../../grafana:/var/lib/grafana/dashboards/lakehouse:ro
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - api-server
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "9464:9464"
+      - "8888:8888"
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro

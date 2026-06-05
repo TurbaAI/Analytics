@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "turba.lakehouse.production_values.v1",
+  "runtime": {
+    "TURBALANCE_IMAGE_REGISTRY": "ghcr.io/acme/turbalance",
+    "TURBALANCE_IMAGE_TAG": "2026.06.04.2",
+    "TURBALANCE_NAMESPACE": "turbalance-lakehouse",
+    "TURBALANCE_LAKE_ROOT": "s3://acme-turbalance-prod/turbalance/lakehouse",
+    "TURBALANCE_API_JWT_ISSUER": "https://issuer.acme.internal",
+    "TURBALANCE_API_JWT_AUDIENCE": "turbalance-api",
+    "TURBALANCE_DISCOVERY_CERTIFICATE_MODE": "spire",
+    "TURBALANCE_TRUSTED_SPIFFE_PREFIX": "spiffe://turbalance.local/",
+    "TURBALANCE_QUEUE_GATEWAY_BACKEND": "kafka",
+    "TURBALANCE_QUEUE_GATEWAY_BROKER_URL": "kafka.prod.svc.cluster.local:9092",
+    "TURBALANCE_QUEUE_GATEWAY_TOPIC": "turbalance.collector.telemetry",
+    "TURBALANCE_TERRAFORM_DIR": "ops/terraform/lakehouse/aws",
+    "TURBALANCE_EBPF_HOSTS_FILE": "ops/lakehouse-ebpf-hosts.example.json",
+    "TURBALANCE_API_URL": "https://turbalance-api.acme.internal",
+    "TURBALANCE_COLLECTOR_URL": "https://collector.acme.internal",
+    "TURBALANCE_GRAFANA_URL": "https://grafana.acme.internal",
+    "TURBALANCE_OTEL_COLLECTOR_METRICS_URL": "https://otel-collector.acme.internal/metrics",
+    "TURBALANCE_PROMETHEUS_URL": "https://prometheus.acme.internal"
+  },
+  "secretFiles": {
+    "TURBALANCE_API_JWKS_FILE": "/secure/path/api-jwks.json",
+    "TURBALANCE_AGENT_CLIENT_CA_FILE": "/secure/path/agent-client-ca.pem"
+  },
+  "secrets": {
+    "TURBALANCE_COLLECTOR_TOKEN": "replace-outside-source-control",
+    "TURBALANCE_COLLECTOR_HMAC_SECRET": "replace-outside-source-control",
+    "TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN": "replace-outside-source-control",
+    "TURBALANCE_API_TOKENS": "tenant-a:viewer-token:viewer:tenant-a-viewer",
+    "TURBALANCE_DISCOVERY_DATABASE_URL": "postgresql://turbalance:secret@postgres.acme.internal:5432/turbalance",
+    "TURBALANCE_COLLECTOR_QUEUE_TOKEN": "replace-outside-source-control",
+    "AWS_ACCESS_KEY_ID": "replace-outside-source-control",
+    "AWS_SECRET_ACCESS_KEY": "replace-outside-source-control",
+    "AWS_REGION": "us-west-2",
+    "AWS_ENDPOINT_URL": "https://s3.us-west-2.amazonaws.com",
+    "TURBALANCE_S3_SCHEME": "s3",
+    "TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT": "https://otel.acme.internal/v1/traces",
+    "TURBALANCE_OTEL_BACKEND_AUTHORIZATION": "Bearer replace-outside-source-control",
+    "TURBALANCE_ALERT_WEBHOOK_URL": "https://alerts.acme.internal/turbalance",
+    "TURBALANCE_ALERT_SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/replace-outside-source-control",
+    "TURBALANCE_ALERT_PAGERDUTY_ROUTING_KEY": "replace-outside-source-control",
+    "TURBALANCE_CONSUL_URL": "http://consul.consul.svc.cluster.local:8500",
+    "TURBALANCE_CONSUL_TOKEN": "replace-outside-source-control"
+  }
+}

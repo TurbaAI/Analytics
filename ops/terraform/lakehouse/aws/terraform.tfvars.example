@@ -1,0 +1,43 @@
+name_prefix = "turbalance-prod"
+
+vpc_id = "vpc-00000000000000000"
+
+private_subnet_ids = [
+  "subnet-00000000000000000",
+  "subnet-11111111111111111"
+]
+
+allowed_cidr_blocks = [
+  "10.0.0.0/8"
+]
+
+tags = {
+  application = "turbalance-lakehouse"
+  environment = "production"
+  owner       = "platform"
+}
+
+lake_bucket_name = "turbalance-prod-lakehouse"
+
+postgres_username             = "turbalance"
+postgres_database_name        = "turbalance"
+postgres_instance_class       = "db.t4g.medium"
+postgres_allocated_storage_gb = 50
+
+enable_msk         = true
+msk_kafka_version  = "3.6.0"
+msk_instance_type  = "kafka.t3.small"
+msk_broker_count   = 2
+
+otel_backend_otlp_endpoint = "https://otel.example.internal/v1/traces"
+
+# Keep sensitive values out of this file in real rollouts. Pass them through
+# TF_VAR_* environment variables, a secrets manager, or an encrypted tfvars file.
+api_tokens                    = ""
+api_jwks_json                 = "{\"keys\":[]}"
+agent_client_ca_pem           = ""
+otel_backend_authorization    = ""
+alert_webhook_url             = ""
+alert_slack_webhook_url       = ""
+alert_pagerduty_routing_key   = ""
+consul_token                  = ""

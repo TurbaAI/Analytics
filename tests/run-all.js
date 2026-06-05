@@ -49,6 +49,10 @@ const checks = [
   { label: "schemas", args: ["tests/schemas.test.js"] },
   { label: "source bundle validation", args: ["tests/source-bundle-validation.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },
+  { label: "platform lakehouse", args: ["tests/platform-lakehouse.test.js"] },
+  { label: "lakehouse go-live", args: ["tests/lakehouse-go-live.test.js"] },
+  { label: "lakehouse production readiness", args: ["tests/lakehouse-production-readiness.test.js"] },
+  { label: "lakehouse production smoke", args: ["scripts/run-lakehouse-production-smoke.js"] },
   { label: "static page wiring", args: ["tests/static-page-wiring.test.js"] },
   { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] },
   { label: "screenshot QA", args: ["scripts/run-screenshot-qa.js"] }

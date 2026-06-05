@@ -1012,6 +1012,7 @@ const LIVE_COVARIANCE_METRICS = [
   { key: "ram", label: "RAM usage", shortLabel: "RAM" },
   { key: "networkUtilization", label: "Network utilization", shortLabel: "Net" }
 ];
+const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
@@ -1024,6 +1025,12 @@ let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let liveTelemetryHistory = [];
 let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
+let platformVirtualSensorCache = {
+  baseUrl: "",
+  fetchedAt: 0,
+  inFlight: false,
+  matrix: null
+};
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
 let operatorLaunchpadSignature = "";
@@ -2688,6 +2695,23 @@ function isKnownMachineDemoHost() {
 function machineDemoBundleUrl() {
   const params = new URLSearchParams(window.location.search);
   return parseImportUrl(params.get("bundle") || "build/demo/live-machine-bundle.json");
+}
+
+function platformApiBaseUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const value = params.get("platformApi");
+  if (!value) return "";
+  try {
+    const url = new URL(value, window.location.href);
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function platformApiUrl(path) {
+  const base = platformApiBaseUrl();
+  return base ? `${base}${path}` : "";
 }
 
 function cacheBustUrl(url) {
@@ -5378,6 +5402,17 @@ function analysisResourceHistory(summary) {
 }
 
 function renderLiveTelemetryAlerts(container, analysis) {
+  const platformMatrix = platformVirtualSensorCache.baseUrl === platformApiBaseUrl()
+    ? platformVirtualSensorCache.matrix
+    : null;
+  const effectiveAnalysis = platformMatrix
+    ? {
+        ...analysis,
+        covarianceMatrix: platformMatrix,
+        covarianceBadgeText: "API virtual sensors",
+        covarianceFootText: "Covariance and principal mode loaded from the platform API virtual sensor tables."
+      }
+    : analysis;
   const wrapper = document.createElement("section");
   wrapper.className = "live-relationship-panel";
 
@@ -5386,34 +5421,34 @@ function renderLiveTelemetryAlerts(container, analysis) {
   const label = document.createElement("p");
   label.textContent = "Relationship Watch";
   const title = document.createElement("h3");
-  title.textContent = analysis.status;
+  title.textContent = effectiveAnalysis.status;
   const badge = document.createElement("span");
-  badge.textContent = analysis.badgeText || (analysis.sampleCount
-    ? `${analysis.sampleCount} samples | ${analysis.windowSeconds}s`
+  badge.textContent = effectiveAnalysis.badgeText || (effectiveAnalysis.sampleCount
+    ? `${effectiveAnalysis.sampleCount} samples | ${effectiveAnalysis.windowSeconds}s`
     : "No samples");
   head.append(label, title, badge);
 
   const relationshipGrid = document.createElement("div");
   relationshipGrid.className = "live-relationship-grid";
-  analysis.relationships.forEach((relationship) => {
+  effectiveAnalysis.relationships.forEach((relationship) => {
     relationshipGrid.append(liveRelationshipCard(relationship));
   });
 
-  const covariancePanel = analysis.covarianceMatrix
-    ? liveCovarianceMatrixPanel(analysis.covarianceMatrix, analysis)
+  const covariancePanel = effectiveAnalysis.covarianceMatrix
+    ? liveCovarianceMatrixPanel(effectiveAnalysis.covarianceMatrix, effectiveAnalysis)
     : null;
 
   const alertList = document.createElement("div");
   alertList.className = "live-alert-list";
-  if (!analysis.alerts.length) {
+  if (!effectiveAnalysis.alerts.length) {
     const empty = document.createElement("div");
     empty.className = "live-alert-empty";
-    empty.textContent = analysis.emptyAlertText || (analysis.sampleCount < 6
+    empty.textContent = effectiveAnalysis.emptyAlertText || (effectiveAnalysis.sampleCount < 6
       ? "Learning enough signal history to score adverse trends."
       : "No adverse relationship trend detected in the current window.");
     alertList.append(empty);
   } else {
-    analysis.alerts.forEach((alert) => {
+    effectiveAnalysis.alerts.forEach((alert) => {
       alertList.append(liveAlertCard(alert));
     });
   }
@@ -5422,6 +5457,116 @@ function renderLiveTelemetryAlerts(container, analysis) {
   if (covariancePanel) wrapper.append(covariancePanel);
   wrapper.append(relationshipGrid, alertList);
   container.replaceChildren(wrapper);
+  refreshPlatformVirtualSensors(container, analysis);
+}
+
+async function refreshPlatformVirtualSensors(container, analysis) {
+  const baseUrl = platformApiBaseUrl();
+  if (!baseUrl || platformVirtualSensorCache.inFlight) return;
+  if (platformVirtualSensorCache.baseUrl === baseUrl && Date.now() - platformVirtualSensorCache.fetchedAt < 5000) return;
+  platformVirtualSensorCache.inFlight = true;
+  try {
+    const [covariance, principalMode] = await Promise.all([
+      fetch(platformApiUrl("/v1/virtual-sensors/covariance")).then((response) => response.ok ? response.json() : null),
+      fetch(platformApiUrl("/v1/virtual-sensors/principal-resource-mode")).then((response) => response.ok ? response.json() : null)
+    ]);
+    const matrix = platformCovarianceMatrix(covariance, principalMode);
+    if (matrix) {
+      platformVirtualSensorCache = {
+        baseUrl,
+        fetchedAt: Date.now(),
+        inFlight: false,
+        matrix
+      };
+      renderLiveTelemetryAlerts(container, analysis);
+      return;
+    }
+  } catch {
+    // Keep local live telemetry fallback when the platform API is unavailable.
+  }
+  platformVirtualSensorCache = {
+    ...platformVirtualSensorCache,
+    baseUrl,
+    fetchedAt: Date.now(),
+    inFlight: false
+  };
+}
+
+function platformCovarianceMatrix(covariance, principalMode) {
+  if (!covariance || !Array.isArray(covariance.metrics) || !Array.isArray(covariance.rows)) return null;
+  const metricByApiKey = new Map([
+    ["cpu", LIVE_COVARIANCE_METRICS[0]],
+    ["gpu", LIVE_COVARIANCE_METRICS[1]],
+    ["ram", LIVE_COVARIANCE_METRICS[2]],
+    ["network", LIVE_COVARIANCE_METRICS[3]]
+  ]);
+  const rows = covariance.rows
+    .map((row) => {
+      const metric = metricByApiKey.get(row.metric);
+      if (!metric || !Array.isArray(row.cells)) return null;
+      return {
+        metric,
+        cells: row.cells.map((cell) => {
+          const rightMetric = metricByApiKey.get(cell.rightMetric || cell.right_metric);
+          return {
+            rowKey: metric.key,
+            columnKey: rightMetric?.key || "",
+            rowLabel: metric.label,
+            columnLabel: rightMetric?.label || "",
+            stats: {
+              sampleCount: numeric(cell.sampleCount ?? cell.sample_count, 0),
+              covariance: numeric(cell.covariance, null),
+              correlation: numeric(cell.correlation, null)
+            },
+            trend: []
+          };
+        })
+      };
+    })
+    .filter(Boolean);
+  if (!rows.length) return null;
+  return {
+    metrics: LIVE_COVARIANCE_METRICS,
+    rows,
+    principalMode: platformPrincipalMode(principalMode)
+  };
+}
+
+function platformPrincipalMode(mode) {
+  if (!mode || mode.status !== "ready") {
+    return {
+      status: "learning",
+      title: "Learning resource mode",
+      badge: "API virtual sensors",
+      explainedPct: null,
+      note: "Waiting for platform virtual sensor tables to produce a principal resource mode.",
+      loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null, trend: [] })),
+      eigenvalues: []
+    };
+  }
+  const keyMap = new Map([
+    ["cpu", LIVE_COVARIANCE_METRICS[0]],
+    ["gpu", LIVE_COVARIANCE_METRICS[1]],
+    ["ram", LIVE_COVARIANCE_METRICS[2]],
+    ["network", LIVE_COVARIANCE_METRICS[3]]
+  ]);
+  const loadingByKey = new Map((mode.loadings || []).map((loading) => [loading.metric, loading.value]));
+  return {
+    status: "ready",
+    title: mode.title || "Principal resource mode",
+    badge: "API virtual sensors",
+    explainedPct: numeric(mode.explainedPct, null),
+    note: "Computed by the platform virtual sensor API from the Parquet/DuckDB lakehouse path.",
+    loadings: LIVE_COVARIANCE_METRICS.map((metric) => {
+      const apiKey = [...keyMap.entries()].find(([, mapped]) => mapped.key === metric.key)?.[0];
+      return { ...metric, value: numeric(loadingByKey.get(apiKey), null), trend: [] };
+    }),
+    eigenvalues: (mode.eigenvalues || []).map((entry) => ({
+      value: numeric(entry.value, 0),
+      sharePct: numeric(entry.sharePct, 0),
+      trend: []
+    }))
+  };
 }
 
 function renderLiveObservationLog(container, analysis, machineContext, history) {
@@ -5782,10 +5927,11 @@ function liveCovarianceMatrixPanel(matrix, analysis) {
   });
 
   scroller.append(grid);
+  const principalMode = livePrincipalResourceModePanel(matrix.principalMode);
   const foot = document.createElement("div");
   foot.className = "live-covariance-foot";
-  foot.textContent = analysis.covarianceFootText || "Covariance in percentage-point^2; color follows correlation.";
-  panel.append(head, scroller, foot);
+  foot.textContent = analysis.covarianceFootText || "Covariance in percentage-point^2; color follows correlation. Mini-lines show each cell's rolling trend.";
+  panel.append(head, scroller, principalMode, foot);
   return panel;
 }
 
@@ -5806,6 +5952,7 @@ function liveCovarianceMatrixCell(cell) {
   note.textContent = covariance === null
     ? `${stats.sampleCount}/4 pairs`
     : isDiagonal ? "variance" : formatCorrelation(correlation);
+  const trend = buildCovarianceSparkline(cell.trend || [], isDiagonal);
 
   item.title = covariance === null
     ? `${cell.rowLabel} and ${cell.columnLabel}: waiting for at least 4 paired live samples.`
@@ -5813,8 +5960,172 @@ function liveCovarianceMatrixCell(cell) {
   item.setAttribute("role", "cell");
   item.setAttribute("aria-label", item.title);
 
-  item.append(value, note);
+  item.append(value, trend, note);
   return item;
+}
+
+function livePrincipalResourceModePanel(mode) {
+  const panel = document.createElement("section");
+  panel.className = "live-eigen-panel";
+  panel.dataset.status = mode?.status || "learning";
+
+  const head = document.createElement("div");
+  head.className = "live-eigen-head";
+  const label = document.createElement("p");
+  label.textContent = "Principal Resource Mode";
+  const title = document.createElement("h3");
+  title.textContent = mode?.title || "Learning resource mode";
+  const badge = document.createElement("span");
+  badge.textContent = Number.isFinite(mode?.explainedPct)
+    ? `${pct(mode.explainedPct)} explained`
+    : mode?.badge || "Learning";
+  head.append(label, title, badge);
+
+  const loadings = document.createElement("div");
+  loadings.className = "live-eigen-loadings";
+  (mode?.loadings || LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null }))).forEach((loading) => {
+    loadings.append(liveEigenLoadingItem(loading));
+  });
+
+  const values = document.createElement("div");
+  values.className = "live-eigen-values";
+  if (mode?.eigenvalues?.length) {
+    mode.eigenvalues.forEach((entry, index) => {
+      values.append(liveEigenValueItem(entry, index));
+    });
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "live-eigen-empty";
+    empty.textContent = mode?.note || "Waiting for enough live covariance history to compute eigenvalues.";
+    values.append(empty);
+  }
+
+  const note = document.createElement("small");
+  note.className = "live-eigen-note";
+  note.textContent = mode?.note || "Computed from the rolling correlation matrix so each resource contributes on the same scale.";
+
+  panel.append(head, loadings, values, note);
+  return panel;
+}
+
+function liveEigenLoadingItem(loading) {
+  const item = document.createElement("div");
+  item.className = "live-eigen-loading";
+  item.dataset.tone = Number.isFinite(loading.value) && Math.abs(loading.value) >= 0.5 ? "strong" : "muted";
+  item.dataset.polarity = Number.isFinite(loading.value) && loading.value < 0 ? "negative" : "positive";
+
+  const label = document.createElement("span");
+  label.textContent = loading.shortLabel || loading.label;
+  label.title = loading.label || "";
+  const value = document.createElement("strong");
+  value.textContent = Number.isFinite(loading.value) ? signedLoading(loading.value) : "--";
+  const trend = buildEigenSparkline(loading.trend || [], true);
+
+  item.title = Number.isFinite(loading.value)
+    ? `${loading.label || loading.shortLabel}: principal-mode loading ${signedLoading(loading.value)}.`
+    : `${loading.label || loading.shortLabel}: waiting for enough movement to compute a loading.`;
+  item.setAttribute("aria-label", item.title);
+
+  item.append(label, value, trend);
+  return item;
+}
+
+function liveEigenValueItem(entry, index) {
+  const item = document.createElement("div");
+  item.className = "live-eigen-value";
+
+  const label = document.createElement("span");
+  label.textContent = `L${index + 1}`;
+  const value = document.createElement("strong");
+  value.textContent = formatDecimal(entry.value, 2);
+  const trend = buildEigenSparkline(entry.trend || [], false);
+  const share = document.createElement("small");
+  share.textContent = `${pct(entry.sharePct)} share`;
+
+  item.title = `L${index + 1}: eigenvalue ${formatDecimal(entry.value, 2)}, ${pct(entry.sharePct)} share of rolling resource variance.`;
+  item.setAttribute("aria-label", item.title);
+
+  item.append(label, value, trend, share);
+  return item;
+}
+
+function buildCovarianceSparkline(points, isDiagonal) {
+  return buildTrendSparkline(points, {
+    className: "live-covariance-trend",
+    emptyClassName: "live-covariance-trend-empty",
+    lineClassName: "live-covariance-trend-line",
+    signed: !isDiagonal,
+    zeroClassName: "live-covariance-trend-zero"
+  });
+}
+
+function buildEigenSparkline(points, signed = false) {
+  return buildTrendSparkline(points, {
+    className: "live-eigen-trend",
+    emptyClassName: "live-eigen-trend-empty",
+    height: 26,
+    lineClassName: "live-eigen-trend-line",
+    signed,
+    zeroClassName: "live-eigen-trend-zero"
+  });
+}
+
+function buildTrendSparkline(points, options = {}) {
+  const width = 96;
+  const height = options.height || 30;
+  const pad = 4;
+  const innerWidth = width - pad * 2;
+  const innerHeight = height - pad * 2;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", options.className || "live-trend-sparkline");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+
+  const values = points.map((point) => numeric(point.value, Number.NaN)).filter(Number.isFinite);
+  if (values.length < 2) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", pad);
+    line.setAttribute("x2", width - pad);
+    line.setAttribute("y1", height / 2);
+    line.setAttribute("y2", height / 2);
+    line.setAttribute("class", options.emptyClassName || "live-trend-empty");
+    svg.append(line);
+    return svg;
+  }
+
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (options.signed) {
+    min = Math.min(min, 0);
+    max = Math.max(max, 0);
+  }
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+
+  if (min < 0 && max > 0) {
+    const zero = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = pad + innerHeight - ((0 - min) / range) * innerHeight;
+    zero.setAttribute("x1", pad);
+    zero.setAttribute("x2", width - pad);
+    zero.setAttribute("y1", y);
+    zero.setAttribute("y2", y);
+    zero.setAttribute("class", options.zeroClassName || "live-trend-zero");
+    svg.append(zero);
+  }
+
+  const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  polyline.setAttribute("points", values.map((value, index) => {
+    const x = pad + (index / (values.length - 1)) * innerWidth;
+    const y = pad + innerHeight - ((value - min) / range) * innerHeight;
+    return `${formatDecimal(x, 1)},${formatDecimal(y, 1)}`;
+  }).join(" "));
+  polyline.setAttribute("class", options.lineClassName || "live-trend-line");
+  svg.append(polyline);
+  return svg;
 }
 
 function covarianceCellTone(correlation, isDiagonal, sampleCount) {
@@ -5842,6 +6153,19 @@ function formatCovariance(value, unsigned = false) {
   const digits = absValue >= 100 ? 0 : absValue >= 10 ? 1 : 2;
   const sign = unsigned || displayValue < 0 ? "" : "+";
   return `${sign}${displayValue.toFixed(digits)}`;
+}
+
+function signedLoading(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `${value >= 0 ? "+" : ""}${formatDecimal(value, 2)}`;
+}
+
+function principalMetricName(metric) {
+  if (metric.key === "networkUtilization") return "Network";
+  if (metric.key === "cpu") return "CPU";
+  if (metric.key === "gpu") return "GPU";
+  if (metric.key === "ram") return "RAM";
+  return metric.shortLabel || metric.label;
 }
 
 function liveRelationshipCard(relationship) {
@@ -5924,13 +6248,213 @@ function buildLiveCovarianceMatrix(history) {
       columnKey: columnMetric.key,
       rowLabel: rowMetric.label,
       columnLabel: columnMetric.label,
-      stats: telemetryCovarianceStats(history, rowMetric.key, columnMetric.key)
+      stats: telemetryCovarianceStats(history, rowMetric.key, columnMetric.key),
+      trend: telemetryCovarianceTrend(history, rowMetric.key, columnMetric.key)
     }))
   }));
 
   return {
     metrics: LIVE_COVARIANCE_METRICS,
-    rows
+    rows,
+    principalMode: buildPrincipalResourceMode(history)
+  };
+}
+
+function buildPrincipalResourceMode(history) {
+  const mode = calculatePrincipalResourceMode(history);
+  const trend = telemetryPrincipalModeTrend(history);
+  const loadingTrendByKey = new Map(LIVE_COVARIANCE_METRICS.map((metric) => ([
+    metric.key,
+    trend
+      .map((point) => {
+        const loading = point.loadings.find((entry) => entry.key === metric.key);
+        if (!Number.isFinite(loading?.value)) return null;
+        return {
+          timestampMs: point.timestampMs,
+          label: point.label,
+          value: loading.value
+        };
+      })
+      .filter(Boolean)
+  ])));
+  const eigenvalueTrends = mode.eigenvalues.map((_, index) => (
+    trend
+      .map((point) => {
+        const entry = point.eigenvalues[index];
+        if (!Number.isFinite(entry?.value)) return null;
+        return {
+          timestampMs: point.timestampMs,
+          label: point.label,
+          sharePct: entry.sharePct,
+          value: entry.value
+        };
+      })
+      .filter(Boolean)
+  ));
+
+  return {
+    ...mode,
+    explainedTrend: trend
+      .map((point) => Number.isFinite(point.explainedPct)
+        ? {
+            timestampMs: point.timestampMs,
+            label: point.label,
+            value: point.explainedPct
+          }
+        : null)
+      .filter(Boolean),
+    loadings: mode.loadings.map((loading) => ({
+      ...loading,
+      trend: loadingTrendByKey.get(loading.key) || []
+    })),
+    eigenvalues: mode.eigenvalues.map((entry, index) => ({
+      ...entry,
+      trend: eigenvalueTrends[index] || []
+    }))
+  };
+}
+
+function calculatePrincipalResourceMode(history) {
+  const activeMetrics = LIVE_COVARIANCE_METRICS
+    .map((metric) => ({
+      ...metric,
+      varianceStats: telemetryCovarianceStats(history, metric.key, metric.key)
+    }))
+    .filter((metric) => Number.isFinite(metric.varianceStats.covariance) && metric.varianceStats.covariance > LIVE_EIGEN_MIN_VARIANCE);
+
+  if (activeMetrics.length < 2) {
+    return {
+      status: "learning",
+      title: "Learning resource mode",
+      badge: "Need moving counters",
+      explainedPct: null,
+      note: "Need at least two live counters with variance across the rolling window to compute eigenvalues.",
+      loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null })),
+      eigenvalues: []
+    };
+  }
+
+  const correlationMatrix = activeMetrics.map((rowMetric) => (
+    activeMetrics.map((columnMetric) => {
+      if (rowMetric.key === columnMetric.key) return 1;
+      const correlation = telemetryCorrelation(history, rowMetric.key, columnMetric.key);
+      return Number.isFinite(correlation) ? clamp(correlation, -1, 1) : 0;
+    })
+  ));
+  const decomposition = symmetricEigenDecomposition(correlationMatrix);
+  const eigenPairs = decomposition.values
+    .map((value, index) => ({
+      value: Math.max(0, value),
+      vector: decomposition.vectors[index]
+    }))
+    .sort((left, right) => right.value - left.value);
+  const principal = eigenPairs[0];
+  const total = eigenPairs.reduce((sum, pair) => sum + pair.value, 0) || activeMetrics.length;
+  const dominantIndex = principal.vector.reduce((best, value, index) => (
+    Math.abs(value) > Math.abs(principal.vector[best]) ? index : best
+  ), 0);
+  const direction = principal.vector[dominantIndex] < 0 ? -1 : 1;
+  const directedVector = principal.vector.map((value) => value * direction);
+  const dominantLabels = directedVector
+    .map((value, index) => ({ value: Math.abs(value), label: principalMetricName(activeMetrics[index]) }))
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 2)
+    .map((entry) => entry.label);
+  const loadingByKey = new Map(activeMetrics.map((metric, index) => [metric.key, directedVector[index]]));
+
+  return {
+    status: "ready",
+    title: dominantLabels.join(" + ") || "Principal resource mode",
+    badge: `${activeMetrics.length} counters`,
+    explainedPct: (principal.value / total) * 100,
+    note: `Computed from the rolling correlation matrix across ${activeMetrics.length} moving ${activeMetrics.length === 1 ? "counter" : "counters"}.`,
+    loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({
+      ...metric,
+      value: loadingByKey.has(metric.key) ? loadingByKey.get(metric.key) : null
+    })),
+    eigenvalues: eigenPairs.map((pair) => ({
+      value: pair.value,
+      sharePct: (pair.value / total) * 100
+    }))
+  };
+}
+
+function telemetryPrincipalModeTrend(history) {
+  return history
+    .map((sample, index) => {
+      const window = history.slice(Math.max(0, index - LIVE_TELEMETRY_RELATIONSHIP_WINDOW + 1), index + 1);
+      const mode = calculatePrincipalResourceMode(window);
+      if (mode.status !== "ready") return null;
+      return {
+        timestampMs: sample.timestampMs,
+        label: sample.label || "",
+        explainedPct: mode.explainedPct,
+        loadings: mode.loadings,
+        eigenvalues: mode.eigenvalues
+      };
+    })
+    .filter(Boolean);
+}
+
+function symmetricEigenDecomposition(matrix) {
+  const n = matrix.length;
+  const values = matrix.map((row) => row.slice());
+  const vectors = Array.from({ length: n }, (_, row) => (
+    Array.from({ length: n }, (_, column) => (row === column ? 1 : 0))
+  ));
+
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    let p = 0;
+    let q = 1;
+    let largest = 0;
+    for (let row = 0; row < n; row += 1) {
+      for (let column = row + 1; column < n; column += 1) {
+        const magnitude = Math.abs(values[row][column]);
+        if (magnitude > largest) {
+          largest = magnitude;
+          p = row;
+          q = column;
+        }
+      }
+    }
+    if (largest < 1e-10) break;
+
+    const app = values[p][p];
+    const aqq = values[q][q];
+    const apq = values[p][q];
+    const tau = (aqq - app) / (2 * apq);
+    const sign = tau >= 0 ? 1 : -1;
+    const t = sign / (Math.abs(tau) + Math.sqrt(1 + tau * tau));
+    const c = 1 / Math.sqrt(1 + t * t);
+    const s = t * c;
+
+    for (let index = 0; index < n; index += 1) {
+      if (index !== p && index !== q) {
+        const aip = values[index][p];
+        const aiq = values[index][q];
+        values[index][p] = c * aip - s * aiq;
+        values[p][index] = values[index][p];
+        values[index][q] = s * aip + c * aiq;
+        values[q][index] = values[index][q];
+      }
+    }
+
+    values[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+    values[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+    values[p][q] = 0;
+    values[q][p] = 0;
+
+    for (let row = 0; row < n; row += 1) {
+      const vip = vectors[row][p];
+      const viq = vectors[row][q];
+      vectors[row][p] = c * vip - s * viq;
+      vectors[row][q] = s * vip + c * viq;
+    }
+  }
+
+  return {
+    values: values.map((row, index) => row[index]),
+    vectors: values.map((_, index) => vectors.map((row) => row[index]))
   };
 }
 
@@ -6017,6 +6541,21 @@ function telemetryCovarianceStats(history, leftKey, rightKey) {
     covariance,
     correlation
   };
+}
+
+function telemetryCovarianceTrend(history, leftKey, rightKey) {
+  return history
+    .map((sample, index) => {
+      const window = history.slice(Math.max(0, index - LIVE_TELEMETRY_RELATIONSHIP_WINDOW + 1), index + 1);
+      const stats = telemetryCovarianceStats(window, leftKey, rightKey);
+      if (!Number.isFinite(stats.covariance)) return null;
+      return {
+        timestampMs: sample.timestampMs,
+        label: sample.label || "",
+        value: stats.covariance
+      };
+    })
+    .filter(Boolean);
 }
 
 function telemetryAverage(history, key) {

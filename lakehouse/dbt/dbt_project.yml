@@ -1,0 +1,11 @@
+name: turbalance_lakehouse
+version: "0.1.0"
+config-version: 2
+
+profile: turbalance_duckdb
+
+model-paths: ["models"]
+
+models:
+  turbalance_lakehouse:
+    +materialized: view

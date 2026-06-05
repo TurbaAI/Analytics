@@ -12,6 +12,113 @@ The current product has a browser-first dashboard plus an optional controlled in
 
 Open `index.html` directly in a browser, or serve the repository with a local static server. All imported data is processed in the browser and persisted to `localStorage` under `turba.analytics.workspace.v2`.
 
+## E2E Data Platform Architecture
+
+The lakehouse-backed telemetry platform is now implemented as an end-to-end path: monitored hosts send eBPF and system telemetry through a collector gateway, Python workers write raw Parquet, DuckDB plus SQLMesh/dbt-style models build virtual sensor tables, Dagster schedules and checks the assets, and FastAPI/Grafana/React serve the product experience. The current dashboard and `turba.ingestion.v1` source-bundle contracts remain compatibility adapters while the durable Parquet/DuckDB path handles the live platform flow.
+
+```mermaid
+flowchart TD
+  Host["Monitored host / SPARK1"]
+  Agent["eBPF agent"]
+  Collector["Collector gateway"]
+  Queue["Queue gateway"]
+  Raw["Raw writer"]
+  Lake["Parquet lake"]
+  DuckDB["DuckDB query layer"]
+  Transform["Transform runner / SQLMesh"]
+  Dagster["Dagster schedules + checks"]
+  API["FastAPI product API"]
+  Alerts["Alert engine"]
+  UI["React frontend / Grafana"]
+
+  Host --> Agent
+  Agent --> Collector
+  Collector --> Queue
+  Queue --> Raw
+  Raw --> Lake
+  Lake --> DuckDB
+  DuckDB --> Transform
+  Transform --> Lake
+  Dagster --> Transform
+  API --> DuckDB
+  Alerts --> API
+  UI --> API
+  UI --> Alerts
+```
+
+For SPARK1, the same platform runs as a single-host Kubernetes activation using a node-local Docker registry at `localhost:5000/turbalance`, local file-backed lake/queue defaults, pre-applied real Kubernetes Secrets, and a rendered single-host Kustomize overlay. That path is designed to prove the full data plane without waiting on external registry, AWS, or signing credentials. Provider production uses the same service boundaries but swaps in the approved external registry, cloud object storage, metadata database, secret store, and signed image release flow.
+
+See `docs/e2e-data-platform.md` for the full data path, container map, raw table contracts, virtual sensor model list, checks, schedules, and phased implementation plan. See `docs/lakehouse-operations.md` for replay, certificate rotation, compaction, reconciliation, transform validation, Grafana, and alert runbooks.
+
+The executable platform slice includes:
+
+- `proto/telemetry/v1/telemetry_batch.proto` and `schemas/turba-telemetry-batch.v1.schema.json` define the batch contract.
+- `services/platform_common/platform_common/observability.py` adds OpenTelemetry-ready request metrics and trace-context propagation helpers shared by platform services.
+- `scripts/generate-telemetry-protos.sh` generates Python gRPC stubs for the telemetry collector service.
+- `services/raw-writer/raw_writer/writer.py`, `services/raw-writer/raw_writer/storage.py`, and `services/raw-writer/raw_writer/operations.py` write validated telemetry/source bundles into partitioned Parquet, support PyArrow object-store filesystems, compact raw partitions, and reconcile manifests.
+- `services/collector-gateway/collector_gateway/app.py` accepts telemetry batches and source bundles over FastAPI.
+- `services/collector-gateway/collector_gateway/security.py` and `services/collector-gateway/collector_gateway/identity.py` add HMAC signatures, nonce replay checks, mTLS/SPIFFE identity enforcement, rate limiting, and JSONL audit.
+- `services/collector-gateway/collector_gateway/queue.py`, `services/collector-gateway/collector_gateway/backpressure.py`, `services/collector-gateway/collector_gateway/replay.py`, and `services/collector-gateway/collector_gateway/grpc_server.py` add authenticated external queue/spool backpressure, durable replay, and generated-protobuf gRPC serving.
+- `services/queue-gateway/queue_gateway/app.py` provides the deployable HTTP queue-gateway adapter for collector overflow.
+- `services/duckdb-query-service/duckdb_query_service/query.py` exposes typed lake queries with DuckDB support and a PyArrow fallback.
+- `lakehouse/sqlmesh/`, including `lakehouse/sqlmesh/models/vs_principal_resource_mode.sql`, `lakehouse/sqlmesh/models/vs_gpu_starvation.sql`, and `lakehouse/sqlmesh/models/vs_alert_candidates.sql`, plus `lakehouse/dbt/models/vs_alert_candidates.sql` and `lakehouse/duckdb/views.sql` define the virtual sensor model path.
+- `services/transform-runner/transform_runner/runner.py` materializes virtual sensor Parquet tables, and `services/transform-runner/transform_runner/validation.py` validates SQLMesh/dbt/DuckDB runtime readiness.
+- `orchestration/dagster/turbalance_assets.py` defines Dagster assets, checks, and schedule wiring.
+- `services/alert-engine/alert_engine/engine.py`, `services/alert-engine/alert_engine/store.py`, and `services/alert-engine/alert_engine/router.py` evaluate explainable resource alerts, persist alert lifecycle state, and route alerts to webhook, Slack, PagerDuty, or dry-run JSONL sinks.
+- `services/api-server/api_server/app.py` and `services/api-server/api_server/auth.py` expose product API, API RBAC, tenant-scoped bearer tokens, JWKS/OIDC-style JWT verification, discovery catalog proxying, and SSE endpoints.
+- `services/discovery-api/discovery_api/app.py`, `services/discovery-api/discovery_api/certificates.py`, `services/discovery-api/discovery_api/consul.py`, `services/discovery-api/discovery_api/store.py`, `agents/ebpf-agent/`, `agents/ebpf-agent/README.md`, `agents/ebpf-agent/probes/`, `agents/ebpf-agent/native/`, `frontend/react/src/App.tsx`, and `frontend/react/src/api.ts` provide the initial control-plane, optional Consul mirror, managed metadata store abstraction, local-CA/SPIRE/external-CA certificate modes, signed host-agent daemon, external eBPF summarizer hook, native libbpf/CO-RE eBPF source package, covariance/eigenvalue rolling sparklines, and API-backed React shell.
+- `deploy/docker/lakehouse-compose.yml`, `deploy/docker/otel-collector-config.yaml`, `deploy/docker/otel-collector-config.production.yaml`, `deploy/docker/Dockerfile.ebpf-agent`, `deploy/docker/Dockerfile.platform-service`, `deploy/docker/Dockerfile.dagster`, `deploy/docker/Dockerfile.sqlmesh`, `ops/kubernetes/lakehouse-platform.yaml`, `ops/kubernetes/lakehouse-agent-daemonset.yaml`, `ops/kubernetes/lakehouse-queue-gateway.yaml`, `ops/kubernetes/lakehouse-platform-auth-secrets.yaml`, `ops/kubernetes/lakehouse-alert-routing.yaml`, `ops/kubernetes/lakehouse-consul-auth.yaml`, `ops/kubernetes/lakehouse-managed-storage.yaml`, `ops/kubernetes/lakehouse-otel-backend-secret.yaml`, `ops/kubernetes/lakehouse-otel-collector.yaml`, `ops/kubernetes/lakehouse-mtls.yaml`, `ops/kubernetes/mtls/kustomization.yaml`, `ops/kubernetes/lakehouse/base/kustomization.yaml`, `ops/kubernetes/lakehouse/production/kustomization.yaml`, `ops/kubernetes/lakehouse/managed-storage/kustomization.yaml`, `ops/kubernetes/lakehouse/otel-backend/kustomization.yaml`, `ops/kubernetes/lakehouse/spire/kustomization.yaml`, `ops/kubernetes/lakehouse/consul/kustomization.yaml`, and `ops/kubernetes/lakehouse-prometheus-rules.yaml` launch and monitor the agent and Python platform services locally or in Kubernetes.
+- `ops/terraform/lakehouse/aws/` provisions the production S3 lake, RDS Postgres metadata DB, optional MSK broker, IAM policy, and Secrets Manager keys expected by the ExternalSecret manifests, including the optional Consul token binding.
+- `scripts/build-lakehouse-platform-images.js` builds the lakehouse service images.
+- `scripts/render-lakehouse-secrets.js` renders production Kubernetes secrets for collector auth, discovery enrollment, API RBAC, metadata DB, queue gateway, and mTLS client CA.
+- `scripts/render-lakehouse-kustomize-overlay.js` renders release-specific Kustomize overlays with image registry/tag replacements and production config patches.
+- `scripts/package-lakehouse-release.js` renders a strict release package, blocks placeholder production values, deletes development Secret resources from production Kustomize, and writes checksums plus secret requirements.
+- `ops/lakehouse-production.env.example`, `ops/lakehouse-production.values.example.json`, `ops/lakehouse-ebpf-hosts.example.json`, `ops/lakehouse-slo-policy.example.json`, `scripts/bootstrap-lakehouse-production-material.js`, `scripts/generate-lakehouse-production-env.js`, `scripts/create-lakehouse-production-env-from-values.js`, `scripts/validate-lakehouse-secret-material.js`, `scripts/validate-lakehouse-production-config.js`, `scripts/sync-lakehouse-aws-secrets.js`, `scripts/validate-lakehouse-externalsecrets.js`, `scripts/validate-lakehouse-image-registry.js`, `scripts/generate-lakehouse-image-lock.js`, `scripts/sign-lakehouse-images.js`, `scripts/validate-lakehouse-live-observability.js`, `scripts/validate-lakehouse-terraform.js`, `scripts/run-lakehouse-terraform-rollout.js`, `scripts/validate-lakehouse-kubernetes-release.js`, `scripts/validate-lakehouse-secret-iam-consistency.js`, `scripts/validate-lakehouse-live-prerequisites.js`, `scripts/validate-lakehouse-release-supply-chain.js`, `scripts/package-lakehouse-native-ebpf.js`, `scripts/generate-lakehouse-change-window.js`, `scripts/create-lakehouse-production-activation-bundle.js`, `scripts/prepare-lakehouse-operator-workstation.js`, `scripts/prepare-lakehouse-target-host.js`, `scripts/prepare-lakehouse-local-registry.js`, `scripts/render-lakehouse-single-host-overlay.js`, `scripts/run-lakehouse-image-release.js`, `scripts/report-lakehouse-production-gaps.js`, `scripts/validate-lakehouse-slo-policy.js`, `scripts/validate-lakehouse-ebpf-probe-package.js`, `scripts/collect-lakehouse-ebpf-rollout-evidence.js`, `scripts/audit-lakehouse-production-readiness.js`, and `scripts/run-lakehouse-go-live.js` define, audit, and orchestrate the production rollout contract from one audited env or structured values file.
+- `scripts/run-lakehouse-load-test.js` runs a collector source-bundle load smoke with bearer/HMAC support.
+- `scripts/run-lakehouse-cluster-smoke.js`, `scripts/run-lakehouse-burn-in.js`, `scripts/run-ebpf-fleet-validation.js`, `scripts/validate-ebpf-agent-host.js`, `scripts/validate-lakehouse-security.js`, `scripts/validate-lakehouse-alerts-dashboards.js`, `scripts/prepare-screenshot-qa.js`, and `scripts/run-lakehouse-production-smoke.js` verify cluster rollout, live burn-in, eBPF fleet readiness, production material bootstrap, operator workstation readiness, target-host preparation planning, image release lane planning, production gap reporting, security hardening, Grafana/alert coverage, production env assembly, render paths, release packaging, image registry and image-lock plans, cosign signature plans, secret-material and secret-store plans, ExternalSecret readiness plans, Terraform static checks and rollout artifacts, Kubernetes release preflight, secret/IAM consistency, live prerequisites, release supply-chain/SBOM/signing plans, native eBPF release packaging, change-window rollback evidence, production activation bundle generation for `user@192.168.10.20`, SLO policy coverage, live endpoint plans, eBPF probe package readiness, eBPF rollout evidence, screenshot QA dependency preparation, and load-test dry-run parameters.
+- `.github/workflows/lakehouse-platform.yml` validates the platform, builds optional pushed images, and uploads a strict lakehouse release package artifact.
+- `deploy/docker/grafana/provisioning/datasources/turbalance-api.yml`, `deploy/docker/grafana/provisioning/dashboards/lakehouse.yml`, and `grafana/turbalance-lakehouse-virtual-sensors.json` provision Grafana panels backed by the product API virtual sensor endpoints.
+
+The static dashboard can optionally read covariance and principal-mode virtual sensors from the platform API by adding `?platformApi=http://127.0.0.1:8080` to the URL. Without that parameter, it keeps using browser-local live telemetry calculations.
+
+Current SPARK1 status:
+
+- Target host: `user@192.168.10.20`
+- Namespace: `turbalance-lakehouse`
+- Core deployments: `api-server`, `collector-gateway`, `dagster`, `discovery-api`, `duckdb-query-service`, `otel-collector`, and `queue-gateway`
+- Host agent: `turbalance-ebpf-agent` DaemonSet
+- Live cluster smoke artifact: `build/lakehouse-single-host-cluster-smoke.json`
+- Target-host readiness artifact: `build/lakehouse-target-host-home-strict.json`
+- Current production gap report: `build/lakehouse-production-gaps-material-live/production-gaps.md`
+
+Verify the live SPARK1 single-host path:
+
+```sh
+PATH="$PWD/build/lakehouse-tools/bin:$PATH" \
+kubectl -n turbalance-lakehouse get deploy,daemonset,pods
+
+PATH="$PWD/build/lakehouse-tools/bin:$PATH" \
+node scripts/run-lakehouse-cluster-smoke.js \
+  --namespace turbalance-lakehouse \
+  --timeout-seconds 180 \
+  > build/lakehouse-single-host-cluster-smoke.json
+```
+
+Exercise the local lakehouse path:
+
+```sh
+PYTHONPATH=services/raw-writer:services/platform_common \
+python3 -m raw_writer --input fixtures/external-source-bundle.json --lake-root build/lakehouse --source-bundle --tenant-id tenant-a --host-id source-host
+
+PYTHONPATH=services/transform-runner:services/duckdb-query-service:services/platform_common \
+python3 -m transform_runner --lake-root build/lakehouse --tenant-id tenant-a
+
+PYTHONPATH=services/transform-runner:services/duckdb-query-service:services/raw-writer:services/platform_common \
+python3 -m transform_runner --lake-root build/lakehouse --tenant-id tenant-a --validate
+
+node tests/platform-lakehouse.test.js
+```
+
 ## What It Does
 
 turbalance connects infrastructure telemetry, scheduler evidence, provider commercial context, and operator recommendations into one review loop:
@@ -372,6 +479,8 @@ Focused test entry points:
 - `tests/local-machine-bundle.test.js`: host telemetry bundle collector for live workstation demos
 - `tests/provider-readiness.test.js`: provider config/source-contract readiness gate
 - `tests/provider-go-live-gates.test.js`: end-to-end dry-run go-live orchestration and evidence artifacts
+- `tests/lakehouse-go-live.test.js`: lakehouse production env validation, structured values env assembly, secret-material audit, release packaging, image digest lock and cosign signature planning, image release lane planning, operator workstation planning, target-host preparation planning, production gap reporting, native eBPF package generation, change-window evidence, production activation bundle generation for `user@192.168.10.20`, Terraform rollout dry-run, live prerequisite planning, release supply-chain validation, Kubernetes release preflight, secret/IAM consistency, SLO policy validation, go-live dry-run, burn-in plan, and eBPF fleet plan
+- `tests/lakehouse-production-readiness.test.js`: lakehouse production env assembly, structured values env assembly, production material bootstrap, secret-material audit, image registry, image digest lock and cosign signature planning, image release lane planning, operator workstation planning, production gap reporting, live observability, AWS secret-store sync, ExternalSecret readiness, Terraform static validation and rollout artifacts, live prerequisite planning, release supply-chain validation, native eBPF package generation, change-window evidence, secret/IAM consistency, SLO policy validation, eBPF probe package validation, eBPF rollout evidence, and production readiness audit gates
 - `tests/sandbox-go-live.test.js`: strict sandbox source gateway and go-live runner dry-run checks
 - `tests/nccl-trace-parser.test.js`: NCCL operation and topology-tier attribution
 - `tests/external-ingestion-fixture.test.js`: canonical external source-bundle fixture
@@ -412,6 +521,14 @@ Focused test entry points:
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
 - `scripts/run-provider-go-live-gates.js`: orchestrates readiness, image, manifests, optional source contracts, burn-in, and evidence reports
+- `scripts/run-lakehouse-go-live.js`: orchestrates lakehouse production env assembly, structured values env assembly, secret-material audit, config validation, live prerequisite checks, Terraform static/apply gates with captured plan artifacts, AWS Secrets Manager sync, image build/push plus registry verification, digest lock evidence, and cosign signing/verification hooks, release packaging, release supply-chain/SBOM/signing plans, native eBPF package generation, change-window rollback evidence, secret/IAM consistency checks, Kubernetes release preflight, Kubernetes deploy/smoke, ExternalSecret readiness, burn-in, live observability checks, SLO policy validation, eBPF probe package validation, eBPF fleet validation, and rollout evidence collection
+- `scripts/bootstrap-lakehouse-production-material.js`: creates ignored operator-owned env/values material with generated tokens, JWKS, agent CA PEM, and strict secret-material validation
+- `scripts/prepare-lakehouse-operator-workstation.js`: plans or installs local CLI prerequisites and reports Docker daemon, registry login, AWS credential, and kubeconfig actions
+- `scripts/prepare-lakehouse-target-host.js`: plans or performs SSH reachability, remote directory creation, repository sync, and strict prebuilt eBPF host validation for `user@192.168.10.20`
+- `scripts/prepare-lakehouse-local-registry.js`: starts a single-node Docker registry, mirrors already-built lakehouse images into `localhost:5000/turbalance`, and reports the k3s image prefix for SPARK1-style clusters without external registry credentials
+- `scripts/render-lakehouse-single-host-overlay.js`: renders the SPARK1 single-host Kustomize overlay with local-registry images, file-backed lake/queue defaults, and placeholder Secret deletion so pre-applied real Secrets are preserved
+- `scripts/run-lakehouse-image-release.js`: runs the image release lane from build/push through registry validation, digest lock generation, and cosign sign/verify planning
+- `scripts/report-lakehouse-production-gaps.js`: writes a concise JSON/Markdown report of the remaining production materials, including secret material, target-host prep, image release, signing, and screenshot QA prerequisites
 - `scripts/run-sandbox-go-live.js`: starts a disposable local registry, mock source gateway, ingestion container, and strict zero-warning sandbox go-live gate
 - `scripts/run-sandbox-source-gateway.js`: serves provider pilot fixtures as approved-source mock HTTP APIs for local and SSH sandbox validation
 - `scripts/fetch-source-system-export.js`: source-system collector for Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF, NCCL, and opportunity exports
@@ -643,7 +760,7 @@ Enable GitHub Pages with GitHub Actions as the source before relying on the Page
 
 ## Production Readiness Boundary
 
-This repo is ready as a static pilot/demo surface, an integration contract for exported telemetry, and a controlled-ingestion reference implementation for early pilots. It is not yet a managed multi-tenant SaaS.
+This repo is ready as a static pilot/demo surface, an integration contract for exported telemetry, a controlled-ingestion reference implementation for early pilots, and a SPARK1 single-host lakehouse activation. It is not yet a managed multi-tenant SaaS.
 
 Current boundaries:
 
@@ -652,11 +769,25 @@ Current boundaries:
 - Provider exporter jobs can collect approved Prometheus/DCGM snapshots and approved Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, NCCL trace, and opportunity exports through read-only source APIs
 - Dedicated Visual QA workflow installs Playwright in CI; local screenshot QA still skips when Playwright is unavailable
 - Directional estimates for waste, opportunity value, and scheduler recovery; validate against source systems before changing production policy or making customer commitments
+- SPARK1 single-host lakehouse mode is operational with local registry images, local lake/queue storage, deployed platform services, live eBPF agent, and cluster smoke checks; this mode intentionally avoids external registry, AWS, and signing dependencies
+
+Current SPARK1 lakehouse status:
+
+- `user@192.168.10.20` is reachable and synced at `/home/user/Analytics`
+- `turbalance-lakehouse` has all core deployments ready plus one ready `turbalance-ebpf-agent` DaemonSet
+- `scripts/run-lakehouse-cluster-smoke.js` probes health endpoints from `deploy/api-server` so service checks obey the namespace NetworkPolicy model
+- `scripts/prepare-lakehouse-local-registry.js` and `scripts/render-lakehouse-single-host-overlay.js` are the supported single-node activation lane
+- `scripts/report-lakehouse-production-gaps.js` writes the current JSON/Markdown blocker report under `build/lakehouse-production-gaps-material-live/`
 
 Remaining provider-specific production steps:
 
 - Generate a provider pilot config with `scripts/generate-provider-pilot-config.js` using the provider-approved registry, secret store, IAM role, managed database secret names, object bucket, and tenant values
 - Build and publish the provider-approved ingestion container image referenced by the provider pilot config
-- Wire the rendered ExternalSecret resources to the provider's real secret store and IAM roles
+- Configure approved container registry credentials with `scripts/configure-lakehouse-registry-auth.js` before pushing external production images
+- Configure AWS credentials before running `scripts/sync-lakehouse-aws-secrets.js` or `scripts/run-lakehouse-terraform-rollout.js --apply`
+- Run `scripts/run-lakehouse-image-release.js --build --push` against the approved registry, then prove pushed manifests with `scripts/validate-lakehouse-image-registry.js`
+- Generate a digest lock with `scripts/generate-lakehouse-image-lock.js`, then sign and verify image refs with `scripts/sign-lakehouse-images.js`
+- Generate and audit the production env with `scripts/generate-lakehouse-production-env.js` or compile structured values with `scripts/create-lakehouse-production-env-from-values.js`; validate secret material with `scripts/validate-lakehouse-secret-material.js --strict`
+- Package the lakehouse release with `scripts/package-lakehouse-release.js`, run `scripts/validate-lakehouse-release-supply-chain.js`, `scripts/validate-lakehouse-kubernetes-release.js`, and `scripts/audit-lakehouse-production-readiness.js`, then deploy only inside the approved change window
 - Validate collector queries and endpoint contracts with each source-system owner before enabling scheduled jobs
 - Run a live pilot burn-in against provider staging data before customer-facing use

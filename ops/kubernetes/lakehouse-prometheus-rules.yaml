@@ -1,0 +1,85 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: turbalance-lakehouse-platform
+  namespace: turbalance-lakehouse
+  labels:
+    app.kubernetes.io/part-of: turbalance-lakehouse
+spec:
+  groups:
+    - name: turbalance-lakehouse.availability
+      rules:
+        - alert: TurbalanceCollectorDown
+          expr: up{job=~".*collector-gateway.*"} == 0
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: collector gateway is not scrapeable
+            description: Agents cannot reliably deliver telemetry while collector-gateway is down.
+        - alert: TurbalanceApiDown
+          expr: turbalance_api_up == 0
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: product API is down
+            description: React and Grafana virtual sensor views cannot read lakehouse data.
+        - alert: TurbalanceApiLatencySloBurn
+          expr: histogram_quantile(0.95, sum(rate(turbalance_api_http_request_duration_seconds_bucket[5m])) by (le)) > 1
+          for: 10m
+          labels: { severity: warning, slo: api-availability }
+          annotations:
+            summary: product API p95 latency is burning SLO budget
+            description: Check DuckDB query latency, object-lake freshness, and API worker saturation.
+    - name: turbalance-lakehouse.ingest
+      rules:
+        - alert: TurbalanceCollectorAuthFailures
+          expr: increase(turbalance_collector_auth_failures_total[10m]) > 5
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: collector authentication failures are elevated
+            description: Check agent HMAC token rotation, mTLS enrollment, and replay nonce failures.
+        - alert: TurbalanceCollectorBackpressure
+          expr: increase(turbalance_collector_queued_batches_total[10m]) > 25 or increase(turbalance_collector_backpressure_rejections_total[10m]) > 0
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: collector backpressure is active
+            description: The collector is spooling or rejecting batches; inspect collector-spool-replay and lake writer throughput.
+        - alert: TurbalanceCollectorMtlsFailures
+          expr: increase(turbalance_collector_mtls_failures_total[10m]) > 0
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: collector mTLS identity failures are present
+            description: Check collector-mtls-gateway XFCC sanitization, agent certificate trust, and SPIFFE trust-domain configuration.
+        - alert: TurbalanceVirtualSensorFreshness
+          expr: time() - turbalance_virtual_sensor_last_success_timestamp_seconds{sensor=~"covariance|principal-resource-mode"} > 300
+          for: 10m
+          labels: { severity: warning, slo: virtual-sensor-freshness }
+          annotations:
+            summary: virtual sensor results are stale
+            description: Check raw writer compaction, transform-runner schedules, DuckDB lake access, and Dagster asset checks.
+        - alert: TurbalanceEbpfReadinessLow
+          expr: avg by (cluster) (turbalance_ebpf_probe_ready) < 0.95
+          for: 15m
+          labels: { severity: warning, slo: agent-probe-readiness }
+          annotations:
+            summary: monitored host eBPF readiness is below rollout SLO
+            description: Check bpffs/tracingfs/BTF readiness and native probe rollout evidence before enabling kernel programs.
+        - alert: TurbalanceSecretSyncNotReady
+          expr: sum(kube_customresource_status_condition{customresource_kind="ExternalSecret", condition="Ready", status!="true"}) > 0
+          for: 10m
+          labels: { severity: critical, slo: secret-sync-readiness }
+          annotations:
+            summary: ExternalSecret resources are not Ready
+            description: Check provider secret-store credentials, remote key names, and target Secret templates.
+    - name: turbalance-lakehouse.api
+      rules:
+        - alert: TurbalanceApiAuthFailures
+          expr: sum(increase(turbalance_api_http_requests_total{status=~"401|403"}[10m])) > 10
+          for: 2m
+          labels: { severity: warning }
+          annotations:
+            summary: product API authorization failures are elevated
+            description: Check API token rotation, frontend/Grafana bearer-token configuration, and tenant-scoped RBAC mapping.

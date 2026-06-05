@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "turba.lakehouse.slo_policy.v1",
+  "window": "30d",
+  "objectives": [
+    {
+      "name": "api-availability",
+      "owner": "platform-api",
+      "targetPct": 99.9,
+      "measurement": "successful / total API health and virtual sensor requests",
+      "burnAlerts": ["TurbalanceApiDown", "TurbalanceApiLatencySloBurn"]
+    },
+    {
+      "name": "collector-ingest-availability",
+      "owner": "platform-ingest",
+      "targetPct": 99.9,
+      "measurement": "accepted telemetry batches / submitted telemetry batches",
+      "burnAlerts": ["TurbalanceCollectorDown", "TurbalanceCollectorBackpressure"]
+    },
+    {
+      "name": "virtual-sensor-freshness",
+      "owner": "capacity-engineering",
+      "targetPct": 99.0,
+      "measurement": "covariance and principal-mode results fresher than 5 minutes",
+      "burnAlerts": ["TurbalanceVirtualSensorFreshness"]
+    },
+    {
+      "name": "agent-probe-readiness",
+      "owner": "kernel-platform",
+      "targetPct": 99.0,
+      "measurement": "monitored Linux hosts reporting eBPF readiness metrics",
+      "burnAlerts": ["TurbalanceEbpfReadinessLow"]
+    },
+    {
+      "name": "secret-sync-readiness",
+      "owner": "platform-security",
+      "targetPct": 99.9,
+      "measurement": "ExternalSecret resources ready and target Secret keys present",
+      "burnAlerts": ["TurbalanceSecretSyncNotReady"]
+    }
+  ],
+  "releaseGates": [
+    "scripts/validate-lakehouse-live-prerequisites.js",
+    "scripts/validate-lakehouse-release-supply-chain.js",
+    "scripts/validate-lakehouse-kubernetes-release.js",
+    "scripts/validate-lakehouse-live-observability.js",
+    "scripts/validate-lakehouse-slo-policy.js"
+  ]
+}

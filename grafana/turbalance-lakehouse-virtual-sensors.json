@@ -1,0 +1,120 @@
+{
+  "uid": "turbalance-lakehouse-virtual-sensors",
+  "title": "turbalance Lakehouse Virtual Sensors",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["turbalance", "lakehouse", "virtual-sensors"],
+  "templating": {
+    "list": [
+      {
+        "name": "api_base",
+        "type": "constant",
+        "query": "http://api-server:8080",
+        "current": {
+          "text": "http://api-server:8080",
+          "value": "http://api-server:8080"
+        }
+      },
+      {
+        "name": "api_datasource",
+        "type": "datasource",
+        "query": "marcusolsson-json-datasource",
+        "current": {
+          "text": "turbalance API",
+          "value": "turbalance-api"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Virtual Sensor API",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "This dashboard is designed for a JSON/API datasource pointed at `${api_base}`. Use `/v1/virtual-sensors/covariance`, `/v1/virtual-sensors/principal-resource-mode`, and `/v1/alerts` for API-backed panels."
+      }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Alert API Contract",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "turbalance-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${api_base}/v1/alerts",
+          "urlPath": "/v1/alerts",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "table",
+      "title": "Principal Resource Mode API Contract",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "turbalance-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${api_base}/v1/virtual-sensors/principal-resource-mode",
+          "urlPath": "/v1/virtual-sensors/principal-resource-mode",
+          "method": "GET"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Covariance Matrix Trend",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "turbalance-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${api_base}/v1/virtual-sensors/covariance",
+          "urlPath": "/v1/virtual-sensors/covariance",
+          "method": "GET"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Eigenvalue Rolling Trend",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": {
+        "type": "marcusolsson-json-datasource",
+        "uid": "turbalance-api"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "url": "${api_base}/v1/virtual-sensors/principal-resource-mode",
+          "urlPath": "/v1/virtual-sensors/principal-resource-mode",
+          "method": "GET"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: turbalance-consul-auth
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: turbalance-provider-secrets
+  target:
+    name: turbalance-consul-auth
+    creationPolicy: Owner
+    template:
+      type: Opaque
+  data:
+    - secretKey: token
+      remoteRef:
+        key: lakehouse/consul
+        property: token

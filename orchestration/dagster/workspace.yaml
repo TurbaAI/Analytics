@@ -1,0 +1,4 @@
+load_from:
+  - python_file:
+      relative_path: turbalance_assets.py
+      location_name: turbalance_lakehouse

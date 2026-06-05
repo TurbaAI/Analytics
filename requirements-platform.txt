@@ -1,0 +1,14 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pyarrow>=16
+cryptography>=42
+psycopg[binary]>=3.1
+grpcio>=1.60
+grpcio-tools>=1.60
+pandas>=2.2
+duckdb>=1.0
+polars>=1.0
+sqlmesh>=0.150
+dagster>=1.8
+dagster-webserver>=1.8

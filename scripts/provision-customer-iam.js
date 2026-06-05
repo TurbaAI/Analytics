@@ -176,7 +176,7 @@ function applySecretBinding(binding, token) {
 
 function externalSecretYaml({ namespace, secretStore, secretName }) {
   return [
-    "apiVersion: external-secrets.io/v1beta1",
+    "apiVersion: external-secrets.io/v1",
     "kind: ExternalSecret",
     "metadata:",
     `  name: turbalance-${safeName(secretName)}-exporter-token`,

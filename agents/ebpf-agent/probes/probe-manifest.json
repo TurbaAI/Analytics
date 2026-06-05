@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "turba.ebpf.probe_manifest.v1",
+  "agent": "turbalance-ebpf-agent",
+  "probes": [
+    {
+      "name": "procfs-summary",
+      "type": "contract-sample",
+      "command": "agents/ebpf-agent/probes/procfs-summary.sh",
+      "metrics": [
+        "ebpf.sched.context_switches_total",
+        "ebpf.sched.processes_forked_total",
+        "ebpf.net.tcp_retransmits_total",
+        "ebpf.net.rx_drops_total",
+        "ebpf.net.tx_drops_total"
+      ]
+    },
+    {
+      "name": "native-ebpf-readiness",
+      "type": "readiness",
+      "command": "agents/ebpf-agent/probes/native-ebpf-readiness.sh",
+      "metrics": [
+        "ebpf.kernel.btf_available",
+        "ebpf.bpffs.mounted",
+        "ebpf.tracingfs.mounted",
+        "ebpf.cgroup_v2.available",
+        "ebpf.tool.bpftool.available",
+        "ebpf.tool.clang.available",
+        "ebpf.cap.sys_admin.effective"
+      ]
+    },
+    {
+      "name": "native-ebpf-core",
+      "type": "native-program-package",
+      "source": "agents/ebpf-agent/native/turbalance_native.bpf.c",
+      "loader": "agents/ebpf-agent/native/turbalance_native_loader.c",
+      "build": "agents/ebpf-agent/native/Makefile",
+      "loaderCommand": "/opt/turbalance/native/turbalance-native-loader --once",
+      "metrics": [
+        "ebpf.sched.context_switches_total",
+        "ebpf.sched.processes_forked_total",
+        "ebpf.net.tcp_retransmits_total",
+        "ebpf.net.xmit_events_total",
+        "ebpf.block.request_completions_total"
+      ]
+    },
+    {
+      "name": "scheduler-readiness",
+      "type": "rollout-boundary",
+      "dependsOn": ["native-ebpf-readiness", "native-ebpf-core"],
+      "requiredMetrics": ["ebpf.bpffs.mounted", "ebpf.tracingfs.mounted"],
+      "nativeProgramBoundary": "aya-rs/libbpf sched_switch loader"
+    },
+    {
+      "name": "network-readiness",
+      "type": "rollout-boundary",
+      "dependsOn": ["native-ebpf-readiness", "native-ebpf-core"],
+      "requiredMetrics": ["ebpf.bpffs.mounted", "ebpf.tracingfs.mounted", "ebpf.kernel.btf_available"],
+      "nativeProgramBoundary": "aya-rs/libbpf tcp retransmit and drop probes"
+    },
+    {
+      "name": "block-readiness",
+      "type": "rollout-boundary",
+      "dependsOn": ["native-ebpf-readiness", "native-ebpf-core"],
+      "requiredMetrics": ["ebpf.bpffs.mounted", "ebpf.tracingfs.mounted", "ebpf.kernel.btf_available"],
+      "nativeProgramBoundary": "aya-rs/libbpf block IO latency probes"
+    }
+  ],
+  "rolloutGates": [
+    "scripts/validate-ebpf-agent-host.js --strict",
+    "scripts/validate-lakehouse-ebpf-probe-package.js",
+    "scripts/run-ebpf-fleet-validation.js",
+    "scripts/collect-lakehouse-ebpf-rollout-evidence.js"
+  ]
+}

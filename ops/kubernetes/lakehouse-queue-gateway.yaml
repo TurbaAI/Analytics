@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: queue-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: queue-gateway }
+  template:
+    metadata:
+      labels: { app: queue-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: queue-gateway
+          image: turbalance/queue-gateway:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8804 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+          env:
+            - { name: PORT, value: "8804" }
+            - name: TURBALANCE_QUEUE_GATEWAY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-collector-queue-auth
+                  key: bearer-token
+                  optional: true
+          volumeMounts:
+            - { name: queue, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: queue
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: queue-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: queue-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: queue-gateway }
+  ports:
+    - { name: http, port: 8804, targetPort: http }
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: turbalance-lakehouse-queue-gateway
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector:
+    matchLabels: { app: queue-gateway }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

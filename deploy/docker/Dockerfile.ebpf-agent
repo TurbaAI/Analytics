@@ -1,0 +1,17 @@
+FROM rust:slim-bookworm AS builder
+
+WORKDIR /workspace/agents/ebpf-agent
+COPY agents/ebpf-agent/Cargo.toml agents/ebpf-agent/Cargo.lock ./
+COPY agents/ebpf-agent/src ./src
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+
+RUN useradd --system --uid 65532 --home /nonexistent --shell /usr/sbin/nologin turbalance
+
+COPY --from=builder /workspace/agents/ebpf-agent/target/release/turbalance-ebpf-agent /usr/local/bin/turbalance-ebpf-agent
+COPY agents/ebpf-agent/probes /opt/turbalance/probes
+COPY agents/ebpf-agent/native /opt/turbalance/native
+
+USER 0
+ENTRYPOINT ["/usr/local/bin/turbalance-ebpf-agent"]

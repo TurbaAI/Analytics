@@ -1,0 +1,81 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: turbalance-metadata-db
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: turbalance-provider-secrets
+  target:
+    name: turbalance-metadata-db
+    creationPolicy: Owner
+    template:
+      type: Opaque
+  data:
+    - secretKey: database-url
+      remoteRef:
+        key: lakehouse/metadata-db
+        property: database-url
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: turbalance-object-store
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: turbalance-provider-secrets
+  target:
+    name: turbalance-object-store
+    creationPolicy: Owner
+    template:
+      type: Opaque
+  data:
+    - secretKey: AWS_ACCESS_KEY_ID
+      remoteRef:
+        key: lakehouse/object-store
+        property: access-key-id
+    - secretKey: AWS_SECRET_ACCESS_KEY
+      remoteRef:
+        key: lakehouse/object-store
+        property: secret-access-key
+    - secretKey: AWS_REGION
+      remoteRef:
+        key: lakehouse/object-store
+        property: region
+    - secretKey: AWS_ENDPOINT_URL
+      remoteRef:
+        key: lakehouse/object-store
+        property: endpoint-url
+    - secretKey: TURBALANCE_S3_SCHEME
+      remoteRef:
+        key: lakehouse/object-store
+        property: scheme
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: turbalance-collector-queue-auth
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: turbalance-provider-secrets
+  target:
+    name: turbalance-collector-queue-auth
+    creationPolicy: Owner
+    template:
+      type: Opaque
+  data:
+    - secretKey: bearer-token
+      remoteRef:
+        key: lakehouse/queue-gateway
+        property: bearer-token

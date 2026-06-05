@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+  - ../../lakehouse-consul-auth.yaml
+patches:
+  - target:
+      kind: ConfigMap
+      name: turbalance-platform-config
+    patch: |-
+      - op: replace
+        path: /data/TURBALANCE_CONSUL_URL
+        value: http://consul.consul.svc.cluster.local:8500

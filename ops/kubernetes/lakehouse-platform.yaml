@@ -1,0 +1,605 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: turbalance-lakehouse
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: turbalance-platform
+  namespace: turbalance-lakehouse
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turbalance-platform-config
+  namespace: turbalance-lakehouse
+data:
+  TURBALANCE_LAKE_ROOT: /var/lib/turbalance/lakehouse
+  TURBALANCE_TRUST_DOMAIN: turbalance.local
+  TURBALANCE_DISCOVERY_CA_DIR: /var/lib/turbalance/discovery/ca
+  TURBALANCE_DISCOVERY_CERTIFICATE_MODE: local-ca
+  TURBALANCE_DISCOVERY_EXTERNAL_CA_COMMAND: ""
+  TURBALANCE_DISCOVERY_EXTERNAL_CA_TIMEOUT_SECONDS: "10"
+  TURBALANCE_CONSUL_URL: ""
+  TURBALANCE_CONSUL_KV_PREFIX: turbalance/discovery
+  TURBALANCE_CONSUL_TIMEOUT_SECONDS: "2"
+  TURBALANCE_AGENT_CERT_TTL_DAYS: "30"
+  TURBALANCE_RETENTION_DAYS: "30"
+  TURBALANCE_API_MAX_ROWS: "5000"
+  TURBALANCE_API_REQUIRE_AUTH: "false"
+  TURBALANCE_API_JWT_ISSUER: ""
+  TURBALANCE_API_JWT_AUDIENCE: ""
+  TURBALANCE_API_JWT_TENANT_CLAIM: tenant_id
+  TURBALANCE_API_JWT_ROLE_CLAIM: role
+  TURBALANCE_API_JWT_SUBJECT_CLAIM: sub
+  TURBALANCE_ALERT_ROUTE_TIMEOUT_SECONDS: "2"
+  TURBALANCE_DISCOVERY_URL: http://discovery-api.turbalance-lakehouse.svc.cluster.local:8803
+  TURBALANCE_COLLECTOR_MAX_INFLIGHT_WRITES: "8"
+  TURBALANCE_COLLECTOR_SPOOL_DIR: /var/lib/turbalance/collector-spool
+  TURBALANCE_COLLECTOR_PROCESSED_DIR: /var/lib/turbalance/collector-processed
+  TURBALANCE_COLLECTOR_DEAD_LETTER_DIR: /var/lib/turbalance/collector-dead-letter
+  TURBALANCE_COLLECTOR_MAX_SPOOL_FILES: "1000"
+  TURBALANCE_COLLECTOR_REQUIRE_MTLS: "false"
+  TURBALANCE_TRUSTED_SPIFFE_PREFIX: spiffe://turbalance.local/
+  TURBALANCE_COLLECTOR_QUEUE_BACKEND: ""
+  TURBALANCE_COLLECTOR_QUEUE_URL: ""
+  TURBALANCE_COLLECTOR_QUEUE_DIR: /var/lib/turbalance/collector-queue
+  TURBALANCE_QUEUE_GATEWAY_BACKEND: file
+  TURBALANCE_QUEUE_GATEWAY_FILE_DIR: /var/lib/turbalance/queue-gateway
+  TURBALANCE_QUEUE_GATEWAY_BROKER_URL: ""
+  TURBALANCE_QUEUE_GATEWAY_TOPIC: turbalance.collector.telemetry
+  TURBALANCE_QUEUE_GATEWAY_PRODUCER_COMMAND: ""
+  TURBALANCE_QUEUE_GATEWAY_DRY_RUN: "false"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.turbalance-lakehouse.svc.cluster.local:4318
+  TURBALANCE_OTEL_EXPORT_TIMEOUT_SECONDS: "0.5"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: turbalance-lakehouse-pvc
+  namespace: turbalance-lakehouse
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbalance-api-auth
+  namespace: turbalance-lakehouse
+type: Opaque
+stringData:
+  api-tokens: tenant-a:replace-with-viewer-token:viewer:tenant-a-viewer,tenant-a:replace-with-operator-token:operator:tenant-a-operator,*:replace-with-admin-token:admin:platform-admin
+  jwks: '{"keys":[]}'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbalance-collector-auth
+  namespace: turbalance-lakehouse
+type: Opaque
+stringData:
+  bearer-token: replace-with-collector-token
+  hmac-secret: replace-with-hmac-secret
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: turbalance-discovery-auth
+  namespace: turbalance-lakehouse
+type: Opaque
+stringData:
+  enrollment-token: replace-with-enrollment-token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: collector-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: collector-gateway }
+  template:
+    metadata:
+      labels: { app: collector-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: collector-gateway
+          image: turbalance/collector-gateway:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8801 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+            - secretRef: { name: turbalance-object-store, optional: true }
+          env:
+            - { name: PORT, value: "8801" }
+            - name: TURBALANCE_COLLECTOR_TOKEN
+              valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: bearer-token } }
+            - name: TURBALANCE_COLLECTOR_HMAC_SECRET
+              valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: hmac-secret } }
+            - name: TURBALANCE_COLLECTOR_QUEUE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-collector-queue-auth
+                  key: bearer-token
+                  optional: true
+          volumeMounts:
+            - { name: lake, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: lake
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-gateway
+  namespace: turbalance-lakehouse
+  labels: { app: collector-gateway, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: collector-gateway }
+  ports:
+    - { name: http, port: 8801, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: duckdb-query-service
+  namespace: turbalance-lakehouse
+  labels: { app: duckdb-query-service, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: duckdb-query-service }
+  template:
+    metadata:
+      labels: { app: duckdb-query-service, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: duckdb-query-service
+          image: turbalance/duckdb-query-service:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8802 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+            - secretRef: { name: turbalance-object-store, optional: true }
+            - secretRef: { name: turbalance-alert-routing, optional: true }
+          env:
+            - { name: PORT, value: "8802" }
+          volumeMounts:
+            - { name: lake, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: lake
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: duckdb-query-service
+  namespace: turbalance-lakehouse
+  labels: { app: duckdb-query-service, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: duckdb-query-service }
+  ports:
+    - { name: http, port: 8802, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-server
+  namespace: turbalance-lakehouse
+  labels: { app: api-server, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: api-server }
+  template:
+    metadata:
+      labels: { app: api-server, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: api-server
+          image: turbalance/api-server:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8080 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+            - secretRef: { name: turbalance-object-store, optional: true }
+          env:
+            - { name: PORT, value: "8080" }
+            - { name: TURBALANCE_ALERT_DB, value: /var/lib/turbalance/alerts/alerts.sqlite }
+            - name: TURBALANCE_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-api-auth
+                  key: api-tokens
+                  optional: true
+            - name: TURBALANCE_API_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-api-auth
+                  key: jwks
+                  optional: true
+          volumeMounts:
+            - { name: lake, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: lake
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-server
+  namespace: turbalance-lakehouse
+  labels: { app: api-server, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: api-server }
+  ports:
+    - { name: http, port: 8080, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-api
+  namespace: turbalance-lakehouse
+  labels: { app: discovery-api, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: discovery-api }
+  template:
+    metadata:
+      labels: { app: discovery-api, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: discovery-api
+          image: turbalance/discovery-api:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 8803 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+            - secretRef: { name: turbalance-object-store, optional: true }
+          env:
+            - { name: PORT, value: "8803" }
+            - { name: TURBALANCE_DISCOVERY_DB, value: /var/lib/turbalance/discovery/catalog.sqlite }
+            - name: TURBALANCE_DISCOVERY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-metadata-db
+                  key: database-url
+                  optional: true
+            - name: TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN
+              valueFrom: { secretKeyRef: { name: turbalance-discovery-auth, key: enrollment-token } }
+            - name: TURBALANCE_CONSUL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: turbalance-consul-auth
+                  key: token
+                  optional: true
+          volumeMounts:
+            - { name: lake, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 30
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: lake
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-api
+  namespace: turbalance-lakehouse
+  labels: { app: discovery-api, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: discovery-api }
+  ports:
+    - { name: http, port: 8803, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dagster
+  namespace: turbalance-lakehouse
+  labels: { app: dagster, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: dagster }
+  template:
+    metadata:
+      labels: { app: dagster, app.kubernetes.io/part-of: turbalance-lakehouse }
+    spec:
+      serviceAccountName: turbalance-platform
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+      containers:
+        - name: dagster
+          image: turbalance/dagster:dev
+          imagePullPolicy: IfNotPresent
+          ports: [{ name: http, containerPort: 3002 }]
+          envFrom:
+            - configMapRef: { name: turbalance-platform-config }
+            - secretRef: { name: turbalance-object-store, optional: true }
+          env:
+            - { name: PORT, value: "3002" }
+            - { name: DAGSTER_HOME, value: /var/lib/turbalance/dagster }
+          command: ["/bin/sh", "-lc"]
+          args:
+            - dagster dev -h 0.0.0.0 -p 3002 -w orchestration/dagster/workspace.yaml
+          volumeMounts:
+            - { name: lake, mountPath: /var/lib/turbalance }
+          readinessProbe:
+            httpGet: { path: /server_info, port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits: { cpu: "2", memory: 2Gi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities: { drop: ["ALL"] }
+      volumes:
+        - name: lake
+          persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dagster
+  namespace: turbalance-lakehouse
+  labels: { app: dagster, app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector: { app: dagster }
+  ports:
+    - { name: http, port: 3002, targetPort: http }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: virtual-sensor-refresh
+  namespace: turbalance-lakehouse
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: turbalance-platform
+          restartPolicy: OnFailure
+          securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+          containers:
+            - name: transform-runner
+              image: turbalance/transform-runner:dev
+              envFrom:
+                - configMapRef: { name: turbalance-platform-config }
+                - secretRef: { name: turbalance-object-store, optional: true }
+              command: ["/bin/sh", "-lc"]
+              args:
+                - python -m transform_runner --lake-root "${TURBALANCE_LAKE_ROOT}" && python -m transform_runner --lake-root "${TURBALANCE_LAKE_ROOT}" --validate
+              volumeMounts:
+                - { name: lake, mountPath: /var/lib/turbalance }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { cpu: "1", memory: 1Gi }
+          volumes:
+            - name: lake
+              persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: collector-spool-replay
+  namespace: turbalance-lakehouse
+spec:
+  schedule: "*/1 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: turbalance-platform
+          restartPolicy: OnFailure
+          securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+          containers:
+            - name: collector-spool-replay
+              image: turbalance/collector-gateway:dev
+              envFrom:
+                - configMapRef: { name: turbalance-platform-config }
+                - secretRef: { name: turbalance-object-store, optional: true }
+              command: ["/bin/sh", "-lc"]
+              args:
+                - python -m collector_gateway --replay-spool --lake-root "${TURBALANCE_LAKE_ROOT}" --spool-dir "${TURBALANCE_COLLECTOR_SPOOL_DIR}" --processed-dir "${TURBALANCE_COLLECTOR_PROCESSED_DIR}" --dead-letter-dir "${TURBALANCE_COLLECTOR_DEAD_LETTER_DIR}" --limit 100
+              volumeMounts:
+                - { name: lake, mountPath: /var/lib/turbalance }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+          volumes:
+            - name: lake
+              persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lakehouse-reconciliation
+  namespace: turbalance-lakehouse
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: turbalance-platform
+          restartPolicy: OnFailure
+          securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+          containers:
+            - name: raw-writer-reconcile
+              image: turbalance/raw-writer:dev
+              envFrom:
+                - configMapRef: { name: turbalance-platform-config }
+                - secretRef: { name: turbalance-object-store, optional: true }
+              command: ["/bin/sh", "-lc"]
+              args:
+                - python -m raw_writer --lake-root "${TURBALANCE_LAKE_ROOT}" --reconcile
+              volumeMounts:
+                - { name: lake, mountPath: /var/lib/turbalance }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+          volumes:
+            - name: lake
+              persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: lakehouse-retention
+  namespace: turbalance-lakehouse
+spec:
+  schedule: "17 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: turbalance-platform
+          restartPolicy: OnFailure
+          securityContext: { runAsNonRoot: true, runAsUser: 65532, runAsGroup: 65532, fsGroup: 65532 }
+          containers:
+            - name: raw-writer-retention
+              image: turbalance/raw-writer:dev
+              envFrom:
+                - configMapRef: { name: turbalance-platform-config }
+                - secretRef: { name: turbalance-object-store, optional: true }
+              command: ["/bin/sh", "-lc"]
+              args:
+                - python -m raw_writer --lake-root "${TURBALANCE_LAKE_ROOT}" --retention-days "${TURBALANCE_RETENTION_DAYS}"
+              volumeMounts:
+                - { name: lake, mountPath: /var/lib/turbalance }
+              resources:
+                requests: { cpu: 50m, memory: 128Mi }
+                limits: { cpu: 500m, memory: 512Mi }
+          volumes:
+            - name: lake
+              persistentVolumeClaim: { claimName: turbalance-lakehouse-pvc }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: lakehouse-same-namespace-ingress
+  namespace: turbalance-lakehouse
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: NotIn
+        values: ["collector-gateway"]
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: turbalance-lakehouse
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: turbalance-lakehouse-collector
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector:
+    matchLabels: { app: collector-gateway }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: turbalance-lakehouse-api
+  namespace: turbalance-lakehouse
+  labels: { app.kubernetes.io/part-of: turbalance-lakehouse }
+spec:
+  selector:
+    matchLabels: { app: api-server }
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

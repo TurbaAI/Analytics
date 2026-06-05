@@ -1,0 +1,20 @@
+FROM python:3.12-slim
+
+WORKDIR /workspace
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/workspace/services/transform-runner:/workspace/services/duckdb-query-service:/workspace/services/raw-writer:/workspace/services/platform_common
+
+COPY requirements-platform.txt /workspace/requirements-platform.txt
+RUN pip install --no-cache-dir -r /workspace/requirements-platform.txt
+
+COPY services /workspace/services
+COPY lakehouse /workspace/lakehouse
+
+RUN useradd --system --uid 65532 --home /nonexistent --shell /usr/sbin/nologin turbalance \
+  && chown -R 65532:65532 /workspace
+
+USER 65532
+
+CMD ["sh", "-lc", "python -m transform_runner --lake-root ${TURBALANCE_LAKE_ROOT:-build/lakehouse} --validate && sqlmesh plan --config lakehouse/sqlmesh/config.yaml --auto-apply || true"]

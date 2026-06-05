@@ -91,7 +91,7 @@ function serviceAccountYaml({ namespace, serviceAccountName, annotations }) {
 function secretStoreYaml({ provider, namespace, secretStoreName, serviceAccountName, aws, gcp, azure }) {
   if (provider === "aws") {
     return [
-      "apiVersion: external-secrets.io/v1beta1",
+      "apiVersion: external-secrets.io/v1",
       "kind: ClusterSecretStore",
       "metadata:",
       `  name: ${secretStoreName}`,
@@ -111,7 +111,7 @@ function secretStoreYaml({ provider, namespace, secretStoreName, serviceAccountN
 
   if (provider === "gcp") {
     return [
-      "apiVersion: external-secrets.io/v1beta1",
+      "apiVersion: external-secrets.io/v1",
       "kind: ClusterSecretStore",
       "metadata:",
       `  name: ${secretStoreName}`,
@@ -130,7 +130,7 @@ function secretStoreYaml({ provider, namespace, secretStoreName, serviceAccountN
 
   if (provider === "azure") {
     return [
-      "apiVersion: external-secrets.io/v1beta1",
+      "apiVersion: external-secrets.io/v1",
       "kind: ClusterSecretStore",
       "metadata:",
       `  name: ${secretStoreName}`,
@@ -146,7 +146,7 @@ function secretStoreYaml({ provider, namespace, secretStoreName, serviceAccountN
   }
 
   return [
-    "apiVersion: external-secrets.io/v1beta1",
+    "apiVersion: external-secrets.io/v1",
     "kind: ClusterSecretStore",
     "metadata:",
     `  name: ${secretStoreName}`,
@@ -203,7 +203,7 @@ function externalSecretYaml({
     ...(jwtSecretName ? [["jwt-secret", jwtSecretName]] : [])
   ];
   return [
-    "apiVersion: external-secrets.io/v1beta1",
+    "apiVersion: external-secrets.io/v1",
     "kind: ExternalSecret",
     "metadata:",
     `  name: ${secretName}`,

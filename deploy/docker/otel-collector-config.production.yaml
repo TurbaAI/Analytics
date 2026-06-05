@@ -1,0 +1,64 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: turbalance-collector-gateway
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["collector-gateway:8801"]
+        - job_name: turbalance-api-server
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["api-server:8080"]
+        - job_name: turbalance-duckdb-query-service
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["duckdb-query-service:8802"]
+        - job_name: turbalance-discovery-api
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["discovery-api:8803"]
+        - job_name: turbalance-queue-gateway
+          scrape_interval: 30s
+          metrics_path: /metrics
+          static_configs:
+            - targets: ["queue-gateway:8804"]
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch:
+    timeout: 5s
+
+exporters:
+  otlphttp/backend:
+    endpoint: ${env:TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT}
+    headers:
+      Authorization: ${env:TURBALANCE_OTEL_BACKEND_AUTHORIZATION}
+  prometheus:
+    endpoint: 0.0.0.0:9464
+
+service:
+  telemetry:
+    metrics:
+      address: 0.0.0.0:8888
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlphttp/backend]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus, otlphttp/backend]

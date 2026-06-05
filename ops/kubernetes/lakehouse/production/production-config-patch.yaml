@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: turbalance-platform-config
+  namespace: turbalance-lakehouse
+data:
+  TURBALANCE_LAKE_ROOT: s3://replace-with-bucket/turbalance/lakehouse
+  TURBALANCE_API_REQUIRE_AUTH: "true"
+  TURBALANCE_API_JWT_ISSUER: https://issuer.example
+  TURBALANCE_API_JWT_AUDIENCE: turbalance-api
+  TURBALANCE_COLLECTOR_REQUIRE_MTLS: "true"
+  TURBALANCE_TRUSTED_SPIFFE_PREFIX: spiffe://turbalance.local/
+  TURBALANCE_COLLECTOR_QUEUE_BACKEND: http
+  TURBALANCE_COLLECTOR_QUEUE_URL: http://queue-gateway.turbalance-lakehouse.svc.cluster.local:8804/v1/queue/collector
+  TURBALANCE_QUEUE_GATEWAY_BACKEND: kafka
+  TURBALANCE_QUEUE_GATEWAY_BROKER_URL: kafka.kafka.svc.cluster.local:9092
+  TURBALANCE_QUEUE_GATEWAY_TOPIC: turbalance.collector.telemetry

@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../lakehouse-platform.yaml
+  - ../../lakehouse-agent-daemonset.yaml
+  - ../../lakehouse-queue-gateway.yaml
+  - ../../lakehouse-otel-collector.yaml
+  - ../../lakehouse-prometheus-rules.yaml

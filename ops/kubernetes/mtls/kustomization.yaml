@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../lakehouse-platform.yaml
+  - ../lakehouse-mtls.yaml
+patches:
+  - target:
+      kind: ConfigMap
+      name: turbalance-platform-config
+    patch: |-
+      - op: replace
+        path: /data/TURBALANCE_COLLECTOR_REQUIRE_MTLS
+        value: "true"
+      - op: replace
+        path: /data/TURBALANCE_TRUSTED_SPIFFE_PREFIX
+        value: spiffe://turbalance.local/
