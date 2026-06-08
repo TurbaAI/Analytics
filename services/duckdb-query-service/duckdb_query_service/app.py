@@ -88,6 +88,14 @@ def create_app(settings: QuerySettings | None = None) -> FastAPI:
     ) -> dict[str, Any]:
         return lake.principal_mode(tenant_id=tenant_id, limit=limit)
 
+    @app.get("/v1/virtual-sensors/system-identification")
+    async def system_identification(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        limit: int = Query(default=5000, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        rows = lake.system_identification(tenant_id=tenant_id, limit=limit)
+        return {"count": len(rows), "rows": rows}
+
     return app
 
 

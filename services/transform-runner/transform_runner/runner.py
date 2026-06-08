@@ -67,6 +67,7 @@ class TransformRunner:
             ("vs_network_gpu_coupling", self.query.network_gpu_coupling(tenant_id=tenant_id)),
             ("vs_noisy_neighbor", self.query.noisy_neighbor(tenant_id=tenant_id)),
             ("vs_input_pipeline_stall", self.query.input_pipeline_stall(tenant_id=tenant_id)),
+            ("vs_system_identification_signature", self.query.system_identification(tenant_id=tenant_id)),
             ("vs_alert_candidates", self.query.alert_candidates(tenant_id=tenant_id)),
         ):
             if rows:

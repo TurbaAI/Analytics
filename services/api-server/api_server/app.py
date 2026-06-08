@@ -254,6 +254,15 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         rows = lake.input_pipeline_stall(tenant_id=tenant_id, limit=settings.max_rows)
         return {"rows": rows, "count": len(rows)}
 
+    @app.get("/v1/virtual-sensors/system-identification")
+    async def system_identification(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(viewer_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id)
+        rows = lake.system_identification(tenant_id=tenant_id, limit=settings.max_rows)
+        return {"rows": rows, "count": len(rows)}
+
     @app.get("/v1/virtual-sensors/alert-candidates")
     async def alert_candidates(
         tenant_id: str | None = Query(default=None, alias="tenantId"),

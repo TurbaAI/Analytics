@@ -123,3 +123,22 @@ python3 -m http.server 8000
 Then open `http://127.0.0.1:8000/`.
 
 Opening `index.html` directly also works for the dashboard. Fetching relative fixture URLs may be more reliable through a local static server because browsers apply different `file://` fetch restrictions.
+
+## DGX Spark Inference
+
+The repo includes a repeatable two-node inference staging path in `deploy/dgx-spark-inference/`:
+
+- `user@192.168.10.20`: Ray head, OpenAI-compatible API endpoint, primary NIM/TRT-LLM or vLLM server, Open WebUI.
+- `user@192.168.10.21`: Ray worker and distributed inference worker.
+
+Use the orchestration helper when SSH keys are configured:
+
+```sh
+node scripts/prepare-dgx-spark-inference.js --all
+```
+
+The helper syncs the deployment scripts to `/home/user/dgx-spark-inference`, installs Ray in a host-local Python venv, starts the head/worker cluster, exposes existing Ollama models through `http://192.168.10.20:8355/v1`, starts Open WebUI on `http://192.168.10.20:3001`, and writes `build/dgx-spark-inference-prepare.json`.
+
+Model serving is deliberately backend-gated by host-local env values. Fill `NIM_IMAGE` and `NGC_API_KEY` for NVIDIA NIM/TRT-LLM, or `VLLM_IMAGE`, `MODEL_ID`, and `HF_TOKEN` for vLLM. The OpenAI-compatible base URL is `http://192.168.10.20:8355/v1`.
+
+The experimental 405B path uses NVIDIA's DGX Spark vLLM guidance: `nvcr.io/nvidia/vllm:25.11-py3`, a dedicated CX7 subnet, and `hugging-quants/Meta-Llama-3.1-405B-Instruct-AWQ-INT4` with `tensor-parallel-size=2`, `max-model-len=64`, `max-num-seqs=1`, and `max-num-batched-tokens=64`. Configure it with `deploy/dgx-spark-inference/configure-cx7-link.sh`, then start the vLLM head/worker and `start-vllm-405b-openai.sh`. NCCL validation is `deploy/dgx-spark-inference/validate-vllm-nccl.sh`, or `node scripts/prepare-dgx-spark-inference.js --validate-nccl` after the deployment directory has been synced to both DGX Spark hosts.

@@ -1,0 +1,522 @@
+{
+  "capabilities": {
+    "cpuLoad": {
+      "available": true,
+      "mode": "python-duty-cycle"
+    },
+    "gpuLoad": {
+      "available": false,
+      "enabled": false,
+      "mode": "not-configured"
+    },
+    "networkLoad": {
+      "available": false,
+      "enabled": false,
+      "mode": "not-configured",
+      "peer": ""
+    },
+    "telemetry": {
+      "hostUrl": "http://192.168.10.101:8000",
+      "mode": "collect-local-machine-bundle"
+    }
+  },
+  "configuration": {
+    "baselineSeconds": 1.0,
+    "maxCpuPercent": 25.0,
+    "maxNetworkMbps": 1000.0,
+    "profiles": [
+      "impulse",
+      "step"
+    ],
+    "recoverySeconds": 1.0,
+    "sampleIntervalSeconds": 0.5,
+    "simulate": false,
+    "targets": [
+      "cpu"
+    ]
+  },
+  "experimentId": "system-id-mac-localdomain-20260607t065540z",
+  "features": [
+    {
+      "areaDeltaPctSeconds": 0.784621,
+      "baselineMeanPct": 25.072222,
+      "crossCorrelation": -0.5,
+      "gain": 0.0,
+      "outputMetric": "cpu",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 3,
+      "settlingTimeSeconds": null,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0,
+      "baselineMeanPct": 0.0,
+      "crossCorrelation": 0.0,
+      "gain": 0.0,
+      "outputMetric": "gpu",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 3,
+      "settlingTimeSeconds": 1.012414,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.010196,
+      "baselineMeanPct": 92.06,
+      "crossCorrelation": 1.0,
+      "gain": 0.0004,
+      "outputMetric": "ram",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.01,
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": 0.0,
+      "sampleCount": 3,
+      "settlingTimeSeconds": 1.012414,
+      "steadyDeltaPct": 0.01,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0,
+      "baselineMeanPct": 0.0,
+      "crossCorrelation": 0.0,
+      "gain": 0.0,
+      "outputMetric": "network",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 3,
+      "settlingTimeSeconds": 1.012414,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0,
+      "baselineMeanPct": 26.622222,
+      "crossCorrelation": 0.0,
+      "gain": 0.0,
+      "outputMetric": "cpu",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 4,
+      "settlingTimeSeconds": 0.855331,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0,
+      "baselineMeanPct": 0.0,
+      "crossCorrelation": 0.0,
+      "gain": 0.0,
+      "outputMetric": "gpu",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 4,
+      "settlingTimeSeconds": 0.855331,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0209,
+      "baselineMeanPct": 92.06,
+      "crossCorrelation": 1.0,
+      "gain": 0.0004,
+      "outputMetric": "ram",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.01,
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": 0.0,
+      "sampleCount": 4,
+      "settlingTimeSeconds": 0.855331,
+      "steadyDeltaPct": 0.01,
+      "target": "cpu"
+    },
+    {
+      "areaDeltaPctSeconds": 0.0,
+      "baselineMeanPct": 0.0,
+      "crossCorrelation": 0.0,
+      "gain": 0.0,
+      "outputMetric": "network",
+      "overshootPct": 0.0,
+      "peakDeltaPct": 0.0,
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "responseDelaySeconds": null,
+      "riseTimeSeconds": null,
+      "sampleCount": 4,
+      "settlingTimeSeconds": 0.855331,
+      "steadyDeltaPct": 0.0,
+      "target": "cpu"
+    }
+  ],
+  "fingerprint": {
+    "algorithm": "turba.system-id.v1",
+    "entries": [
+      {
+        "key": "cpu:impulse:cpu:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:cpu:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:cpu:area_delta_pct_seconds",
+        "value": 0.784621
+      },
+      {
+        "key": "cpu:impulse:cpu:cross_correlation",
+        "value": -0.5
+      },
+      {
+        "key": "cpu:impulse:gpu:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:gpu:settling_time_seconds",
+        "value": 1.012414
+      },
+      {
+        "key": "cpu:impulse:gpu:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:gpu:area_delta_pct_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:gpu:cross_correlation",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:ram:gain",
+        "value": 0.0004
+      },
+      {
+        "key": "cpu:impulse:ram:rise_time_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:ram:settling_time_seconds",
+        "value": 1.012414
+      },
+      {
+        "key": "cpu:impulse:ram:peak_delta_pct",
+        "value": 0.01
+      },
+      {
+        "key": "cpu:impulse:ram:area_delta_pct_seconds",
+        "value": 0.010196
+      },
+      {
+        "key": "cpu:impulse:ram:cross_correlation",
+        "value": 1.0
+      },
+      {
+        "key": "cpu:impulse:network:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:network:settling_time_seconds",
+        "value": 1.012414
+      },
+      {
+        "key": "cpu:impulse:network:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:network:area_delta_pct_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:impulse:network:cross_correlation",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:cpu:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:cpu:settling_time_seconds",
+        "value": 0.855331
+      },
+      {
+        "key": "cpu:step:cpu:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:cpu:area_delta_pct_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:cpu:cross_correlation",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:gpu:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:gpu:settling_time_seconds",
+        "value": 0.855331
+      },
+      {
+        "key": "cpu:step:gpu:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:gpu:area_delta_pct_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:gpu:cross_correlation",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:ram:gain",
+        "value": 0.0004
+      },
+      {
+        "key": "cpu:step:ram:rise_time_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:ram:settling_time_seconds",
+        "value": 0.855331
+      },
+      {
+        "key": "cpu:step:ram:peak_delta_pct",
+        "value": 0.01
+      },
+      {
+        "key": "cpu:step:ram:area_delta_pct_seconds",
+        "value": 0.0209
+      },
+      {
+        "key": "cpu:step:ram:cross_correlation",
+        "value": 1.0
+      },
+      {
+        "key": "cpu:step:network:gain",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:network:settling_time_seconds",
+        "value": 0.855331
+      },
+      {
+        "key": "cpu:step:network:peak_delta_pct",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:network:area_delta_pct_seconds",
+        "value": 0.0
+      },
+      {
+        "key": "cpu:step:network:cross_correlation",
+        "value": 0.0
+      }
+    ],
+    "entryCount": 41,
+    "hash": "3f29c4013167bca5d004829d388dc1cecddcc1b9031e8ba4d229aec8220c177e"
+  },
+  "generatedAt": "2026-06-07T06:55:47.915010+00:00",
+  "host": {
+    "hostId": "local-cpu-probe",
+    "hostname": "Mac.localdomain",
+    "machine": "arm64",
+    "platform": "macOS-26.5.1-arm64-arm-64bit",
+    "processorCount": 18
+  },
+  "observations": [
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:40.841936+00:00",
+      "inputIntensityPct": 0.0,
+      "metrics": {
+        "cpu": 25.072222222222223,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 143168.53,
+        "networkTxBytesPerSecond": 15658.15,
+        "ram": 92.06
+      },
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "sampleId": "cpu-impulse-1-baseline-0",
+      "stage": "baseline",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:41.868798+00:00",
+      "inputIntensityPct": 25.0,
+      "metrics": {
+        "cpu": 25.072222222222223,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 229620.42,
+        "networkTxBytesPerSecond": 20461.46,
+        "ram": 92.07
+      },
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "sampleId": "cpu-impulse-1-workload-0",
+      "stage": "workload",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:42.881212+00:00",
+      "inputIntensityPct": 0.0,
+      "metrics": {
+        "cpu": 26.62222222222222,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 103856.57,
+        "networkTxBytesPerSecond": 22664.99,
+        "ram": 92.06
+      },
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "sampleId": "cpu-impulse-1-recovery-0",
+      "stage": "recovery",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:43.886407+00:00",
+      "inputIntensityPct": 0.0,
+      "metrics": {
+        "cpu": 26.62222222222222,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 27864.92,
+        "networkTxBytesPerSecond": 1275.02,
+        "ram": 92.06
+      },
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "sampleId": "cpu-step-2-baseline-0",
+      "stage": "baseline",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:44.896869+00:00",
+      "inputIntensityPct": 25.0,
+      "metrics": {
+        "cpu": 26.62222222222222,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 30525.1,
+        "networkTxBytesPerSecond": 1965.86,
+        "ram": 92.07
+      },
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "sampleId": "cpu-step-2-workload-0",
+      "stage": "workload",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 1.157,
+      "eventTs": "2026-06-07T06:55:46.053983+00:00",
+      "inputIntensityPct": 25.0,
+      "metrics": {
+        "cpu": 26.62222222222222,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 39802.95,
+        "networkTxBytesPerSecond": 2210.94,
+        "ram": 92.07
+      },
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "sampleId": "cpu-step-2-workload-1",
+      "stage": "workload",
+      "target": "cpu"
+    },
+    {
+      "elapsedSeconds": 0.0,
+      "eventTs": "2026-06-07T06:55:46.909314+00:00",
+      "inputIntensityPct": 0.0,
+      "metrics": {
+        "cpu": 26.62222222222222,
+        "gpu": 0.0,
+        "gpuPowerWatts": 0.0,
+        "gpuTemperatureC": 0.0,
+        "network": 0.0,
+        "networkRxBytesPerSecond": 33528.04,
+        "networkTxBytesPerSecond": 3058.41,
+        "ram": 92.06
+      },
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "sampleId": "cpu-step-2-recovery-0",
+      "stage": "recovery",
+      "target": "cpu"
+    }
+  ],
+  "phases": [
+    {
+      "durationSeconds": 3.044,
+      "maxInputPct": 25.0,
+      "phaseId": "cpu-impulse-1",
+      "profile": "impulse",
+      "sampleCount": 3,
+      "target": "cpu"
+    },
+    {
+      "durationSeconds": 4.028,
+      "maxInputPct": 25.0,
+      "phaseId": "cpu-step-2",
+      "profile": "step",
+      "sampleCount": 4,
+      "target": "cpu"
+    }
+  ],
+  "researchBasis": [
+    "Spike, step, ramp, and sinusoidal excitation expose different response regimes.",
+    "Small perturbations preserve local linearity; larger stress tests are reserved for controlled maintenance windows.",
+    "Coupling coefficients, lag, rise time, settling time, and recovery area form the comparison fingerprint."
+  ],
+  "schemaVersion": "turba.system_identification.v1"
+}

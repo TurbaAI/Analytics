@@ -78,6 +78,12 @@ selectorMatches.forEach((selector) => {
   "exportEvidencePackButton",
   "liveTelemetryAlerts",
   "liveObservationLog",
+  "sparkPairComparePanel",
+  "sparkPairCompareBadge",
+  "fleetComparisonPanel",
+  "fleetComparisonBadge",
+  "systemCharacterizationPanel",
+  "systemCharacterizationBadge",
   "trendChart",
   "topologyMap"
 ].forEach((id) => {
@@ -112,6 +118,8 @@ assert.ok(app.includes("importOpportunitySamples"));
 assert.ok(app.includes("maybeAutoLoadMachineDemoBundle"));
 assert.ok(app.includes("MACHINE_DEMO_REFRESH_MS"));
 assert.ok(app.includes("MACHINE_DEMO_REFRESH_MS = 1000"));
+assert.ok(app.includes("SPARK_PAIR_CLOCK_REFRESH_MS"));
+assert.ok(app.includes("SPARK_PAIR_CLOCK_REFRESH_MS = 1000"));
 assert.ok(app.includes("LIVE_TELEMETRY_LIMIT = 300"));
 assert.ok(app.includes("renderLiveResources"));
 assert.ok(app.includes("renderLiveResourceHeartbeatBadge"));
@@ -144,6 +152,37 @@ assert.ok(app.includes("networkUtilization"));
 assert.ok(app.includes("Network/GPU"));
 assert.ok(app.includes("Network/CPU"));
 assert.ok(app.includes("liveNetworkDisplay"));
+assert.ok(app.includes("networkLocalAddress"));
+assert.ok(app.includes("networkPeerAddress"));
+assert.ok(app.includes("networkLinkRole"));
+assert.ok(app.includes("ncclRuntimePresent"));
+assert.ok(app.includes("ncclRuntimeDetail"));
+assert.ok(app.includes("nccl-runtime"));
+assert.ok(app.includes("jobSelectionIdentity"));
+assert.ok(app.includes("resolveJobSelectionKey"));
+assert.ok(app.includes("operatorFleetSourceItems"));
+assert.ok(app.includes("buildSparkPairComparison"));
+assert.ok(app.includes("renderSparkPairComparisonPanel"));
+assert.ok(app.includes("sparkPairHostRole"));
+assert.ok(app.includes("sparkPairClockSyncMetric"));
+assert.ok(app.includes("sparkPairClockOffsetMetric"));
+assert.ok(app.includes("SPARK_PAIR_CLOCK_HISTORY_LIMIT"));
+assert.ok(app.includes("recordSparkPairClockSample"));
+assert.ok(app.includes("loadSparkPairClockFeed"));
+assert.ok(app.includes("sparkPairClockFeedUrl"));
+assert.ok(app.includes("build/demo/spark-clock-offset.json"));
+assert.ok(app.includes("sparkPairClockGraphPanel"));
+assert.ok(app.includes("buildSparkPairClockGraph"));
+assert.ok(app.includes("clockPtpActive"));
+assert.ok(app.includes("PTP/chrony/timesync discipline"));
+assert.ok(app.includes("NCCL runtime"));
+assert.ok(app.includes("Ollama tok/s"));
+assert.ok(app.includes("buildFleetComparison"));
+assert.ok(app.includes("renderFleetComparisonPanel"));
+assert.ok(app.includes("fleetMetricSpread"));
+assert.ok(app.includes("assignFleetSignatureDistances"));
+assert.ok(app.includes("FLEET_COMPARISON_HOST_LIMIT"));
+assert.ok(app.includes("SYSTEM_CHARACTERIZATION_HOST_LIMIT"));
 {
   const liveGridStart = app.indexOf("grid.replaceChildren(");
   const liveNetworkIndex = app.indexOf('label: "Network utilization"', liveGridStart);
@@ -166,9 +205,18 @@ assert.ok(app.includes("buildPrincipalResourceMode"));
 assert.ok(app.includes("calculatePrincipalResourceMode"));
 assert.ok(app.includes("telemetryPrincipalModeTrend"));
 assert.ok(app.includes("platformApiBaseUrl"));
+assert.ok(app.includes("isLakehouseDashboardHost"));
+assert.ok(app.includes("192.168.10.30"));
 assert.ok(app.includes("refreshPlatformVirtualSensors"));
 assert.ok(app.includes("platformCovarianceMatrix"));
 assert.ok(app.includes("platformPrincipalMode"));
+assert.ok(app.includes("/v1/virtual-sensors/system-identification"));
+assert.ok(app.includes("platformSystemIdentification"));
+assert.ok(app.includes("SYSTEM_ID_SUBSYSTEMS"));
+assert.ok(app.includes("systemIdentificationSubsystemSummaries"));
+assert.ok(app.includes("Subsystem profile response"));
+assert.ok(app.includes("renderSystemCharacterizationPanel"));
+assert.ok(app.includes("systemCharacterizationProfileChart"));
 assert.ok(app.includes("symmetricEigenDecomposition"));
 assert.ok(app.includes("signedLoading"));
 assert.ok(app.includes("buildEigenSparkline"));
@@ -180,7 +228,14 @@ assert.ok(app.includes("telemetryTrend"));
 assert.ok(app.includes("machineDemoContext"));
 assert.ok(app.includes("isKnownMachineDemoHost"));
 assert.ok(app.includes("192.168.10.20"));
+assert.ok(app.includes("192.168.10.21"));
 assert.ok(app.includes("spark1"));
+assert.ok(app.includes("PI_FLEET_HOSTNAMES"));
+assert.ok(app.includes("buildPiBenchmarkHistograms"));
+assert.ok(app.includes("fleetBenchmarkHistogramNode"));
+assert.ok(app.includes("benchmarkCpuOpsPerSecond"));
+assert.ok(app.includes("benchmarkDiskReadMiBps"));
+assert.ok(app.includes("DGX interconnect"));
 assert.ok(app.includes("100.96.89.98"));
 assert.ok(app.includes("dgx-pat"));
 assert.ok(app.includes("machineDemoHeadline"));
@@ -201,11 +256,14 @@ assert.ok(app.includes("operatorLaunchpadSignature"));
 assert.ok(app.includes("document.execCommand(\"copy\")"));
 assert.ok(html.includes("kafkaStreamPanel"));
 assert.ok(html.includes("fleetTiles"));
+assert.ok(html.includes("sparkPairComparePanel"));
+assert.ok(html.includes("fleetComparisonPanel"));
+assert.ok(html.includes("systemCharacterizationPanel"));
 assert.ok(html.includes("liveResourceGrid"));
 assert.ok(html.includes("liveTelemetryAlerts"));
 assert.ok(html.includes("liveObservationLog"));
 assert.ok(html.includes("liveTelemetryGraphs"));
-assert.ok(html.includes("app.js?v=covariance-eigen-trend-20260603"));
+assert.ok(html.includes("app.js?v=spark-clock-fast-20260608"));
 assert.ok(app.includes("renderLiveObservationLog"));
 assert.ok(app.includes("liveObservationActions"));
 assert.ok(app.includes("liveSignificantSampleObservations"));
@@ -217,6 +275,18 @@ assert.ok(app.includes("Observation log copied"));
 assert.ok(app.includes("Waiting for live counters"));
 assert.ok(css.includes("live-observation-action"));
 assert.ok(css.includes("live-covariance-grid"));
+assert.ok(css.includes("spark-pair-compare-panel"));
+assert.ok(css.includes("spark-pair-grid"));
+assert.ok(css.includes("spark-pair-clock-panel"));
+assert.ok(css.includes("spark-pair-clock-line-leftOffsetNs"));
+assert.ok(css.includes("spark-pair-clock-legend"));
+assert.ok(css.includes("fleet-comparison-panel"));
+assert.ok(css.includes("fleet-comparison-rank-grid"));
+assert.ok(css.includes("fleet-benchmark-histograms"));
+assert.ok(css.includes("fleet-benchmark-bar-row"));
+assert.ok(css.includes("system-characterization-panel"));
+assert.ok(css.includes("system-characterization-bar"));
+assert.ok(css.includes('.fleet-tile[aria-selected="true"]'));
 assert.ok(css.includes("live-covariance-trend-line"));
 assert.ok(css.includes("live-eigen-panel"));
 assert.ok(css.includes("live-eigen-trend-line"));

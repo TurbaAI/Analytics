@@ -81,6 +81,28 @@ The executable platform slice includes:
 
 The static dashboard can optionally read covariance and principal-mode virtual sensors from the platform API by adding `?platformApi=http://127.0.0.1:8080` to the URL. Without that parameter, it keeps using browser-local live telemetry calculations.
 
+## DGX Spark Inference Stack
+
+The two DGX Spark nodes can also be staged as a local inference service:
+
+- DGX Spark 1: `user@192.168.10.20`, Ray head, OpenAI-compatible API endpoint, primary vLLM or NIM/TRT-LLM server, and Open WebUI.
+- DGX Spark 2: `user@192.168.10.21`, Ray worker and distributed inference worker.
+- Client apps: OpenAI SDK clients, Open WebUI, agents, and RAG apps pointed at `http://192.168.10.20:8355/v1`.
+
+Use `deploy/dgx-spark-inference/` for the host scripts and `scripts/prepare-dgx-spark-inference.js` for SSH-based sync/start orchestration. The default ports are Ray `6379`, Ray dashboard `8265`, Ray client `10001`, model API `8355`, and Open WebUI `3001`; port `8000` stays reserved for this dashboard. The default setup starts an Ollama fallback proxy on `:8355`, so Open WebUI has the local Ollama models immediately while vLLM or NIM/TRT-LLM is being selected.
+
+```sh
+node scripts/prepare-dgx-spark-inference.js --all
+```
+
+The stack intentionally keeps NGC, Hugging Face, and OpenAI-compatible API keys in the host-local `dgx-spark.env` file, not in git. Fill `NIM_IMAGE`/`NGC_API_KEY` for the NVIDIA NIM/TRT-LLM path, or `VLLM_IMAGE`/`MODEL_ID`/`HF_TOKEN` for the vLLM path. See `deploy/dgx-spark-inference/README.md` and validate with:
+
+```sh
+ssh user@192.168.10.20 'cd /home/user/dgx-spark-inference && ./status.sh'
+```
+
+For the experimental dual-Spark 405B path, the repo follows NVIDIA's vLLM playbook defaults for `hugging-quants/Meta-Llama-3.1-405B-Instruct-AWQ-INT4` over the dedicated CX7 subnet `192.168.100.10/24` <-> `192.168.100.11/24`. Use `configure-cx7-link.sh`, `start-vllm-ray-head.sh`, `start-vllm-ray-worker.sh`, `download-vllm-405b-model.sh`, and `start-vllm-405b-openai.sh`. NCCL is carried by the containerized vLLM/Ray path with `NCCL_SOCKET_IFNAME=enp1s0f1np1`; validate it with `validate-vllm-nccl.sh` or `node scripts/prepare-dgx-spark-inference.js --validate-nccl`. The 405B settings are intentionally memory constrained and intended for testing, not production traffic.
+
 Current SPARK1 status:
 
 - Target host: `user@192.168.10.20`
@@ -516,7 +538,11 @@ Focused test entry points:
 - `scripts/build-publish-ingestion-image.js`: provider ingestion image build/publish gate using `ops/pilot-provider.config.example.json`
 - `scripts/generate-provider-pilot-config.js`: generates a non-placeholder provider pilot config from approved registry, IAM, secret-store, object-store, and tenant values
 - `scripts/collect-local-machine-bundle.js`: samples the current Linux/macOS/BSD host, NVIDIA GPU through `nvidia-smi` when present, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, and network state into a source bundle; network fields include interface counters, link speed where available, byte-rate deltas, drops/errors, and utilization percent only when link speed is known; when Ollama has an already-loaded model in `/api/ps`, it records a tiny generation probe for tokens per second and time to first token
-- `scripts/collect-machine-fleet-bundle.js`: combines strict live observations from the demo host plus approved SSH machines such as `user@192.168.10.20` into one live machine bundle without synthesizing provider/source overlays
+- `scripts/collect-machine-fleet-bundle.js`: combines strict live observations from the demo host plus approved SSH machines such as `user@192.168.10.20` and `user@192.168.10.21` into one live machine bundle without synthesizing provider/source overlays; unreachable remotes are recorded as explicit SSH reachability observations instead of dropping the whole bundle
+- `scripts/push-live-machine-telemetry.js`: runs on SPARK hosts, collects strict local live-machine telemetry, and pushes it to the NUC14E collector gateway as `/v1/source-bundles`
+- `scripts/run-live-lakehouse-fleet.js`: runs on NUC14E, keeps the combined SPARK1/SPARK2 `build/demo/live-machine-bundle.json` fresh for the static dashboard, and can also write/materialize the Parquet lakehouse path
+- `services/system-id-worker/system_id_worker`: Python worker that applies spike/step/ramp/sinusoidal identification probes, monitors CPU/GPU/RAM/network through the live-machine collector, writes a comparison-ready fingerprint report, emits `system_identification` telemetry batches, and optionally writes them to the Parquet lakehouse
+- `scripts/run-system-characterization.js`: SSH automation runner for SPARK1/SPARK2 system characterization; it runs the worker, posts telemetry batches to the NUC14E collector, and materializes the lakehouse virtual sensor tables
 - `scripts/check-spark1-kafka.js`: applies the SPARK1 single-node Kafka broker, waits for readiness, and runs a produce/consume smoke Job
 - `scripts/prepare-demo.js`: generates demo overlays, provider pilot bundle, readiness reports, managed manifests, and hardware/scheduler demo notes under `build/demo/`
 - `scripts/validate-provider-readiness.js`: validates pilot config, IAM/secret-store shape, storage targets, and source-contract coverage
@@ -560,11 +586,191 @@ node scripts/prepare-demo.js --out-dir build/demo
 
 This writes `build/demo/demo-readiness.md`, generated source overlays, `build/demo/provider-pilot-bundle.json`, `build/demo/live-machine-bundle.json`, strict sandbox readiness output, rendered managed Kubernetes manifests, and the provider image dry-run report. Add `--require-screenshots` when Playwright is available and the visual artifacts must be verified for a customer-facing demo.
 
-When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.101` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, and `100.96.89.98` for the standalone `DGX-pat` view.
+When the demo is served from a known live-machine host, the app automatically fetches `build/demo/live-machine-bundle.json` and refreshes it every 1 second while the tab is visible. Today that includes `192.168.10.30` for the NUC14E/SPARK1 lab view, `192.168.10.20` for a standalone `SPARK1` view, `192.168.10.21` for the additional SSH-monitored host, `pi1` through `pi12` for the Raspberry Pi fleet, and `100.96.89.98` for the standalone `DGX-pat` view.
 
-The live resources panel surfaces CPU, RAM, network utilization, GPU utilization, GPU power, GPU memory, Docker, disk, Ollama generation telemetry, and signal freshness from the strict machine bundle. Network utilization appears as NIC/link percent when link speed is known, and falls back to RX/TX throughput when capacity is unavailable. The same live samples drive in-browser telemetry graphs for roughly the latest five minutes of sample history.
+NUC14E lakehouse mode uses `user@192.168.10.30` as the central data-lake host. Its `/dev/nvme1n1p2` partition is already mounted as `/`, so the local lake root is `/home/user/turbalance-lakehouse` on that device. The static dashboard stays on `:8000`, the product API serves lakehouse virtual sensors on `:8080`, and the collector gateway accepts SPARK source bundles on `:8801`. When the dashboard is opened from `192.168.10.30`, it automatically checks `http://192.168.10.30:8080` for covariance and principal-resource-mode virtual sensors while still reading the live fleet bundle from `build/demo/live-machine-bundle.json`.
+
+Central NUC14E commands:
+
+```sh
+cd /home/user/turbalance-analytics
+mkdir -p /home/user/turbalance-lakehouse build/demo
+python3 -m venv --system-site-packages .venv-lakehouse
+.venv-lakehouse/bin/python -m pip install duckdb
+
+sudo ufw allow from 192.168.10.0/24 to any port 8080 proto tcp
+sudo ufw allow from 192.168.10.0/24 to any port 8801 proto tcp
+
+(cd /home/user && nohup env PYTHONPATH=/home/user/turbalance-analytics/services/api-server:/home/user/turbalance-analytics/services/duckdb-query-service:/home/user/turbalance-analytics/services/raw-writer:/home/user/turbalance-analytics/services/platform_common:/home/user/turbalance-analytics/services/alert-engine \
+  TURBALANCE_LAKE_ROOT=/home/user/turbalance-lakehouse \
+  /home/user/turbalance-analytics/.venv-lakehouse/bin/python -m uvicorn api_server.app:app --host 0.0.0.0 --port 8080 \
+  > /home/user/turbalance-analytics/build/lakehouse-api.log 2>&1 &)
+
+(cd /home/user && nohup env PYTHONPATH=/home/user/turbalance-analytics/services/collector-gateway:/home/user/turbalance-analytics/services/raw-writer:/home/user/turbalance-analytics/services/platform_common \
+  TURBALANCE_LAKE_ROOT=/home/user/turbalance-lakehouse \
+  TURBALANCE_COLLECTOR_REPLAY_DB=/home/user/turbalance-analytics/build/collector/replay.sqlite \
+  TURBALANCE_COLLECTOR_AUDIT_LOG=/home/user/turbalance-analytics/build/collector/audit.jsonl \
+  TURBALANCE_COLLECTOR_SPOOL_DIR=/home/user/turbalance-analytics/build/collector/spool \
+  /home/user/turbalance-analytics/.venv-lakehouse/bin/python -m uvicorn collector_gateway.app:app --host 0.0.0.0 --port 8801 \
+  > /home/user/turbalance-analytics/build/collector-gateway.log 2>&1 &)
+
+nohup node scripts/run-live-lakehouse-fleet.js \
+  --out build/demo/live-machine-bundle.json \
+  --lake-root /home/user/turbalance-lakehouse \
+  --host-url http://192.168.10.30:8000 \
+  --remote-root /home/user/Analytics \
+  --include-local \
+  --remote user@192.168.10.20 \
+  --remote user@192.168.10.21 \
+  --skip-lakehouse \
+  --loop-ms 1000 \
+  > build/live-lakehouse-fleet.log 2>&1 &
+
+# Raspberry Pi fleet mode: collects pi@pi1 through pi@pi12, keeps
+# cached periodic benchmark suites fresh, and feeds the Fleet Comparison
+# dashboard card with Pi benchmark histograms.
+nohup node scripts/run-live-lakehouse-fleet.js \
+  --out build/demo/live-machine-bundle.json \
+  --lake-root /home/user/turbalance-lakehouse \
+  --host-url http://192.168.10.30:8000 \
+  --include-local \
+  --pi-fleet \
+  --pi-benchmarks \
+  --skip-lakehouse \
+  --loop-ms 1000 \
+  > build/live-pi-fleet.log 2>&1 &
+
+# Fast SPARK-only PTP clock feed for the SPARK Pair Compare rolling graph.
+nohup node scripts/run-spark-clock-feed.js \
+  --out build/demo/spark-clock-offset.json \
+  --remote user@192.168.10.20 \
+  --remote user@192.168.10.21 \
+  --loop-ms 1000 \
+  > build/spark-clock-feed.log 2>&1 &
+
+nohup node scripts/push-live-machine-telemetry.js \
+  --collector-url http://127.0.0.1:8801/v1/source-bundles \
+  --tenant-id dgx-lab \
+  --host-url http://192.168.10.30:8000 \
+  --loop-ms 1000 \
+  > build/demo/live-machine-push.log 2>&1 &
+```
+
+SPARK push commands:
+
+```sh
+cd /home/user/Analytics
+nohup node scripts/push-live-machine-telemetry.js \
+  --collector-url http://192.168.10.30:8801/v1/source-bundles \
+  --tenant-id dgx-lab \
+  --host-url http://192.168.10.30:8000 \
+  --loop-ms 1000 \
+  > build/demo/live-machine-push.log 2>&1 &
+```
+
+The live resources panel surfaces CPU, RAM, network utilization, GPU utilization, GPU power, GPU memory, Docker, disk, Ollama generation telemetry, CPU temperature when exposed by the host, and signal freshness from the strict machine bundle. Network utilization appears as NIC/link percent when link speed is known, and falls back to RX/TX throughput when capacity is unavailable. On the DGX Spark pair, the collector prefers the machine-to-machine interconnect (`enp1s0f1np1`, `192.168.100.10 <-> 192.168.100.11`) before the management LAN, so the dashboard network tile reflects traffic between the two DGX hosts. One-shot fleet collectors persist the last NIC counter in `build/demo/live-network-rate-cache.json`, which keeps RX/TX rate and utilization calculations live across SSH sample processes. The same live samples drive in-browser telemetry graphs for roughly the latest five minutes of sample history.
+
+The Live Operator Cockpit includes a Fleet Comparison card for multi-host groups such as `pi@pi1` through `pi@pi12`. It ranks hosts by live health, capacity, network posture, and system-identification signature distance; it also reports metric spread with coefficient-of-variation and robust median/MAD outlier counts so differences between otherwise similar Pi nodes stand out quickly.
+
+The SPARK1/SPARK2 comparison is clock-aware. Each live-machine sample carries `timedatectl` synchronization state, systemd-timesyncd offset/jitter, chrony offsets when `chronyc` is installed, and linuxptp state when `ptp4l`/`phc2sys` are present. The dashboard shows clock discipline, host sample timestamp skew, and a rolling clock-offset graph for SPARK1, SPARK2, their delta, and sample skew. On the NUC14E dashboard, `scripts/run-spark-clock-feed.js` also keeps `build/demo/spark-clock-offset.json` fresh as a lightweight SPARK-only PTP feed, so the clock graph and clock rows update every second even when the full NUC/SPARK/Pi fleet bundle takes longer to refresh. This makes PTP over the dedicated DGX interconnect useful without fabricating precision: when linuxptp is not running, the comparison still reports the current NTP/timesync source and marks the pair as synchronized but not PTP-disciplined.
+
+When host `sudo` is not available, the SPARK nodes can still run linuxptp through Docker on the hardware-timestamped CX7 interface:
+
+```sh
+# SPARK1
+deploy/dgx-spark-inference/configure-ptp.sh master
+
+# SPARK2
+deploy/dgx-spark-inference/configure-ptp.sh slave
+```
+
+The script builds `turbalance/linuxptp:24.04`, starts the `turbalance-linuxptp` container with host networking and `/dev/ptp*` access, runs `ptp4l` and `phc2sys`, and leaves the collector able to query `pmc` from inside the container.
 
 Relationship Watch computes short-window trend slopes and cross-metric relationships. It includes `Network/GPU` and `Network/CPU` alongside CPU/GPU, Power/GPU, and RAM/CPU, and it raises relationship alerts for conditions such as CPU rising while GPU is flat, high or rising network utilization while GPU is flat/falling, memory/disk pressure drift, thermal drift, lagging GPU counters, and power/utilization divergence. The idle-accelerator alert is gated on host-side work so an idle machine does not create a false bottleneck.
+
+System identification:
+
+The system-ID worker measures a machine as a dynamic system. For each selected target (`cpu`, `gpu`, `ram`, `network`, `disk`) it runs baseline, workload, and recovery stages using spike/impulse, step, ramp, and sinusoidal input profiles while all live-machine telemetry remains monitored. The worker extracts gain, response delay, rise time, settling time, peak delta, recovery area, overshoot, and cross-correlation for CPU, GPU, GPU memory, RAM, network, disk, GPU power, and GPU temperature outputs. Those features become a stable fingerprint that can be compared across SPARK1, SPARK2, the NUC, the Raspberry Pi fleet, or future hosts.
+
+Use simulation mode first to validate the pipeline without stressing hardware:
+
+```sh
+PYTHONPATH=services/system-id-worker:services/platform_common:services/raw-writer \
+python3 -m system_id_worker run \
+  --simulate \
+  --targets cpu,gpu,ram,network,disk \
+  --profiles impulse,step,ramp,sine \
+  --out build/system-identification/sim-report.json \
+  --batch-out build/system-identification/sim-batch.json \
+  --lake-root build/system-identification/lake \
+  --tenant-id dgx-lab \
+  --host-id sim-host
+```
+
+Run a conservative live CPU probe on a host:
+
+```sh
+PYTHONPATH=services/system-id-worker:services/platform_common:services/raw-writer \
+python3 -m system_id_worker run \
+  --quick \
+  --targets cpu \
+  --profiles impulse,step,ramp \
+  --intensity-pct 35 \
+  --max-cpu-percent 35 \
+  --out build/system-identification/cpu-report.json \
+  --batch-out build/system-identification/cpu-batch.json \
+  --lake-root /home/user/turbalance-lakehouse \
+  --tenant-id dgx-lab \
+  --host-id "$(hostname)"
+```
+
+GPU, RAM, network, and disk loads are opt-in. GPU load uses `--enable-gpu-load --gpu-command '<command with {seconds} and {intensity}>'`, so operators can choose DCGM diagnostics, a CUDA spin binary, or a model-serving canary. RAM load uses bounded Python allocation with `--enable-ram-load --ram-max-mb <mib>`. Network load uses `iperf3` only when `--enable-network-load --network-peer <host>` is supplied. Disk load uses `--enable-disk-load --disk-command '<command with {seconds} and {intensity}>'` so operators can provide an environment-appropriate fio/dd wrapper. Compare two reports with:
+
+```sh
+PYTHONPATH=services/system-id-worker \
+python3 -m system_id_worker compare \
+  --baseline build/system-identification/spark1-report.json \
+  --candidate build/system-identification/spark2-report.json \
+  --out build/system-identification/spark1-vs-spark2.json
+```
+
+Lakehouse writes land in `raw_system_identification`; `transform_runner` materializes `vs_system_identification_signature`; the product API exposes `/v1/virtual-sensors/system-identification`.
+
+Automate SPARK1/SPARK2 characterization from NUC14E with the conservative multi-subsystem profile:
+
+```sh
+cd /home/user/turbalance-analytics
+node scripts/run-system-characterization.js --nuc local
+```
+
+Run it continuously every 30 minutes:
+
+```sh
+cd /home/user/turbalance-analytics
+nohup node scripts/run-system-characterization.js \
+  --nuc local \
+  --loop-minutes 30 \
+  --out build/system-identification/automation-run.json \
+  > build/system-identification/automation.log 2>&1 &
+```
+
+The default automation targets `user@192.168.10.20:SPARK1` and `user@192.168.10.21:SPARK2`, characterizes CPU/GPU/RAM/network/disk targets with active CPU load and passive observation for opt-in load classes, writes batches to `http://192.168.10.30:8801/v1/telemetry/batches`, and refreshes `/home/user/turbalance-lakehouse`. The Live Operator Cockpit reads `/v1/virtual-sensors/system-identification` and renders the latest host fingerprints as subsystem cards, profile bars, and rolling feature sparklines.
+
+Automate the 12-node Raspberry Pi fleet with the same conservative profile:
+
+```sh
+cd /home/user/turbalance-analytics
+nohup node scripts/run-system-characterization.js \
+  --nuc local \
+  --pi-fleet \
+  --targets cpu,ram,network,disk \
+  --profiles impulse,step,ramp \
+  --loop-minutes 30 \
+  --out build/system-identification/pi-automation-run.json \
+  > build/system-identification/pi-automation.log 2>&1 &
+```
+
+`--pi-fleet` expands to `pi@pi1:PI1` through `pi@pi12:PI12` and uses `/home/pi/Analytics` as the remote checkout path for those hosts. Use `--include-spark-hosts` when the same run should include SPARK1/SPARK2 as well.
 
 The Observation Log records interpreted events rather than raw one-second sample noise. It keeps active alerts, threshold crossings, material resource deltas, GPU counter loss, and material network throughput changes; steady CPU/RAM/Disk/GPU/Network samples are suppressed. The log has `Copy` and `Clear` controls: copy exports the visible interpreted entries as plain text, and clear hides current entries until a newer meaningful event arrives.
 
@@ -581,6 +787,8 @@ mkdir -p build/demo
 nohup node scripts/collect-local-machine-bundle.js \
   --out build/demo/live-machine-bundle.json \
   --host-url http://192.168.10.20:8000 \
+  --dgx-interconnect-interface enp1s0f1np1 \
+  --dgx-interconnect-subnet-prefix 192.168.100. \
   --loop-ms 1000 \
   --fast-refresh 1 \
   > build/demo/live-machine-collector.log 2>&1 &

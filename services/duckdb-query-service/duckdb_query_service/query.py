@@ -19,6 +19,7 @@ from platform_common import (  # noqa: E402
     noisy_neighbor_rows,
     principal_resource_mode,
     resource_samples_from_metric_rows,
+    system_identification_signature_rows,
 )
 from raw_writer import LakeStorage  # noqa: E402
 
@@ -93,6 +94,9 @@ class LakeQuery:
 
     def alert_candidates(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         return alert_candidate_rows(self.resource_pressure(tenant_id=tenant_id, limit=limit))
+
+    def system_identification(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        return system_identification_signature_rows(self.read_table("raw_system_identification", tenant_id=tenant_id, limit=limit))
 
     def _read_table_pyarrow(self, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []

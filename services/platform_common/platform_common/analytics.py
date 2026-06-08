@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import json
 from collections import defaultdict
 from typing import Any
 
@@ -170,6 +171,47 @@ def network_gpu_coupling_rows(samples: list[dict[str, Any]]) -> list[dict[str, A
     return rows
 
 
+def system_identification_signature_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    signature_rows = []
+    for row in rows:
+        if str(row.get("sensor_type") or "") != "system_identification":
+            continue
+        labels = _labels(row.get("labels_json"))
+        if labels.get("kind") != "feature":
+            continue
+        metric_name = str(row.get("metric_name") or "")
+        if not metric_name.startswith("system_id."):
+            continue
+        value = _number(row.get("metric_value"))
+        if value is None:
+            continue
+        signature_rows.append(
+            {
+                "host_id": row.get("host_id") or "",
+                "event_ts": str(row.get("event_ts") or ""),
+                "run_id": row.get("run_id") or labels.get("experiment_id", ""),
+                "experiment_id": labels.get("experiment_id", ""),
+                "phase_id": labels.get("phase_id", ""),
+                "target": labels.get("target", ""),
+                "profile": labels.get("profile", ""),
+                "output_metric": labels.get("output_metric", ""),
+                "feature": metric_name.removeprefix("system_id."),
+                "value": value,
+            }
+        )
+    return sorted(
+        signature_rows,
+        key=lambda item: (
+            item["host_id"],
+            item["experiment_id"],
+            item["target"],
+            item["profile"],
+            item["output_metric"],
+            item["feature"],
+        ),
+    )
+
+
 def noisy_neighbor_rows(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for sample in samples:
@@ -274,9 +316,9 @@ def _map_metric(name: str, value: float) -> tuple[str, float] | None:
         return ("gpu", _ratio_or_percent(value))
     if "network_utilization" in lowered or "network.utilizationpct" in lowered:
         return ("network", _ratio_or_percent(value))
-    if "cpu_prep" in lowered or "cputhrottlepct" in lowered or "offcputimepct" in lowered:
+    if "cpu_usage" in lowered or "cpu_prep" in lowered or "cputhrottlepct" in lowered or "offcputimepct" in lowered:
         return ("cpu", _ratio_or_percent(value))
-    if "memory_used" in lowered or "ram_usage" in lowered:
+    if "memory_used" in lowered or "linux_uma_memory_used" in lowered or "ram_usage" in lowered:
         return ("ram", _ratio_or_percent(value))
     return None
 
@@ -401,3 +443,17 @@ def _samples_by_host(samples: list[dict[str, Any]]) -> dict[str, list[dict[str, 
     for sample in samples:
         grouped[str(sample.get("host_id") or "")].append(sample)
     return grouped
+
+
+def _labels(value: Any) -> dict[str, str]:
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return {str(key): str(item) for key, item in value.items()}
+    try:
+        parsed = json.loads(str(value))
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(key): str(item) for key, item in parsed.items()}

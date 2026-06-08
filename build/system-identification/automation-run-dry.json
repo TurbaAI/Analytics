@@ -1,0 +1,65 @@
+{
+  "schemaVersion": "turba.system_characterization_automation.v1",
+  "generatedAt": "2026-06-07T07:31:01.490Z",
+  "runId": "20260607t073101z",
+  "mode": "quick",
+  "dryRun": true,
+  "collectorUrl": "http://192.168.10.101:8801/v1/telemetry/batches",
+  "tenantId": "dgx-lab",
+  "targets": [
+    "cpu"
+  ],
+  "profiles": [
+    "impulse",
+    "step",
+    "ramp"
+  ],
+  "hosts": [
+    {
+      "ssh": "user@192.168.10.20",
+      "hostId": "SPARK1",
+      "networkPeer": "192.168.100.11"
+    },
+    {
+      "ssh": "user@192.168.10.21",
+      "hostId": "SPARK2",
+      "networkPeer": "192.168.100.10"
+    }
+  ],
+  "steps": [
+    {
+      "step": "characterize-and-post",
+      "hostId": "SPARK1",
+      "target": "user@192.168.10.20",
+      "ok": true,
+      "status": 0,
+      "dryRun": true,
+      "command": "set -euo pipefail && cd '/home/user/Analytics' && mkdir -p build/system-identification && PYTHONPATH=services/system-id-worker:services/platform_common:services/raw-writer python3 -m system_id_worker 'run' '--quick' '--targets' 'cpu' '--profiles' 'impulse,step,ramp' '--intensity-pct' '35' '--max-cpu-percent' '35' '--tenant-id' 'dgx-lab' '--host-id' 'SPARK1' '--agent-id' 'system-id-automation' '--host-url' 'http://192.168.10.101:8000' '--out' 'build/system-identification/spark1-20260607t073101z-report.json' '--batch-out' 'build/system-identification/spark1-20260607t073101z-batch.json' && curl -sS -X POST 'http://192.168.10.101:8801/v1/telemetry/batches' -H 'Content-Type: application/json' --data-binary @'build/system-identification/spark1-20260607t073101z-batch.json'",
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "step": "characterize-and-post",
+      "hostId": "SPARK2",
+      "target": "user@192.168.10.21",
+      "ok": true,
+      "status": 0,
+      "dryRun": true,
+      "command": "set -euo pipefail && cd '/home/user/Analytics' && mkdir -p build/system-identification && PYTHONPATH=services/system-id-worker:services/platform_common:services/raw-writer python3 -m system_id_worker 'run' '--quick' '--targets' 'cpu' '--profiles' 'impulse,step,ramp' '--intensity-pct' '35' '--max-cpu-percent' '35' '--tenant-id' 'dgx-lab' '--host-id' 'SPARK2' '--agent-id' 'system-id-automation' '--host-url' 'http://192.168.10.101:8000' '--out' 'build/system-identification/spark2-20260607t073101z-report.json' '--batch-out' 'build/system-identification/spark2-20260607t073101z-batch.json' && curl -sS -X POST 'http://192.168.10.101:8801/v1/telemetry/batches' -H 'Content-Type: application/json' --data-binary @'build/system-identification/spark2-20260607t073101z-batch.json'",
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "step": "materialize-transforms",
+      "hostId": "NUC14E",
+      "target": "local",
+      "ok": true,
+      "status": 0,
+      "dryRun": true,
+      "command": "set -euo pipefail && cd '/home/user/turbalance-analytics' && PYTHONPATH=services/transform-runner:services/platform_common:services/raw-writer:services/duckdb-query-service .venv-lakehouse/bin/python -m transform_runner --lake-root '/home/user/turbalance-lakehouse' --tenant-id 'dgx-lab'",
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "status": "ok"
+}

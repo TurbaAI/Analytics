@@ -4,7 +4,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 
 ## Build Readiness
 
-1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000 --remote-machine user@192.168.10.20` on the demo machine.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.30:8000 --remote-machine user@192.168.10.20 --remote-machine user@192.168.10.21` on the demo machine.
 2. Run `node tests/run-all.js`.
 3. Run `node scripts/validate-source-bundle.js --require-source-export`.
 4. Run `node scripts/run-screenshot-qa.js` in an environment with Playwright when screenshots must be verified.
@@ -38,9 +38,10 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 2. Regenerate `build/turbalance-analytics-desktop.png` and `build/turbalance-analytics-mobile.png` after layout changes.
 3. Confirm no text overlap in provider lens, provider portfolio tables, Grafana Handoff links, Scheduler Simulator cards, Opportunity Engine rows, trend metrics, and mobile controls.
 4. Confirm eBPF-enriched imports do not create misleading GPU claims; host evidence should only affect network wait, network utilization, input pipeline, contention, latency tail, and noise signals.
-5. For `192.168.10.101`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with NUC14E and SPARK1 rows; use `?demo=sample` only when intentionally showing the canned provider fixture.
+5. For `192.168.10.30`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with NUC14E and SPARK1 rows; use `?demo=sample` only when intentionally showing the canned provider fixture.
 6. For `192.168.10.20`, confirm `turbalance-live-machine-collector.service` is active, the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `SPARK1` row, and NVIDIA telemetry availability is reported exactly as observed.
-7. For `100.96.89.98`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `DGX-pat` row and reports NVIDIA telemetry availability exactly as observed.
+7. For `192.168.10.21`, confirm the fleet bundle includes either live telemetry from `user@192.168.10.21` or an explicit SSH unreachable observation; do not present missing SSH access as live resource telemetry.
+8. For `100.96.89.98`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `DGX-pat` row and reports NVIDIA telemetry availability exactly as observed.
 
 ## Talk Track Readiness
 

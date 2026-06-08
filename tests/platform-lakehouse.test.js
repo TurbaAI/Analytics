@@ -34,6 +34,49 @@ function run(args, options = {}) {
   return result.stdout.trim();
 }
 
+function liveMachineRun(id, hostname, localAddress, peerAddress, cpuUsagePct, gpuUtilizationPct, memoryUsedPct, networkUtilizationPct) {
+  return {
+    id,
+    name: `${hostname} live telemetry`,
+    refs: {},
+    status: "Live host observation",
+    allocation: { durationHours: 0, gpus: 1, allocatedGpuHours: 0, gpuModel: "NVIDIA GB10" },
+    utilization: { gpuUtil: gpuUtilizationPct, usefulCompute: gpuUtilizationPct, smOccupancy: 0, tensorCoreUtil: 0 },
+    communication: { ncclTime: 0, networkWait: 0, networkUtilization: networkUtilizationPct, allToAllTime: 0, crossRackTraffic: 0, crossPodTraffic: 0 },
+    inputPipeline: { dataloaderStall: 0, storageWait: 0, cpuPrep: cpuUsagePct },
+    memory: { hbmCapacity: 0, hbmBandwidth: 0, memoryFragmentation: 0, kvCachePressure: 0 },
+    scheduler: { placementQuality: 100, idleGpus: 0, partialNodes: 0, queueWaitMinutes: 0, gpusPerNode: 1 },
+    reliability: { noiseEvents: 0, contentionPct: 0, stepRegularity: 100, latencyTail: 0 },
+    configuration: { precisionLoss: 0, batchInefficiency: 0 },
+    work: { tokensM: 0, steps: 0, inferenceRequestsM: 0 },
+    baseline: { gpuEfficiency: 0, queueWaitMinutes: 0, ncclTime: 0 },
+    placement: { nodes: [hostname], partialNodes: [] },
+    importedSources: ["local-machine"],
+    sourceContext: {
+      hostname,
+      generatedAt: id.includes("spark2") ? "2026-06-06T20:00:02.000Z" : "2026-06-06T20:00:01.000Z",
+      cpuUsagePct,
+      memoryUsedPct,
+      linuxUmaMemoryUsedPct: memoryUsedPct,
+      diskUsedPct: 29,
+      networkInterface: "enp1s0f1np1",
+      networkLocalAddress: localAddress,
+      networkPeerAddress: peerAddress,
+      networkLinkRole: "DGX interconnect",
+      networkUtilizationPct,
+      networkRxBytesPerSecond: 2400,
+      networkTxBytesPerSecond: 1800,
+      gpuName: "NVIDIA GB10",
+      gpuPresent: true,
+      gpuUtilizationPct,
+      gpuMemoryUsedPct: 8,
+      gpuPowerWatts: 42,
+      gpuTemperatureC: 61,
+      dockerContainers: [{ name: "ray", cpuPct: 12 }]
+    }
+  };
+}
+
 run([
   "-m",
   "py_compile",
@@ -89,6 +132,45 @@ assert.equal(rawResult.status, "written");
 assert.equal(rawResult.fileCount, 4);
 assert.ok(rawResult.rowCount > 0);
 
+const liveMachineBundlePath = path.join(temp, "live-machine-bundle.json");
+fs.writeFileSync(liveMachineBundlePath, JSON.stringify({
+  metadata: {
+    generatedAt: "2026-06-06T20:00:03.000Z",
+    source: "collect-machine-fleet-bundle.js",
+    observedHosts: ["SPARK1", "SPARK2"]
+  },
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    entities: {},
+    sourceAdapters: ["local-machine"],
+    runs: [
+      liveMachineRun("machine-spark1-20260606t200001z", "SPARK1", "192.168.100.10", "192.168.100.11", 32, 18, 71, 4),
+      liveMachineRun("machine-spark2-20260606t200002z", "SPARK2", "192.168.100.11", "192.168.100.10", 48, 42, 68, 9)
+    ]
+  },
+  sources: {}
+}, null, 2));
+
+const liveRawResult = JSON.parse(run([
+  "-m",
+  "raw_writer",
+  "--input",
+  liveMachineBundlePath,
+  "--lake-root",
+  lakeRoot,
+  "--source-bundle",
+  "--tenant-id",
+  "tenant-a",
+  "--host-id",
+  "dgx-spark-fleet",
+  "--agent-id",
+  "live-machine-push"
+]));
+
+assert.equal(liveRawResult.status, "written");
+assert.ok(liveRawResult.rowCount >= 12);
+assert.ok(liveRawResult.files.some((file) => file.table_name === "raw_source_bundle_metric"));
+
 const transformResult = JSON.parse(run([
   "-m",
   "transform_runner",
@@ -116,6 +198,7 @@ print(json.dumps({
   "tables": lake.list_tables(),
   "metricRows": len(lake.metric_rows(tenant_id="tenant-a")),
   "resourceRows": len(lake.resource_pressure(tenant_id="tenant-a")),
+  "resourceHosts": sorted({row["host_id"] for row in lake.resource_pressure(tenant_id="tenant-a")}),
   "covarianceSampleCount": lake.covariance(tenant_id="tenant-a")["sampleCount"],
   "networkCouplingRows": len(lake.network_gpu_coupling(tenant_id="tenant-a")),
   "alertCandidateRows": len(lake.alert_candidates(tenant_id="tenant-a")),
@@ -125,8 +208,10 @@ print(json.dumps({
 ]));
 
 assert.ok(queryResult.tables.includes("raw_source_bundle_metric"));
-assert.equal(queryResult.metricRows, rawResult.rowCount);
+assert.ok(queryResult.metricRows >= rawResult.rowCount + liveRawResult.rowCount);
 assert.ok(queryResult.resourceRows >= 1);
+assert.ok(queryResult.resourceHosts.includes("SPARK1"));
+assert.ok(queryResult.resourceHosts.includes("SPARK2"));
 assert.ok(queryResult.covarianceSampleCount >= 1);
 assert.ok(queryResult.networkCouplingRows >= 1);
 assert.ok(queryResult.alertCandidateRows >= 0);

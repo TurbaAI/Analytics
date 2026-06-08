@@ -19,6 +19,7 @@ RAW_TABLE_BY_SENSOR = {
     "process_sample": "raw_process_sample",
     "collector_audit": "raw_collector_audit",
     "source_bundle_metric": "raw_source_bundle_metric",
+    "system_identification": "raw_system_identification",
 }
 
 
@@ -123,13 +124,14 @@ def flatten_metric_rows(payload: dict[str, Any] | TelemetryBatch) -> list[dict[s
     for sample in batch.samples:
         table_name = RAW_TABLE_BY_SENSOR.get(sample.sensor_type, "raw_metric_sample")
         sample_labels = _clean_label_map(sample.labels)
+        row_host_id = sample_labels.get("host_id") or batch.host_id
         for metric in sample.metrics:
             labels = {**sample_labels, **_clean_label_map(metric.labels)}
             rows.append(
                 {
                     "table_name": table_name,
                     "tenant_id": batch.tenant_id,
-                    "host_id": batch.host_id,
+                    "host_id": row_host_id,
                     "agent_id": batch.agent_id,
                     "sensor_type": sample.sensor_type,
                     "source": sample.source,
@@ -242,6 +244,8 @@ def source_bundle_to_batch(
                 )
             )
 
+    samples.extend(_live_machine_samples(bundle, default_event_ts=event_time))
+
     if not samples:
         raise ValueError("source bundle did not contain supported telemetry sources")
 
@@ -253,6 +257,103 @@ def source_bundle_to_batch(
         event_ts=event_time,
         samples=samples,
     )
+
+
+def _live_machine_samples(bundle: dict[str, Any], *, default_event_ts: datetime) -> list[TelemetrySample]:
+    runs = bundle.get("ingestion", {}).get("runs", []) if isinstance(bundle, dict) else []
+    samples: list[TelemetrySample] = []
+    for run in runs or []:
+        if not isinstance(run, dict):
+            continue
+        context = run.get("sourceContext") or {}
+        if not isinstance(context, dict):
+            continue
+        metrics = _live_machine_metrics(context)
+        if not metrics:
+            continue
+        host = str(context.get("hostname") or context.get("node") or run.get("id") or "unknown-host")
+        labels = {
+            "host_id": host,
+            "display_host": host,
+            "gpu_name": str(context.get("gpuName") or ""),
+            "network_interface": str(context.get("networkInterface") or ""),
+            "network_local_address": str(context.get("networkLocalAddress") or ""),
+            "network_peer_address": str(context.get("networkPeerAddress") or ""),
+            "network_link_role": str(context.get("networkLinkRole") or ""),
+        }
+        samples.append(
+            TelemetrySample(
+                sensor_type="source_bundle_metric",
+                source="live-machine",
+                event_ts=_parse_datetime(context.get("generatedAt"), default_event_ts),
+                run_id=run.get("id"),
+                node=host,
+                labels=labels,
+                metrics=metrics,
+            )
+        )
+    return samples
+
+
+def _live_machine_metrics(context: dict[str, Any]) -> list[TelemetryMetric]:
+    metric_specs = (
+        ("cpu_usage_pct", context.get("cpuUsagePct")),
+        ("load1", context.get("load1")),
+        ("load5", context.get("load5")),
+        ("load15", context.get("load15")),
+        ("memory_used_pct", context.get("memoryUsedPct")),
+        ("linux_uma_memory_used_pct", context.get("linuxUmaMemoryUsedPct")),
+        ("disk_used_pct", context.get("diskUsedPct")),
+        ("network_utilization_pct", context.get("networkUtilizationPct")),
+        ("network_rx_bytes_per_second", context.get("networkRxBytesPerSecond")),
+        ("network_tx_bytes_per_second", context.get("networkTxBytesPerSecond")),
+        ("network_rx_bytes", context.get("networkRxBytes")),
+        ("network_tx_bytes", context.get("networkTxBytes")),
+        ("network_rx_drops", context.get("networkRxDrops")),
+        ("network_tx_drops", context.get("networkTxDrops")),
+        ("network_rx_errors", context.get("networkRxErrors")),
+        ("network_tx_errors", context.get("networkTxErrors")),
+        ("gpu_utilization_pct", context.get("gpuUtilizationPct")),
+        ("gpu_memory_used_pct", context.get("gpuMemoryUsedPct")),
+        ("gpu_memory_used_mib", context.get("gpuMemoryUsedMiB")),
+        ("gpu_memory_total_mib", context.get("gpuMemoryTotalMiB")),
+        ("gpu_power_watts", context.get("gpuPowerWatts")),
+        ("gpu_temperature_c", context.get("gpuTemperatureC")),
+        ("ollama_tokens_per_second", context.get("ollamaTokensPerSecond")),
+        ("ollama_time_to_first_token_ms", context.get("ollamaTimeToFirstTokenMs")),
+    )
+    metrics = [
+        TelemetryMetric(name=name, value=float(value), kind=_metric_kind(name), unit=_metric_unit(name))
+        for name, value in metric_specs
+        if _is_number(value)
+    ]
+
+    docker_cpu = _docker_cpu_pct(context.get("dockerContainers"))
+    if docker_cpu is not None:
+        metrics.append(TelemetryMetric(name="docker_cpu_usage_pct", value=docker_cpu, kind="percent", unit="percent"))
+    return metrics
+
+
+def _docker_cpu_pct(containers: Any) -> float | None:
+    if not isinstance(containers, list):
+        return None
+    values = [
+        item.get("cpuPct")
+        for item in containers
+        if isinstance(item, dict) and _is_number(item.get("cpuPct"))
+    ]
+    return float(sum(values)) if values else None
+
+
+def _parse_datetime(value: Any, fallback: datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return fallback
+    return fallback
 
 
 def _nested_metrics(item: dict[str, Any], key: str) -> list[TelemetryMetric]:

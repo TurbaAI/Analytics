@@ -274,6 +274,8 @@ const readme = read("README.md");
   "scripts/generate-provider-pilot-config.js",
   "scripts/collect-local-machine-bundle.js",
   "scripts/collect-machine-fleet-bundle.js",
+  "scripts/push-live-machine-telemetry.js",
+  "scripts/run-live-lakehouse-fleet.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
   "scripts/run-provider-go-live-gates.js",
@@ -927,8 +929,9 @@ assert.ok(demoScript.includes("scripts/prepare-demo.js"));
 assert.ok(demoScript.includes("docs/demo-logistics.md"));
 assert.ok(demoScript.includes("SM scheduler"));
 assert.ok(demoScript.includes("build/demo/live-machine-bundle.json"));
-assert.ok(demoScript.includes("192.168.10.101"));
+assert.ok(demoScript.includes("192.168.10.30"));
 assert.ok(demoScript.includes("192.168.10.20"));
+assert.ok(demoScript.includes("192.168.10.21"));
 assert.ok(demoScript.includes("SPARK1"));
 assert.ok(demoScript.includes("--live-machine"));
 assert.ok(demoScript.includes("100.96.89.98"));
@@ -953,6 +956,7 @@ assert.ok(demoRelease.includes("scripts/prepare-demo.js"));
 assert.ok(demoRelease.includes("docs/demo-logistics.md"));
 assert.ok(demoRelease.includes("build/demo/live-machine-bundle.json"));
 assert.ok(demoRelease.includes("turbalance-live-machine-collector.service"));
+assert.ok(demoRelease.includes("user@192.168.10.21"));
 assert.ok(demoRelease.includes("GitHub Pages"));
 assert.ok(demoRelease.includes("provider portfolio risk tables"));
 assert.ok(demoRelease.includes("build-ebpf-overlay.js"));
@@ -975,6 +979,7 @@ assert.ok(demoLogistics.includes("NVIDIA SM Scheduler Position"));
 assert.ok(demoLogistics.includes("scripts/prepare-demo.js"));
 assert.ok(demoLogistics.includes("live-machine-bundle.json"));
 assert.ok(demoLogistics.includes("192.168.10.20"));
+assert.ok(demoLogistics.includes("user@192.168.10.21"));
 assert.ok(demoLogistics.includes("SPARK1"));
 assert.ok(demoLogistics.includes("standalone `SPARK1`"));
 assert.ok(demoLogistics.includes("turbalance-live-machine-collector.service"));

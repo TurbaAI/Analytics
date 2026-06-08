@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>turbalance Analytics</title>
     <link rel="icon" href="assets/turbalance-mark.png">
-    <link rel="stylesheet" href="styles.css?v=covariance-eigen-trend-20260603">
+    <link rel="stylesheet" href="styles.css?v=spark-clock-fast-20260608">
   </head>
   <body>
     <header class="topbar">
@@ -220,6 +220,27 @@
                   <span id="fleetTilesBadge">Observed hosts</span>
                 </div>
                 <div id="fleetTiles" class="fleet-tiles"></div>
+              </section>
+              <section class="operator-card operator-card-wide">
+                <div class="operator-card-head">
+                  <p>SPARK Pair Compare</p>
+                  <span id="sparkPairCompareBadge">Waiting</span>
+                </div>
+                <div id="sparkPairComparePanel" class="spark-pair-compare-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide">
+                <div class="operator-card-head">
+                  <p>Fleet Comparison</p>
+                  <span id="fleetComparisonBadge">Waiting</span>
+                </div>
+                <div id="fleetComparisonPanel" class="fleet-comparison-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide">
+                <div class="operator-card-head">
+                  <p>System Characterization</p>
+                  <span id="systemCharacterizationBadge">Learning</span>
+                </div>
+                <div id="systemCharacterizationPanel" class="system-characterization-panel"></div>
               </section>
             </div>
           </section>
@@ -497,9 +518,9 @@
       </div>
     </main>
 
-    <script src="analytics-core.js?v=covariance-eigen-trend-20260603"></script>
-    <script src="nccl-trace-parser.js?v=covariance-eigen-trend-20260603"></script>
-    <script src="nccl-trace-fixtures.js?v=covariance-eigen-trend-20260603"></script>
-    <script src="app.js?v=covariance-eigen-trend-20260603"></script>
+    <script src="analytics-core.js?v=nccl-runtime-20260607"></script>
+    <script src="nccl-trace-parser.js?v=nccl-runtime-20260607"></script>
+    <script src="nccl-trace-fixtures.js?v=nccl-runtime-20260607"></script>
+    <script src="app.js?v=spark-clock-fast-20260608"></script>
   </body>
 </html>

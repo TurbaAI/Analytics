@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-06-07T04:53:21.047Z",
+  "spark1": "user@192.168.10.20",
+  "spark2": "user@192.168.10.21",
+  "remoteDir": "/home/user/dgx-spark-inference",
+  "steps": [
+    {
+      "step": "sync",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "sync",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "start-ollama-proxy",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "36f2e4136b051ad2cbe7539ffbc7156a01dd641556b2c4bf9085f0293b050885\nCONTAINER ID   IMAGE                 COMMAND                  CREATED                  STATUS                  PORTS     NAMES\n36f2e4136b05   alpine/socat:latest   \"socat -d -d TCP-LIS…\"   Less than a second ago   Up Less than a second             dgx-ollama-openai-proxy\n",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "validate",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "Ray address: 192.168.10.20:6379\n======== Autoscaler status: 2026-06-06 21:53:19.927369 ========\nNode status\n---------------------------------------------------------------\nActive:\n 1 node_5c77c90b4bf18cdbc96f149e09932c6c7d8039afac12ea997af9c9ac\n 1 node_5dbd4d535b9572e97fd4a23ee9cf5358ac814b144ad72b045020cc83\nPending:\n (no pending nodes)\nRecent failures:\n (no failures)\n\nResources\n---------------------------------------------------------------\nTotal Usage:\n 0.0/40.0 CPU\n 0.0/2.0 GPU\n 0B/150.82GiB memory\n 0B/64.64GiB object_store_memory\n\nFrom request_resources:\n (none)\nPending Demands:\n (no resource demands)\n\nContainers:\nNAMES                     IMAGE                                STATUS                        PORTS\ndgx-ollama-openai-proxy   alpine/socat:latest                  Up Less than a second         \nopen-webui                ghcr.io/open-webui/open-webui:main   Up About a minute (healthy)   0.0.0.0:3001->8080/tcp\n\nEndpoint checks:\nok Ray dashboard http://192.168.10.20:8265\nok OpenAI-compatible API http://192.168.10.20:8355/v1\nok Ollama-compatible API http://192.168.10.20:8355\nok Open WebUI http://192.168.10.20:3001\n",
+      "stderr": "",
+      "dryRun": false
+    }
+  ]
+}

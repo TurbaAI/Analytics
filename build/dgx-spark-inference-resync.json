@@ -1,0 +1,35 @@
+{
+  "generatedAt": "2026-06-07T04:48:05.837Z",
+  "spark1": "user@192.168.10.20",
+  "spark2": "user@192.168.10.21",
+  "remoteDir": "/home/user/dgx-spark-inference",
+  "steps": [
+    {
+      "step": "sync",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "sync",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "validate",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "Ray address: 192.168.10.20:6379\n======== Autoscaler status: 2026-06-06 21:48:04.629108 ========\nNode status\n---------------------------------------------------------------\nActive:\n 1 node_5dbd4d535b9572e97fd4a23ee9cf5358ac814b144ad72b045020cc83\n 1 node_5c77c90b4bf18cdbc96f149e09932c6c7d8039afac12ea997af9c9ac\nPending:\n (no pending nodes)\nRecent failures:\n (no failures)\n\nResources\n---------------------------------------------------------------\nTotal Usage:\n 0.0/40.0 CPU\n 0.0/2.0 GPU\n 0B/150.82GiB memory\n 0B/64.64GiB object_store_memory\n\nFrom request_resources:\n (none)\nPending Demands:\n (no resource demands)\n\nContainers:\nNAMES        IMAGE                                STATUS                   PORTS\nopen-webui   ghcr.io/open-webui/open-webui:main   Up 2 minutes (healthy)   0.0.0.0:3001->8080/tcp\n\nEndpoint checks:\nok Ray dashboard http://192.168.10.20:8265\nwarn OpenAI-compatible API is not reachable yet\nok Open WebUI http://192.168.10.20:3001\n",
+      "stderr": "curl: (7) Failed to connect to 192.168.10.20 port 8355 after 0 ms: Couldn't connect to server\n",
+      "dryRun": false
+    }
+  ]
+}

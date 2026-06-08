@@ -17,14 +17,18 @@ python3 -m http.server 8000
 
 Then open `http://127.0.0.1:8000/` and import `fixtures/neo-cloud-provider-bundle.json` or the generated `build/demo/provider-pilot-bundle.json`.
 
-For the live machine demo on `192.168.10.101`, run:
+For the live machine demo on `192.168.10.30`, run:
 
 ```sh
-node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.101:8000 --remote-machine user@192.168.10.20
+node scripts/prepare-demo.js \
+  --out-dir build/demo \
+  --host-url http://192.168.10.30:8000 \
+  --remote-machine user@192.168.10.20 \
+  --remote-machine user@192.168.10.21
 python3 -m http.server 8000 --bind 0.0.0.0
 ```
 
-Then open `http://192.168.10.101:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 1 second while the tab is visible. That bundle reflects the actual machine state for NUC14E and SPARK1: host OS counters, Docker state, reachable Grafana/Netdata/Ollama/node-exporter services, Ollama tokens-per-second and time-to-first-token telemetry when `/api/ps` reports an already-loaded model, NUC14E's RTX 4090 through `nvidia-smi`, and SPARK1's current NVIDIA driver telemetry availability. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
+Then open `http://192.168.10.30:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 1 second while the tab is visible. That bundle reflects the actual machine state for NUC14E, SPARK1, and the `user@192.168.10.21` monitored host: host OS counters, Docker state, reachable Grafana/Netdata/Ollama/node-exporter services, Ollama tokens-per-second and time-to-first-token telemetry when `/api/ps` reports an already-loaded model, NUC14E's RTX 4090 through `nvidia-smi`, and each remote host's current NVIDIA driver telemetry availability. If `user@192.168.10.21` is unavailable, the fleet bundle records an explicit SSH reachability observation instead of fabricating resource counters. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
 
 For the standalone `DGX-pat` demo on `100.96.89.98`, run the local collector on that machine and serve the same static app:
 
@@ -135,7 +139,7 @@ On SPARK1's GB10, DCGM currently exposes utilization, power, temperature, memory
 
 No special hardware is required for the first demo. A laptop or small VM is enough because the dashboard can run from fixture data and generated source bundles.
 
-The current `192.168.10.101` demo machine has one NVIDIA GeForce RTX 4090 and is useful for a realistic single-node workstation/edge-provider demo. `192.168.10.20` is included as `SPARK1`, a second observed Linux host; if `nvidia-smi` cannot communicate with the NVIDIA driver there, the dashboard should show that as telemetry unavailable rather than usable GPU capacity. These machines are not a multi-node neo-cloud cluster, so scheduler, topology, and queue behavior should be framed as host/fleet evidence unless provider staging exports are imported.
+The current `192.168.10.30` demo machine has one NVIDIA GeForce RTX 4090 and is useful for a realistic single-node workstation/edge-provider demo. `192.168.10.20` is included as `SPARK1`, a second observed Linux host, and `user@192.168.10.21` is included as an additional SSH-monitored host; if `nvidia-smi` cannot communicate with the NVIDIA driver on either remote, or SSH cannot reach `192.168.10.21`, the dashboard should show that source state rather than usable GPU capacity. These machines are not a multi-node neo-cloud cluster, so scheduler, topology, and queue behavior should be framed as host/fleet evidence unless provider staging exports are imported.
 
 The `100.96.89.98` machine is tracked as `DGX-pat` for a standalone host demo. It is useful as an observed AI operator workstation/server path, but it should be described only by the counters it exposes at demo time.
 

@@ -19,6 +19,7 @@ from .analytics import (
     noisy_neighbor_rows,
     principal_resource_mode,
     resource_samples_from_metric_rows,
+    system_identification_signature_rows,
 )
 from .observability import HttpRequestMetrics, OtlpHttpSpanExporter, install_request_observability, trace_id_from_traceparent
 
@@ -44,5 +45,6 @@ __all__ = [
     "noisy_neighbor_rows",
     "principal_resource_mode",
     "resource_samples_from_metric_rows",
+    "system_identification_signature_rows",
     "trace_id_from_traceparent",
 ]

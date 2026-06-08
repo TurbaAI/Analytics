@@ -1,0 +1,7069 @@
+{
+  "agentId": "system-id-smoke",
+  "eventTs": "2026-06-07T06:54:45.549741+00:00",
+  "hostId": "simulated-host",
+  "samples": [
+    {
+      "eventTs": "2026-06-07T06:54:12.330089+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 8.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 0.4
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.2
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 35.44
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.072
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 200000.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 140000.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:12.830728+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 8.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 0.72
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.36
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 35.792
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.1296
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 360000.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 252000.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:13.340163+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 17.36
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.236
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.04
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.488
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 36.3596
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.2225
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 488000.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 341600.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:13.848901+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 24.848
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.6488
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.872
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.5904
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 36.8137
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.2968
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 590400.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 413280.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:14.350217+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 21.4784
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.719
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.4976
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.6723
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 36.8909
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3094
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 672320.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 470624.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:14.855628+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 18.7827
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.7752
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.1981
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.7379
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 36.9528
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3195
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 737856.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 516499.2
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:15.350532+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 16.6262
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.8202
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.9585
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.7903
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.0022
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3276
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 790284.8
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 553199.36
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:15.857071+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 14.9009
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 1.8561
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.7668
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.8322
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.0418
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3341
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 832227.84
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 582559.488
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:16.360589+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 22.8808
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.1449
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.6534
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.8658
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.3594
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3861
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 865782.272
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 606047.5904
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:16.863977+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 29.2646
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.3759
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 42.3627
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.8926
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.6135
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4277
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 892625.8176
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 624838.0723
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:17.365681+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 34.3717
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.5607
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 42.9302
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9141
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.8168
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4609
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 914100.6541
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 639870.4579
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:17.874846+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 38.4573
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.7086
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 43.3841
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9313
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.9795
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4875
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 931280.5233
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 651896.3663
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:18.370674+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 32.3659
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.5669
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 42.7073
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.945
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.8236
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.462
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 945024.4186
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 661517.093
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:18.880862+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 27.4927
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.4535
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 42.1659
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.956
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.6989
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4416
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 956019.5349
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 669213.6744
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:19.372715+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 23.5942
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.3628
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.7327
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9648
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5991
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4253
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 964815.6279
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 675370.9395
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:19.872930+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 20.4753
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2902
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.3861
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9719
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5193
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4122
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 971852.5023
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 680296.7516
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:20.382054+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 17.9803
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2322
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.1089
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9775
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.4554
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4018
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 977482.0019
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 684237.4013
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:20.890630+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 16.5287
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 18.3643
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2519
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.1516
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.982
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.4771
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4053
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 981985.6015
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 687389.921
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:21.400723+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 33.1067
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 21.0588
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.3339
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.451
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9856
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5673
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4201
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 985588.4812
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 689911.9368
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:21.909910+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 49.6557
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 25.5975
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.4658
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.9553
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9885
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.7123
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4438
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 988470.785
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 691929.5495
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:22.382408+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 22.078
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.3726
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.5642
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9908
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.6099
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4271
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 990776.628
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 693543.6396
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:22.892473+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 19.2624
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2981
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.2514
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9926
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5279
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4137
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 992621.3024
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 694834.9117
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:23.387478+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 17.0099
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2385
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.0011
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9941
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.4623
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4029
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 994097.0419
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 695867.9293
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:23.888993+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 15.2079
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.1908
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.8009
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9953
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.4099
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3943
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 995277.6335
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 696694.3435
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:24.397516+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 15.3263
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 12.2926
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.2907
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9962
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 48.5219
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.2127
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 996222.1068
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 697355.4748
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:24.907134+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 15.4211
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 20.3741
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.6826
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.997
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 57.4115
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.6673
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 996977.6855
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 697884.3798
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:25.407554+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 13.9369
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 16.6993
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.3461
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9976
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 53.3692
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.0059
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 997582.1484
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 698307.5039
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:25.917246+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 12.7495
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 13.7594
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.0768
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9981
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 50.1354
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.4767
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 998065.7187
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 698646.0031
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:26.407817+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.7996
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 11.4075
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.8615
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9985
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 47.5483
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.0534
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 998452.575
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 698916.8025
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:26.911751+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.0397
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 9.526
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.6892
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9988
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 45.4786
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 46.7147
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 998762.06
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699133.442
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:27.414335+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.9917
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 18.1608
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.2013
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 54.9769
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.2689
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999009.648
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699306.7536
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:27.924450+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 12.7534
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 25.0687
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.6111
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9992
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 62.5755
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 49.5124
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999207.7184
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699445.4029
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:28.434504+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 13.3627
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 30.5949
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.9389
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9994
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 68.6544
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 50.5071
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999366.1747
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699556.3223
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:28.943409+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 13.8502
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 35.0159
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 42.2011
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9995
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 73.5175
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 51.3029
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999492.9398
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699645.0578
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:29.424344+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 12.6801
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 28.4128
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.7609
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9996
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 66.254
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 50.1143
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999594.3518
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699716.0463
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:29.934228+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.7441
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 23.1302
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.4087
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9997
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 60.4432
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 49.1634
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999675.4814
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699772.837
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:30.434397+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.9953
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 18.9042
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.127
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9997
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 55.7946
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.4027
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999740.3852
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699818.2696
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:30.941684+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.3962
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 15.5233
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.9016
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9998
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 52.0757
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.7942
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999792.3081
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699854.6157
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:31.444444+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.917
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 12.8187
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.7213
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9998
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 49.1005
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.3074
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999833.8465
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699883.6926
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:31.945163+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 16.2731
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.9241
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 13.1935
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.7397
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 49.5129
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.3748
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999867.0772
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699906.954
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:32.455247+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 32.8509
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.3277
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 16.0796
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.9203
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 52.6875
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.8943
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999893.6618
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699925.5632
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:32.956641+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 49.1462
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.0417
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 20.9305
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 41.2277
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 58.0235
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.7675
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999914.9294
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699940.4506
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:33.454446+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.4334
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 17.1444
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.9822
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 53.8588
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 48.086
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999931.9435
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699952.3605
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:33.964499+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.9467
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 14.1155
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.7857
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 0.9999
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 50.527
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.5408
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999945.5548
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699961.8884
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:34.455036+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.5573
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 11.6924
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.6286
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 47.8616
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 47.1046
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999956.4439
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699969.5107
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:34.964632+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.2459
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 9.7539
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.5029
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 1.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 45.7293
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 46.7557
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 999965.1551
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 699975.6086
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:35.464834+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.2967
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 8.2031
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.4023
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 11.66
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 44.0234
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 46.4766
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 11659972.1241
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 8161980.4868
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:35.967814+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.1374
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 6.9625
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.3218
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 20.188
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 42.6588
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 46.2533
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 20187977.6993
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 14131584.3895
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:36.474859+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.5099
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 5.97
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.2575
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 16.3504
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 41.567
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 46.0746
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 16350382.1594
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 11445267.5116
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:36.984466+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.0079
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 5.176
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.206
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 13.2803
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 40.6936
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.9317
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 13280305.7275
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 9296214.0093
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:37.476132+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.6063
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 4.5408
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.1648
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 10.8242
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 39.9949
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.8173
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 10824244.582
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 7576971.2074
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:37.985554+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.2851
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 4.0326
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.1318
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 8.8594
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 39.4359
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.7259
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 8859395.6656
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 6201576.9659
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:38.479735+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.3281
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 3.6261
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.1055
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 17.9475
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 38.9887
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.6527
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 17947516.5325
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 12563261.5727
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:38.985496+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.1624
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 3.3009
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0844
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 25.218
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 38.631
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.5942
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 25218013.226
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 17652609.2582
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:39.496360+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.83
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 3.0407
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0675
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 31.0344
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 38.3448
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.5473
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 31034410.5808
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 21724087.4066
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:40.001145+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 65.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 12.364
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.8326
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.054
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 35.6875
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 38.1158
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.5099
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 35687528.4646
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 24981269.9252
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:40.489785+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 11.4912
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.6661
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0432
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 28.75
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.9327
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4799
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 28750022.7717
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 20125015.9402
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:40.995716+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.7929
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.5328
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0346
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 23.2
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.7861
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4559
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 23200018.2174
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 16240012.7522
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:41.498390+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.2343
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.4263
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0276
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 18.76
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.6689
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4367
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 18760014.5739
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 13132010.2017
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:42.002551+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "baseline",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.7875
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.341
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0221
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 15.208
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5751
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4214
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 15208011.6591
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 10645608.1614
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:42.508415+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.43
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2728
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0177
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 12.3664
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.5001
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.4091
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 12366409.3273
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 8656486.5291
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:43.009060+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 16.2706
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.4694
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.2183
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0142
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 12.7615
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.4401
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3993
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 12761511.5251
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 8933058.0676
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:43.519113+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 32.8476
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.8325
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.1746
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0113
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 15.7962
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.3921
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3914
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 15796218.5499
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 11057352.9849
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:44.019723+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "workload",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 49.1173
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 10.4483
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.1397
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0091
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 20.8922
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.3537
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3851
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 20892209.3865
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 14624546.5706
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:44.518472+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.9587
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.1117
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0072
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 16.9138
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.3229
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3801
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 16913767.5092
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 11839637.2565
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.025508+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "observation",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "stage": "recovery",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "percent",
+          "name": "system_id.input_intensity_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_cpu",
+          "unit": "",
+          "value": 9.5669
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu",
+          "unit": "",
+          "value": 2.0894
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_ram",
+          "unit": "",
+          "value": 40.0058
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network",
+          "unit": "",
+          "value": 13.731
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_power_watts",
+          "unit": "watts",
+          "value": 37.2983
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_gpu_temperature_c",
+          "unit": "celsius",
+          "value": 45.3761
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_rx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 13731014.0074
+        },
+        {
+          "kind": "gauge",
+          "name": "system_id.observed_network_tx_bytes_per_second",
+          "unit": "bytes_per_second",
+          "value": 9611709.8052
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.2592
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.508738
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 16.848
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 16.848
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 22.783127
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.519385
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.016751
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.508738
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.508738
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 1.0888
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.0888
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 1.825257
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.258996
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.0288
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.508738
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 1.872
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.872
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 2.531464
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.51938
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "cpu-impulse-1",
+        "profile": "impulse",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.004775
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.508738
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.501316
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.3104
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.3104
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.596211
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.11932
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.317707
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.514257
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 22.69375
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 20.65095
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 42.302801
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 9.892039
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.536076
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.012254
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.514257
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.495828
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.87045
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.7965
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 1.755336
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 9.284369
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.436079
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.0353
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.503388
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.514257
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 2.52145
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 2.2945
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 4.700174
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 9.891044
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.536063
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "cpu-step-2",
+        "profile": "step",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.001715
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.514257
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.495828
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.12005
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.11145
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.290131
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 7.716465
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.185064
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.052105
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 1.527856
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 3.56275
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.2934
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -3.763996
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 175.456162
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.511752
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.002955
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.472498
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.1393
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.07335
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.007671
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 89.911384
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.590407
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.005791
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.472498
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.3959
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.14375
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.418171
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 175.408696
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.51179
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "cpu-ramp-3",
+        "profile": "ramp",
+        "target": "cpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.000753
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.527856
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.472498
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.02015
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.0187
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.048408
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 7.754011
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.358321
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.010582
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.6878
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.6878
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -2.927952
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.230335
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.279376
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.509618
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 18.15945
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 18.15945
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 24.552883
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.521885
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.012025
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.509618
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.50042
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.7816
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.7816
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.837258
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.720009
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "gpu-impulse-4",
+        "profile": "impulse",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 3.5e-05
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.509618
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.50042
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.0023
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.0023
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.004409
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.111994
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.033643
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.510115
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.529074
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.990819
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 2.43055
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 2.1868
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 3.774531
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 11.146424
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.675291
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.343672
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.529074
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 24.54915
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 22.33865
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 45.631538
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 9.895405
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.53657
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.019918
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 1.020169
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.529074
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.480935
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 1.42575
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.29465
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 2.568489
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 10.126289
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.570449
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "gpu-step-5",
+        "profile": "step",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 1.2e-05
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.529074
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.480935
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.00085
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.0008
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.002037
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 6.25
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.159475
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.00045
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.497805
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.34595
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.01105
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -1.192558
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 3230.769231
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.398574
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.052561
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 1.512197
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 3.71675
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.2913
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -4.203737
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 187.830094
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.505034
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.00243
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.497805
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.2134
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.0597
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.329524
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 257.453936
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.478835
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "gpu-ramp-6",
+        "profile": "ramp",
+        "target": "gpu"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 6e-06
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.500719
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.497805
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.00015
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.00015
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 0.000378
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.486299
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.026705
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.50298
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.50298
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 1.016652
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 1.7358
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.7358
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 2.004499
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.673532
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.057856
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -2.52005
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -3.76065
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -7.235203
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 32.988978
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.119342
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.003753
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.507045
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.16345
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.24395
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.469259
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 32.998565
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.119471
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "network-impulse-7",
+        "profile": "impulse",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.2952
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.50298
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 19.188
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 19.188
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 25.969211
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 0.0
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.519385
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.040789
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.505761
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.52141
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 2.9183
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 2.6513
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 5.292466
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 10.070531
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.562493
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.02077
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 1.016625
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.6606
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -1.35005
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -3.498757
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 51.068479
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.184882
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.001347
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.48864
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.0428
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.08755
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.226856
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 51.113649
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.184788
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "network-step-8",
+        "profile": "step",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.361833
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 1.52141
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 25.8457
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 23.51915
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": 48.007729
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 9.892152
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.536076
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "cpu",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.005273
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.498749
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 0.4374
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 0.1295
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.632896
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 237.760618
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.484725
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "gpu",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.009223
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.498749
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.11085
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.2265
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.589028
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 51.059603
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.357657
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "ram",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": -0.000597
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.settling_time_seconds",
+          "unit": "seconds",
+          "value": 0.498749
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": -0.00715
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": -0.01465
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -0.038099
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 51.194539
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": -0.355855
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "kind": "feature",
+        "output_metric": "network",
+        "phase_id": "network-ramp-9",
+        "profile": "ramp",
+        "target": "network"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.gain",
+          "unit": "ratio",
+          "value": 0.055385
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.response_delay_seconds",
+          "unit": "seconds",
+          "value": 1.511308
+        },
+        {
+          "kind": "duration",
+          "name": "system_id.rise_time_seconds",
+          "unit": "seconds",
+          "value": 0.0
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.peak_delta_pct",
+          "unit": "percent",
+          "value": 3.9082
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.steady_delta_pct",
+          "unit": "percent",
+          "value": 1.3602
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.area_delta_pct_seconds",
+          "unit": "percent",
+          "value": -4.414254
+        },
+        {
+          "kind": "percent",
+          "name": "system_id.overshoot_pct",
+          "unit": "percent",
+          "value": 187.325393
+        },
+        {
+          "kind": "ratio",
+          "name": "system_id.cross_correlation",
+          "unit": "ratio",
+          "value": 0.505182
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    },
+    {
+      "eventTs": "2026-06-07T06:54:45.549741+00:00",
+      "labels": {
+        "experiment_id": "system-id-mac-localdomain-20260607t065412z",
+        "fingerprint_hash": "c5f6a335e77c1f972abe40a751545429df1405a42d12145d1b7944a184cc7c6d",
+        "kind": "summary"
+      },
+      "metrics": [
+        {
+          "kind": "gauge",
+          "name": "system_id.fingerprint_entry_count",
+          "unit": "count",
+          "value": 218.0
+        }
+      ],
+      "node": "simulated-host",
+      "runId": "system-id-mac-localdomain-20260607t065412z",
+      "sensorType": "system_identification",
+      "source": "system-id-worker"
+    }
+  ],
+  "schemaVersion": "turba.telemetry_batch.v1",
+  "sequenceNo": 0,
+  "tenantId": "tenant-smoke",
+  "traceId": "68f9b506-84e0-4377-a713-17f42490852d"
+}

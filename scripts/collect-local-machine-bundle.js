@@ -17,11 +17,43 @@ const gpuSampleMs = numberArg(args["gpu-sample-ms"], fastRefresh ? 2000 : 0);
 const ollamaProbeEnabled = args["ollama-probe"] !== "0";
 const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
+const benchmarkEnabled = args["benchmark-suite"] === "1"
+  || process.env.TURBALANCE_MACHINE_BENCHMARKS === "1"
+  || process.env.TURBALANCE_PI_BENCHMARKS === "1";
+const benchmarkTtlMs = numberArg(args["benchmark-ttl-ms"] || process.env.TURBALANCE_BENCHMARK_TTL_MS, 15 * 60 * 1000);
+const benchmarkDurationMs = numberArg(args["benchmark-duration-ms"] || process.env.TURBALANCE_BENCHMARK_DURATION_MS, 450);
+const benchmarkBufferBytes = numberArg(args["benchmark-buffer-mib"] || process.env.TURBALANCE_BENCHMARK_BUFFER_MIB, 8) * 1024 * 1024;
+const benchmarkDiskBytes = numberArg(args["benchmark-disk-mib"] || process.env.TURBALANCE_BENCHMARK_DISK_MIB, 16) * 1024 * 1024;
+const benchmarkCachePath = args["benchmark-cache"]
+  || process.env.TURBALANCE_BENCHMARK_CACHE
+  || defaultBenchmarkCachePath();
+const explicitNetworkInterface = args["network-interface"]
+  || process.env.TURBALANCE_LIVE_NETWORK_INTERFACE
+  || "";
+const dgxInterconnectInterface = args["dgx-interconnect-interface"]
+  || process.env.TURBALANCE_DGX_INTERCONNECT_INTERFACE
+  || "enp1s0f1np1";
+const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"]
+  || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX
+  || "192.168.100.";
+const linuxPtpContainerNames = (process.env.TURBALANCE_LINUXPTP_CONTAINERS || "turbalance-linuxptp,turbalance-ptp4l")
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+const networkRateCachePath = args["network-rate-cache"]
+  || process.env.TURBALANCE_NETWORK_RATE_CACHE
+  || defaultNetworkRateCachePath();
+const delegatedFleetRemotes = localFleetRemotes();
 let previousGpu = null;
 let previousOllamaTelemetry = null;
 let previousNetwork = null;
 
-if (loopMs > 0) {
+if (delegatedFleetRemotes.length > 0) {
+  runDelegatedFleetLoop(delegatedFleetRemotes).catch((error) => {
+    console.error(error?.stack || error);
+    process.exitCode = 1;
+  });
+} else if (loopMs > 0) {
   runLoop().catch((error) => {
     console.error(error?.stack || error);
     process.exitCode = 1;
@@ -55,11 +87,46 @@ async function runLoop() {
   }
 }
 
+async function runDelegatedFleetLoop(remotes) {
+  while (true) {
+    const startedAt = Date.now();
+    runDelegatedFleetOnce(remotes);
+    if (loopMs <= 0) return;
+    await delay(Math.max(0, loopMs - (Date.now() - startedAt)));
+  }
+}
+
+function runDelegatedFleetOnce(remotes) {
+  const commandArgs = [
+    path.join(__dirname, "collect-machine-fleet-bundle.js"),
+    "--host-url",
+    hostUrl,
+    ...(outPath ? ["--out", outPath] : []),
+    ...remotes.flatMap((remote) => ["--remote", remote]),
+    ...collectorNetworkArgs()
+  ];
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd: path.join(__dirname, ".."),
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION: "1"
+    },
+    maxBuffer: 50 * 1024 * 1024
+  });
+  if (result.stdout && !outPath) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.status !== 0) {
+    throw new Error(`collect-machine-fleet-bundle.js failed with status ${result.status}`);
+  }
+}
+
 function collectAndWrite({ gpuOverride = null } = {}) {
   const generatedAt = new Date();
   const host = collectHost({ cpuSampleMs: fastRefresh ? 80 : 250 });
-  host.network = withNetworkRates(host.network, previousNetwork);
+  host.network = withNetworkRates(host.network, previousNetwork || readNetworkRateCache(host.network));
   previousNetwork = host.network;
+  writeNetworkRateCache(host.network);
   const gpu = gpuOverride || collectGpu({
     includeProcesses: !fastRefresh,
     previousGpu,
@@ -68,10 +135,12 @@ function collectAndWrite({ gpuOverride = null } = {}) {
   });
   if (!gpuOverride) previousGpu = gpu;
   const docker = collectDocker();
+  const ncclRuntime = detectNcclRuntime({ docker, network: host.network });
+  const benchmark = collectBenchmarkSuite({ host });
   const services = collectServices(hostUrl);
   const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
   const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
-  const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes });
+  const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime, benchmark });
 
   if (!skipValidation) {
     assertValidSourceBundle(bundle);
@@ -98,6 +167,8 @@ function collectHost({ cpuSampleMs = 250 } = {}) {
   const hostname = os.hostname();
   const osRelease = readOsRelease();
   const uptimeSeconds = os.uptime();
+  const cpuTemperatureC = collectCpuTemperatureC();
+  const clock = collectClockSync();
 
   return {
     hostname,
@@ -111,15 +182,201 @@ function collectHost({ cpuSampleMs = 250 } = {}) {
     load5: load[1] || 0,
     load15: load[2] || 0,
     cpuUsagePct: cpuSample,
+    cpuTemperatureC,
     memoryTotalBytes: meminfo.MemTotal || os.totalmem(),
     memoryAvailableBytes: meminfo.MemAvailable || os.freemem(),
     swapTotalBytes: meminfo.SwapTotal || 0,
     swapFreeBytes: meminfo.SwapFree || 0,
     disk,
     network: net,
+    clock,
     uptimeSeconds,
     addresses: nonInternalAddresses()
   };
+}
+
+function collectCpuTemperatureC() {
+  const thermalFiles = [
+    "/sys/class/thermal/thermal_zone0/temp",
+    "/sys/class/hwmon/hwmon0/temp1_input"
+  ];
+  for (const filePath of thermalFiles) {
+    const raw = readFile(filePath);
+    const value = optionalFinite(raw);
+    if (Number.isFinite(value) && value > 0) {
+      return value > 1000 ? value / 1000 : value;
+    }
+  }
+
+  const vcgencmd = command("vcgencmd", ["measure_temp"]);
+  const match = vcgencmd.match(/temp=([\d.]+)/i);
+  return match ? optionalFinite(match[1]) : undefined;
+}
+
+function collectClockSync() {
+  const nowMs = Date.now();
+  const timedate = parseKeyValueLines(command("timedatectl", ["show", "-p", "NTPSynchronized", "-p", "TimeUSec", "-p", "Timezone", "-p", "LocalRTC"]));
+  const timesync = parseTimedateTimesyncStatus(command("timedatectl", ["timesync-status"]));
+  const chrony = parseChronyTracking(command("chronyc", ["tracking"]));
+  const ptp = collectPtpStatus();
+  const systemdTimesyncdActive = serviceActive("systemd-timesyncd");
+  const services = [
+    serviceState("systemd-timesyncd", systemdTimesyncdActive),
+    serviceState("chrony", serviceActive("chrony")),
+    serviceState("chronyd", serviceActive("chronyd")),
+    serviceState("ptp4l", ptp.ptp4lActive),
+    serviceState("phc2sys", ptp.phc2sysActive)
+  ];
+  const synchronized = timedate.NTPSynchronized === "yes" || Boolean(chrony.reference) || ptp.active;
+  const source = ptp.active
+    ? "ptp"
+    : chrony.reference ? "chrony"
+      : systemdTimesyncdActive ? "systemd-timesyncd"
+        : timedate.NTPSynchronized === "yes" ? "timedatectl"
+          : "unsynchronized";
+  const offsetNs = Number.isFinite(ptp.offsetNs) ? ptp.offsetNs : Number.isFinite(chrony.lastOffsetNs) ? chrony.lastOffsetNs : timesync.offsetNs;
+  const rmsOffsetNs = Number.isFinite(chrony.rmsOffsetNs) ? chrony.rmsOffsetNs : timesync.jitterNs;
+  const detailParts = [
+    synchronized ? "clock synchronized" : "clock not synchronized",
+    ptp.installed ? `PTP ${ptp.active ? "active" : "installed/inactive"}` : "PTP tools missing",
+    chrony.reference ? `chrony ${chrony.reference}` : "",
+    timesync.server ? `timesync ${timesync.server}` : "",
+    systemdTimesyncdActive ? "systemd-timesyncd active" : ""
+  ].filter(Boolean);
+
+  return {
+    source,
+    synchronized,
+    timeUnixMs: nowMs,
+    timeUnixNs: command("date", ["+%s%N"]).trim() || `${Math.round(nowMs)}000000`,
+    timezone: timedate.Timezone || "",
+    localRtc: timedate.LocalRTC === "yes",
+    offsetNs,
+    rmsOffsetNs,
+    ptpInstalled: ptp.installed,
+    ptpActive: ptp.active,
+    ptp4lActive: ptp.ptp4lActive,
+    phc2sysActive: ptp.phc2sysActive,
+    ptpPortState: ptp.portState || "",
+    ptpGrandmaster: ptp.grandmaster || "",
+    chronyReference: chrony.reference || timesync.server || "",
+    chronyStratum: chrony.stratum,
+    services,
+    detail: detailParts.join("; ")
+  };
+}
+
+function collectPtpStatus() {
+  const ptp4lInstalled = Boolean(command("which", ["ptp4l"]).trim());
+  const phc2sysInstalled = Boolean(command("which", ["phc2sys"]).trim());
+  const pmcInstalled = Boolean(command("which", ["pmc"]).trim());
+  const linuxPtpContainer = firstRunningDockerContainer(linuxPtpContainerNames);
+  const dockerPtp4lActive = Boolean(linuxPtpContainer);
+  const dockerPhc2sysActive = linuxPtpContainer
+    ? dockerProcessRunning(linuxPtpContainer, "phc2sys")
+    : false;
+  const ptp4lActive = serviceActive("ptp4l") || dockerPtp4lActive;
+  const phc2sysActive = serviceActive("phc2sys") || dockerPhc2sysActive;
+  const hostPmc = serviceActive("ptp4l") && pmcInstalled
+    ? ptpManagementCommand("", "GET TIME_STATUS_NP")
+    : "";
+  const hostPortData = serviceActive("ptp4l") && pmcInstalled
+    ? ptpManagementCommand("", "GET PORT_DATA_SET")
+    : "";
+  const dockerPmc = !hostPmc && linuxPtpContainer
+    ? ptpManagementCommand(linuxPtpContainer, "GET TIME_STATUS_NP")
+    : "";
+  const dockerPortData = !hostPortData && linuxPtpContainer
+    ? ptpManagementCommand(linuxPtpContainer, "GET PORT_DATA_SET")
+    : "";
+  const pmc = hostPmc || dockerPmc;
+  const portData = hostPortData || dockerPortData;
+  const offsetMatch = pmc.match(/\bmaster_offset\s+(-?\d+)/i);
+  const grandmasterMatch = pmc.match(/\bgmIdentity\s+([0-9a-f:.]+)/i);
+  const portStateMatch = portData.match(/\bportState\s+([A-Z_]+)/i);
+  return {
+    installed: ptp4lInstalled || phc2sysInstalled || dockerPtp4lActive,
+    active: ptp4lActive || phc2sysActive,
+    ptp4lActive,
+    phc2sysActive,
+    offsetNs: offsetMatch ? optionalFinite(offsetMatch[1]) : undefined,
+    grandmaster: grandmasterMatch?.[1] || "",
+    portState: portStateMatch?.[1] || ""
+  };
+}
+
+function ptpManagementCommand(container, request) {
+  const pmcArgs = ["pmc", "-u", "-b", "0", request];
+  return container
+    ? command("docker", ["exec", container, ...pmcArgs])
+    : command("pmc", pmcArgs.slice(1));
+}
+
+function firstRunningDockerContainer(names) {
+  return names.find((name) => dockerContainerRunning(name)) || "";
+}
+
+function dockerContainerRunning(name) {
+  return command("docker", ["inspect", "-f", "{{.State.Running}}", name]).trim() === "true";
+}
+
+function dockerProcessRunning(container, processName) {
+  return Boolean(command("docker", ["exec", container, "pgrep", "-x", processName]).trim());
+}
+
+function parseChronyTracking(text) {
+  if (!text.trim()) return {};
+  return {
+    reference: (text.match(/^Reference ID\s*:\s*(.+)$/m) || [])[1]?.trim() || "",
+    stratum: optionalFinite((text.match(/^Stratum\s*:\s*(\d+)/m) || [])[1]),
+    lastOffsetNs: secondsLineToNanoseconds(text, "Last offset"),
+    rmsOffsetNs: secondsLineToNanoseconds(text, "RMS offset")
+  };
+}
+
+function parseTimedateTimesyncStatus(text) {
+  if (!text.trim()) return {};
+  const offsetText = (text.match(/^\s*Offset:\s*([+-]?[\d.]+\s*(?:ns|us|\u00b5s|ms|s))/mi) || [])[1] || "";
+  const jitterText = (text.match(/^\s*Jitter:\s*([+-]?[\d.]+\s*(?:ns|us|\u00b5s|ms|s))/mi) || [])[1] || "";
+  return {
+    server: (text.match(/^\s*Server:\s*(.+)$/mi) || [])[1]?.trim() || "",
+    offsetNs: durationTextToNanoseconds(offsetText),
+    jitterNs: durationTextToNanoseconds(jitterText)
+  };
+}
+
+function secondsLineToNanoseconds(text, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = text.match(new RegExp(`^${escaped}\\s*:\\s*([+-]?\\d+(?:\\.\\d+)?)\\s+seconds`, "mi"));
+  const seconds = match ? optionalFinite(match[1]) : undefined;
+  return Number.isFinite(seconds) ? seconds * 1_000_000_000 : undefined;
+}
+
+function durationTextToNanoseconds(text) {
+  const match = String(text || "").trim().match(/^([+-]?\d+(?:\.\d+)?)\s*(ns|us|\u00b5s|ms|s)$/i);
+  if (!match) return undefined;
+  const value = optionalFinite(match[1]);
+  if (!Number.isFinite(value)) return undefined;
+  const unit = match[2].toLowerCase();
+  if (unit === "ns") return value;
+  if (unit === "us" || unit === "\u00b5s") return value * 1000;
+  if (unit === "ms") return value * 1_000_000;
+  return value * 1_000_000_000;
+}
+
+function parseKeyValueLines(text) {
+  return Object.fromEntries(text.split("\n")
+    .map((line) => line.match(/^([^=]+)=(.*)$/))
+    .filter(Boolean)
+    .map((match) => [match[1], match[2]]));
+}
+
+function serviceActive(name) {
+  return command("systemctl", ["is-active", name]).trim() === "active";
+}
+
+function serviceState(name, active) {
+  return { name, active: Boolean(active) };
 }
 
 function collectGpu({ includeProcesses = true, previousGpu: cachedGpu = null, maxAgeMs = 0, nowMs = Date.now() } = {}) {
@@ -387,7 +644,7 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
   };
 }
 
-function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes }) {
+function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime = {}, benchmark = {} }) {
   const primaryGpu = gpu.gpus[0] || {};
   const gpuName = gpuLabel(primaryGpu, gpu);
   const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
@@ -403,7 +660,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
     : [];
   const runningOllamaModels = ollamaRunningModelNames(services.ollamaRunning);
   const ollamaTelemetry = services.ollamaTelemetry || {};
-  const sourceAdapters = machineSourceAdapters(gpu, services);
+  const sourceAdapters = machineSourceAdapters(gpu, services, ncclRuntime, benchmark, host.clock);
 
   return {
     metadata: {
@@ -525,14 +782,34 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
           },
           sourceContext: {
             hostname: host.hostname,
+            platform: host.platform,
+            arch: host.arch,
             os: host.osName,
             kernel: host.kernel,
             cpuModel: host.cpuModel,
             cpuCount: host.cpuCount,
+            uptimeSeconds: round(host.uptimeSeconds, 0),
+            clockSource: host.clock.source,
+            clockSynchronized: Boolean(host.clock.synchronized),
+            clockTimeUnixMs: round(finite(host.clock.timeUnixMs, 0), 0),
+            clockTimeUnixNs: host.clock.timeUnixNs || "",
+            clockTimezone: host.clock.timezone || "",
+            clockLocalRtc: Boolean(host.clock.localRtc),
+            clockOffsetNs: roundOptional(host.clock.offsetNs, 0),
+            clockRmsOffsetNs: roundOptional(host.clock.rmsOffsetNs, 0),
+            clockPtpInstalled: Boolean(host.clock.ptpInstalled),
+            clockPtpActive: Boolean(host.clock.ptpActive),
+            clockPtpPortState: host.clock.ptpPortState || "",
+            clockPtpGrandmaster: host.clock.ptpGrandmaster || "",
+            clockChronyReference: host.clock.chronyReference || "",
+            clockChronyStratum: roundOptional(host.clock.chronyStratum, 0),
+            clockSyncServices: host.clock.services || [],
+            clockSyncDetail: host.clock.detail || "",
             load1: round(host.load1, 3),
             load5: round(host.load5, 3),
             load15: round(host.load15, 3),
             cpuUsagePct: round(metrics.cpuBusyPct, 2),
+            cpuTemperatureC: roundOptional(host.cpuTemperatureC, 2),
             memoryTotalBytes: host.memoryTotalBytes,
             memoryAvailableBytes: host.memoryAvailableBytes,
             memoryUsedPct: round(metrics.memoryUsedPct, 2),
@@ -540,6 +817,10 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             diskUsedBytes: host.disk.usedBytes,
             diskUsedPct: round(metrics.diskUsedPct, 2),
             networkInterface: host.network.iface,
+            networkLocalAddress: host.network.localAddress,
+            networkPeerAddress: host.network.peerAddress,
+            networkLinkRole: host.network.linkRole,
+            networkSelectionReason: host.network.selectionReason,
             networkLinkSpeedMbps: roundOptional(host.network.linkSpeedMbps, 0),
             networkRxBytes: round(host.network.rxBytes, 0),
             networkTxBytes: round(host.network.txBytes, 0),
@@ -608,6 +889,28 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             appMetricsReachable: Boolean(services.appMetricsUp),
             nsightCuptiProfilingStatus: services.profilingExporter?.status || "missing",
             nsightCuptiProfilingScripts: services.profilingExporter?.scripts || [],
+            ncclRuntimePresent: Boolean(ncclRuntime.present),
+            ncclRuntimeStatus: ncclRuntime.status,
+            ncclRuntimeSource: ncclRuntime.source,
+            ncclRuntimeContainers: ncclRuntime.containers,
+            ncclRuntimeImages: ncclRuntime.images,
+            ncclRuntimeSocketIfname: ncclRuntime.socketIfname,
+            ncclRuntimeHostIp: ncclRuntime.hostIp,
+            ncclRuntimeDetail: ncclRuntime.detail,
+            benchmarkSuiteName: benchmark.name || "",
+            benchmarkSuiteStatus: benchmark.status || "disabled",
+            benchmarkGeneratedAt: benchmark.generatedAt || "",
+            benchmarkSampleCached: Boolean(benchmark.sampleCached),
+            benchmarkSampleAgeMs: round(finite(benchmark.sampleAgeMs, 0), 0),
+            benchmarkTtlMs: round(finite(benchmark.ttlMs, benchmarkTtlMs), 0),
+            benchmarkDurationMs: round(finite(benchmark.durationMs, 0), 0),
+            benchmarkCpuOpsPerSecond: roundOptional(benchmark.cpuOpsPerSecond, 0),
+            benchmarkMemoryMiBps: roundOptional(benchmark.memoryMiBps, 2),
+            benchmarkDiskWriteMiBps: roundOptional(benchmark.diskWriteMiBps, 2),
+            benchmarkDiskReadMiBps: roundOptional(benchmark.diskReadMiBps, 2),
+            benchmarkDiskBytes: round(finite(benchmark.diskBytes, 0), 0),
+            benchmarkScore: roundOptional(benchmark.score, 2),
+            benchmarkError: benchmark.error || "",
             sourceAdapters,
             unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],
             workloadCountersObserved: Boolean(services.appMetricsUp),
@@ -621,7 +924,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   };
 }
 
-function machineSourceAdapters(gpu, services) {
+function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, clock = {}) {
   const hostCounters = fs.existsSync("/proc/stat") ? "procfs" : "os-counters";
   const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
 
@@ -635,8 +938,38 @@ function machineSourceAdapters(gpu, services) {
     command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
     services.appMetricsUp ? "app-metrics" : null,
     gb10Present && services.profilingExporter?.hooksPresent ? "nsight-cupti-profiling" : null,
+    ncclRuntime.present ? "nccl-runtime" : null,
+    ["fresh", "cached", "stale"].includes(benchmark.status) ? "pi-benchmark" : null,
+    clock.source ? "clock-sync" : null,
+    clock.ptpActive ? "ptp" : null,
     ...services.observedServices
   ].filter(Boolean))];
+}
+
+function detectNcclRuntime({ docker, network }) {
+  const containers = (docker || []).filter((container) => {
+    const haystack = `${container.name || ""} ${container.image || ""}`.toLowerCase();
+    return /vllm|triton|tensorrt|trt-llm|nim|nccl|ray/.test(haystack)
+      && !/open-webui|registry|prometheus|grafana|netdata|node-exporter|blackbox|speedtest/.test(haystack);
+  });
+  const vllmContainers = containers.filter((container) => /vllm|ray/.test(`${container.name || ""} ${container.image || ""}`.toLowerCase()));
+  const selected = vllmContainers.length ? vllmContainers : containers;
+  const socketIfname = network?.iface || "";
+  const hostIp = network?.localAddress || primaryAddress();
+  const containerText = selected.map((container) => container.name).filter(Boolean).join(", ") || "NCCL-capable container";
+  const present = selected.length > 0;
+  return {
+    present,
+    status: present ? "runtime-observed" : "missing",
+    source: present ? "docker-vllm-ray" : "",
+    containers: selected.map((container) => container.name).filter(Boolean),
+    images: [...new Set(selected.map((container) => container.image).filter(Boolean))],
+    socketIfname,
+    hostIp,
+    detail: present
+      ? `${containerText} observed; NCCL runtime expected on ${socketIfname || "configured network interface"}${network?.localAddress ? ` at ${network.localAddress}` : hostIp ? ` (host ${hostIp})` : ""}`
+      : "No NCCL-capable runtime container observed"
+  };
 }
 
 function isGb10GpuName(name) {
@@ -730,13 +1063,16 @@ function diskInfo(targetPath) {
 }
 
 function primaryNetworkStats() {
-  const iface = Object.entries(os.networkInterfaces())
-    .flatMap(([name, entries]) => (entries || []).map((entry) => ({ name, ...entry })))
-    .find((entry) => entry.family === "IPv4" && !entry.internal)?.name || "";
+  const selection = selectNetworkInterface();
+  const iface = selection.name || "";
   const base = iface ? `/sys/class/net/${iface}/statistics` : "";
   const bsd = iface ? bsdNetworkStats(iface) : {};
   return {
     iface,
+    localAddress: selection.address || "",
+    peerAddress: selection.peerAddress || "",
+    linkRole: selection.role || "Primary interface",
+    selectionReason: selection.reason || "first non-internal IPv4 interface",
     collectedAtMs: Date.now(),
     linkSpeedMbps: iface ? Math.max(0, finite(readFile(`/sys/class/net/${iface}/speed`), 0)) : 0,
     rxBytes: networkCounter(readFile(path.join(base, "rx_bytes")), finite(bsd.rxBytes, 0)),
@@ -746,6 +1082,69 @@ function primaryNetworkStats() {
     rxErrors: networkCounter(readFile(path.join(base, "rx_errors")), finite(bsd.rxErrors, 0)),
     txErrors: networkCounter(readFile(path.join(base, "tx_errors")), finite(bsd.txErrors, 0))
   };
+}
+
+function selectNetworkInterface() {
+  const entries = networkInterfaceEntries();
+  const explicit = explicitNetworkInterface
+    ? networkInterfaceEntryByName(explicitNetworkInterface, entries)
+      || { name: explicitNetworkInterface, address: "" }
+    : null;
+  if (explicit) {
+    return {
+      ...explicit,
+      role: "Configured network interface",
+      reason: "explicit network interface override"
+    };
+  }
+
+  const dgxSubnet = entries.find((entry) => String(entry.address || "").startsWith(dgxInterconnectSubnetPrefix));
+  if (dgxSubnet) {
+    return {
+      ...dgxSubnet,
+      peerAddress: dgxInterconnectPeerAddress(dgxSubnet.address),
+      role: "DGX interconnect",
+      reason: `${dgxInterconnectSubnetPrefix}0/24 DGX interconnect subnet`
+    };
+  }
+
+  const dgxNamed = dgxInterconnectInterface
+    ? networkInterfaceEntryByName(dgxInterconnectInterface, entries)
+    : null;
+  if (dgxNamed) {
+    return {
+      ...dgxNamed,
+      role: "DGX interconnect",
+      reason: `${dgxInterconnectInterface} DGX interconnect interface`
+    };
+  }
+
+  const first = entries.find((entry) => entry.family === "IPv4" && !entry.internal);
+  return first
+    ? {
+      ...first,
+      role: "Primary interface",
+      reason: "first non-internal IPv4 interface"
+    }
+    : { name: "", address: "", role: "Primary interface", reason: "no non-internal IPv4 interface found" };
+}
+
+function networkInterfaceEntryByName(name, entries) {
+  return entries.find((entry) => entry.name === name)
+    || (name && fs.existsSync(`/sys/class/net/${name}`) ? { name, address: "" } : null);
+}
+
+function networkInterfaceEntries() {
+  return Object.entries(os.networkInterfaces())
+    .flatMap(([name, entries]) => (entries || []).map((entry) => ({ name, ...entry })))
+    .filter((entry) => entry.family === "IPv4" && !entry.internal);
+}
+
+function dgxInterconnectPeerAddress(address) {
+  const value = String(address || "");
+  if (value === `${dgxInterconnectSubnetPrefix}10`) return `${dgxInterconnectSubnetPrefix}11`;
+  if (value === `${dgxInterconnectSubnetPrefix}11`) return `${dgxInterconnectSubnetPrefix}10`;
+  return "";
 }
 
 function networkCounter(value, fallback = 0) {
@@ -796,6 +1195,280 @@ function withNetworkRates(current, previous) {
       ? clamp((Math.max(rxBytesPerSecond, txBytesPerSecond) / linkBytesPerSecond) * 100, 0, 100)
       : undefined
   };
+}
+
+function readNetworkRateCache(current) {
+  if (!current?.iface) return null;
+  try {
+    const cache = JSON.parse(fs.readFileSync(networkRateCachePath, "utf8"));
+    return cache[networkRateCacheKey(current)] || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeNetworkRateCache(current) {
+  if (!current?.iface) return;
+  let cache = {};
+  try {
+    cache = JSON.parse(fs.readFileSync(networkRateCachePath, "utf8"));
+  } catch {
+    cache = {};
+  }
+  cache[networkRateCacheKey(current)] = {
+    iface: current.iface,
+    localAddress: current.localAddress || "",
+    peerAddress: current.peerAddress || "",
+    linkRole: current.linkRole || "",
+    collectedAtMs: current.collectedAtMs,
+    linkSpeedMbps: current.linkSpeedMbps,
+    rxBytes: current.rxBytes,
+    txBytes: current.txBytes
+  };
+  fs.mkdirSync(path.dirname(networkRateCachePath), { recursive: true });
+  writeFileAtomic(networkRateCachePath, JSON.stringify(cache, null, 2));
+}
+
+function networkRateCacheKey(current) {
+  return [os.hostname(), current.iface || "", current.localAddress || ""].join("|");
+}
+
+function defaultNetworkRateCachePath() {
+  const cacheDir = outPath ? path.dirname(outPath) : path.join(__dirname, "..", "build", "demo");
+  return path.join(cacheDir, "live-network-rate-cache.json");
+}
+
+function defaultBenchmarkCachePath() {
+  const cacheDir = outPath ? path.dirname(outPath) : path.join(__dirname, "..", "build", "demo");
+  return path.join(cacheDir, "live-pi-benchmark-cache.json");
+}
+
+function collectBenchmarkSuite({ host }) {
+  const nowMs = Date.now();
+  const name = "pi-light-v1";
+  if (!benchmarkEnabled) {
+    return {
+      name,
+      status: "disabled",
+      generatedAt: "",
+      collectedAtMs: nowMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      ttlMs: benchmarkTtlMs,
+      durationMs: 0,
+      error: ""
+    };
+  }
+
+  const cache = readBenchmarkCache();
+  const cacheKey = benchmarkCacheKey(host);
+  const cached = cache[cacheKey];
+  const cachedAtMs = finite(cached?.collectedAtMs, 0);
+  if (cached && nowMs - cachedAtMs >= 0 && nowMs - cachedAtMs < benchmarkTtlMs) {
+    return {
+      ...cached,
+      name,
+      status: "cached",
+      sampleCached: true,
+      sampleAgeMs: nowMs - cachedAtMs,
+      ttlMs: benchmarkTtlMs
+    };
+  }
+
+  try {
+    const sample = runBenchmarkSuite({ host, name });
+    cache[cacheKey] = sample;
+    writeBenchmarkCache(cache);
+    return sample;
+  } catch (error) {
+    if (cached) {
+      return {
+        ...cached,
+        name,
+        status: "stale",
+        sampleCached: true,
+        sampleAgeMs: nowMs - cachedAtMs,
+        ttlMs: benchmarkTtlMs,
+        error: compactWhitespace(error?.message || error)
+      };
+    }
+    return {
+      name,
+      status: "failed",
+      generatedAt: new Date(nowMs).toISOString(),
+      collectedAtMs: nowMs,
+      sampleCached: false,
+      sampleAgeMs: 0,
+      ttlMs: benchmarkTtlMs,
+      durationMs: benchmarkDurationMs,
+      error: compactWhitespace(error?.message || error || "benchmark failed")
+    };
+  }
+}
+
+function runBenchmarkSuite({ host, name }) {
+  const startedAtMs = Date.now();
+  const cpu = benchmarkCpuOps(benchmarkDurationMs);
+  const memory = benchmarkMemoryFill(benchmarkDurationMs, benchmarkBufferBytes);
+  const disk = benchmarkDiskIo(benchmarkDiskBytes);
+  const score = benchmarkCompositeScore({
+    cpuOpsPerSecond: cpu.opsPerSecond,
+    memoryMiBps: memory.mibPerSecond,
+    diskWriteMiBps: disk.writeMiBps,
+    diskReadMiBps: disk.readMiBps
+  });
+
+  return {
+    name,
+    status: "fresh",
+    host: host.hostname,
+    generatedAt: new Date(startedAtMs).toISOString(),
+    collectedAtMs: startedAtMs,
+    sampleCached: false,
+    sampleAgeMs: 0,
+    ttlMs: benchmarkTtlMs,
+    durationMs: benchmarkDurationMs,
+    cpuOpsPerSecond: cpu.opsPerSecond,
+    cpuChecksum: cpu.checksum,
+    memoryMiBps: memory.mibPerSecond,
+    memoryBytes: memory.bytes,
+    memoryChecksum: memory.checksum,
+    diskWriteMiBps: disk.writeMiBps,
+    diskReadMiBps: disk.readMiBps,
+    diskBytes: disk.bytes,
+    score,
+    error: ""
+  };
+}
+
+function benchmarkCpuOps(durationMs) {
+  const start = hrNowMs();
+  const deadline = start + durationMs;
+  const batch = 50000;
+  let ops = 0;
+  let checksum = 0x9e3779b9;
+  do {
+    for (let index = 0; index < batch; index += 1) {
+      checksum = Math.imul(checksum ^ (checksum >>> 15), 2246822507) >>> 0;
+      checksum = (checksum + 0x85ebca6b) >>> 0;
+    }
+    ops += batch;
+  } while (hrNowMs() < deadline);
+
+  const elapsedSeconds = Math.max(0.001, (hrNowMs() - start) / 1000);
+  return {
+    opsPerSecond: ops / elapsedSeconds,
+    checksum
+  };
+}
+
+function benchmarkMemoryFill(durationMs, bytes) {
+  const size = Math.max(256 * 1024, Math.min(bytes, 64 * 1024 * 1024));
+  const buffer = Buffer.allocUnsafe(size);
+  const start = hrNowMs();
+  const deadline = start + durationMs;
+  let transferred = 0;
+  let checksum = 0;
+  let fillValue = 17;
+  do {
+    buffer.fill(fillValue & 0xff);
+    checksum = (checksum + buffer[0] + buffer[buffer.length - 1]) >>> 0;
+    transferred += buffer.length;
+    fillValue = (fillValue + 31) & 0xff;
+  } while (hrNowMs() < deadline);
+
+  const elapsedSeconds = Math.max(0.001, (hrNowMs() - start) / 1000);
+  return {
+    mibPerSecond: (transferred / (1024 * 1024)) / elapsedSeconds,
+    bytes: transferred,
+    checksum
+  };
+}
+
+function benchmarkDiskIo(bytes) {
+  const totalBytes = Math.max(1024 * 1024, Math.min(bytes, 128 * 1024 * 1024));
+  const dir = path.join(path.dirname(benchmarkCachePath), ".pi-benchmark-tmp");
+  const filePath = path.join(dir, `bench-${process.pid}-${Date.now()}.bin`);
+  const block = Buffer.alloc(1024 * 1024, 0xa5);
+  fs.mkdirSync(dir, { recursive: true });
+
+  let fd = null;
+  try {
+    fd = fs.openSync(filePath, "w");
+    let written = 0;
+    const writeStart = hrNowMs();
+    while (written < totalBytes) {
+      const chunkBytes = Math.min(block.length, totalBytes - written);
+      fs.writeSync(fd, block, 0, chunkBytes);
+      written += chunkBytes;
+    }
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    const writeSeconds = Math.max(0.001, (hrNowMs() - writeStart) / 1000);
+
+    fd = fs.openSync(filePath, "r");
+    const readBuffer = Buffer.allocUnsafe(block.length);
+    let read = 0;
+    const readStart = hrNowMs();
+    while (read < totalBytes) {
+      const chunkBytes = Math.min(readBuffer.length, totalBytes - read);
+      const bytesRead = fs.readSync(fd, readBuffer, 0, chunkBytes, null);
+      if (bytesRead <= 0) break;
+      read += bytesRead;
+    }
+    fs.closeSync(fd);
+    fd = null;
+    const readSeconds = Math.max(0.001, (hrNowMs() - readStart) / 1000);
+
+    return {
+      bytes: totalBytes,
+      writeMiBps: (written / (1024 * 1024)) / writeSeconds,
+      readMiBps: (read / (1024 * 1024)) / readSeconds
+    };
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    try {
+      fs.unlinkSync(filePath);
+    } catch {}
+  }
+}
+
+function benchmarkCompositeScore(sample) {
+  return clamp(
+    (finite(sample.cpuOpsPerSecond, 0) / 500_000_000) * 35
+    + (finite(sample.memoryMiBps, 0) / 8000) * 25
+    + (finite(sample.diskWriteMiBps, 0) / 180) * 18
+    + (finite(sample.diskReadMiBps, 0) / 1800) * 22,
+    0,
+    100
+  );
+}
+
+function readBenchmarkCache() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(benchmarkCachePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeBenchmarkCache(cache) {
+  fs.mkdirSync(path.dirname(benchmarkCachePath), { recursive: true });
+  writeFileAtomic(benchmarkCachePath, JSON.stringify(cache, null, 2));
+}
+
+function benchmarkCacheKey(host) {
+  return [host.hostname || os.hostname(), host.platform || os.platform(), host.arch || os.arch()].join("|");
+}
+
+function hrNowMs() {
+  return Number(process.hrtime.bigint()) / 1_000_000;
 }
 
 function cpuUsageSample(sampleMs = 250) {
@@ -1031,9 +1704,7 @@ function tcpReachable(host, port) {
 }
 
 function nonInternalAddresses() {
-  return Object.entries(os.networkInterfaces())
-    .flatMap(([name, entries]) => (entries || []).map((entry) => ({ name, ...entry })))
-    .filter((entry) => entry.family === "IPv4" && !entry.internal)
+  return networkInterfaceEntries()
     .map((entry) => ({ name: entry.name, address: entry.address }));
 }
 
@@ -1259,4 +1930,27 @@ function parseArgs(argv) {
     parsed[arg.slice(2)] = argv[index + 1] && !argv[index + 1].startsWith("--") ? argv[++index] : "1";
   }
   return parsed;
+}
+
+function localFleetRemotes() {
+  if (process.env.TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION === "1" || args["no-fleet"] === "1") return [];
+  const configured = splitList(process.env.TURBALANCE_LIVE_MACHINE_FLEET_REMOTES || args["fleet-remote"] || "");
+  if (configured.length > 0) return configured;
+  return os.hostname().toLowerCase() === "spark1" ? ["user@192.168.10.21"] : [];
+}
+
+function splitList(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap((item) => String(item || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean));
+}
+
+function collectorNetworkArgs() {
+  return [
+    ["--network-interface", explicitNetworkInterface],
+    ["--dgx-interconnect-interface", dgxInterconnectInterface],
+    ["--dgx-interconnect-subnet-prefix", dgxInterconnectSubnetPrefix]
+  ].flatMap(([flag, value]) => value ? [flag, value] : []);
 }

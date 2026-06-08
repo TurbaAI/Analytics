@@ -1003,6 +1003,11 @@ const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "a
 const SNAPSHOT_LIMIT = 360;
 const TASK_HISTORY_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
+const MACHINE_DEMO_FRESH_SECONDS = 30;
+const MACHINE_DEMO_FRESH_MS = MACHINE_DEMO_FRESH_SECONDS * 1000;
+const PI_FLEET_HOSTNAMES = Array.from({ length: 12 }, (_unused, index) => `pi${index + 1}`);
+const SPARK_PAIR_CLOCK_HISTORY_LIMIT = 180;
+const SPARK_PAIR_CLOCK_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
@@ -1012,6 +1017,23 @@ const LIVE_COVARIANCE_METRICS = [
   { key: "ram", label: "RAM usage", shortLabel: "RAM" },
   { key: "networkUtilization", label: "Network utilization", shortLabel: "Net" }
 ];
+const SYSTEM_ID_PROFILE_ORDER = ["impulse", "step", "ramp", "sine"];
+const SYSTEM_ID_PROFILE_LABELS = {
+  impulse: "Impulse",
+  step: "Step",
+  ramp: "Ramp",
+  sine: "Sine"
+};
+const SYSTEM_ID_SUBSYSTEMS = [
+  { key: "cpu", target: "cpu", outputMetric: "cpu", label: "CPU", shortLabel: "CPU" },
+  { key: "gpu", target: "gpu", outputMetric: "gpu", label: "GPU", shortLabel: "GPU" },
+  { key: "ram", target: "ram", outputMetric: "ram", label: "RAM", shortLabel: "RAM" },
+  { key: "network", target: "network", outputMetric: "network", label: "Network", shortLabel: "Net" },
+  { key: "disk", target: "disk", outputMetric: "disk", label: "Disk", shortLabel: "Disk" },
+  { key: "gpuMemory", target: "gpu", outputMetric: "gpuMemory", label: "GPU memory", shortLabel: "HBM" }
+];
+const FLEET_COMPARISON_HOST_LIMIT = 16;
+const SYSTEM_CHARACTERIZATION_HOST_LIMIT = 16;
 const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
@@ -1024,15 +1046,20 @@ let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let liveTelemetryHistory = [];
+let sparkPairClockHistory = [];
 let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
 let platformVirtualSensorCache = {
   baseUrl: "",
   fetchedAt: 0,
   inFlight: false,
-  matrix: null
+  matrix: null,
+  systemIdentification: null
 };
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
+let sparkPairClockRefreshTimer = null;
+let sparkPairClockLoadInFlight = false;
+let latestSparkPairComparison = null;
 let operatorLaunchpadSignature = "";
 
 const state = {
@@ -1153,6 +1180,7 @@ document.addEventListener("DOMContentLoaded", () => {
   prefillMachineDemoUrl();
   render();
   maybeAutoLoadMachineDemoBundle();
+  maybeStartSparkPairClockFeed();
 });
 
 function loadWorkspaceStore(defaultIngestion) {
@@ -1200,16 +1228,46 @@ function persistWorkspaceStore() {
 }
 
 function replaceActiveIngestion(nextIngestion, label) {
+  const previousKey = state.selectedKey;
+  const previousIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === previousKey)) : "";
   activeIngestion = applyPersistedBaselines(nextIngestion, buildBaselineStore(nextIngestion.runs));
   jobs = normalizeIngestion(activeIngestion);
-  state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
+  state.selectedKey = resolveJobSelectionKey(previousKey, previousIdentity) || jobs[0]?.id || "";
   state.ingestLabel = label;
   state.ingestTone = "good";
   state.lastAnalysis = new Date();
   captureAnalysisSnapshot(label, state.lastAnalysis);
   persistWorkspaceStore();
   render();
+}
+
+function resolveJobSelectionKey(previousKey, previousIdentity) {
+  if (previousKey && jobs.some((job) => job.id === previousKey)) return previousKey;
+  if (previousIdentity) {
+    const matched = jobs.find((job) => jobSelectionIdentity(job) === previousIdentity);
+    if (matched) return matched.id;
+  }
+  return "";
+}
+
+function jobSelectionIdentity(job) {
+  if (!job) return "";
+  if (isMachineDemoItem(job)) {
+    const context = job.source?.context || {};
+    const address = context.networkLocalAddress || context.hostAddress || context.primaryAddress || "";
+    if (address) return `machine-address:${normalizedSelectionToken(address)}`;
+    const host = context.hostname || context.node || job.cluster || "";
+    if (host) return `machine-host:${normalizedSelectionToken(host)}`;
+  }
+  return job.id ? `job:${job.id}` : "";
+}
+
+function normalizedSelectionToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function restoreWorkspaceStore(store, label) {
@@ -2639,6 +2697,12 @@ async function maybeAutoLoadMachineDemoBundle() {
   startMachineDemoRefresh();
 }
 
+function maybeStartSparkPairClockFeed() {
+  if (!shouldAutoLoadSparkPairClockFeed()) return;
+  loadSparkPairClockFeed();
+  startSparkPairClockRefresh();
+}
+
 async function loadMachineDemoBundle({ quiet = false } = {}) {
   if (machineDemoLoadInFlight) return;
   machineDemoLoadInFlight = true;
@@ -2669,6 +2733,28 @@ function startMachineDemoRefresh() {
   }, MACHINE_DEMO_REFRESH_MS);
 }
 
+function startSparkPairClockRefresh() {
+  if (sparkPairClockRefreshTimer || !shouldAutoLoadSparkPairClockFeed()) return;
+  sparkPairClockRefreshTimer = window.setInterval(() => {
+    if (document.hidden) return;
+    loadSparkPairClockFeed();
+  }, SPARK_PAIR_CLOCK_REFRESH_MS);
+}
+
+async function loadSparkPairClockFeed() {
+  if (sparkPairClockLoadInFlight) return;
+  sparkPairClockLoadInFlight = true;
+  try {
+    const response = await window.fetch(cacheBustUrl(sparkPairClockFeedUrl()));
+    if (!response.ok) return;
+    applySparkPairClockFeed(parseImportJson(await response.text(), "SPARK clock feed did not return valid JSON."));
+  } catch {
+    // The fast clock feed is optional; the full live-machine bundle remains the fallback.
+  } finally {
+    sparkPairClockLoadInFlight = false;
+  }
+}
+
 function shouldOfferMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
   return params.get("demo") === "machine" || isKnownMachineDemoHost();
@@ -2681,12 +2767,20 @@ function shouldAutoLoadMachineDemoBundle() {
   return isKnownMachineDemoHost();
 }
 
+function shouldAutoLoadSparkPairClockFeed() {
+  const params = new URLSearchParams(window.location.search);
+  if (["0", "false", "off"].includes(String(params.get("clockFeed") || "").toLowerCase())) return false;
+  return shouldAutoLoadMachineDemoBundle() && (isLakehouseDashboardHost() || params.has("clockFeed"));
+}
+
 function isKnownMachineDemoHost() {
   return [
-    "192.168.10.101",
+    "192.168.10.30",
     "nuc14e",
     "192.168.10.20",
     "spark1",
+    "192.168.10.21",
+    ...PI_FLEET_HOSTNAMES,
     "100.96.89.98",
     "dgx-pat"
   ].includes(window.location.hostname.toLowerCase());
@@ -2697,9 +2791,17 @@ function machineDemoBundleUrl() {
   return parseImportUrl(params.get("bundle") || "build/demo/live-machine-bundle.json");
 }
 
+function sparkPairClockFeedUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return parseImportUrl(params.get("clockFeed") || "build/demo/spark-clock-offset.json");
+}
+
 function platformApiBaseUrl() {
   const params = new URLSearchParams(window.location.search);
   const value = params.get("platformApi");
+  if (!value && isLakehouseDashboardHost()) {
+    return `${window.location.protocol}//${window.location.hostname}:8080`;
+  }
   if (!value) return "";
   try {
     const url = new URL(value, window.location.href);
@@ -2707,6 +2809,10 @@ function platformApiBaseUrl() {
   } catch {
     return "";
   }
+}
+
+function isLakehouseDashboardHost() {
+  return ["192.168.10.30", "nuc14e"].includes(window.location.hostname.toLowerCase());
 }
 
 function platformApiUrl(path) {
@@ -3876,7 +3982,47 @@ function machineDemoContext(summary) {
     linuxUmaMemoryUsedPct: numeric(context.linuxUmaMemoryUsedPct, context.memoryUsedPct),
     appMetricsReachable: Boolean(context.appMetricsReachable),
     nsightCuptiProfilingStatus: String(context.nsightCuptiProfilingStatus || ""),
+    ncclRuntimePresent: Boolean(context.ncclRuntimePresent),
+    ncclRuntimeStatus: String(context.ncclRuntimeStatus || ""),
+    ncclRuntimeSource: String(context.ncclRuntimeSource || ""),
+    ncclRuntimeContainers: Array.isArray(context.ncclRuntimeContainers) ? context.ncclRuntimeContainers : [],
+    ncclRuntimeImages: Array.isArray(context.ncclRuntimeImages) ? context.ncclRuntimeImages : [],
+    ncclRuntimeSocketIfname: String(context.ncclRuntimeSocketIfname || ""),
+    ncclRuntimeHostIp: String(context.ncclRuntimeHostIp || ""),
+    ncclRuntimeDetail: String(context.ncclRuntimeDetail || ""),
+    benchmarkSuiteName: String(context.benchmarkSuiteName || ""),
+    benchmarkSuiteStatus: String(context.benchmarkSuiteStatus || ""),
+    benchmarkGeneratedAt: String(context.benchmarkGeneratedAt || ""),
+    benchmarkSampleCached: Boolean(context.benchmarkSampleCached),
+    benchmarkSampleAgeMs: optionalMetric(context, "benchmarkSampleAgeMs"),
+    benchmarkTtlMs: optionalMetric(context, "benchmarkTtlMs"),
+    benchmarkDurationMs: optionalMetric(context, "benchmarkDurationMs"),
+    benchmarkCpuOpsPerSecond: optionalMetric(context, "benchmarkCpuOpsPerSecond"),
+    benchmarkMemoryMiBps: optionalMetric(context, "benchmarkMemoryMiBps"),
+    benchmarkDiskWriteMiBps: optionalMetric(context, "benchmarkDiskWriteMiBps"),
+    benchmarkDiskReadMiBps: optionalMetric(context, "benchmarkDiskReadMiBps"),
+    benchmarkScore: optionalMetric(context, "benchmarkScore"),
+    benchmarkError: String(context.benchmarkError || ""),
+    clockSource: String(context.clockSource || ""),
+    clockSynchronized: Boolean(context.clockSynchronized),
+    clockTimeUnixMs: optionalMetric(context, "clockTimeUnixMs"),
+    clockTimeUnixNs: String(context.clockTimeUnixNs || ""),
+    clockTimezone: String(context.clockTimezone || ""),
+    clockLocalRtc: Boolean(context.clockLocalRtc),
+    clockOffsetNs: optionalMetric(context, "clockOffsetNs"),
+    clockRmsOffsetNs: optionalMetric(context, "clockRmsOffsetNs"),
+    clockPtpInstalled: Boolean(context.clockPtpInstalled),
+    clockPtpActive: Boolean(context.clockPtpActive),
+    clockPtpPortState: String(context.clockPtpPortState || ""),
+    clockPtpGrandmaster: String(context.clockPtpGrandmaster || ""),
+    clockChronyReference: String(context.clockChronyReference || ""),
+    clockChronyStratum: optionalMetric(context, "clockChronyStratum"),
+    clockSyncServices: Array.isArray(context.clockSyncServices) ? context.clockSyncServices : [],
+    clockSyncDetail: String(context.clockSyncDetail || ""),
     context,
+    platform: String(context.platform || ""),
+    arch: String(context.arch || ""),
+    uptimeSeconds: optionalMetric(context, "uptimeSeconds"),
     gpuUtilizationPct: numeric(context.gpuUtilizationPct, summary.gpuUtil),
     gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
     gpuMemoryUsedMiB: numeric(context.gpuMemoryUsedMiB),
@@ -3888,9 +4034,14 @@ function machineDemoContext(summary) {
     gpuSampleCached: Boolean(context.gpuSampleCached),
     gpuSampleAgeMs: numeric(context.gpuSampleAgeMs),
     cpuUsagePct: numeric(context.cpuUsagePct),
+    cpuTemperatureC: optionalMetric(context, "cpuTemperatureC"),
     memoryUsedPct: numeric(context.memoryUsedPct),
     diskUsedPct: numeric(context.diskUsedPct),
     networkInterface: String(context.networkInterface || ""),
+    networkLocalAddress: String(context.networkLocalAddress || ""),
+    networkPeerAddress: String(context.networkPeerAddress || ""),
+    networkLinkRole: String(context.networkLinkRole || ""),
+    networkSelectionReason: String(context.networkSelectionReason || ""),
     networkLinkSpeedMbps: optionalMetric(context, "networkLinkSpeedMbps"),
     networkRxBytes: optionalMetric(context, "networkRxBytes"),
     networkTxBytes: optionalMetric(context, "networkTxBytes"),
@@ -4246,7 +4397,7 @@ function renderAnalysisResourceBadge(badge) {
 }
 
 function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
-  const fresh = ageSeconds === null || ageSeconds <= 12;
+  const fresh = ageSeconds === null || ageSeconds <= MACHINE_DEMO_FRESH_SECONDS;
   const text = ageSeconds === null ? "Live" : `Updated ${ageSeconds}s ago`;
   let heart = badge.querySelector(".live-resource-heart");
   let label = badge.querySelector(".live-resource-badge-text");
@@ -4279,6 +4430,11 @@ function liveNetworkDisplay(machineContext) {
   const hasPercent = Number.isFinite(machineContext.networkUtilizationPct);
   const throughput = Number.isFinite(machineContext.networkThroughputBps) ? machineContext.networkThroughputBps : 0;
   const interfaceLabel = machineContext.networkInterface || "primary interface";
+  const roleLabel = machineContext.networkLinkRole || (interfaceLabel === "enp1s0f1np1" ? "DGX interconnect" : "Network link");
+  const peerText = machineContext.networkLocalAddress && machineContext.networkPeerAddress
+    ? ` ${machineContext.networkLocalAddress}->${machineContext.networkPeerAddress}`
+    : "";
+  const scopeText = `${roleLabel}: ${interfaceLabel}${peerText}`;
   const linkText = Number.isFinite(machineContext.networkLinkSpeedMbps) && machineContext.networkLinkSpeedMbps > 0
     ? `${compactNumber.format(machineContext.networkLinkSpeedMbps)} Mbps link`
     : "link speed unavailable";
@@ -4290,8 +4446,8 @@ function liveNetworkDisplay(machineContext) {
   return {
     value: hasPercent ? pct(machineContext.networkUtilizationPct) : throughput > 0 ? formatBytesPerSecond(throughput) : "learning",
     note: hasPercent
-      ? `${interfaceLabel} | ${formatBytesPerSecond(throughput)} | ${linkText}`
-      : `${interfaceLabel} | ${linkText}`,
+      ? `${scopeText} | ${formatBytesPerSecond(throughput)} | ${linkText}`
+      : `${scopeText} | ${linkText}`,
     percent: hasPercent ? machineContext.networkUtilizationPct : null,
     tone: issueCount > 0 ? "watch" : hasPercent ? inverseGrade(machineContext.networkUtilizationPct, 70, 88).key : "watch"
   };
@@ -4315,7 +4471,13 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const grafanaBadge = document.querySelector("#grafanaMiniBadge");
   const fleetTiles = document.querySelector("#fleetTiles");
   const fleetBadge = document.querySelector("#fleetTilesBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !fleetTiles) return;
+  const sparkPairComparePanel = document.querySelector("#sparkPairComparePanel");
+  const sparkPairCompareBadge = document.querySelector("#sparkPairCompareBadge");
+  const fleetComparisonPanel = document.querySelector("#fleetComparisonPanel");
+  const fleetComparisonBadge = document.querySelector("#fleetComparisonBadge");
+  const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
+  const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -4329,6 +4491,9 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     replayPanel.replaceChildren();
     grafanaPanel.replaceChildren();
     fleetTiles.replaceChildren();
+    sparkPairComparePanel.replaceChildren();
+    fleetComparisonPanel.replaceChildren();
+    characterizationPanel.replaceChildren();
     return;
   }
 
@@ -4342,6 +4507,15 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : `${liveTelemetryHistory.length} samples`;
   if (grafanaBadge) grafanaBadge.textContent = cockpit.grafana.links.length ? `${cockpit.grafana.links.length} links` : "No link";
   if (fleetBadge) fleetBadge.textContent = `${cockpit.fleet.length} ${cockpit.fleet.length === 1 ? "host" : "hosts"}`;
+  if (sparkPairCompareBadge) {
+    sparkPairCompareBadge.textContent = cockpit.sparkComparison.badge;
+    sparkPairCompareBadge.dataset.tone = cockpit.sparkComparison.tone;
+  }
+  if (fleetComparisonBadge) {
+    fleetComparisonBadge.textContent = cockpit.fleetComparison.badge;
+    fleetComparisonBadge.dataset.tone = cockpit.fleetComparison.tone;
+  }
+  updateSystemCharacterizationBadge(characterizationBadge, platformVirtualSensorCache.systemIdentification);
 
   heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
   timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
@@ -4351,6 +4525,10 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
   grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
   fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
+  latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
+  renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
+  renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
+  renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
 }
 
 function buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator) {
@@ -4375,6 +4553,8 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence });
   const grafana = buildOperatorGrafanaState(summary);
   const fleet = buildOperatorFleetTiles(summary, machineContext);
+  const sparkComparison = buildSparkPairComparison(summary, machineContext);
+  const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
   const hostLabel = machineContext?.host || clusters[0] || summary.label || "current selection";
 
@@ -4395,6 +4575,8 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     timeline,
     grafana,
     fleet,
+    sparkComparison,
+    fleetComparison,
     commands: buildOperatorCommands({ summary, machineContext, grafana, kafka })
   };
 }
@@ -4402,7 +4584,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
 function buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, ageMilliseconds, kafka }) {
   const contextItems = summary.sourceItems || [];
   const hasContextField = (field) => contextItems.some((item) => Boolean(item.source?.context?.[field]));
-  const generatedFresh = ageMilliseconds === null || ageMilliseconds <= 12000;
+  const generatedFresh = ageMilliseconds === null || ageMilliseconds <= MACHINE_DEMO_FRESH_MS;
   const gb10Monitors = machineContext?.gb10Present ? machineContext.gb10MonitoringList : [];
   const sourceFlags = {
     host: Boolean(machineContext) || adapters.includes("local-machine") || adapters.includes("procfs") || adapters.includes("os-counters"),
@@ -4416,7 +4598,7 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     "node-exporter": observedServices.includes("node-exporter"),
     ebpf: adapters.includes("ebpf"),
     provider: adapters.includes("provider"),
-    "nccl-trace": adapters.includes("nccl-trace")
+    "nccl-trace": adapters.includes("nccl-trace") || adapters.includes("nccl-runtime") || Boolean(machineContext?.ncclRuntimePresent)
   };
 
   const sourceOrder = machineContext?.gb10Present
@@ -4443,7 +4625,8 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     }
 
     const present = Boolean(sourceFlags[id]);
-    const liveTimed = ["host", "kafka", "docker", "ollama", "node-exporter"].includes(id);
+    const ncclRuntimePresent = id === "nccl-trace" && Boolean(machineContext?.ncclRuntimePresent);
+    const liveTimed = ["host", "kafka", "docker", "ollama", "node-exporter"].includes(id) || ncclRuntimePresent;
     const fresh = present && (!liveTimed || generatedFresh);
     const attached = present && !liveTimed;
     const status = !present ? "missing" : fresh ? "live" : attached ? "attached" : "stale";
@@ -4503,6 +4686,13 @@ function operatorSourceNote({ id, present, status, ageMilliseconds, summary, mac
   if (id === "prometheus") return "Prometheus source metrics";
   if (id === "dcgm") return "GPU counter source";
   if (id === "docker") return `${machineContext?.dockerContainers?.length || 0} containers observed`;
+  if (id === "nccl-trace") {
+    if (machineContext?.ncclRuntimePresent) {
+      return machineContext.ncclRuntimeDetail
+        || `${machineContext.ncclRuntimeContainers.join(", ") || machineContext.ncclRuntimeSource || "NCCL runtime"} observed`;
+    }
+    return "NCCL trace export attached";
+  }
   if (id === "ollama") {
     if (machineContext?.ollamaTelemetryAvailable) {
       return `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`;
@@ -4617,31 +4807,1659 @@ function buildOperatorGrafanaState(summary) {
 }
 
 function buildOperatorFleetTiles(summary, machineContext) {
-  const items = (summary.sourceItems || []).filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  const selectedIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === state.selectedKey)) : "";
+  const items = operatorFleetSourceItems(summary);
   if (!items.length && machineContext) {
     return [{
+      key: state.scope === "job" ? state.selectedKey : "",
       host: machineContext.host,
       gpu: machineContext.gpuModel,
       services: machineDemoServices(machineContext.context.observedServices),
       status: machineContext.driverUnavailable ? "GPU telemetry blocked" : machineContext.noGpu ? "Host only" : machineContext.idle ? "GPU idle" : "Active",
       age: machineContext.context.generatedAt ? Math.max(0, Math.round((Date.now() - safeDate(machineContext.context.generatedAt, new Date()).getTime()) / 1000)) : null,
-      tone: machineContext.driverUnavailable || machineContext.noGpu ? "watch" : "good"
+      tone: machineContext.driverUnavailable || machineContext.noGpu ? "watch" : "good",
+      selected: true
     }];
   }
 
-  return items.slice(0, 8).map((item) => {
+  return items.slice(0, FLEET_COMPARISON_HOST_LIMIT).map((item) => {
     const context = item.source?.context || {};
     const age = context.generatedAt ? Math.max(0, Math.round((Date.now() - safeDate(context.generatedAt, new Date()).getTime()) / 1000)) : null;
     const services = machineDemoServices(context.observedServices);
+    const identity = jobSelectionIdentity(item);
     return {
+      key: item.id || "",
       host: context.hostname || context.node || item.cluster || item.name,
       gpu: context.gpuName || item.gpuModel || "unknown GPU",
       services,
       status: item.status || "Observed",
       age,
-      tone: age !== null && age > 12 ? "watch" : "good"
+      tone: age !== null && age > 12 ? "watch" : "good",
+      selected: state.scope === "job" && (
+        item.id === state.selectedKey
+        || (identity && identity === selectedIdentity)
+      )
     };
   });
+}
+
+function operatorFleetSourceItems(summary) {
+  const summaryItems = (summary.sourceItems || [])
+    .filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  const machineJobs = jobs
+    .filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  return machineJobs.length > 1 ? machineJobs : summaryItems;
+}
+
+function buildFleetComparison(summary, machineContext, characterization) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  if (contexts.length < 2) {
+    return {
+      available: false,
+      badge: contexts.length ? "Need peers" : "Waiting",
+      tone: "watch",
+      emptyText: contexts.length
+        ? `Observed ${contexts[0].host}. Waiting for peer hosts in the live machine bundle.`
+        : "Waiting for a live machine fleet bundle."
+    };
+  }
+
+  const characterizations = fleetCharacterizationMap(characterization);
+  const rows = contexts.map((context) => fleetHostSnapshot(context, characterizations.get(fleetHostKey(context))));
+  assignFleetSignatureDistances(rows);
+  const metricConfigs = fleetMetricConfigs();
+  const spreadRows = metricConfigs
+    .map((config) => fleetMetricSpread(config, rows))
+    .filter(Boolean);
+  assignFleetScores(rows, metricConfigs);
+  rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  rows.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  const benchmarkHistograms = buildPiBenchmarkHistograms(rows);
+
+  const outlierCount = rows.filter((row) => row.outlierCount > 0 || row.tone === "poor").length;
+  const staleCount = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs > MACHINE_DEMO_FRESH_MS).length;
+  const fingerprintCount = rows.filter((row) => row.signatureMetricCount > 0).length;
+  const benchmarkCount = rows.filter(fleetBenchmarkAvailable).length;
+  const tone = staleCount > Math.max(1, rows.length * 0.25) || outlierCount > Math.max(2, rows.length * 0.35)
+    ? "poor"
+    : outlierCount || staleCount ? "watch" : "good";
+
+  return {
+    available: true,
+    badge: outlierCount ? `${outlierCount} outliers` : `${rows.length} hosts`,
+    tone,
+    rows,
+    spreadRows,
+    benchmarkHistograms,
+    summaries: fleetComparisonSummaries(rows, spreadRows, { outlierCount, staleCount, fingerprintCount, benchmarkCount })
+  };
+}
+
+function buildFleetMachineContexts(summary, machineContext) {
+  const items = operatorFleetSourceItems(summary);
+  const contexts = items
+    .map((item) => machineContextFromSourceItem(summary, item))
+    .filter(Boolean);
+
+  if (!contexts.length && machineContext) contexts.push(machineContext);
+
+  return uniqueBy(contexts, fleetHostKey)
+    .sort(fleetHostContextSort);
+}
+
+function fleetHostContextSort(left, right) {
+  const leftRank = fleetHostSortRank(left);
+  const rightRank = fleetHostSortRank(right);
+  return leftRank - rightRank || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true });
+}
+
+function fleetHostSortRank(machineContext) {
+  const role = sparkPairHostRole(machineContext);
+  if (role === "SPARK1") return 10;
+  if (role === "SPARK2") return 11;
+  const label = fleetNaturalLabel(machineContext.host);
+  const piMatch = label.match(/^pi(\d+)$/i) || label.match(/^PI(\d+)$/);
+  if (piMatch) return 100 + numeric(piMatch[1], 0);
+  if (/nuc/i.test(label)) return 50;
+  return 200;
+}
+
+function fleetHostKey(machineContext) {
+  const context = machineContext?.context || {};
+  return normalizeFleetHostId(
+    sparkPairHostRole(machineContext)
+    || machineContext?.host
+    || context.hostname
+    || context.node
+    || context.networkLocalAddress
+  );
+}
+
+function normalizeFleetHostId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^pi@/, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function fleetNaturalLabel(value) {
+  return String(value || "").trim() || "host";
+}
+
+function fleetCharacterizationMap(characterization) {
+  const map = new Map();
+  if (!characterization || characterization.status !== "ready") return map;
+  (characterization.hosts || []).forEach((host) => {
+    map.set(normalizeFleetHostId(host.hostId), host);
+  });
+  return map;
+}
+
+function fleetHostSnapshot(machineContext, characterizationHost) {
+  const context = machineContext.context || {};
+  const sampleAgeMs = sparkPairSampleAgeMilliseconds(machineContext);
+  const networkIssueCount = numeric(machineContext.networkRxDrops)
+    + numeric(machineContext.networkTxDrops)
+    + numeric(machineContext.networkRxErrors)
+    + numeric(machineContext.networkTxErrors);
+  const networkThroughputBps = Math.max(
+    numeric(machineContext.networkRxBytesPerSecond, 0),
+    numeric(machineContext.networkTxBytesPerSecond, 0)
+  );
+  const loadPressurePct = clamp((numeric(context.load1) / Math.max(1, numeric(context.cpuCount, machineContext.context?.cpuCount || 1))) * 100);
+  const memoryTotalBytes = numeric(context.memoryTotalBytes, 0);
+  const diskTotalBytes = numeric(context.diskTotalBytes, 0);
+  const signature = fleetSystemSignature(characterizationHost);
+  const host = machineContext.host || context.hostname || "host";
+  const services = machineDemoServices(context.observedServices);
+
+  return {
+    host,
+    key: fleetHostKey(machineContext),
+    machineContext,
+    characterizationHost,
+    services,
+    platform: [machineContext.platform, machineContext.arch].filter(Boolean).join("/") || context.os || "",
+    cpuModel: String(context.cpuModel || ""),
+    cpuCount: numeric(context.cpuCount, 0),
+    sampleAgeMs,
+    cpuUsagePct: machineContext.cpuUsagePct,
+    cpuTemperatureC: machineContext.cpuTemperatureC,
+    loadPressurePct,
+    memoryUsedPct: machineContext.memoryUsedPct,
+    memoryTotalBytes,
+    diskUsedPct: machineContext.diskUsedPct,
+    diskTotalBytes,
+    networkUtilizationPct: machineContext.networkUtilizationPct,
+    networkLinkSpeedMbps: machineContext.networkLinkSpeedMbps,
+    networkThroughputBps,
+    networkIssueCount,
+    dockerCpuPct: sparkPairDockerCpuPct(machineContext),
+    ollamaTokensPerSecond: machineContext.ollamaTokensPerSecond,
+    modelCount: machineContext.modelCount,
+    benchmarkSuiteName: machineContext.benchmarkSuiteName,
+    benchmarkSuiteStatus: machineContext.benchmarkSuiteStatus,
+    benchmarkGeneratedAt: machineContext.benchmarkGeneratedAt,
+    benchmarkSampleCached: machineContext.benchmarkSampleCached,
+    benchmarkSampleAgeMs: machineContext.benchmarkSampleAgeMs,
+    benchmarkTtlMs: machineContext.benchmarkTtlMs,
+    benchmarkDurationMs: machineContext.benchmarkDurationMs,
+    benchmarkCpuOpsPerSecond: machineContext.benchmarkCpuOpsPerSecond,
+    benchmarkMemoryMiBps: machineContext.benchmarkMemoryMiBps,
+    benchmarkDiskWriteMiBps: machineContext.benchmarkDiskWriteMiBps,
+    benchmarkDiskReadMiBps: machineContext.benchmarkDiskReadMiBps,
+    benchmarkScore: fleetBenchmarkCompositeScore(machineContext),
+    benchmarkError: machineContext.benchmarkError,
+    gpuPresent: machineContext.gpuPresent,
+    gpuUtilizationPct: machineContext.gpuUtilizationPct,
+    gpuMemoryUsedPct: machineContext.gpuMemoryUsedPct,
+    signature,
+    signatureDelta: Number.NaN,
+    signatureMetricCount: Object.keys(signature).length,
+    outlierCount: 0,
+    outlierLabels: [],
+    score: 0,
+    tone: "watch"
+  };
+}
+
+function fleetSystemSignature(host) {
+  if (!host) return {};
+  const signature = {};
+  (host.subsystems || []).forEach((subsystem) => {
+    [
+      ["stepPeak", subsystem.stepPeak],
+      ["stepGain", subsystem.stepGain],
+      ["impulsePeak", subsystem.impulsePeak],
+      ["impulseGain", subsystem.impulseGain],
+      ["rampPeak", subsystem.rampPeak]
+    ].forEach(([feature, value]) => {
+      if (Number.isFinite(value)) signature[`${subsystem.key}:${feature}`] = value;
+    });
+    Object.entries(subsystem.profilePeaks || {}).forEach(([profile, value]) => {
+      if (Number.isFinite(value)) signature[`${subsystem.key}:${profile}:peak`] = value;
+    });
+  });
+  return signature;
+}
+
+function assignFleetSignatureDistances(rows) {
+  const keys = unique(rows.flatMap((row) => Object.keys(row.signature)));
+  if (!keys.length) return;
+  const medians = new Map();
+  const scales = new Map();
+  keys.forEach((key) => {
+    const values = rows.map((row) => row.signature[key]).filter(Number.isFinite);
+    if (values.length < 2) return;
+    const median = fleetMedian(values);
+    const mad = fleetMedian(values.map((value) => Math.abs(value - median)));
+    medians.set(key, median);
+    scales.set(key, Math.max(mad * 1.4826, Math.abs(median) * 0.08, 0.5));
+  });
+
+  rows.forEach((row) => {
+    const distances = Object.entries(row.signature)
+      .filter(([key, value]) => medians.has(key) && Number.isFinite(value))
+      .map(([key, value]) => Math.abs(value - medians.get(key)) / scales.get(key));
+    row.signatureDelta = distances.length
+      ? distances.reduce((total, value) => total + value, 0) / distances.length
+      : Number.NaN;
+  });
+}
+
+function fleetMetricConfigs() {
+  return [
+    { key: "sampleAgeMs", label: "Freshness", formatter: sparkPairAgeLabel, lowerBetter: true, weight: 1.1, domain: [0, MACHINE_DEMO_FRESH_MS * 2], outlierLabel: "stale" },
+    { key: "cpuUsagePct", label: "CPU", formatter: pct, lowerBetter: true, weight: 1.1, domain: [0, 95], outlierLabel: "cpu" },
+    { key: "loadPressurePct", label: "Load/core", formatter: pct, lowerBetter: true, weight: 0.8, domain: [0, 120], outlierLabel: "load" },
+    { key: "cpuTemperatureC", label: "CPU temp", formatter: fleetTemperatureLabel, lowerBetter: true, weight: 0.8, domain: [35, 85], outlierLabel: "thermal" },
+    { key: "memoryUsedPct", label: "RAM used", formatter: pct, lowerBetter: true, weight: 1, domain: [0, 95], outlierLabel: "ram" },
+    { key: "diskUsedPct", label: "Disk used", formatter: pct, lowerBetter: true, weight: 0.8, domain: [0, 95], outlierLabel: "disk" },
+    { key: "networkIssueCount", label: "Net issues", formatter: (value) => number.format(value), lowerBetter: true, weight: 0.9, domain: [0, 10], outlierLabel: "net" },
+    { key: "cpuCount", label: "CPU cores", formatter: (value) => number.format(value), higherBetter: true, weight: 0.7, relative: true },
+    { key: "memoryTotalBytes", label: "RAM total", formatter: formatBytes, higherBetter: true, weight: 0.75, relative: true },
+    { key: "diskTotalBytes", label: "Disk total", formatter: formatBytes, higherBetter: true, weight: 0.55, relative: true },
+    { key: "networkLinkSpeedMbps", label: "Link speed", formatter: fleetMbpsLabel, higherBetter: true, weight: 0.6, relative: true },
+    { key: "networkThroughputBps", label: "Net activity", formatter: formatBytesPerSecond, higherBetter: true, weight: 0.25, relative: true },
+    { key: "benchmarkScore", label: "Bench score", formatter: fleetBenchmarkScoreLabel, higherBetter: true, weight: 0.9, relative: true, outlierLabel: "bench" },
+    { key: "benchmarkCpuOpsPerSecond", label: "CPU bench", formatter: fleetOpsLabel, higherBetter: true, weight: 0.7, relative: true, outlierLabel: "cpu-bench" },
+    { key: "benchmarkMemoryMiBps", label: "Memory bench", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.65, relative: true, outlierLabel: "mem-bench" },
+    { key: "benchmarkDiskWriteMiBps", label: "Disk write", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.45, relative: true, outlierLabel: "disk-bench" },
+    { key: "benchmarkDiskReadMiBps", label: "Disk read", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.45, relative: true, outlierLabel: "disk-bench" },
+    { key: "signatureDelta", label: "ID signature", formatter: fleetSignatureLabel, lowerBetter: true, weight: 0.8, domain: [0, 4], outlierLabel: "signature" }
+  ];
+}
+
+function fleetMetricSpread(config, rows) {
+  const samples = rows
+    .map((row) => ({ row, value: numeric(row[config.key], Number.NaN) }))
+    .filter((item) => Number.isFinite(item.value));
+  if (!samples.length) return null;
+
+  const values = samples.map((item) => item.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const median = fleetMedian(values);
+  const mad = fleetMedian(values.map((value) => Math.abs(value - median)));
+  const mean = values.reduce((total, value) => total + value, 0) / values.length;
+  const stdev = Math.sqrt(values.reduce((total, value) => total + ((value - mean) ** 2), 0) / values.length);
+  const cv = Math.abs(mean) > 0.0001 ? stdev / Math.abs(mean) : 0;
+  const outlierFloor = Math.max(mad * 3.5, Math.abs(median) * 0.25, fleetMetricDomainWidth(config) * 0.12);
+  const outliers = samples.filter((item) => Math.abs(item.value - median) > outlierFloor);
+  outliers.forEach((item) => {
+    item.row.outlierCount += 1;
+    if (config.outlierLabel) item.row.outlierLabels.push(config.outlierLabel);
+  });
+  const best = samples.slice().sort((left, right) => fleetMetricPreferenceSort(config, left.value, right.value))[0];
+  const worst = samples.slice().sort((left, right) => fleetMetricPreferenceSort(config, right.value, left.value))[0];
+
+  return {
+    key: config.key,
+    label: config.label,
+    min,
+    median,
+    max,
+    cv,
+    outlierCount: outliers.length,
+    formatter: config.formatter,
+    bestHost: best?.row?.host || "",
+    worstHost: worst?.row?.host || "",
+    tone: outliers.length > Math.max(1, rows.length * 0.25) || cv > 0.65 ? "poor" : outliers.length || cv > 0.28 ? "watch" : "good"
+  };
+}
+
+function assignFleetScores(rows, metricConfigs) {
+  const relativeRanges = new Map();
+  metricConfigs.filter((config) => config.relative).forEach((config) => {
+    const values = rows.map((row) => numeric(row[config.key], Number.NaN)).filter(Number.isFinite);
+    relativeRanges.set(config.key, {
+      min: values.length ? Math.min(...values) : Number.NaN,
+      max: values.length ? Math.max(...values) : Number.NaN
+    });
+  });
+
+  rows.forEach((row) => {
+    const scores = [];
+    metricConfigs.forEach((config) => {
+      const value = numeric(row[config.key], Number.NaN);
+      if (!Number.isFinite(value)) return;
+      let score = null;
+      if (config.relative) {
+        const range = relativeRanges.get(config.key) || {};
+        score = fleetRelativeScore(value, range.min, range.max, config.higherBetter);
+      } else if (config.lowerBetter) {
+        const [best, worst] = config.domain || [0, 100];
+        score = clamp(100 - ((value - best) / Math.max(1, worst - best)) * 100);
+      } else if (config.higherBetter) {
+        const [worst, best] = config.domain || [0, 100];
+        score = clamp(((value - worst) / Math.max(1, best - worst)) * 100);
+      }
+      if (Number.isFinite(score)) scores.push({ score, weight: config.weight || 1 });
+    });
+    const totalWeight = scores.reduce((total, item) => total + item.weight, 0);
+    row.score = totalWeight ? scores.reduce((total, item) => total + item.score * item.weight, 0) / totalWeight : 0;
+    row.outlierLabels = unique(row.outlierLabels).slice(0, 4);
+    row.tone = row.score >= 74 && row.outlierCount === 0 ? "good" : row.score >= 50 && row.outlierCount <= 2 ? "watch" : "poor";
+  });
+}
+
+function fleetComparisonSummaries(rows, spreadRows, counts) {
+  const fresh = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs <= MACHINE_DEMO_FRESH_MS).length;
+  const top = rows[0];
+  const widest = spreadRows.slice().sort((left, right) => right.cv - left.cv)[0];
+  const piCount = rows.filter((row) => /^pi\d+$/i.test(row.host)).length;
+  const benchmarkRows = rows.filter(fleetBenchmarkAvailable);
+  const freshBenchmarks = benchmarkRows.filter((row) => {
+    if (!Number.isFinite(row.benchmarkSampleAgeMs)) return true;
+    const ttl = Number.isFinite(row.benchmarkTtlMs) && row.benchmarkTtlMs > 0 ? row.benchmarkTtlMs : 15 * 60 * 1000;
+    return row.benchmarkSampleAgeMs <= ttl;
+  }).length;
+  return [
+    {
+      label: "Hosts",
+      value: `${rows.length}`,
+      note: piCount ? `${piCount} Raspberry Pi hosts` : `${fresh} fresh samples`,
+      tone: fresh === rows.length ? "good" : fresh >= rows.length * 0.75 ? "watch" : "poor"
+    },
+    {
+      label: "Fresh",
+      value: `${fresh}/${rows.length}`,
+      note: counts.staleCount ? `${counts.staleCount} stale` : "live bundle current",
+      tone: counts.staleCount ? counts.staleCount > rows.length * 0.25 ? "poor" : "watch" : "good"
+    },
+    {
+      label: "Top rank",
+      value: top ? top.host : "--",
+      note: top ? `${round(top.score)} composite` : "no rank",
+      tone: top?.tone || "watch"
+    },
+    {
+      label: "Outliers",
+      value: `${counts.outlierCount}`,
+      note: widest ? `${widest.label} CV ${formatDecimal(widest.cv, 2)}` : "spread learning",
+      tone: counts.outlierCount ? counts.outlierCount > rows.length * 0.25 ? "poor" : "watch" : "good"
+    },
+    {
+      label: "Benchmarks",
+      value: `${counts.benchmarkCount}/${piCount || rows.length}`,
+      note: benchmarkRows.length ? `${freshBenchmarks} fresh periodic suites` : "waiting for Pi benchmark suites",
+      tone: benchmarkRows.length >= Math.max(1, piCount) ? "good" : benchmarkRows.length ? "watch" : "poor"
+    },
+    {
+      label: "Fingerprints",
+      value: `${counts.fingerprintCount}/${rows.length}`,
+      note: "system-ID signature rows",
+      tone: counts.fingerprintCount >= rows.length ? "good" : counts.fingerprintCount ? "watch" : "poor"
+    }
+  ];
+}
+
+function buildPiBenchmarkHistograms(rows) {
+  const piRows = rows
+    .filter((row) => /^pi(?:[1-9]|1[0-2])$/i.test(row.host))
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  if (piRows.length < 2) return [];
+
+  return fleetBenchmarkMetricConfigs()
+    .map((config) => fleetBenchmarkHistogram(config, piRows))
+    .filter(Boolean);
+}
+
+function fleetBenchmarkMetricConfigs() {
+  return [
+    { key: "benchmarkCpuOpsPerSecond", label: "CPU scalar", formatter: fleetOpsLabel },
+    { key: "benchmarkMemoryMiBps", label: "Memory fill", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkDiskWriteMiBps", label: "Disk write", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkDiskReadMiBps", label: "Disk read", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkScore", label: "Composite", formatter: fleetBenchmarkScoreLabel }
+  ];
+}
+
+function fleetBenchmarkHistogram(config, rows) {
+  const samples = rows
+    .map((row) => ({ row, value: numeric(row[config.key], Number.NaN) }))
+    .filter((sample) => Number.isFinite(sample.value) && sample.value >= 0);
+  if (samples.length < 2) return null;
+
+  const values = samples.map((sample) => sample.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const median = fleetMedian(values);
+  const sortedByValue = samples.slice().sort((left, right) => right.value - left.value || fleetNaturalLabel(left.row.host).localeCompare(fleetNaturalLabel(right.row.host), undefined, { numeric: true }));
+  const best = sortedByValue[0];
+  const denominator = Math.max(max, 1);
+
+  return {
+    key: config.key,
+    label: config.label,
+    min,
+    max,
+    median,
+    bestHost: best?.row?.host || "",
+    formatter: config.formatter,
+    bars: rows.map((row) => {
+      const value = numeric(row[config.key], Number.NaN);
+      const hasValue = Number.isFinite(value) && value >= 0;
+      return {
+        host: row.host,
+        value,
+        label: hasValue ? config.formatter(value) : "--",
+        percent: hasValue ? clamp((value / denominator) * 100, 4, 100) : 0,
+        status: row.benchmarkSuiteStatus || "waiting",
+        age: fleetBenchmarkAgeLabel(row),
+        available: hasValue
+      };
+    })
+  };
+}
+
+function fleetBenchmarkAvailable(row) {
+  return ["fresh", "cached", "stale"].includes(String(row.benchmarkSuiteStatus || ""))
+    && [
+      row.benchmarkCpuOpsPerSecond,
+      row.benchmarkMemoryMiBps,
+      row.benchmarkDiskWriteMiBps,
+      row.benchmarkDiskReadMiBps,
+      row.benchmarkScore
+    ].some((value) => Number.isFinite(value));
+}
+
+function fleetBenchmarkCompositeScore(machineContext) {
+  const cpu = numeric(machineContext.benchmarkCpuOpsPerSecond, 0);
+  const memory = numeric(machineContext.benchmarkMemoryMiBps, 0);
+  const write = numeric(machineContext.benchmarkDiskWriteMiBps, 0);
+  const read = numeric(machineContext.benchmarkDiskReadMiBps, 0);
+  if (![cpu, memory, write, read].some((value) => value > 0)) {
+    return numeric(machineContext.benchmarkScore, Number.NaN);
+  }
+  return clamp(
+    (cpu / 500_000_000) * 35
+    + (memory / 8000) * 25
+    + (write / 180) * 18
+    + (read / 1800) * 22,
+    0,
+    100
+  );
+}
+
+function fleetBenchmarkAgeLabel(row) {
+  if (Number.isFinite(row.benchmarkSampleAgeMs)) return sparkPairAgeLabel(row.benchmarkSampleAgeMs);
+  const generatedAt = row.benchmarkGeneratedAt ? safeDate(row.benchmarkGeneratedAt, null) : null;
+  return generatedAt ? sparkPairAgeLabel(Math.max(0, Date.now() - generatedAt.getTime())) : "waiting";
+}
+
+function fleetMetricPreferenceSort(config, leftValue, rightValue) {
+  return config.lowerBetter ? leftValue - rightValue : rightValue - leftValue;
+}
+
+function fleetMetricDomainWidth(config) {
+  if (!config.domain) return 1;
+  return Math.max(1, Math.abs(config.domain[1] - config.domain[0]));
+}
+
+function fleetRelativeScore(value, min, max, higherBetter) {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (max === min) return 82;
+  const ratio = (value - min) / (max - min);
+  return clamp((higherBetter ? ratio : 1 - ratio) * 100);
+}
+
+function fleetMedian(values) {
+  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+  if (!sorted.length) return Number.NaN;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function fleetTemperatureLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${formatDecimal(value, 1)} C` : "--";
+}
+
+function fleetMbpsLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${compactNumber.format(value)} Mbps` : "--";
+}
+
+function fleetOpsLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${compactNumber.format(value)} ops/s` : "--";
+}
+
+function fleetMibPerSecondLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${formatDecimal(value, value >= 100 ? 0 : 1)} MiB/s` : "--";
+}
+
+function fleetBenchmarkScoreLabel(value) {
+  return Number.isFinite(value) ? `${formatDecimal(value, 1)}` : "--";
+}
+
+function fleetSignatureLabel(value) {
+  return Number.isFinite(value) ? formatDecimal(value, 2) : "--";
+}
+
+function buildSparkPairComparison(summary, machineContext) {
+  const contexts = buildSparkPairMachineContexts(summary, machineContext);
+  const pair = selectSparkPairContexts(contexts);
+
+  if (pair.length < 2) {
+    const observed = contexts.map((context) => context.host).filter(Boolean);
+    return {
+      available: false,
+      badge: observed.length ? "Need peer" : "Waiting",
+      tone: "watch",
+      hosts: contexts,
+      rows: [],
+      summaries: [],
+      emptyText: observed.length
+        ? `Observed ${observed.join(", ")}. Waiting for the other SPARK host in the live machine bundle.`
+        : "Waiting for SPARK1 and SPARK2 live machine samples."
+    };
+  }
+
+  const [left, right] = pair;
+  const leftLabel = sparkPairHostLabel(left, "SPARK1");
+  const rightLabel = sparkPairHostLabel(right, "SPARK2");
+  const rows = buildSparkPairMetricRows(left, right);
+  const clockHistory = recordSparkPairClockSample(left, right);
+  const poorCount = rows.filter((row) => row.tone === "poor").length;
+  const watchCount = rows.filter((row) => row.tone === "watch").length;
+  const tone = poorCount > 0 ? "poor" : watchCount > 0 ? "watch" : "good";
+  const badge = tone === "good" ? "Balanced" : tone === "poor" ? "Skewed" : "Watch skew";
+
+  return {
+    available: true,
+    badge,
+    tone,
+    hosts: pair,
+    leftLabel,
+    rightLabel,
+    rows,
+    clockHistory,
+    summaries: buildSparkPairSummaries(left, right, rows)
+  };
+}
+
+function buildSparkPairMachineContexts(summary, machineContext) {
+  return buildFleetMachineContexts(summary, machineContext)
+    .sort((left, right) => sparkPairContextRank(left) - sparkPairContextRank(right));
+}
+
+function machineContextFromSourceItem(summary, item) {
+  const rawContext = item.source?.context || {};
+  if (!isPlainObject(rawContext)) return null;
+
+  const host = rawContext.hostname || rawContext.node || item.cluster || item.name || item.id || "this host";
+  const gpuModel = rawContext.gpuName || item.gpuModel || "";
+  const hasGpu = rawContext.gpuPresent === true || Boolean(rawContext.gpuName) || numeric(item.gpus, 0) > 0;
+  const source = item.source || {};
+  const context = {
+    ...rawContext,
+    hostname: host
+  };
+  const singleItem = {
+    ...item,
+    source: {
+      ...source,
+      adapters: unique(["local-machine", ...(source.adapters || [])]),
+      context
+    }
+  };
+  const singleSummary = {
+    ...summary,
+    sourceItems: [singleItem],
+    clusters: [host],
+    gpuModels: gpuModel ? [gpuModel] : [],
+    gpus: hasGpu ? Math.max(1, numeric(item.gpus, 1)) : 0,
+    gpuUtil: numeric(rawContext.gpuUtilizationPct, numeric(item.gpuUtil, summary.gpuUtil)),
+    usefulCompute: numeric(rawContext.gpuUtilizationPct, numeric(item.usefulCompute, summary.usefulCompute)),
+    hbmCapacity: numeric(rawContext.gpuMemoryUsedPct, summary.hbmCapacity),
+    steps: numeric(item.steps, summary.steps),
+    inferenceRequestsM: numeric(item.inferenceRequestsM, summary.inferenceRequestsM)
+  };
+
+  return machineDemoContext(singleSummary);
+}
+
+function selectSparkPairContexts(contexts) {
+  const spark1 = contexts.find((context) => sparkPairHostRole(context) === "SPARK1");
+  const spark2 = contexts.find((context) => sparkPairHostRole(context) === "SPARK2");
+  if (spark1 && spark2) return [spark1, spark2];
+  if (spark1) return [spark1, contexts.find((context) => context !== spark1)].filter(Boolean);
+  if (spark2) return [contexts.find((context) => context !== spark2), spark2].filter(Boolean);
+  return contexts.slice(0, 2);
+}
+
+function sparkPairContextRank(context) {
+  const role = sparkPairHostRole(context);
+  if (role === "SPARK1") return 1;
+  if (role === "SPARK2") return 2;
+  return 10;
+}
+
+function sparkPairHostRole(machineContext) {
+  const context = machineContext?.context || {};
+  const text = [
+    machineContext?.host,
+    context.hostname,
+    context.node,
+    context.hostUrl,
+    context.networkLocalAddress,
+    context.ncclRuntimeHostIp
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (/(^|[^a-z0-9])spark[ -]?1([^a-z0-9]|$)|192\.168\.10\.20|192\.168\.100\.10/.test(text)) return "SPARK1";
+  if (/(^|[^a-z0-9])spark[ -]?2([^a-z0-9]|$)|192\.168\.10\.21|192\.168\.100\.11/.test(text)) return "SPARK2";
+  return "";
+}
+
+function sparkPairHostLabel(machineContext, fallback) {
+  return sparkPairHostRole(machineContext) || machineContext?.host || fallback;
+}
+
+function buildSparkPairMetricRows(left, right) {
+  const rows = [];
+  const leftAge = sparkPairSampleAgeMilliseconds(left);
+  const rightAge = sparkPairSampleAgeMilliseconds(right);
+  const leftContainerCpu = sparkPairDockerCpuPct(left);
+  const rightContainerCpu = sparkPairDockerCpuPct(right);
+
+  rows.push(sparkPairNumericMetric({
+    id: "sample-age",
+    label: "Sample age",
+    leftValue: leftAge,
+    rightValue: rightAge,
+    formatter: sparkPairAgeLabel,
+    deltaFormatter: (_delta, absDelta) => sparkPairAgeLabel(absDelta),
+    note: "Live bundle freshness",
+    watchDelta: 5000,
+    poorDelta: 15000,
+    maxValue: MACHINE_DEMO_FRESH_MS,
+    toneFn: (leftValue, rightValue, absDelta) => {
+      if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return "watch";
+      if (leftValue > MACHINE_DEMO_FRESH_MS || rightValue > MACHINE_DEMO_FRESH_MS) return "poor";
+      return sparkPairDeltaTone(absDelta, 5000, 15000);
+    }
+  }));
+  rows.push(sparkPairClockSyncMetric(left, right));
+  rows.push(sparkPairSampleSkewMetric(left, right));
+  rows.push(sparkPairClockOffsetMetric(left, right));
+  rows.push(sparkPairPercentMetric("cpu", "CPU", left.cpuUsagePct, right.cpuUsagePct, "Host CPU pressure", 10, 25));
+  rows.push(sparkPairPercentMetric("ram", "RAM", left.memoryUsedPct, right.memoryUsedPct, "Host memory pressure", 8, 18));
+  rows.push(sparkPairPercentMetric("uma-memory", "UMA memory", left.linuxUmaMemoryUsedPct, right.linuxUmaMemoryUsedPct, "Linux UMA memory", 8, 18, left.gb10Present || right.gb10Present));
+  rows.push(sparkPairPercentMetric("gpu", "GPU util", left.gpuUtilizationPct, right.gpuUtilizationPct, "Accelerator utilization", 12, 28));
+  rows.push(sparkPairPercentMetric("gpu-memory", "GPU memory", left.gpuMemoryUsedPct, right.gpuMemoryUsedPct, "HBM allocation", 6, 15));
+  rows.push(sparkPairNumericMetric({
+    id: "gpu-power",
+    label: "GPU power",
+    leftValue: left.gpuPowerWatts,
+    rightValue: right.gpuPowerWatts,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)} W` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " W"),
+    note: "Board power draw",
+    watchDelta: 35,
+    poorDelta: 80,
+    maxValue: Math.max(450, left.gpuPowerWatts, right.gpuPowerWatts)
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "gpu-temp",
+    label: "GPU temp",
+    leftValue: left.gpuTemperatureC,
+    rightValue: right.gpuTemperatureC,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)} C` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " C"),
+    note: "Thermal spread",
+    watchDelta: 5,
+    poorDelta: 12,
+    maxValue: 100
+  }));
+  rows.push(sparkPairPercentMetric(
+    "network-util",
+    "Network util",
+    left.networkUtilizationPct,
+    right.networkUtilizationPct,
+    sparkPairNetworkNote(left, right),
+    10,
+    25,
+    Number.isFinite(left.networkUtilizationPct) || Number.isFinite(right.networkUtilizationPct)
+  ));
+  rows.push(sparkPairThroughputMetric("network-rx", "Network RX", left.networkRxBytesPerSecond, right.networkRxBytesPerSecond, sparkPairNetworkNote(left, right)));
+  rows.push(sparkPairThroughputMetric("network-tx", "Network TX", left.networkTxBytesPerSecond, right.networkTxBytesPerSecond, sparkPairNetworkNote(left, right)));
+  rows.push(sparkPairNumericMetric({
+    id: "container-cpu",
+    label: "Docker CPU",
+    leftValue: leftContainerCpu,
+    rightValue: rightContainerCpu,
+    formatter: pct,
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "pp"),
+    note: "Aggregate container CPU",
+    watchDelta: 10,
+    poorDelta: 25,
+    maxValue: 100,
+    includeWhen: left.dockerContainers.length || right.dockerContainers.length
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "ollama-tokens",
+    label: "Ollama tok/s",
+    leftValue: left.ollamaTokensPerSecond,
+    rightValue: right.ollamaTokensPerSecond,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${formatDecimal(value, 1)} tok/s` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " tok/s", 1),
+    note: "Generation probe throughput",
+    watchDelta: 4,
+    poorDelta: 12,
+    maxValue: Math.max(1, left.ollamaTokensPerSecond, right.ollamaTokensPerSecond),
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: left.ollamaTelemetryAvailable || right.ollamaTelemetryAvailable
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "ollama-ttft",
+    label: "Ollama TTFT",
+    leftValue: left.ollamaTimeToFirstTokenMs,
+    rightValue: right.ollamaTimeToFirstTokenMs,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)}ms` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "ms"),
+    note: "Generation probe latency",
+    watchDelta: 300,
+    poorDelta: 900,
+    maxValue: Math.max(1000, left.ollamaTimeToFirstTokenMs, right.ollamaTimeToFirstTokenMs),
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: left.ollamaTelemetryAvailable || right.ollamaTelemetryAvailable
+  }));
+  rows.push(sparkPairCategoryMetric({
+    id: "model-count",
+    label: "Local models",
+    leftValue: `${left.modelCount}`,
+    rightValue: `${right.modelCount}`,
+    leftDetail: sparkPairOllamaModelLabel(left),
+    rightDetail: sparkPairOllamaModelLabel(right),
+    note: "Ollama model inventory",
+    tone: left.modelCount === right.modelCount ? "good" : "watch",
+    includeWhen: left.modelCount > 0 || right.modelCount > 0
+  }));
+  rows.push(sparkPairCategoryMetric({
+    id: "nccl-runtime",
+    label: "NCCL runtime",
+    leftValue: left.ncclRuntimePresent ? "present" : "missing",
+    rightValue: right.ncclRuntimePresent ? "present" : "missing",
+    leftDetail: left.ncclRuntimeSocketIfname || left.ncclRuntimeSource || "no runtime",
+    rightDetail: right.ncclRuntimeSocketIfname || right.ncclRuntimeSource || "no runtime",
+    note: "vLLM/Ray capable container signal",
+    tone: left.ncclRuntimePresent && right.ncclRuntimePresent ? "good" : left.ncclRuntimePresent || right.ncclRuntimePresent ? "watch" : "poor",
+    includeWhen: true
+  }));
+
+  return rows.filter(Boolean);
+}
+
+function buildSparkPairSummaries(left, right, rows) {
+  const rowTone = (id) => rows.find((row) => row.id === id)?.tone || "watch";
+  const leftAge = sparkPairSampleAgeMilliseconds(left);
+  const rightAge = sparkPairSampleAgeMilliseconds(right);
+  const gpuDelta = sparkPairAbsDelta(left.gpuUtilizationPct, right.gpuUtilizationPct);
+  const ramDelta = sparkPairAbsDelta(left.memoryUsedPct, right.memoryUsedPct);
+  const networkDelta = sparkPairAbsDelta(left.networkUtilizationPct, right.networkUtilizationPct);
+  const rxDelta = sparkPairAbsDelta(left.networkRxBytesPerSecond, right.networkRxBytesPerSecond);
+  const tokenDelta = sparkPairAbsDelta(left.ollamaTokensPerSecond, right.ollamaTokensPerSecond);
+  const poorCount = rows.filter((row) => row.tone === "poor").length;
+  const watchCount = rows.filter((row) => row.tone === "watch").length;
+  const clockRow = rows.find((row) => row.id === "clock-sync");
+  const sampleSkewRow = rows.find((row) => row.id === "clock-sample-skew");
+
+  return [
+    {
+      label: "Pair status",
+      value: poorCount ? "Skewed" : watchCount ? "Watch" : "Balanced",
+      note: `${poorCount} critical, ${watchCount} watch rows`,
+      tone: poorCount ? "poor" : watchCount ? "watch" : "good"
+    },
+    {
+      label: "Freshness",
+      value: `${sparkPairAgeLabel(Math.max(numeric(leftAge), numeric(rightAge)))} max`,
+      note: `${sparkPairHostLabel(left, "SPARK1")} ${sparkPairAgeLabel(leftAge)} | ${sparkPairHostLabel(right, "SPARK2")} ${sparkPairAgeLabel(rightAge)}`,
+      tone: rowTone("sample-age")
+    },
+    {
+      label: "Clock sync",
+      value: clockRow?.deltaLabel || "waiting",
+      note: sampleSkewRow ? `sample skew ${sampleSkewRow.deltaLabel}` : sparkPairClockPairNote(left, right),
+      tone: rowTone("clock-sync")
+    },
+    {
+      label: "Resource skew",
+      value: `${formatDecimal(Math.max(numeric(gpuDelta), numeric(ramDelta)), 1)}pp`,
+      note: `GPU ${sparkPairDeltaLabel(gpuDelta, "pp")} | RAM ${sparkPairDeltaLabel(ramDelta, "pp")}`,
+      tone: ["gpu", "ram", "gpu-memory"].some((id) => rowTone(id) === "poor") ? "poor" : ["gpu", "ram", "gpu-memory"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    },
+    {
+      label: "Network skew",
+      value: Number.isFinite(networkDelta) ? `${formatDecimal(networkDelta, 1)}pp` : sparkPairThroughputDeltaLabel(rxDelta),
+      note: sparkPairNetworkNote(left, right),
+      tone: ["network-util", "network-rx", "network-tx"].some((id) => rowTone(id) === "poor") ? "poor" : ["network-util", "network-rx", "network-tx"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    },
+    {
+      label: "Inference skew",
+      value: Number.isFinite(tokenDelta) ? `${formatDecimal(tokenDelta, 1)} tok/s` : "probe wait",
+      note: `${left.ncclRuntimePresent && right.ncclRuntimePresent ? "NCCL runtime on both" : "NCCL runtime parity incomplete"}`,
+      tone: ["ollama-tokens", "ollama-ttft", "nccl-runtime"].some((id) => rowTone(id) === "poor") ? "poor" : ["ollama-tokens", "ollama-ttft", "nccl-runtime"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    }
+  ];
+}
+
+function sparkPairClockSyncMetric(left, right) {
+  const leftText = sparkPairClockStateLabel(left);
+  const rightText = sparkPairClockStateLabel(right);
+  const bothPtp = left.clockPtpActive && right.clockPtpActive;
+  const bothSynced = left.clockSynchronized && right.clockSynchronized;
+  const oneSynced = left.clockSynchronized || right.clockSynchronized;
+  const tone = bothPtp && bothSynced ? "good" : bothSynced ? "watch" : oneSynced ? "poor" : "poor";
+  return {
+    id: "clock-sync",
+    label: "Clock sync",
+    leftText,
+    rightText,
+    leftDetail: sparkPairClockDetail(left),
+    rightDetail: sparkPairClockDetail(right),
+    deltaLabel: bothPtp && bothSynced ? "PTP" : bothSynced ? "synced" : oneSynced ? "partial" : "unsynced",
+    deltaTitle: "Clock discipline source",
+    note: "PTP/chrony/timesync discipline",
+    tone,
+    leftPercent: left.clockSynchronized ? 100 : 0,
+    rightPercent: right.clockSynchronized ? 100 : 0
+  };
+}
+
+function recordSparkPairClockSample(left, right) {
+  const leftTime = sparkPairGeneratedAtMs(left);
+  const rightTime = sparkPairGeneratedAtMs(right);
+  const leftOffsetNs = numeric(left.clockOffsetNs, Number.NaN);
+  const rightOffsetNs = numeric(right.clockOffsetNs, Number.NaN);
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return sparkPairClockHistory;
+  const timestampMs = Math.max(leftTime, rightTime);
+  const last = sparkPairClockHistory[sparkPairClockHistory.length - 1];
+  if (last && last.timestampMs === timestampMs && last.leftGeneratedAtMs === leftTime && last.rightGeneratedAtMs === rightTime) {
+    return sparkPairClockHistory;
+  }
+
+  sparkPairClockHistory.push({
+    timestampMs,
+    leftGeneratedAtMs: leftTime,
+    rightGeneratedAtMs: rightTime,
+    label: new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    leftOffsetNs,
+    rightOffsetNs,
+    offsetDeltaNs: Number.isFinite(leftOffsetNs) && Number.isFinite(rightOffsetNs)
+      ? leftOffsetNs - rightOffsetNs
+      : Number.NaN,
+    sampleSkewMs: Math.abs(leftTime - rightTime),
+    leftSource: left.clockSource || "",
+    rightSource: right.clockSource || "",
+    leftPtp: Boolean(left.clockPtpActive),
+    rightPtp: Boolean(right.clockPtpActive)
+  });
+
+  if (sparkPairClockHistory.length > SPARK_PAIR_CLOCK_HISTORY_LIMIT) {
+    sparkPairClockHistory = sparkPairClockHistory.slice(-SPARK_PAIR_CLOCK_HISTORY_LIMIT);
+  }
+  return sparkPairClockHistory;
+}
+
+function applySparkPairClockFeed(feed) {
+  const samples = Array.isArray(feed?.samples) ? feed.samples : [];
+  const contexts = samples
+    .filter((sample) => sample && sample.status !== "unreachable")
+    .map(sparkPairClockContextFromFeedSample);
+  const pair = selectSparkPairContexts(contexts);
+  if (pair.length < 2) return;
+
+  const [left, right] = pair;
+  recordSparkPairClockSample(left, right);
+  if (latestSparkPairComparison) {
+    latestSparkPairComparison.clockHistory = sparkPairClockHistory;
+  }
+  refreshSparkPairClockPanel();
+  refreshSparkPairClockMetricRows(left, right);
+}
+
+function sparkPairClockContextFromFeedSample(sample) {
+  const context = {
+    generatedAt: sample.generatedAt || "",
+    hostname: sample.hostname || sample.role || "",
+    clockSource: sample.clockSource || "",
+    clockSynchronized: Boolean(sample.clockSynchronized),
+    clockOffsetNs: sample.clockOffsetNs,
+    clockPtpActive: Boolean(sample.clockPtpActive),
+    clockPtpPortState: sample.clockPtpPortState || "",
+    clockPtpGrandmaster: sample.clockPtpGrandmaster || "",
+    clockChronyReference: sample.clockChronyReference || "",
+    clockTimezone: sample.clockTimezone || "",
+    clockSyncDetail: sample.clockSyncDetail || ""
+  };
+  return {
+    host: sample.role || sample.hostname || "",
+    context,
+    clockSource: String(sample.clockSource || ""),
+    clockSynchronized: Boolean(sample.clockSynchronized),
+    clockTimeUnixMs: numeric(sample.clockTimeUnixMs, Number.NaN),
+    clockTimeUnixNs: String(sample.clockTimeUnixNs || ""),
+    clockTimezone: String(sample.clockTimezone || ""),
+    clockOffsetNs: numeric(sample.clockOffsetNs, Number.NaN),
+    clockPtpInstalled: Boolean(sample.clockPtpInstalled),
+    clockPtpActive: Boolean(sample.clockPtpActive),
+    clockPtpPortState: String(sample.clockPtpPortState || ""),
+    clockPtpGrandmaster: String(sample.clockPtpGrandmaster || ""),
+    clockChronyReference: String(sample.clockChronyReference || ""),
+    clockSyncDetail: String(sample.clockSyncDetail || "")
+  };
+}
+
+function refreshSparkPairClockPanel() {
+  const current = document.querySelector("#sparkPairComparePanel .spark-pair-clock-panel");
+  if (!current) return;
+  current.replaceWith(sparkPairClockGraphPanel(sparkPairClockHistory));
+}
+
+function refreshSparkPairClockMetricRows(left, right) {
+  const panel = document.querySelector("#sparkPairComparePanel");
+  if (!panel) return;
+  [
+    sparkPairClockSyncMetric(left, right),
+    sparkPairSampleSkewMetric(left, right),
+    sparkPairClockOffsetMetric(left, right)
+  ].filter(Boolean).forEach((rowData) => {
+    const current = panel.querySelector(`.spark-pair-row[data-metric="${rowData.id}"]`);
+    if (current) current.replaceWith(sparkPairMetricRow(rowData));
+  });
+}
+
+function sparkPairClockOffsetMetric(left, right) {
+  return sparkPairNumericMetric({
+    id: "clock-offset",
+    label: "Clock offset",
+    leftValue: left.clockOffsetNs,
+    rightValue: right.clockOffsetNs,
+    formatter: sparkPairClockOffsetLabel,
+    deltaFormatter: (_delta, absDelta) => sparkPairClockOffsetLabel(absDelta),
+    note: "Clock-source offset; PTP/chrony when available",
+    watchDelta: 100_000,
+    poorDelta: 1_000_000,
+    maxValue: Math.max(1_000_000, Math.abs(numeric(left.clockOffsetNs, 0)), Math.abs(numeric(right.clockOffsetNs, 0))),
+    includeWhen: Number.isFinite(left.clockOffsetNs) || Number.isFinite(right.clockOffsetNs)
+  });
+}
+
+function sparkPairSampleSkewMetric(left, right) {
+  const leftTime = sparkPairGeneratedAtMs(left);
+  const rightTime = sparkPairGeneratedAtMs(right);
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return null;
+  const skewMs = Math.abs(leftTime - rightTime);
+  return {
+    id: "clock-sample-skew",
+    label: "Sample skew",
+    leftText: sparkPairClockTimeLabel(leftTime),
+    rightText: sparkPairClockTimeLabel(rightTime),
+    leftDetail: sparkPairClockDetail(left),
+    rightDetail: sparkPairClockDetail(right),
+    deltaLabel: sparkPairAgeLabel(skewMs),
+    deltaTitle: "SPARK1/SPARK2 host sample timestamp difference",
+    note: "PTP makes sub-second comparisons safer",
+    tone: skewMs <= 1000 ? "good" : skewMs <= 5000 ? "watch" : "poor",
+    leftPercent: null,
+    rightPercent: null
+  };
+}
+
+function sparkPairGeneratedAtMs(machineContext) {
+  const generatedAt = machineContext?.context?.generatedAt ? safeDate(machineContext.context.generatedAt, null) : null;
+  return generatedAt ? generatedAt.getTime() : Number.NaN;
+}
+
+function sparkPairClockStateLabel(machineContext) {
+  if (machineContext.clockPtpActive) return machineContext.clockSynchronized ? "PTP synced" : "PTP active";
+  if (machineContext.clockSynchronized) return machineContext.clockSource ? `${machineContext.clockSource} synced` : "synced";
+  if (machineContext.clockPtpInstalled) return "PTP inactive";
+  return machineContext.clockSource === "unsynchronized" ? "unsynced" : "not observed";
+}
+
+function sparkPairClockDetail(machineContext) {
+  const bits = [];
+  if (machineContext.clockPtpGrandmaster) bits.push(`GM ${machineContext.clockPtpGrandmaster}`);
+  if (machineContext.clockPtpPortState) bits.push(machineContext.clockPtpPortState);
+  if (machineContext.clockChronyReference) bits.push(machineContext.clockChronyReference);
+  if (Number.isFinite(machineContext.clockOffsetNs)) bits.push(sparkPairClockOffsetLabel(machineContext.clockOffsetNs));
+  if (machineContext.clockTimezone) bits.push(machineContext.clockTimezone);
+  return bits.join(" | ") || machineContext.clockSyncDetail || "clock telemetry";
+}
+
+function sparkPairClockPairNote(left, right) {
+  return `${sparkPairClockStateLabel(left)} | ${sparkPairClockStateLabel(right)}`;
+}
+
+function sparkPairClockOffsetLabel(value) {
+  if (!Number.isFinite(value)) return "--";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${formatDecimal(abs / 1_000_000, 2)}ms`;
+  if (abs >= 1000) return `${sign}${formatDecimal(abs / 1000, 1)}us`;
+  return `${sign}${round(abs)}ns`;
+}
+
+function sparkPairClockTimeLabel(valueMs) {
+  if (!Number.isFinite(valueMs)) return "--";
+  return new Date(valueMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function sparkPairPercentMetric(id, label, leftValue, rightValue, note, watchDelta, poorDelta, includeWhen = true) {
+  return sparkPairNumericMetric({
+    id,
+    label,
+    leftValue,
+    rightValue,
+    formatter: pct,
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "pp"),
+    note,
+    watchDelta,
+    poorDelta,
+    maxValue: 100,
+    includeWhen
+  });
+}
+
+function sparkPairThroughputMetric(id, label, leftValue, rightValue, note) {
+  const maxValue = Math.max(1, numeric(leftValue), numeric(rightValue));
+  return sparkPairNumericMetric({
+    id,
+    label,
+    leftValue,
+    rightValue,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? formatBytesPerSecond(value) : "--",
+    deltaFormatter: (delta, absDelta) => `${delta >= 0 ? "+" : "-"}${formatBytesPerSecond(absDelta)}`,
+    note,
+    maxValue,
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: Number.isFinite(leftValue) || Number.isFinite(rightValue)
+  });
+}
+
+function sparkPairNumericMetric(options) {
+  if (options.includeWhen === false) return null;
+
+  const leftValue = numeric(options.leftValue, Number.NaN);
+  const rightValue = numeric(options.rightValue, Number.NaN);
+  const leftFinite = Number.isFinite(leftValue);
+  const rightFinite = Number.isFinite(rightValue);
+  const bothFinite = leftFinite && rightFinite;
+  const delta = bothFinite ? leftValue - rightValue : Number.NaN;
+  const absDelta = bothFinite ? Math.abs(delta) : Number.NaN;
+  const maxValue = Number.isFinite(options.maxValue) && options.maxValue > 0
+    ? options.maxValue
+    : Math.max(1, leftFinite ? Math.abs(leftValue) : 0, rightFinite ? Math.abs(rightValue) : 0);
+  const formatter = options.formatter || ((value) => String(value));
+  const deltaFormatter = options.deltaFormatter || ((value) => sparkPairSignedDelta(value, ""));
+  const tone = typeof options.toneFn === "function"
+    ? options.toneFn(leftValue, rightValue, absDelta)
+    : bothFinite
+      ? sparkPairDeltaTone(absDelta, options.watchDelta, options.poorDelta)
+      : leftFinite || rightFinite ? "poor" : "watch";
+
+  return {
+    id: options.id,
+    label: options.label,
+    leftText: leftFinite ? formatter(leftValue) : "--",
+    rightText: rightFinite ? formatter(rightValue) : "--",
+    leftDetail: options.leftDetail || "",
+    rightDetail: options.rightDetail || "",
+    deltaLabel: bothFinite ? deltaFormatter(delta, absDelta) : "missing",
+    deltaTitle: bothFinite ? "SPARK1 - SPARK2" : "One side is missing",
+    note: options.note,
+    tone,
+    leftPercent: leftFinite ? clamp((leftValue / maxValue) * 100) : null,
+    rightPercent: rightFinite ? clamp((rightValue / maxValue) * 100) : null
+  };
+}
+
+function sparkPairCategoryMetric(options) {
+  if (options.includeWhen === false) return null;
+  const leftText = String(options.leftValue || "--");
+  const rightText = String(options.rightValue || "--");
+  return {
+    id: options.id,
+    label: options.label,
+    leftText,
+    rightText,
+    leftDetail: options.leftDetail || "",
+    rightDetail: options.rightDetail || "",
+    deltaLabel: leftText === rightText ? "match" : "diff",
+    deltaTitle: "Categorical parity",
+    note: options.note,
+    tone: options.tone || (leftText === rightText ? "good" : "watch"),
+    leftPercent: null,
+    rightPercent: null
+  };
+}
+
+function sparkPairDeltaTone(absDelta, watchDelta = 10, poorDelta = 25) {
+  if (!Number.isFinite(absDelta)) return "watch";
+  if (absDelta >= poorDelta) return "poor";
+  if (absDelta >= watchDelta) return "watch";
+  return "good";
+}
+
+function sparkPairRelativeSkewTone(leftValue, rightValue, absDelta) {
+  if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return Number.isFinite(leftValue) || Number.isFinite(rightValue) ? "poor" : "watch";
+  const maxValue = Math.max(Math.abs(leftValue), Math.abs(rightValue), 1);
+  const ratio = absDelta / maxValue;
+  if (ratio >= 0.5) return "poor";
+  if (ratio >= 0.2) return "watch";
+  return "good";
+}
+
+function sparkPairSignedDelta(delta, suffix, digits = 1) {
+  if (!Number.isFinite(delta)) return "--";
+  return `${delta >= 0 ? "+" : ""}${formatDecimal(delta, digits)}${suffix}`;
+}
+
+function sparkPairAbsDelta(leftValue, rightValue) {
+  const leftNumber = numeric(leftValue, Number.NaN);
+  const rightNumber = numeric(rightValue, Number.NaN);
+  return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? Math.abs(leftNumber - rightNumber) : Number.NaN;
+}
+
+function sparkPairDeltaLabel(value, suffix) {
+  return Number.isFinite(value) ? `${formatDecimal(value, 1)}${suffix}` : "--";
+}
+
+function sparkPairThroughputDeltaLabel(value) {
+  return Number.isFinite(value) ? formatBytesPerSecond(value) : "--";
+}
+
+function sparkPairSampleAgeMilliseconds(machineContext) {
+  const generatedAt = machineContext?.context?.generatedAt ? safeDate(machineContext.context.generatedAt, null) : null;
+  return generatedAt ? Math.max(0, Date.now() - generatedAt.getTime()) : Number.NaN;
+}
+
+function sparkPairAgeLabel(milliseconds) {
+  if (!Number.isFinite(milliseconds)) return "--";
+  if (milliseconds < 1000) return `${round(milliseconds)}ms`;
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
+
+function sparkPairDockerCpuPct(machineContext) {
+  return (machineContext?.dockerContainers || []).reduce((total, container) => total + numeric(container.cpuPct), 0);
+}
+
+function sparkPairNetworkNote(left, right) {
+  const leftIface = left.networkInterface || "iface n/a";
+  const rightIface = right.networkInterface || "iface n/a";
+  const leftLink = Number.isFinite(left.networkLinkSpeedMbps) && left.networkLinkSpeedMbps > 0 ? `${compactNumber.format(left.networkLinkSpeedMbps)} Mbps` : "speed n/a";
+  const rightLink = Number.isFinite(right.networkLinkSpeedMbps) && right.networkLinkSpeedMbps > 0 ? `${compactNumber.format(right.networkLinkSpeedMbps)} Mbps` : "speed n/a";
+  return `${leftIface} ${leftLink} | ${rightIface} ${rightLink}`;
+}
+
+function sparkPairOllamaModelLabel(machineContext) {
+  return machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || `${machineContext.modelCount} local`;
+}
+
+function renderFleetComparisonPanel(container, comparison) {
+  if (!comparison.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = comparison.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "fleet-comparison-summary";
+  summary.append(...comparison.summaries.map(fleetComparisonSummaryItem));
+
+  const benchmarkGrid = document.createElement("div");
+  benchmarkGrid.className = "fleet-benchmark-histograms";
+  if (comparison.benchmarkHistograms?.length) {
+    benchmarkGrid.append(...comparison.benchmarkHistograms.map(fleetBenchmarkHistogramNode));
+  }
+
+  const rankGrid = document.createElement("div");
+  rankGrid.className = "fleet-comparison-rank-grid";
+  rankGrid.append(fleetComparisonHeader(["Rank", "Host", "Score", "Pressure", "Capacity", "Network", "Signature"], "fleet-comparison-rank-row"));
+  comparison.rows.forEach((row) => {
+    rankGrid.append(fleetComparisonRankRow(row));
+  });
+
+  const spreadGrid = document.createElement("div");
+  spreadGrid.className = "fleet-comparison-spread-grid";
+  spreadGrid.append(fleetComparisonHeader(["Metric", "Median", "Range", "Spread", "Outliers"], "fleet-comparison-spread-row"));
+  comparison.spreadRows.slice(0, 10).forEach((row) => {
+    spreadGrid.append(fleetComparisonSpreadRow(row));
+  });
+
+  container.replaceChildren(
+    summary,
+    ...(comparison.benchmarkHistograms?.length ? [benchmarkGrid] : []),
+    rankGrid,
+    spreadGrid
+  );
+}
+
+function fleetComparisonHeader(labels, rowClass) {
+  const row = document.createElement("div");
+  row.className = `${rowClass} fleet-comparison-head`;
+  labels.forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function fleetComparisonSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "fleet-comparison-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function fleetBenchmarkHistogramNode(histogram) {
+  const node = document.createElement("div");
+  node.className = "fleet-benchmark-histogram";
+
+  const head = document.createElement("div");
+  head.className = "fleet-benchmark-head";
+  const title = document.createElement("strong");
+  title.textContent = histogram.label;
+  const meta = document.createElement("small");
+  meta.textContent = `${histogram.bestHost || "--"} best | median ${histogram.formatter(histogram.median)}`;
+  head.append(title, meta);
+
+  const bars = document.createElement("div");
+  bars.className = "fleet-benchmark-bars";
+  histogram.bars.forEach((bar) => {
+    bars.append(fleetBenchmarkBarNode(bar));
+  });
+
+  node.append(head, bars);
+  return node;
+}
+
+function fleetBenchmarkBarNode(bar) {
+  const row = document.createElement("div");
+  row.className = "fleet-benchmark-bar-row";
+  row.dataset.status = bar.status;
+  if (!bar.available) row.dataset.available = "false";
+
+  const host = document.createElement("span");
+  host.textContent = bar.host;
+  const track = document.createElement("span");
+  track.className = "fleet-benchmark-track";
+  const fill = document.createElement("i");
+  fill.style.width = `${bar.percent}%`;
+  track.append(fill);
+  const value = document.createElement("strong");
+  value.textContent = bar.label;
+  const age = document.createElement("small");
+  age.textContent = bar.age;
+  row.append(host, track, value, age);
+  return row;
+}
+
+function fleetComparisonRankRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "fleet-comparison-rank-row";
+  row.dataset.tone = rowData.tone;
+
+  row.append(
+    fleetComparisonCell(`#${rowData.rank}`, rowData.outlierLabels.length ? rowData.outlierLabels.join(", ") : "in range"),
+    fleetComparisonCell(rowData.host, fleetComparisonHostNote(rowData)),
+    fleetComparisonScoreCell(rowData.score),
+    fleetComparisonCell(
+      `${pct(rowData.cpuUsagePct)} CPU`,
+      `${pct(rowData.memoryUsedPct)} RAM | ${fleetTemperatureLabel(rowData.cpuTemperatureC)}`
+    ),
+    fleetComparisonCell(
+      `${number.format(rowData.cpuCount)} cores`,
+      `${formatBytes(rowData.memoryTotalBytes)} RAM | ${formatBytes(rowData.diskTotalBytes)} disk`
+    ),
+    fleetComparisonCell(
+      fleetMbpsLabel(rowData.networkLinkSpeedMbps),
+      `${formatBytesPerSecond(rowData.networkThroughputBps)} | ${number.format(rowData.networkIssueCount)} issues`
+    ),
+    fleetComparisonCell(
+      fleetSignatureLabel(rowData.signatureDelta),
+      rowData.signatureMetricCount ? `${rowData.signatureMetricCount} features` : "waiting"
+    )
+  );
+
+  return row;
+}
+
+function fleetComparisonSpreadRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "fleet-comparison-spread-row";
+  row.dataset.tone = rowData.tone;
+  const format = rowData.formatter || String;
+  row.append(
+    fleetComparisonCell(rowData.label, rowData.bestHost ? `best ${rowData.bestHost}` : ""),
+    fleetComparisonCell(format(rowData.median), "median"),
+    fleetComparisonCell(`${format(rowData.min)} - ${format(rowData.max)}`, rowData.worstHost ? `watch ${rowData.worstHost}` : ""),
+    fleetComparisonCell(`CV ${formatDecimal(rowData.cv, 2)}`, "coefficient"),
+    fleetComparisonCell(`${rowData.outlierCount}`, rowData.outlierCount ? "robust MAD" : "none")
+  );
+  return row;
+}
+
+function fleetComparisonCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function fleetComparisonScoreCell(score) {
+  const cell = fleetComparisonCell(`${round(score)}`, "composite");
+  const bar = document.createElement("span");
+  bar.className = "fleet-comparison-score-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${clamp(score)}%`;
+  bar.append(fill);
+  cell.append(bar);
+  return cell;
+}
+
+function fleetComparisonHostNote(rowData) {
+  const bits = [];
+  if (rowData.platform) bits.push(rowData.platform);
+  if (rowData.cpuModel) bits.push(rowData.cpuModel.replace(/\s+/g, " ").slice(0, 42));
+  if (Number.isFinite(rowData.sampleAgeMs)) bits.push(`${sparkPairAgeLabel(rowData.sampleAgeMs)} old`);
+  return bits.join(" | ") || "live host";
+}
+
+function renderSparkPairComparisonPanel(container, comparison) {
+  if (!comparison.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = comparison.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "spark-pair-summary";
+  summary.append(...comparison.summaries.map(sparkPairSummaryItem));
+
+  const clockPanel = sparkPairClockGraphPanel(comparison.clockHistory || []);
+
+  const grid = document.createElement("div");
+  grid.className = "spark-pair-grid";
+  const header = document.createElement("div");
+  header.className = "spark-pair-row spark-pair-row-head";
+  ["Metric", comparison.leftLabel, comparison.rightLabel, "Delta"].forEach((text) => {
+    const cell = document.createElement("span");
+    cell.textContent = text;
+    header.append(cell);
+  });
+  grid.append(header, ...comparison.rows.map(sparkPairMetricRow));
+
+  container.replaceChildren(summary, clockPanel, grid);
+}
+
+function sparkPairSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "spark-pair-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function sparkPairClockGraphPanel(history) {
+  const panel = document.createElement("div");
+  panel.className = "spark-pair-clock-panel";
+  const latest = history[history.length - 1] || {};
+  const offsetValues = history.flatMap((sample) => [sample.leftOffsetNs, sample.rightOffsetNs, sample.offsetDeltaNs]).filter(Number.isFinite);
+  const skewValues = history.map((sample) => sample.sampleSkewMs).filter(Number.isFinite);
+
+  const head = document.createElement("div");
+  head.className = "spark-pair-clock-head";
+  const title = document.createElement("strong");
+  title.textContent = "Clock offset";
+  const meta = document.createElement("small");
+  meta.textContent = history.length
+    ? `${history.length} samples | delta ${sparkPairClockOffsetLabel(latest.offsetDeltaNs)} | skew ${sparkPairAgeLabel(latest.sampleSkewMs)}`
+    : "waiting for SPARK clock samples";
+  head.append(title, meta);
+
+  const body = document.createElement("div");
+  body.className = "spark-pair-clock-body";
+  body.append(
+    sparkPairClockGraphCard({
+      label: "Offset",
+      history,
+      series: [
+        { key: "leftOffsetNs", label: "SPARK1" },
+        { key: "rightOffsetNs", label: "SPARK2" },
+        { key: "offsetDeltaNs", label: "Delta" }
+      ],
+      formatter: sparkPairClockOffsetLabel,
+      values: offsetValues,
+      empty: "offset unavailable"
+    }),
+    sparkPairClockGraphCard({
+      label: "Sample skew",
+      history,
+      series: [
+        { key: "sampleSkewMs", label: "Skew" }
+      ],
+      formatter: sparkPairAgeLabel,
+      values: skewValues,
+      empty: "skew unavailable"
+    })
+  );
+
+  const legend = document.createElement("div");
+  legend.className = "spark-pair-clock-legend";
+  [
+    ["SPARK1", "spark1"],
+    ["SPARK2", "spark2"],
+    ["Delta", "delta"],
+    ["Skew", "skew"]
+  ].forEach(([label, key]) => {
+    const item = document.createElement("span");
+    item.dataset.series = key;
+    item.textContent = label;
+    legend.append(item);
+  });
+
+  panel.append(head, body, legend);
+  return panel;
+}
+
+function sparkPairClockGraphCard({ label, history, series, formatter, values, empty }) {
+  const card = document.createElement("div");
+  card.className = "spark-pair-clock-card";
+  const head = document.createElement("div");
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const latestText = document.createElement("strong");
+  const latest = history[history.length - 1] || {};
+  const firstSeries = series[0] || {};
+  latestText.textContent = Number.isFinite(latest[firstSeries.key]) ? formatter(latest[firstSeries.key]) : "--";
+  head.append(labelEl, latestText);
+
+  const graph = buildSparkPairClockGraph(history, series, values, { empty });
+  const note = document.createElement("small");
+  const finiteValues = values.filter(Number.isFinite);
+  note.textContent = finiteValues.length
+    ? `range ${formatter(Math.min(...finiteValues))} to ${formatter(Math.max(...finiteValues))}`
+    : empty;
+
+  card.append(head, graph, note);
+  return card;
+}
+
+function buildSparkPairClockGraph(history, series, values, options = {}) {
+  const width = 420;
+  const height = 116;
+  const padX = 14;
+  const padY = 12;
+  const innerWidth = width - padX * 2;
+  const innerHeight = height - padY * 2;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "spark-pair-clock-graph");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Rolling SPARK clock offset graph");
+
+  [0.25, 0.5, 0.75].forEach((ratio) => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = padY + innerHeight * ratio;
+    line.setAttribute("x1", padX);
+    line.setAttribute("x2", width - padX);
+    line.setAttribute("y1", y);
+    line.setAttribute("y2", y);
+    line.setAttribute("class", "spark-pair-clock-grid-line");
+    svg.append(line);
+  });
+
+  const finiteValues = values.filter(Number.isFinite);
+  if (history.length < 2 || finiteValues.length < 2) {
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", width / 2);
+    text.setAttribute("y", height / 2 + 4);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "spark-pair-clock-empty");
+    text.textContent = options.empty || "waiting";
+    svg.append(text);
+    return svg;
+  }
+
+  let min = Math.min(...finiteValues, 0);
+  let max = Math.max(...finiteValues, 0);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+  const zeroY = padY + innerHeight - ((0 - min) / range) * innerHeight;
+  const zero = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  zero.setAttribute("x1", padX);
+  zero.setAttribute("x2", width - padX);
+  zero.setAttribute("y1", zeroY);
+  zero.setAttribute("y2", zeroY);
+  zero.setAttribute("class", "spark-pair-clock-zero-line");
+  svg.append(zero);
+
+  series.forEach((entry) => {
+    const points = history
+      .map((sample, index) => {
+        const value = numeric(sample[entry.key], Number.NaN);
+        if (!Number.isFinite(value)) return null;
+        const x = padX + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
+        const y = padY + innerHeight - ((value - min) / range) * innerHeight;
+        return `${formatDecimal(x, 1)},${formatDecimal(y, 1)}`;
+      })
+      .filter(Boolean);
+    if (points.length < 2) return;
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    polyline.setAttribute("points", points.join(" "));
+    polyline.setAttribute("class", `spark-pair-clock-line spark-pair-clock-line-${entry.key}`);
+    svg.append(polyline);
+  });
+
+  return svg;
+}
+
+function sparkPairMetricRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "spark-pair-row";
+  row.dataset.metric = rowData.id;
+  row.dataset.tone = rowData.tone;
+
+  const label = document.createElement("div");
+  label.className = "spark-pair-label";
+  const title = document.createElement("strong");
+  title.textContent = rowData.label;
+  const note = document.createElement("small");
+  note.textContent = rowData.note || "";
+  label.append(title, note);
+
+  const left = sparkPairHostCell(rowData.leftText, rowData.leftPercent, rowData.leftDetail);
+  const right = sparkPairHostCell(rowData.rightText, rowData.rightPercent, rowData.rightDetail);
+  const delta = document.createElement("div");
+  delta.className = "spark-pair-delta";
+  delta.title = rowData.deltaTitle || "";
+  const deltaValue = document.createElement("strong");
+  deltaValue.textContent = rowData.deltaLabel;
+  const deltaNote = document.createElement("small");
+  deltaNote.textContent = rowData.deltaTitle || "Delta";
+  delta.append(deltaValue, deltaNote);
+
+  row.append(label, left, right, delta);
+  return row;
+}
+
+function sparkPairHostCell(value, percent, detail) {
+  const cell = document.createElement("div");
+  cell.className = "spark-pair-host-cell";
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+
+  if (Number.isFinite(percent)) {
+    const bar = document.createElement("span");
+    bar.className = "spark-pair-bar";
+    const fill = document.createElement("i");
+    fill.style.width = `${clamp(percent)}%`;
+    bar.append(fill);
+    cell.append(bar);
+  }
+
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+
+  return cell;
 }
 
 function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
@@ -4964,9 +6782,19 @@ function operatorGrafanaNodes(grafana) {
 }
 
 function operatorFleetTile(tile) {
-  const item = document.createElement("article");
+  const item = document.createElement(tile.key ? "button" : "article");
   item.className = "fleet-tile";
   item.dataset.tone = tile.tone;
+  if (tile.key) {
+    item.type = "button";
+    item.setAttribute("aria-selected", String(tile.selected));
+    item.setAttribute("aria-label", `Show ${tile.host} telemetry`);
+    item.addEventListener("click", () => {
+      state.scope = "job";
+      state.selectedKey = tile.key;
+      render();
+    });
+  }
   const title = document.createElement("strong");
   title.textContent = tile.host;
   const gpu = document.createElement("span");
@@ -5466,19 +7294,23 @@ async function refreshPlatformVirtualSensors(container, analysis) {
   if (platformVirtualSensorCache.baseUrl === baseUrl && Date.now() - platformVirtualSensorCache.fetchedAt < 5000) return;
   platformVirtualSensorCache.inFlight = true;
   try {
-    const [covariance, principalMode] = await Promise.all([
+    const [covariance, principalMode, systemIdentification] = await Promise.all([
       fetch(platformApiUrl("/v1/virtual-sensors/covariance")).then((response) => response.ok ? response.json() : null),
-      fetch(platformApiUrl("/v1/virtual-sensors/principal-resource-mode")).then((response) => response.ok ? response.json() : null)
+      fetch(platformApiUrl("/v1/virtual-sensors/principal-resource-mode")).then((response) => response.ok ? response.json() : null),
+      fetch(platformApiUrl("/v1/virtual-sensors/system-identification")).then((response) => response.ok ? response.json() : null)
     ]);
     const matrix = platformCovarianceMatrix(covariance, principalMode);
-    if (matrix) {
+    const characterization = platformSystemIdentification(systemIdentification);
+    if (matrix || characterization) {
       platformVirtualSensorCache = {
         baseUrl,
         fetchedAt: Date.now(),
         inFlight: false,
-        matrix
+        matrix: matrix || platformVirtualSensorCache.matrix,
+        systemIdentification: characterization || platformVirtualSensorCache.systemIdentification
       };
-      renderLiveTelemetryAlerts(container, analysis);
+      refreshSystemCharacterizationPanelFromCache();
+      if (matrix) renderLiveTelemetryAlerts(container, analysis);
       return;
     }
   } catch {
@@ -5490,6 +7322,7 @@ async function refreshPlatformVirtualSensors(container, analysis) {
     fetchedAt: Date.now(),
     inFlight: false
   };
+  refreshSystemCharacterizationPanelFromCache();
 }
 
 function platformCovarianceMatrix(covariance, principalMode) {
@@ -5567,6 +7400,425 @@ function platformPrincipalMode(mode) {
       trend: []
     }))
   };
+}
+
+function platformSystemIdentification(payload) {
+  if (!payload || !Array.isArray(payload.rows)) return null;
+  const rows = payload.rows
+    .map((row) => ({
+      hostId: String(row.host_id || row.hostId || ""),
+      eventTs: String(row.event_ts || row.eventTs || ""),
+      timestampMs: systemIdTimestampMs(row.event_ts || row.eventTs),
+      runId: String(row.run_id || row.runId || row.experiment_id || row.experimentId || ""),
+      experimentId: String(row.experiment_id || row.experimentId || row.run_id || row.runId || ""),
+      phaseId: String(row.phase_id || row.phaseId || ""),
+      target: String(row.target || ""),
+      profile: String(row.profile || ""),
+      outputMetric: String(row.output_metric || row.outputMetric || ""),
+      feature: String(row.feature || ""),
+      value: numeric(row.value, Number.NaN)
+    }))
+    .filter((row) => row.hostId && row.runId && Number.isFinite(row.value));
+  if (!rows.length) {
+    return {
+      status: "empty",
+      rows: [],
+      hosts: [],
+      count: numeric(payload.count, 0),
+      fetchedAt: Date.now()
+    };
+  }
+
+  const runsByHost = new Map();
+  rows.forEach((row) => {
+    if (!runsByHost.has(row.hostId)) runsByHost.set(row.hostId, new Map());
+    const hostRuns = runsByHost.get(row.hostId);
+    if (!hostRuns.has(row.runId)) {
+      hostRuns.set(row.runId, {
+        hostId: row.hostId,
+        runId: row.runId,
+        experimentId: row.experimentId,
+        eventTs: row.eventTs,
+        timestampMs: row.timestampMs,
+        rows: []
+      });
+    }
+    const run = hostRuns.get(row.runId);
+    run.rows.push(row);
+    if (row.timestampMs >= run.timestampMs) {
+      run.timestampMs = row.timestampMs;
+      run.eventTs = row.eventTs;
+    }
+  });
+
+  const hosts = Array.from(runsByHost.entries())
+    .map(([hostId, hostRuns]) => {
+      const runs = Array.from(hostRuns.values()).sort((left, right) => right.timestampMs - left.timestampMs);
+      const latest = runs[0];
+      return systemIdentificationHostSummary(hostId, latest, rows, runs);
+    })
+    .sort(systemIdentificationHostSort);
+
+  return {
+    status: "ready",
+    rows,
+    hosts,
+    count: numeric(payload.count, rows.length),
+    fetchedAt: Date.now()
+  };
+}
+
+function systemIdentificationHostSummary(hostId, latest, allRows, runs) {
+  const featureMap = new Map(latest.rows.map((row) => [systemIdFeatureKey(row), row.value]));
+  const feature = (target, profile, outputMetric, name) => numeric(featureMap.get(`${target}:${profile}:${outputMetric}:${name}`), null);
+  const profiles = unique(latest.rows.map((row) => row.profile).filter(Boolean))
+    .sort((left, right) => systemIdProfileRank(left) - systemIdProfileRank(right));
+  const targets = unique(latest.rows.map((row) => row.target).filter(Boolean)).sort();
+  const subsystems = systemIdentificationSubsystemSummaries(hostId, latest.rows, allRows, feature);
+  const cpu = subsystems.find((subsystem) => subsystem.key === "cpu") || {};
+  return {
+    hostId,
+    runId: latest.runId,
+    eventTs: latest.eventTs,
+    timestampMs: latest.timestampMs,
+    ageLabel: formatSystemIdRunAge(latest.timestampMs),
+    runCount: runs.length,
+    profiles,
+    targets,
+    subsystems,
+    cpuStepGain: cpu.stepGain,
+    cpuStepPeak: cpu.stepPeak,
+    cpuStepCorrelation: cpu.stepCorrelation,
+    cpuImpulseGain: cpu.impulseGain,
+    cpuImpulsePeak: cpu.impulsePeak,
+    cpuRampPeak: cpu.rampPeak,
+    profilePeaks: cpu.profilePeaks || {},
+    profileGains: cpu.profileGains || {},
+    stepGainTrend: cpu.stepGainTrend || [],
+    stepPeakTrend: cpu.stepPeakTrend || [],
+    impulseGainTrend: cpu.impulseGainTrend || []
+  };
+}
+
+function systemIdentificationSubsystemSummaries(hostId, rows, allRows, feature) {
+  return SYSTEM_ID_SUBSYSTEMS
+    .map((config) => {
+      const target = systemIdentificationTargetForOutput(rows, config);
+      if (!target) return null;
+      const profilePeaks = Object.fromEntries(SYSTEM_ID_PROFILE_ORDER.map((profile) => [profile, feature(target, profile, config.outputMetric, "peak_delta_pct")]));
+      const profileGains = Object.fromEntries(SYSTEM_ID_PROFILE_ORDER.map((profile) => [profile, feature(target, profile, config.outputMetric, "gain")]));
+      const stepGain = feature(target, "step", config.outputMetric, "gain");
+      const stepPeak = feature(target, "step", config.outputMetric, "peak_delta_pct");
+      const impulseGain = feature(target, "impulse", config.outputMetric, "gain");
+      const impulsePeak = feature(target, "impulse", config.outputMetric, "peak_delta_pct");
+      const rampPeak = feature(target, "ramp", config.outputMetric, "peak_delta_pct");
+      const hasSignal = [
+        stepGain,
+        stepPeak,
+        impulseGain,
+        impulsePeak,
+        rampPeak,
+        ...Object.values(profilePeaks),
+        ...Object.values(profileGains)
+      ].some(Number.isFinite);
+      if (!hasSignal) return null;
+      return {
+        ...config,
+        target,
+        targetLabel: systemIdentificationTargetLabel(target),
+        stepGain,
+        stepPeak,
+        stepCorrelation: feature(target, "step", config.outputMetric, "cross_correlation"),
+        impulseGain,
+        impulsePeak,
+        rampPeak,
+        profilePeaks,
+        profileGains,
+        stepGainTrend: systemIdentificationTrend(allRows, hostId, target, "step", config.outputMetric, "gain"),
+        stepPeakTrend: systemIdentificationTrend(allRows, hostId, target, "step", config.outputMetric, "peak_delta_pct"),
+        impulseGainTrend: systemIdentificationTrend(allRows, hostId, target, "impulse", config.outputMetric, "gain")
+      };
+    })
+    .filter(Boolean);
+}
+
+function systemIdentificationTargetForOutput(rows, config) {
+  const candidates = unique(rows
+    .filter((row) => row.outputMetric === config.outputMetric)
+    .map((row) => row.target)
+    .filter(Boolean));
+  if (!candidates.length) return "";
+  return candidates.sort((left, right) => {
+    const leftRank = systemIdentificationTargetRank(left, config.target);
+    const rightRank = systemIdentificationTargetRank(right, config.target);
+    return leftRank - rightRank || left.localeCompare(right);
+  })[0];
+}
+
+function systemIdentificationTargetRank(target, preferred) {
+  if (target === preferred) return 0;
+  const index = SYSTEM_ID_SUBSYSTEMS.findIndex((subsystem) => subsystem.target === target || subsystem.key === target);
+  return index === -1 ? SYSTEM_ID_SUBSYSTEMS.length + 1 : index + 1;
+}
+
+function systemIdentificationTargetLabel(target) {
+  return SYSTEM_ID_SUBSYSTEMS.find((subsystem) => subsystem.target === target || subsystem.key === target)?.shortLabel || titleCase(target);
+}
+
+function systemIdentificationHostSort(left, right) {
+  const rank = (host) => {
+    const id = host.hostId.toUpperCase();
+    if (id === "SPARK1") return 1;
+    if (id === "SPARK2") return 2;
+    const piMatch = id.match(/^PI(\d+)$/);
+    if (piMatch) return 100 + numeric(piMatch[1], 0);
+    if (id.includes("NUC")) return 9;
+    return 5;
+  };
+  return rank(left) - rank(right) || left.hostId.localeCompare(right.hostId, undefined, { numeric: true });
+}
+
+function systemIdFeatureKey(row) {
+  return `${row.target}:${row.profile}:${row.outputMetric}:${row.feature}`;
+}
+
+function systemIdentificationTrend(rows, hostId, target, profile, outputMetric, feature) {
+  const byRun = new Map();
+  rows.forEach((row) => {
+    if (row.hostId !== hostId || row.target !== target || row.profile !== profile || row.outputMetric !== outputMetric || row.feature !== feature) return;
+    const existing = byRun.get(row.runId);
+    if (!existing || row.timestampMs >= existing.timestampMs) {
+      byRun.set(row.runId, {
+        value: row.value,
+        timestampMs: row.timestampMs,
+        label: row.eventTs
+      });
+    }
+  });
+  return Array.from(byRun.values()).sort((left, right) => left.timestampMs - right.timestampMs).slice(-24);
+}
+
+function systemIdTimestampMs(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(" ", "T")
+    .replace(/(\.\d{3})\d+/, "$1");
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function systemIdProfileRank(profile) {
+  const index = SYSTEM_ID_PROFILE_ORDER.indexOf(profile);
+  return index === -1 ? SYSTEM_ID_PROFILE_ORDER.length : index;
+}
+
+function formatSystemIdRunAge(timestampMs) {
+  if (!Number.isFinite(timestampMs) || timestampMs <= 0) return "time unknown";
+  const seconds = Math.max(0, Math.round((Date.now() - timestampMs) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function refreshSystemCharacterizationPanelFromCache() {
+  const panel = document.querySelector("#systemCharacterizationPanel");
+  const badge = document.querySelector("#systemCharacterizationBadge");
+  if (!panel) return;
+  updateSystemCharacterizationBadge(badge, platformVirtualSensorCache.systemIdentification);
+  renderSystemCharacterizationPanel(panel, platformVirtualSensorCache.systemIdentification);
+}
+
+function updateSystemCharacterizationBadge(badge, characterization) {
+  if (!badge) return;
+  if (!characterization || characterization.status !== "ready") {
+    badge.textContent = platformApiBaseUrl() ? "Waiting" : "No API";
+    badge.dataset.tone = platformApiBaseUrl() ? "watch" : "poor";
+    return;
+  }
+  badge.textContent = `${characterization.hosts.length} ${characterization.hosts.length === 1 ? "host" : "hosts"}`;
+  badge.dataset.tone = characterization.hosts.length >= 2 ? "good" : "watch";
+}
+
+function renderSystemCharacterizationPanel(container, characterization) {
+  if (!characterization || characterization.status !== "ready" || !characterization.hosts.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = platformApiBaseUrl()
+      ? "Waiting for system-identification virtual sensor rows."
+      : "Platform API is not configured for this dashboard host.";
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "system-characterization-summary";
+  characterization.hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    summary.append(systemCharacterizationHostCard(host));
+  });
+
+  const chart = systemCharacterizationProfileChart(characterization.hosts);
+  const trends = systemCharacterizationTrendGrid(characterization.hosts);
+  container.replaceChildren(summary, chart, trends);
+}
+
+function systemCharacterizationHostCard(host) {
+  const card = document.createElement("article");
+  card.className = "system-characterization-host";
+  const head = document.createElement("div");
+  head.className = "system-characterization-host-head";
+  const title = document.createElement("strong");
+  title.textContent = host.hostId;
+  const badge = document.createElement("span");
+  badge.textContent = host.ageLabel;
+  head.append(title, badge);
+
+  const stats = document.createElement("div");
+  stats.className = "system-characterization-stats";
+  const subsystemStats = (host.subsystems || []).slice(0, 4);
+  if (subsystemStats.length) {
+    stats.append(...subsystemStats.map((subsystem) => systemCharacterizationStat(
+      `${subsystem.shortLabel} step`,
+      systemIdDelta(subsystem.stepPeak),
+      subsystem.stepPeakTrend,
+      true
+    )));
+  } else {
+    stats.append(systemCharacterizationStat("Step peak", systemIdDelta(host.cpuStepPeak), host.stepPeakTrend, true));
+  }
+
+  const meta = document.createElement("small");
+  const profileText = host.profiles.map((profile) => SYSTEM_ID_PROFILE_LABELS[profile] || titleCase(profile)).join(", ");
+  const subsystemText = (host.subsystems || []).map((subsystem) => subsystem.shortLabel).join(", ");
+  meta.textContent = `${subsystemText || "Subsystems"} | ${profileText} | ${host.runCount} ${host.runCount === 1 ? "run" : "runs"}`;
+  card.append(head, stats, meta);
+  return card;
+}
+
+function systemCharacterizationStat(label, value, trend, signed) {
+  const item = document.createElement("div");
+  item.className = "system-characterization-stat";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const valueEl = document.createElement("strong");
+  valueEl.textContent = value;
+  const spark = buildTrendSparkline(trend || [], {
+    className: "system-characterization-sparkline",
+    emptyClassName: "system-characterization-sparkline-empty",
+    lineClassName: "system-characterization-sparkline-line",
+    zeroClassName: "system-characterization-sparkline-zero",
+    signed
+  });
+  item.append(labelEl, valueEl, spark);
+  return item;
+}
+
+function systemCharacterizationProfileChart(hosts) {
+  const chart = document.createElement("section");
+  chart.className = "system-characterization-chart";
+  const title = document.createElement("div");
+  title.className = "system-characterization-chart-title";
+  title.append(systemCharacterizationChartLabel("Subsystem profile response"), systemCharacterizationChartLabel("peak delta"));
+
+  const series = systemCharacterizationProfileSeries(hosts);
+  const values = hosts.flatMap((host) => (host.subsystems || []).flatMap((subsystem) => Object.values(subsystem.profilePeaks || {}).filter(Number.isFinite)));
+  const maxAbs = Math.max(1, ...values.map((value) => Math.abs(value)));
+  const rows = series.map((item) => systemCharacterizationProfileRow(item, hosts, maxAbs));
+
+  chart.append(title, ...rows);
+  return chart;
+}
+
+function systemCharacterizationProfileSeries(hosts) {
+  const items = [];
+  SYSTEM_ID_SUBSYSTEMS.forEach((config) => {
+    SYSTEM_ID_PROFILE_ORDER.forEach((profile) => {
+      const hasValue = hosts.some((host) => {
+        const subsystem = systemCharacterizationHostSubsystem(host, config.key);
+        return Number.isFinite(subsystem?.profilePeaks?.[profile]);
+      });
+      if (hasValue) items.push({ config, profile });
+    });
+  });
+  return items;
+}
+
+function systemCharacterizationProfileRow(item, hosts, maxAbs) {
+  const row = document.createElement("div");
+  row.className = "system-characterization-profile-row";
+  const label = document.createElement("span");
+  label.textContent = `${item.config.shortLabel} ${SYSTEM_ID_PROFILE_LABELS[item.profile] || titleCase(item.profile)}`;
+  const bars = document.createElement("div");
+  bars.className = "system-characterization-bars";
+  hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    const subsystem = systemCharacterizationHostSubsystem(host, item.config.key);
+    const value = subsystem?.profilePeaks?.[item.profile];
+    const bar = document.createElement("div");
+    bar.className = "system-characterization-bar";
+    bar.dataset.host = host.hostId.toLowerCase();
+    bar.dataset.polarity = numeric(value, 0) < 0 ? "negative" : "positive";
+    bar.title = `${host.hostId} ${item.config.label} ${SYSTEM_ID_PROFILE_LABELS[item.profile] || item.profile}: ${systemIdDelta(value)}`;
+    const fill = document.createElement("i");
+    fill.style.width = Number.isFinite(value) ? `${Math.max(2, Math.min(100, (Math.abs(value) / maxAbs) * 100))}%` : "2%";
+    const text = document.createElement("span");
+    text.textContent = `${host.hostId} ${systemIdDelta(value)}`;
+    bar.append(fill, text);
+    bars.append(bar);
+  });
+  row.append(label, bars);
+  return row;
+}
+
+function systemCharacterizationHostSubsystem(host, key) {
+  return (host.subsystems || []).find((subsystem) => subsystem.key === key) || null;
+}
+
+function systemCharacterizationTrendGrid(hosts) {
+  const grid = document.createElement("div");
+  grid.className = "system-characterization-trends";
+  hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    const subsystems = (host.subsystems || []).filter((subsystem) => Number.isFinite(subsystem.stepPeak) || (subsystem.stepPeakTrend || []).length).slice(0, 4);
+    subsystems.forEach((subsystem) => {
+      grid.append(systemCharacterizationTrendCell(host, `${subsystem.shortLabel} step`, subsystem.stepPeakTrend, true, systemIdDelta));
+    });
+  });
+  return grid;
+}
+
+function systemCharacterizationTrendCell(host, label, trend, signed, formatter = systemIdRatio) {
+  const item = document.createElement("div");
+  item.className = "system-characterization-trend-cell";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = `${host.hostId} ${label}`;
+  const points = trend || [];
+  const latest = points.length ? points[points.length - 1].value : null;
+  const value = document.createElement("strong");
+  value.textContent = formatter(latest);
+  const spark = buildTrendSparkline(trend || [], {
+    className: "system-characterization-trend",
+    emptyClassName: "system-characterization-sparkline-empty",
+    lineClassName: "system-characterization-sparkline-line",
+    zeroClassName: "system-characterization-sparkline-zero",
+    signed
+  });
+  item.append(labelEl, value, spark);
+  return item;
+}
+
+function systemCharacterizationChartLabel(text) {
+  const label = document.createElement("span");
+  label.textContent = text;
+  return label;
+}
+
+function systemIdRatio(value) {
+  return Number.isFinite(value) ? formatDecimal(value, 3) : "--";
+}
+
+function systemIdDelta(value) {
+  return Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${formatDecimal(value, 2)}%` : "--";
 }
 
 function renderLiveObservationLog(container, analysis, machineContext, history) {

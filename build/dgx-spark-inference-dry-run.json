@@ -1,0 +1,80 @@
+{
+  "generatedAt": "2026-06-07T04:46:22.287Z",
+  "spark1": "user@192.168.10.20",
+  "spark2": "user@192.168.10.21",
+  "remoteDir": "/home/user/dgx-spark-inference",
+  "steps": [
+    {
+      "step": "sync",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "sync",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "install-ray",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "install-ray",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "start-ray-head",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "start-ray-worker",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "start-open-webui",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    },
+    {
+      "step": "validate",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": true
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "generatedAt": "2026-06-07T06:31:34.995Z",
+  "spark1": "user@192.168.10.20",
+  "spark2": "user@192.168.10.21",
+  "remoteDir": "/home/user/dgx-spark-inference",
+  "steps": [
+    {
+      "step": "validate-nccl",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "SPARK1 container NCCL:\n{\"cuda\": \"13.0\", \"cudaAvailable\": true, \"deviceCount\": 1, \"ncclAvailable\": true, \"ncclSocketIfname\": \"enp1s0f1np1\", \"ncclVersion\": \"2.28.8\", \"torch\": \"2.10.0a0+b558c986e8.nv25.11\", \"vllmHostIp\": \"192.168.100.10\"}\nSPARK2 container NCCL:\n{\"cuda\": \"13.0\", \"cudaAvailable\": true, \"deviceCount\": 1, \"ncclAvailable\": true, \"ncclSocketIfname\": \"enp1s0f1np1\", \"ncclVersion\": \"2.28.8\", \"torch\": \"2.10.0a0+b558c986e8.nv25.11\", \"vllmHostIp\": \"192.168.100.11\"}\nRay distributed resources:\n{\"acceleratorTypeGb10\": 2.0, \"availableGpus\": 0, \"gpus\": 2.0, \"placementGroups\": {\"57a1ab68d312489ec139658f5afa04000000\": {\"bundles\": {\"0\": {\"GPU\": 1.0, \"node:192.168.100.10\": 0.001}, \"1\": {\"GPU\": 1.0}}, \"bundles_to_node_id\": {\"0\": \"681940e37d10fe33671020b6724b3c9e5ab9a832de616dda73a50ee4\", \"1\": \"937fea68d9943c669c2f8627a30e5c592f11d5455788194f2c9a979a\"}, \"state\": \"CREATED\"}}}\nOpenAI-compatible vLLM model list:\n{\"object\":\"list\",\"data\":[{\"id\":\"llama-3.1-405b-awq-int4\",\"object\":\"model\",\"created\":1780813902,\"owned_by\":\"vllm\",\"root\":\"hugging-quants/Meta-Llama-3.1-405B-Instruct-AWQ-INT4\",\"parent\":null,\"max_model_len\":64,\"permission\":[{\"id\":\"modelperm-fd5f8c2b195d40149963fb8b837b81f1\",\"object\":\"model_permission\",\"created\":1780813902,\"allow_create_engine\":false,\"allow_sampling\":true,\"allow_logprobs\":true,\"allow_search_indices\":false,\"allow_view\":true,\"allow_fine_tuning\":false,\"organization\":\"*\",\"group\":null,\"is_blocking\":false}]}]}\nOpenAI-compatible vLLM NCCL-backed generation:\n{\"content\": \"NCCL is now fully ready.\", \"finishReason\": \"length\", \"model\": \"llama-3.1-405b-awq-int4\", \"usage\": {\"completion_tokens\": 8, \"prompt_tokens\": 43, \"prompt_tokens_details\": null, \"total_tokens\": 51}}\n",
+      "stderr": "2026-06-07 06:31:41,520\tINFO worker.py:1832 -- Connecting to existing Ray cluster at address: 192.168.100.10:6379...\n2026-06-07 06:31:41,562\tINFO worker.py:2003 -- Connected to Ray cluster. View the dashboard at \u001b[1m\u001b[32mhttp://192.168.100.10:8265 \u001b[39m\u001b[22m\n/usr/local/lib/python3.12/dist-packages/ray/_private/worker.py:2051: FutureWarning: Tip: In future versions of Ray, Ray will no longer override accelerator visible devices env var if num_gpus=0 or num_gpus=None (default). To enable this behavior and turn off this error message, set RAY_ACCEL_ENV_VAR_OVERRIDE_ON_ZERO=0\n  warnings.warn(\n",
+      "dryRun": false
+    }
+  ]
+}

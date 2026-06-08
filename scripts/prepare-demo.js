@@ -10,7 +10,7 @@ const args = parseArgs(process.argv.slice(2));
 const outDir = path.resolve(args["out-dir"] || process.env.TURBALANCE_DEMO_OUT_DIR || path.join(root, "build", "demo"));
 const requireScreenshots = Boolean(args["require-screenshots"] || process.env.TURBALANCE_SCREENSHOT_QA_REQUIRED === "1");
 const runScreenshots = Boolean(args.screenshots || requireScreenshots || process.env.TURBALANCE_DEMO_SCREENSHOTS);
-const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.101:8000";
+const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.30:8000";
 const remoteMachines = splitList(args["remote-machine"] || process.env.TURBALANCE_REMOTE_MACHINES || "");
 
 fs.mkdirSync(outDir, { recursive: true });
@@ -318,14 +318,23 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (!arg.startsWith("--")) continue;
-    parsed[arg.slice(2)] = argv[index + 1] && !argv[index + 1].startsWith("--") ? argv[++index] : "1";
+    const key = arg.slice(2);
+    const value = argv[index + 1] && !argv[index + 1].startsWith("--") ? argv[++index] : "1";
+    if (parsed[key] === undefined) {
+      parsed[key] = value;
+    } else if (Array.isArray(parsed[key])) {
+      parsed[key].push(value);
+    } else {
+      parsed[key] = [parsed[key], value];
+    }
   }
   return parsed;
 }
 
 function splitList(value) {
-  return String(value || "")
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap((item) => String(item || "")
     .split(",")
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean));
 }

@@ -1,0 +1,26 @@
+{
+  "generatedAt": "2026-06-07T06:30:34.306Z",
+  "spark1": "user@192.168.10.20",
+  "spark2": "user@192.168.10.21",
+  "remoteDir": "/home/user/dgx-spark-inference",
+  "steps": [
+    {
+      "step": "sync",
+      "host": "user@192.168.10.20",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    },
+    {
+      "step": "sync",
+      "host": "user@192.168.10.21",
+      "status": 0,
+      "ok": true,
+      "stdout": "",
+      "stderr": "",
+      "dryRun": false
+    }
+  ]
+}
