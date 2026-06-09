@@ -76,6 +76,9 @@ selectorMatches.forEach((selector) => {
   "taskMemoryResources",
   "taskMemoryChanges",
   "exportEvidencePackButton",
+  "dashboardSettingsPanel",
+  "dashboardSettingsControls",
+  "dashboardSettingsBadge",
   "liveTelemetryAlerts",
   "liveObservationLog",
   "sparkPairComparePanel",
@@ -131,6 +134,10 @@ assert.ok(app.includes("Nsight/CUPTI"));
 assert.ok(app.includes("renderOperatorCockpit"));
 assert.ok(app.includes("buildOperatorCockpitContext"));
 assert.ok(app.includes("renderOperatorLaunchpad"));
+assert.ok(app.includes("DASHBOARD_BLOCKS"));
+assert.ok(app.includes("renderDashboardSettingsPanel"));
+assert.ok(app.includes("dashboardBlockToggle"));
+assert.ok(app.includes("applyDashboardBlockVisibility"));
 assert.ok(app.includes("operatorLaunchpadCommandSignature"));
 assert.ok(app.includes("showManualCopyPrompt"));
 assert.ok(app.includes("formatHostSampleAgeMilliseconds"));
@@ -232,7 +239,9 @@ assert.ok(app.includes("192.168.10.21"));
 assert.ok(app.includes("spark1"));
 assert.ok(app.includes("PI_FLEET_HOSTNAMES"));
 assert.ok(app.includes("buildPiBenchmarkHistograms"));
+assert.ok(app.includes("fleetBenchmarkHistogramSection"));
 assert.ok(app.includes("fleetBenchmarkHistogramNode"));
+assert.ok(app.includes("isPiFleetRow"));
 assert.ok(app.includes("benchmarkCpuOpsPerSecond"));
 assert.ok(app.includes("benchmarkDiskReadMiBps"));
 assert.ok(app.includes("DGX interconnect"));
@@ -263,7 +272,10 @@ assert.ok(html.includes("liveResourceGrid"));
 assert.ok(html.includes("liveTelemetryAlerts"));
 assert.ok(html.includes("liveObservationLog"));
 assert.ok(html.includes("liveTelemetryGraphs"));
-assert.ok(html.includes("app.js?v=spark-clock-fast-20260608"));
+assert.ok(html.includes("app.js?v=dashboard-settings-20260609"));
+assert.ok(html.includes("styles.css?v=dashboard-settings-20260609"));
+assert.ok(html.includes('data-dashboard-block="sparkPair"'));
+assert.ok(html.includes('data-dashboard-block="fleetComparison"'));
 assert.ok(app.includes("renderLiveObservationLog"));
 assert.ok(app.includes("liveObservationActions"));
 assert.ok(app.includes("liveSignificantSampleObservations"));
@@ -275,6 +287,9 @@ assert.ok(app.includes("Observation log copied"));
 assert.ok(app.includes("Waiting for live counters"));
 assert.ok(css.includes("live-observation-action"));
 assert.ok(css.includes("live-covariance-grid"));
+assert.ok(css.includes("dashboard-settings-panel"));
+assert.ok(css.includes("dashboard-settings-grid"));
+assert.ok(css.includes("dashboard-block-toggle"));
 assert.ok(css.includes("spark-pair-compare-panel"));
 assert.ok(css.includes("spark-pair-grid"));
 assert.ok(css.includes("spark-pair-clock-panel"));
@@ -282,8 +297,11 @@ assert.ok(css.includes("spark-pair-clock-line-leftOffsetNs"));
 assert.ok(css.includes("spark-pair-clock-legend"));
 assert.ok(css.includes("fleet-comparison-panel"));
 assert.ok(css.includes("fleet-comparison-rank-grid"));
+assert.ok(css.includes("fleet-benchmark-section"));
+assert.ok(css.includes("fleet-benchmark-section-head"));
 assert.ok(css.includes("fleet-benchmark-histograms"));
 assert.ok(css.includes("fleet-benchmark-bar-row"));
+assert.ok(css.includes("fleet-benchmark-empty"));
 assert.ok(css.includes("system-characterization-panel"));
 assert.ok(css.includes("system-characterization-bar"));
 assert.ok(css.includes('.fleet-tile[aria-selected="true"]'));

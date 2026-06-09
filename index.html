@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>turbalance Analytics</title>
     <link rel="icon" href="assets/turbalance-mark.png">
-    <link rel="stylesheet" href="styles.css?v=spark-clock-fast-20260608">
+    <link rel="stylesheet" href="styles.css?v=dashboard-settings-20260609">
   </head>
   <body>
     <header class="topbar">
@@ -143,6 +143,17 @@
             </div>
           </section>
 
+          <section id="dashboardSettingsPanel" class="dashboard-settings-panel" aria-label="Dashboard block settings">
+            <div class="dashboard-settings-head">
+              <div>
+                <p>Dashboard Settings</p>
+                <h2>Visible blocks</h2>
+              </div>
+              <span id="dashboardSettingsBadge">Lean</span>
+            </div>
+            <div id="dashboardSettingsControls" class="dashboard-settings-controls"></div>
+          </section>
+
           <section id="liveResourcePanel" class="live-resource-panel" aria-label="Live system resources" hidden>
             <div class="live-resource-head">
               <div>
@@ -172,70 +183,70 @@
             </div>
             <div id="sourceHeartbeatStrip" class="source-heartbeat-strip" aria-label="Per-source heartbeat status"></div>
             <div class="operator-cockpit-grid">
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="eventTimeline">
                 <div class="operator-card-head">
                   <p>Event Timeline</p>
                   <span id="eventTimelineBadge">Live</span>
                 </div>
                 <div id="eventTimeline" class="event-timeline"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="demoLaunchpad">
                 <div class="operator-card-head">
                   <p>Demo Launchpad</p>
                   <span>SPARK1</span>
                 </div>
                 <div id="demoLaunchpad" class="demo-launchpad"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="kafkaStream">
                 <div class="operator-card-head">
                   <p>Kafka Stream</p>
                   <span id="kafkaStreamBadge">Broker</span>
                 </div>
                 <div id="kafkaStreamPanel" class="kafka-stream-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="dataConfidence">
                 <div class="operator-card-head">
                   <p>Data Confidence</p>
                   <span id="confidenceDetailBadge">Scoring</span>
                 </div>
                 <div id="confidencePanel" class="confidence-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="replayMode">
                 <div class="operator-card-head">
                   <p>Replay Mode</p>
                   <span id="replayModeBadge">Ready</span>
                 </div>
                 <div id="replayModePanel" class="replay-mode-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="grafanaMini">
                 <div class="operator-card-head">
                   <p>Grafana Mini Handoff</p>
                   <span id="grafanaMiniBadge">Links</span>
                 </div>
                 <div id="grafanaMiniPanel" class="grafana-mini-panel"></div>
               </section>
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="fleetTiles">
                 <div class="operator-card-head">
                   <p>Fleet Tiles</p>
                   <span id="fleetTilesBadge">Observed hosts</span>
                 </div>
                 <div id="fleetTiles" class="fleet-tiles"></div>
               </section>
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="sparkPair">
                 <div class="operator-card-head">
                   <p>SPARK Pair Compare</p>
                   <span id="sparkPairCompareBadge">Waiting</span>
                 </div>
                 <div id="sparkPairComparePanel" class="spark-pair-compare-panel"></div>
               </section>
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="fleetComparison">
                 <div class="operator-card-head">
                   <p>Fleet Comparison</p>
                   <span id="fleetComparisonBadge">Waiting</span>
                 </div>
                 <div id="fleetComparisonPanel" class="fleet-comparison-panel"></div>
               </section>
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="systemCharacterization">
                 <div class="operator-card-head">
                   <p>System Characterization</p>
                   <span id="systemCharacterizationBadge">Learning</span>
@@ -521,6 +532,6 @@
     <script src="analytics-core.js?v=nccl-runtime-20260607"></script>
     <script src="nccl-trace-parser.js?v=nccl-runtime-20260607"></script>
     <script src="nccl-trace-fixtures.js?v=nccl-runtime-20260607"></script>
-    <script src="app.js?v=spark-clock-fast-20260608"></script>
+    <script src="app.js?v=dashboard-settings-20260609"></script>
   </body>
 </html>

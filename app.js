@@ -1038,9 +1038,29 @@ const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
 const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
+const DASHBOARD_BLOCK_STORAGE_KEY = "turba.dashboard.blocks.v1";
+const DASHBOARD_BLOCKS = [
+  { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
+  { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
+  { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
+  { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
+  { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
+  { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
+  { id: "eventTimeline", label: "Event timeline", note: "Operator event stream", defaultOn: false },
+  { id: "demoLaunchpad", label: "Demo launchpad", note: "SPARK demo command shortcuts", defaultOn: false },
+  { id: "kafkaStream", label: "Kafka stream", note: "Broker smoke and stream panel", defaultOn: false },
+  { id: "dataConfidence", label: "Data confidence", note: "Source quality scoring details", defaultOn: false },
+  { id: "replayMode", label: "Replay mode", note: "Telemetry replay controls", defaultOn: false },
+  { id: "grafanaMini", label: "Grafana handoff", note: "Mini observability links", defaultOn: false },
+  { id: "sparkPair", label: "SPARK pair compare", note: "SPARK1/SPARK2 metrics and clock graph", defaultOn: false },
+  { id: "fleetComparison", label: "Pi fleet comparison", note: "Rank table and Pi benchmark histograms", defaultOn: false },
+  { id: "systemCharacterization", label: "System characterization", note: "System-ID fingerprints and profiles", defaultOn: false }
+];
+const DASHBOARD_BLOCK_DEFAULTS = Object.fromEntries(DASHBOARD_BLOCKS.map((block) => [block.id, Boolean(block.defaultOn)]));
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
+let dashboardBlockPreferences = loadDashboardBlockPreferences();
 let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
@@ -1072,6 +1092,7 @@ const state = {
   schedulerScenario: "recommended",
   operatorReplay: false,
   operatorReplayStartedAt: null,
+  dashboardBlocks: dashboardBlockPreferences,
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   storageLabel: workspaceStore.storageLabel,
   storageTone: workspaceStore.storageTone,
@@ -1318,6 +1339,59 @@ function writeWorkspaceStore(store) {
   } catch {
     return false;
   }
+}
+
+function loadDashboardBlockPreferences() {
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_BLOCK_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return normalizeDashboardBlockPreferences(parsed);
+  } catch {
+    return normalizeDashboardBlockPreferences(null);
+  }
+}
+
+function saveDashboardBlockPreferences() {
+  try {
+    window.localStorage.setItem(DASHBOARD_BLOCK_STORAGE_KEY, JSON.stringify(state.dashboardBlocks));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeDashboardBlockPreferences(preferences) {
+  const normalized = { ...DASHBOARD_BLOCK_DEFAULTS };
+  if (!isPlainObject(preferences)) return normalized;
+  DASHBOARD_BLOCKS.forEach((block) => {
+    if (typeof preferences[block.id] === "boolean") normalized[block.id] = preferences[block.id];
+  });
+  return normalized;
+}
+
+function dashboardBlockEnabled(id) {
+  return state.dashboardBlocks?.[id] !== false;
+}
+
+function resetDashboardBlocksToDefault() {
+  state.dashboardBlocks = { ...DASHBOARD_BLOCK_DEFAULTS };
+  saveDashboardBlockPreferences();
+  render();
+}
+
+function enableAllDashboardBlocks() {
+  state.dashboardBlocks = Object.fromEntries(DASHBOARD_BLOCKS.map((block) => [block.id, true]));
+  saveDashboardBlockPreferences();
+  render();
+}
+
+function setDashboardBlockEnabled(id, enabled) {
+  state.dashboardBlocks = normalizeDashboardBlockPreferences({
+    ...state.dashboardBlocks,
+    [id]: Boolean(enabled)
+  });
+  saveDashboardBlockPreferences();
+  render();
 }
 
 function isValidWorkspaceStore(store) {
@@ -3684,6 +3758,7 @@ function render() {
   renderScopeControls();
   renderAnalysisStamp();
   renderIngestState();
+  renderDashboardSettingsPanel();
 
   const entries = buildEntries(state.scope);
   if (!entries.some((entry) => entry.key === state.selectedKey)) {
@@ -3718,6 +3793,7 @@ function render() {
   renderFingerprint(fingerprint);
   renderRegression(summary);
   renderReport(summary, classifier);
+  applyDashboardBlockVisibility();
 }
 
 function renderIngestState() {
@@ -3726,6 +3802,86 @@ function renderIngestState() {
 
   ingestEl.textContent = state.ingestLabel;
   ingestEl.dataset.status = state.ingestTone;
+}
+
+function renderDashboardSettingsPanel() {
+  const panel = document.querySelector("#dashboardSettingsPanel");
+  const controls = document.querySelector("#dashboardSettingsControls");
+  const badge = document.querySelector("#dashboardSettingsBadge");
+  if (!panel || !controls) return;
+
+  const enabledCount = DASHBOARD_BLOCKS.filter((block) => dashboardBlockEnabled(block.id)).length;
+  const defaultCount = DASHBOARD_BLOCKS.filter((block) => block.defaultOn).length;
+  const atDefault = DASHBOARD_BLOCKS.every((block) => dashboardBlockEnabled(block.id) === Boolean(block.defaultOn));
+
+  if (badge) {
+    badge.textContent = atDefault ? "Bare minimum" : `${enabledCount}/${DASHBOARD_BLOCKS.length} on`;
+    badge.dataset.tone = atDefault ? "good" : enabledCount <= defaultCount ? "good" : "watch";
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "dashboard-settings-actions";
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = "Bare minimum";
+  reset.addEventListener("click", resetDashboardBlocksToDefault);
+  const all = document.createElement("button");
+  all.type = "button";
+  all.textContent = "Show all";
+  all.addEventListener("click", enableAllDashboardBlocks);
+  actions.append(reset, all);
+
+  const grid = document.createElement("div");
+  grid.className = "dashboard-settings-grid";
+  DASHBOARD_BLOCKS.forEach((block) => {
+    grid.append(dashboardBlockToggle(block));
+  });
+
+  controls.replaceChildren(actions, grid);
+  panel.hidden = false;
+}
+
+function dashboardBlockToggle(block) {
+  const label = document.createElement("label");
+  label.className = "dashboard-block-toggle";
+  label.dataset.enabled = String(dashboardBlockEnabled(block.id));
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = dashboardBlockEnabled(block.id);
+  input.addEventListener("change", () => setDashboardBlockEnabled(block.id, input.checked));
+
+  const copy = document.createElement("span");
+  const title = document.createElement("strong");
+  title.textContent = block.label;
+  const note = document.createElement("small");
+  note.textContent = block.note;
+  copy.append(title, note);
+
+  label.append(input, copy);
+  return label;
+}
+
+function applyDashboardBlockVisibility() {
+  const liveResourcePanel = document.querySelector("#liveResourcePanel");
+  if (liveResourcePanel && !dashboardBlockEnabled("liveResources")) {
+    liveResourcePanel.hidden = true;
+  }
+
+  toggleDashboardElement("#sourceHeartbeatStrip", "sourceHeartbeat");
+  toggleDashboardElement("#liveTelemetryAlerts", "liveAlerts");
+  toggleDashboardElement("#liveObservationLog", "liveObservationLog");
+  toggleDashboardElement("#liveTelemetryGraphs", "liveTelemetryGraphs");
+
+  document.querySelectorAll("[data-dashboard-block]").forEach((element) => {
+    const blockId = element.dataset.dashboardBlock;
+    element.hidden = !dashboardBlockEnabled(blockId);
+  });
+}
+
+function toggleDashboardElement(selector, blockId) {
+  const element = document.querySelector(selector);
+  if (element) element.hidden = !dashboardBlockEnabled(blockId);
 }
 
 function buildEntries(scope) {
@@ -5219,13 +5375,12 @@ function fleetComparisonSummaries(rows, spreadRows, counts) {
 
 function buildPiBenchmarkHistograms(rows) {
   const piRows = rows
-    .filter((row) => /^pi(?:[1-9]|1[0-2])$/i.test(row.host))
+    .filter(isPiFleetRow)
     .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
   if (piRows.length < 2) return [];
 
   return fleetBenchmarkMetricConfigs()
-    .map((config) => fleetBenchmarkHistogram(config, piRows))
-    .filter(Boolean);
+    .map((config) => fleetBenchmarkHistogram(config, piRows));
 }
 
 function fleetBenchmarkMetricConfigs() {
@@ -5242,15 +5397,14 @@ function fleetBenchmarkHistogram(config, rows) {
   const samples = rows
     .map((row) => ({ row, value: numeric(row[config.key], Number.NaN) }))
     .filter((sample) => Number.isFinite(sample.value) && sample.value >= 0);
-  if (samples.length < 2) return null;
 
   const values = samples.map((sample) => sample.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const median = fleetMedian(values);
+  const min = values.length ? Math.min(...values) : Number.NaN;
+  const max = values.length ? Math.max(...values) : Number.NaN;
+  const median = values.length ? fleetMedian(values) : Number.NaN;
   const sortedByValue = samples.slice().sort((left, right) => right.value - left.value || fleetNaturalLabel(left.row.host).localeCompare(fleetNaturalLabel(right.row.host), undefined, { numeric: true }));
   const best = sortedByValue[0];
-  const denominator = Math.max(max, 1);
+  const denominator = Math.max(Number.isFinite(max) ? max : 0, 1);
 
   return {
     key: config.key,
@@ -5259,6 +5413,8 @@ function fleetBenchmarkHistogram(config, rows) {
     max,
     median,
     bestHost: best?.row?.host || "",
+    sampleCount: samples.length,
+    pendingCount: Math.max(0, rows.length - samples.length),
     formatter: config.formatter,
     bars: rows.map((row) => {
       const value = numeric(row[config.key], Number.NaN);
@@ -6040,6 +6196,7 @@ function renderFleetComparisonPanel(container, comparison) {
   if (comparison.benchmarkHistograms?.length) {
     benchmarkGrid.append(...comparison.benchmarkHistograms.map(fleetBenchmarkHistogramNode));
   }
+  const benchmarkSection = fleetBenchmarkHistogramSection(comparison, benchmarkGrid);
 
   const rankGrid = document.createElement("div");
   rankGrid.className = "fleet-comparison-rank-grid";
@@ -6057,10 +6214,44 @@ function renderFleetComparisonPanel(container, comparison) {
 
   container.replaceChildren(
     summary,
-    ...(comparison.benchmarkHistograms?.length ? [benchmarkGrid] : []),
+    ...(benchmarkSection ? [benchmarkSection] : []),
     rankGrid,
     spreadGrid
   );
+}
+
+function fleetBenchmarkHistogramSection(comparison, benchmarkGrid) {
+  const piRows = comparison.rows.filter(isPiFleetRow);
+  if (piRows.length < 2 && !comparison.benchmarkHistograms?.length) return null;
+
+  const section = document.createElement("div");
+  section.className = "fleet-benchmark-section";
+
+  const head = document.createElement("div");
+  head.className = "fleet-benchmark-section-head";
+  const title = document.createElement("strong");
+  title.textContent = "Pi Benchmark Histograms";
+  const meta = document.createElement("small");
+  const benchmarkRows = piRows.filter(fleetBenchmarkAvailable);
+  const pending = Math.max(0, piRows.length - benchmarkRows.length);
+  meta.textContent = piRows.length
+    ? `${benchmarkRows.length}/${piRows.length} suites${pending ? ` | ${pending} pending` : ""}`
+    : "waiting for Pi hosts";
+  head.append(title, meta);
+
+  if (!benchmarkGrid.children.length) {
+    const empty = document.createElement("div");
+    empty.className = "fleet-benchmark-empty";
+    empty.textContent = piRows.length ? "Waiting for periodic benchmark samples." : "Waiting for Pi fleet samples.";
+    benchmarkGrid.append(empty);
+  }
+
+  section.append(head, benchmarkGrid);
+  return section;
+}
+
+function isPiFleetRow(row) {
+  return /^pi(?:[1-9]|1[0-2])$/i.test(String(row?.host || ""));
 }
 
 function fleetComparisonHeader(labels, rowClass) {
@@ -6097,7 +6288,9 @@ function fleetBenchmarkHistogramNode(histogram) {
   const title = document.createElement("strong");
   title.textContent = histogram.label;
   const meta = document.createElement("small");
-  meta.textContent = `${histogram.bestHost || "--"} best | median ${histogram.formatter(histogram.median)}`;
+  meta.textContent = histogram.sampleCount
+    ? `${histogram.bestHost || "--"} best | median ${histogram.formatter(histogram.median)}`
+    : `${histogram.pendingCount} pending`;
   head.append(title, meta);
 
   const bars = document.createElement("div");
