@@ -68,6 +68,9 @@ class TransformRunner:
             ("vs_noisy_neighbor", self.query.noisy_neighbor(tenant_id=tenant_id)),
             ("vs_input_pipeline_stall", self.query.input_pipeline_stall(tenant_id=tenant_id)),
             ("vs_system_identification_signature", self.query.system_identification(tenant_id=tenant_id)),
+            ("vs_host_hardware_health", self.query.hardware_health(tenant_id=tenant_id)),
+            ("vs_repair_candidates", self.query.repair_candidates(tenant_id=tenant_id)),
+            ("vs_fleet_rca", self.query.fleet_rca(tenant_id=tenant_id)),
             ("vs_alert_candidates", self.query.alert_candidates(tenant_id=tenant_id)),
         ):
             if rows:

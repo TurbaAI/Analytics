@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,8 @@ class ApiSettings:
     alert_pagerduty_routing_key: str = ""
     alert_dry_run_path: Path | None = None
     alert_route_timeout_seconds: float = 2.0
+    stream_interval_seconds: float = 2.0
+    stream_max_events: int = 0
     discovery_url: str = ""
     jwks_json: str = ""
     jwks_path: Path | None = None
@@ -76,6 +79,8 @@ class ApiSettings:
             if os.environ.get("TURBALANCE_ALERT_DRY_RUN_PATH")
             else None,
             alert_route_timeout_seconds=float(os.environ.get("TURBALANCE_ALERT_ROUTE_TIMEOUT_SECONDS", "2")),
+            stream_interval_seconds=float(os.environ.get("TURBALANCE_API_STREAM_INTERVAL_SECONDS", "2")),
+            stream_max_events=int(os.environ.get("TURBALANCE_API_STREAM_MAX_EVENTS", "0")),
             discovery_url=os.environ.get("TURBALANCE_DISCOVERY_URL", ""),
             jwks_json=os.environ.get("TURBALANCE_API_JWKS", ""),
             jwks_path=Path(os.environ["TURBALANCE_API_JWKS_PATH"])
@@ -272,6 +277,33 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         rows = lake.alert_candidates(tenant_id=tenant_id, limit=settings.max_rows)
         return {"rows": rows, "count": len(rows)}
 
+    @app.get("/v1/virtual-sensors/hardware-health")
+    async def hardware_health(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(viewer_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id)
+        rows = lake.hardware_health(tenant_id=tenant_id, limit=settings.max_rows)
+        return {"rows": rows, "count": len(rows)}
+
+    @app.get("/v1/virtual-sensors/repair-candidates")
+    async def repair_candidates(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(viewer_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id)
+        rows = lake.repair_candidates(tenant_id=tenant_id, limit=settings.max_rows)
+        return {"rows": rows, "count": len(rows)}
+
+    @app.get("/v1/virtual-sensors/fleet-rca")
+    async def fleet_rca(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(viewer_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id)
+        rows = lake.fleet_rca(tenant_id=tenant_id, limit=settings.max_rows)
+        return {"rows": rows, "count": len(rows)}
+
     @app.get("/v1/alerts")
     async def alerts(
         tenant_id: str | None = Query(default=None, alias="tenantId"),
@@ -313,11 +345,18 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
     ) -> StreamingResponse:
         tenant_id = auth.scoped_tenant(principal, tenant_id)
         async def events():
-            payload = {
-                "type": "resource_snapshot",
-                "rows": lake.resource_pressure(tenant_id=tenant_id, limit=settings.max_rows),
-            }
-            yield f"event: resource_snapshot\ndata: {json.dumps(payload, default=str)}\n\n"
+            sent = 0
+            while True:
+                payload = {
+                    "type": "resource_snapshot",
+                    "observedAt": _utc_iso(),
+                    "rows": lake.resource_pressure(tenant_id=tenant_id, limit=settings.max_rows),
+                }
+                yield f"event: resource_snapshot\ndata: {json.dumps(payload, default=str)}\n\n"
+                sent += 1
+                if settings.stream_max_events > 0 and sent >= settings.stream_max_events:
+                    break
+                await asyncio.sleep(max(0.25, settings.stream_interval_seconds))
 
         return StreamingResponse(events(), media_type="text/event-stream")
 
@@ -338,6 +377,12 @@ def _env_bool(value: str) -> bool:
 def _fetch_discovery_json(url: str) -> dict[str, Any]:
     with urlopen(url, timeout=2) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _utc_iso() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat()
 
 
 app = create_app()

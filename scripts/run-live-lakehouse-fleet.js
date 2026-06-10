@@ -27,6 +27,8 @@ const remoteRoot = args["remote-root"] || process.env.TURBALANCE_REMOTE_MACHINE_
 const pythonBin = args.python || process.env.PYTHON || "python3";
 const dgxInterconnectInterface = args["dgx-interconnect-interface"] || process.env.TURBALANCE_DGX_INTERCONNECT_INTERFACE || "enp1s0f1np1";
 const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"] || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX || "192.168.100.";
+const gpuBackend = args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "";
+const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "";
 let lastTransformAt = 0;
 
 if (loopMs > 0) {
@@ -76,6 +78,7 @@ function collectFleetBundle() {
     dgxInterconnectInterface,
     "--dgx-interconnect-subnet-prefix",
     dgxInterconnectSubnetPrefix,
+    ...gpuArgs(),
     ...(includePiFleet ? ["--pi-fleet"] : []),
     ...(includePiBenchmarks ? ["--pi-benchmarks"] : []),
     ...remotes.flatMap((remote) => ["--remote", remote])
@@ -141,6 +144,13 @@ function nodeEnv() {
     ...process.env,
     TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION: "1"
   };
+}
+
+function gpuArgs() {
+  const values = [];
+  if (gpuBackend) values.push("--gpu-backend", gpuBackend);
+  if (gpustatBin) values.push("--gpustat-bin", gpustatBin);
+  return values;
 }
 
 function pythonEnv(paths) {

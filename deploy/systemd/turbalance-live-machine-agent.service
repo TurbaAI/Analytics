@@ -1,0 +1,25 @@
+[Unit]
+Description=Turbalance live machine telemetry push agent
+Documentation=file:/opt/turbalance/Analytics/docs/bare-metal-fleet-production.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/turbalance/live-machine-agent.env
+WorkingDirectory=/opt/turbalance/Analytics
+ExecStart=/usr/bin/env node /opt/turbalance/Analytics/scripts/push-live-machine-telemetry.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/turbalance /var/spool/turbalance /opt/turbalance/Analytics/build
+LockPersonality=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

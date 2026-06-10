@@ -21,7 +21,7 @@ const normalizedScripts = scripts.map((script) => script.split("?")[0]);
 
 assert.equal(ids.length, idSet.size, "HTML ids should be unique");
 assert.ok(html.includes("assets/turbalance-mark.png"));
-assert.ok(html.includes("assets/turbalance-analytics-logo.png"));
+assert.ok(html.includes("assets/turbalance-wordmark-transparent.png"));
 assert.ok(html.includes("<title>turbalance Analytics</title>"));
 assert.deepEqual(normalizedScripts, [
   "analytics-core.js",
@@ -45,6 +45,8 @@ selectorMatches.forEach((selector) => {
   "windowSelect",
   "rateInput",
   "samePodToggle",
+  "themeToggle",
+  "themeToggleText",
   "ingestFile",
   "apiInput",
   "fetchApiButton",
@@ -150,6 +152,10 @@ assert.ok(app.includes("eventTimeline"));
 assert.ok(app.includes("kafkaStreamPanel"));
 assert.ok(app.includes("operatorReplay"));
 assert.ok(app.includes("liveResourceCard"));
+assert.ok(app.includes("Telemetry ingest"));
+assert.ok(app.includes("collectorIncomingReportsPerMinute"));
+assert.ok(app.includes("Hardware health"));
+assert.ok(app.includes("hardwareRepairAction"));
 assert.ok(app.includes("renderLiveTelemetryGraphs"));
 assert.ok(app.includes("renderAnalysisResourceFallback"));
 assert.ok(app.includes("analyzeAnalysisResourceRelationships"));
@@ -272,8 +278,10 @@ assert.ok(html.includes("liveResourceGrid"));
 assert.ok(html.includes("liveTelemetryAlerts"));
 assert.ok(html.includes("liveObservationLog"));
 assert.ok(html.includes("liveTelemetryGraphs"));
-assert.ok(html.includes("app.js?v=dashboard-settings-20260609"));
-assert.ok(html.includes("styles.css?v=dashboard-settings-20260609"));
+assert.ok(html.includes("app.js?v=theme-mode-20260610"));
+assert.ok(html.includes("styles.css?v=theme-mode-20260610"));
+assert.ok(html.includes("turba.analytics.theme"));
+assert.ok(html.includes('id="themeToggle"'));
 assert.ok(html.includes('data-dashboard-block="sparkPair"'));
 assert.ok(html.includes('data-dashboard-block="fleetComparison"'));
 assert.ok(app.includes("renderLiveObservationLog"));
@@ -290,6 +298,11 @@ assert.ok(css.includes("live-covariance-grid"));
 assert.ok(css.includes("dashboard-settings-panel"));
 assert.ok(css.includes("dashboard-settings-grid"));
 assert.ok(css.includes("dashboard-block-toggle"));
+assert.ok(css.includes("theme-switch"));
+assert.ok(css.includes('html[data-theme="dark"]'));
+assert.ok(app.includes("initThemeMode"));
+assert.ok(app.includes("applyThemeMode"));
+assert.ok(app.includes("THEME_STORAGE_KEY"));
 assert.ok(css.includes("spark-pair-compare-panel"));
 assert.ok(css.includes("spark-pair-grid"));
 assert.ok(css.includes("spark-pair-clock-panel"));

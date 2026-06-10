@@ -6,6 +6,8 @@ This runbook covers the executable lakehouse telemetry path:
 agent -> collector-gateway -> raw-writer -> Parquet/DuckDB -> transform-runner -> API/Grafana/Dagster
 ```
 
+For the current NUC/SPARK/Pi bare-metal rollout path, see `docs/bare-metal-fleet-production.md`.
+
 ## Health Checks
 
 - Collector: `GET /health`, `GET /ready`, `GET /metrics` on `collector-gateway:8801`.

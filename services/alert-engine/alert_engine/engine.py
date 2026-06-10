@@ -100,6 +100,20 @@ class AlertEngine:
                         owner=str(candidate.get("owner") or "platform-runtime"),
                     )
                 )
+        if hasattr(self.lake_query, "repair_candidates"):
+            for candidate in self.lake_query.repair_candidates(tenant_id=tenant_id):
+                alerts.append(
+                    _alert(
+                        key=str(candidate.get("incident_key") or candidate.get("incidentKey") or "repair-candidate"),
+                        severity=str(candidate.get("severity") or "warning"),
+                        title=str(candidate.get("title") or "Hardware repair candidate"),
+                        confidence=_number(candidate.get("confidence")) or 0.5,
+                        evidence=str(candidate.get("evidence") or ""),
+                        owner=str(candidate.get("owner") or "fleet-reliability"),
+                        suggested_action=str(candidate.get("suggested_action") or ""),
+                        requires_approval=bool(candidate.get("requires_approval")),
+                    )
+                )
 
         return _dedupe(alerts)
 
@@ -112,6 +126,8 @@ def _alert(
     confidence: float,
     evidence: str,
     owner: str,
+    suggested_action: str = "",
+    requires_approval: bool = False,
 ) -> dict[str, Any]:
     return {
         "incidentKey": key,
@@ -120,6 +136,8 @@ def _alert(
         "confidence": round(max(0.0, min(1.0, confidence)), 3),
         "evidence": evidence,
         "owner": owner,
+        "suggestedAction": suggested_action,
+        "requiresApproval": requires_approval,
         "status": "open",
         "evaluatedAt": datetime.now(timezone.utc).isoformat(),
     }

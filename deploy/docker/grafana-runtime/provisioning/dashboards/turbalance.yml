@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: turbalance Runtime
+    orgId: 1
+    folder: turbalance Runtime
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 15
+    options:
+      path: /var/lib/grafana/dashboards

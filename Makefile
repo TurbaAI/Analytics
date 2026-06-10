@@ -53,6 +53,8 @@ lint:
 	node --check scripts/validate-ebpf-agent-host.js
 	node --check scripts/validate-lakehouse-security.js
 	node --check scripts/validate-lakehouse-alerts-dashboards.js
+	node --check scripts/push-live-machine-telemetry.js
+	node --check scripts/rollout-production-fleet.js
 	node --check bin/gb100-telemetry-report
 	python3 -m py_compile collectors/app_telemetry_exporter.py collectors/facility_adapter.py collectors/nvml_confidential_collector.py
 	python3 -m py_compile services/platform_common/platform_common/contracts.py services/platform_common/platform_common/analytics.py services/platform_common/platform_common/observability.py

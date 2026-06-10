@@ -110,12 +110,14 @@ class TelemetryLakeWriter:
         tenant_id: str = "demo-tenant",
         host_id: str = "source-bundle",
         agent_id: str = "source-bundle-adapter",
+        sequence_no: int = 0,
     ) -> dict[str, Any]:
         batch = source_bundle_to_batch(
             payload,
             tenant_id=tenant_id,
             host_id=host_id,
             agent_id=agent_id,
+            sequence_no=sequence_no,
         )
         return self.write_batch(batch)
 

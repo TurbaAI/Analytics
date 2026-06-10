@@ -321,6 +321,21 @@ def _live_machine_metrics(context: dict[str, Any]) -> list[TelemetryMetric]:
         ("gpu_temperature_c", context.get("gpuTemperatureC")),
         ("ollama_tokens_per_second", context.get("ollamaTokensPerSecond")),
         ("ollama_time_to_first_token_ms", context.get("ollamaTimeToFirstTokenMs")),
+        ("hardware_health_score", context.get("hardwareHealthScore")),
+        ("hardware_fault_score", context.get("hardwareFaultScore")),
+        ("hardware_fault_count", context.get("hardwareFaultCount")),
+        ("hardware_critical_fault_count", context.get("hardwareCriticalFaultCount")),
+        ("hardware_warning_fault_count", context.get("hardwareWarningFaultCount")),
+        ("hardware_kernel_event_count", context.get("hardwareKernelEventCount")),
+        ("hardware_machine_check_count", context.get("hardwareMachineCheckCount")),
+        ("hardware_gpu_xid_count", context.get("hardwareGpuXidCount")),
+        ("hardware_storage_error_count", context.get("hardwareStorageErrorCount")),
+        ("hardware_pcie_aer_count", context.get("hardwarePcieAerCount")),
+        ("hardware_oom_kill_count", context.get("hardwareOomKillCount")),
+        ("hardware_failed_unit_count", context.get("hardwareFailedUnitCount")),
+        ("hardware_repair_confidence", context.get("hardwareRepairConfidence")),
+        ("hardware_thermal_throttle_active", 1 if context.get("hardwareThermalThrottleActive") is True else 0),
+        ("hardware_repair_requires_approval", 1 if context.get("hardwareRepairRequiresApproval") is True else 0),
     )
     metrics = [
         TelemetryMetric(name=name, value=float(value), kind=_metric_kind(name), unit=_metric_unit(name))

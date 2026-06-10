@@ -3,16 +3,31 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>turbalance Analytics</title>
     <link rel="icon" href="assets/turbalance-mark.png">
-    <link rel="stylesheet" href="styles.css?v=dashboard-settings-20260609">
+    <script>
+      (function () {
+        try {
+          var storedTheme = window.localStorage.getItem("turba.analytics.theme");
+          var theme = storedTheme === "dark" || storedTheme === "light"
+            ? storedTheme
+            : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      }());
+    </script>
+    <link rel="stylesheet" href="styles.css?v=theme-mode-20260610">
   </head>
   <body>
     <header class="topbar">
       <div class="brand" aria-label="turbalance Analytics">
         <span class="brand-copy">
-          <img class="brand-wordmark" src="assets/turbalance-analytics-logo.png" alt="turbalance Analytics">
-          <span>Infrastructure loss attribution</span>
+          <img class="brand-wordmark" src="assets/turbalance-wordmark-transparent.png" alt="turbalance">
+          <span>Infrastructure performance intelligence</span>
         </span>
       </div>
 
@@ -32,6 +47,26 @@
         <label class="toggle" for="samePodToggle">
           <input id="samePodToggle" type="checkbox">
           <span>Same-pod what-if</span>
+        </label>
+        <label class="theme-switch" for="themeToggle" title="Switch to dark mode">
+          <input id="themeToggle" type="checkbox" aria-label="Dark mode">
+          <span class="theme-switch-track" aria-hidden="true">
+            <svg class="theme-switch-sun" viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="theme-switch-moon" viewBox="0 0 24 24" focusable="false">
+              <path d="M20 14.4A7.6 7.6 0 0 1 9.6 4a8 8 0 1 0 10.4 10.4Z"></path>
+            </svg>
+          </span>
+          <span id="themeToggleText">Light</span>
         </label>
       </div>
     </header>
@@ -529,9 +564,9 @@
       </div>
     </main>
 
-    <script src="analytics-core.js?v=nccl-runtime-20260607"></script>
-    <script src="nccl-trace-parser.js?v=nccl-runtime-20260607"></script>
-    <script src="nccl-trace-fixtures.js?v=nccl-runtime-20260607"></script>
-    <script src="app.js?v=dashboard-settings-20260609"></script>
+    <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
+    <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
+    <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
+    <script src="app.js?v=theme-mode-20260610"></script>
   </body>
 </html>

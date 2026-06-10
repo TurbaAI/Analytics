@@ -13,11 +13,14 @@ for relative in ("services/platform_common", "services/raw-writer"):
 from platform_common import (  # noqa: E402
     alert_candidate_rows,
     covariance_snapshot,
+    fleet_rca_rows,
     gpu_starvation_rows,
+    hardware_health_rows,
     input_pipeline_stall_rows,
     network_gpu_coupling_rows,
     noisy_neighbor_rows,
     principal_resource_mode,
+    repair_candidate_rows,
     resource_samples_from_metric_rows,
     system_identification_signature_rows,
 )
@@ -94,6 +97,15 @@ class LakeQuery:
 
     def alert_candidates(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         return alert_candidate_rows(self.resource_pressure(tenant_id=tenant_id, limit=limit))
+
+    def hardware_health(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        return hardware_health_rows(self.metric_rows(tenant_id=tenant_id, limit=limit))
+
+    def repair_candidates(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        return repair_candidate_rows(self.metric_rows(tenant_id=tenant_id, limit=limit))
+
+    def fleet_rca(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        return fleet_rca_rows(self.metric_rows(tenant_id=tenant_id, limit=limit))
 
     def system_identification(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         return system_identification_signature_rows(self.read_table("raw_system_identification", tenant_id=tenant_id, limit=limit))

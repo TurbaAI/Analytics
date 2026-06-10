@@ -25,6 +25,8 @@ const includeLocal = args["no-local"] !== true;
 const networkInterface = args["network-interface"] || process.env.TURBALANCE_LIVE_NETWORK_INTERFACE || "";
 const dgxInterconnectInterface = args["dgx-interconnect-interface"] || process.env.TURBALANCE_DGX_INTERCONNECT_INTERFACE || "";
 const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"] || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX || "";
+const gpuBackend = args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "";
+const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "";
 
 const bundles = [];
 if (includeLocal) bundles.push(collectLocalBundle());
@@ -47,6 +49,7 @@ function collectLocalBundle() {
     path.join(root, "scripts", "collect-local-machine-bundle.js"),
     "--host-url",
     hostUrl,
+    ...gpuArgs(),
     ...networkArgs()
   ], {
     TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION: "1"
@@ -175,6 +178,8 @@ function remoteCollectorCommand(remote) {
     networkInterface ? `TURBALANCE_LIVE_NETWORK_INTERFACE=${shellQuote(networkInterface)}` : "",
     dgxInterconnectInterface ? `TURBALANCE_DGX_INTERCONNECT_INTERFACE=${shellQuote(dgxInterconnectInterface)}` : "",
     dgxInterconnectSubnetPrefix ? `TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX=${shellQuote(dgxInterconnectSubnetPrefix)}` : "",
+    gpuBackend ? `TURBALANCE_GPU_BACKEND=${shellQuote(gpuBackend)}` : "",
+    gpustatBin ? `TURBALANCE_GPUSTAT_BIN=${shellQuote(gpustatBin)}` : "",
     includePiBenchmarks && isPiRemote(remote) ? "TURBALANCE_PI_BENCHMARKS=1" : ""
   ].filter(Boolean).join(" ");
   return [
@@ -200,6 +205,13 @@ function networkArgs() {
   if (networkInterface) values.push("--network-interface", networkInterface);
   if (dgxInterconnectInterface) values.push("--dgx-interconnect-interface", dgxInterconnectInterface);
   if (dgxInterconnectSubnetPrefix) values.push("--dgx-interconnect-subnet-prefix", dgxInterconnectSubnetPrefix);
+  return values;
+}
+
+function gpuArgs() {
+  const values = [];
+  if (gpuBackend) values.push("--gpu-backend", gpuBackend);
+  if (gpustatBin) values.push("--gpustat-bin", gpustatBin);
   return values;
 }
 

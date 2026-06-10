@@ -1,0 +1,1723 @@
+{
+  "status": "applied",
+  "generatedAt": "2026-06-09T20:18:48.063Z",
+  "remoteRoot": "/opt/turbalance/Analytics",
+  "collectorUrl": "http://192.168.10.30:8801/v1/source-bundles",
+  "hostUrl": "http://192.168.10.30:8000",
+  "options": {
+    "sync": false,
+    "installSystemd": true,
+    "restart": true,
+    "benchmarks": true,
+    "otel": false,
+    "includeLocal": false
+  },
+  "targets": [
+    {
+      "remote": "pi@pi1",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi1' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi2",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi2' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi3",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi3' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi4",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi4' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi5",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi5' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi6",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi6' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi7",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi7' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi8",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi8' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi9",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi9' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi10",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi10' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi11",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi11' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi12",
+      "role": "pi",
+      "env": {
+        "TURBALANCE_TENANT_ID": "dgx-lab",
+        "TURBALANCE_HOST_ID": "",
+        "TURBALANCE_AGENT_ID": "pi-live-machine-push",
+        "TURBALANCE_COLLECTOR_URL": "http://192.168.10.30:8801/v1/source-bundles",
+        "TURBALANCE_MACHINE_DEMO_URL": "http://192.168.10.30:8000",
+        "TURBALANCE_AGENT_LOOP_MS": "5000",
+        "TURBALANCE_AGENT_POST_TIMEOUT_MS": "10000",
+        "TURBALANCE_AGENT_SEQUENCE_PATH": "/var/lib/turbalance/live-machine-agent/sequence-no",
+        "TURBALANCE_AGENT_SPOOL_DIR": "/var/spool/turbalance/live-machine-agent",
+        "TURBALANCE_AGENT_MAX_REPLAY": "25",
+        "TURBALANCE_COLLECTOR_TOKEN": "",
+        "TURBALANCE_COLLECTOR_HMAC_SECRET": "",
+        "TURBALANCE_DGX_INTERCONNECT_INTERFACE": "",
+        "TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX": "",
+        "TURBALANCE_MACHINE_BENCHMARKS": "0",
+        "TURBALANCE_PI_BENCHMARKS": "1",
+        "TURBALANCE_BENCHMARK_TTL_MS": "900000",
+        "TURBALANCE_BENCHMARK_DURATION_MS": "450",
+        "TURBALANCE_BENCHMARK_BUFFER_MIB": "8",
+        "TURBALANCE_BENCHMARK_DISK_MIB": "16",
+        "TURBALANCE_OTEL_FILE_STORAGE_DIR": "/var/lib/turbalance/otelcol/file_storage",
+        "TURBALANCE_OTEL_HOST_INTERVAL": "10s",
+        "TURBALANCE_OTEL_DOCKER_INTERVAL": "15s",
+        "TURBALANCE_DEPLOYMENT_ENVIRONMENT": "lab"
+      },
+      "commands": [
+        {
+          "step": "prepare-directories",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'set -e; sudo -n mkdir -p '\\''/opt/turbalance/Analytics'\\'' '\\''/opt/turbalance/Analytics/build'\\'' /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage; sudo -n chown -R \"$USER\":\"$USER\" '\\''/opt/turbalance'\\''; sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent'"
+        },
+        {
+          "step": "install-agent-env",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'printf %s '\\''VFVSQkFMQU5DRV9URU5BTlRfSUQ9ZGd4LWxhYgpUVVJCQUxBTkNFX0hPU1RfSUQ9ClRVUkJBTEFOQ0VfQUdFTlRfSUQ9cGktbGl2ZS1tYWNoaW5lLXB1c2gKVFVSQkFMQU5DRV9DT0xMRUNUT1JfVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjg4MDEvdjEvc291cmNlLWJ1bmRsZXMKVFVSQkFMQU5DRV9NQUNISU5FX0RFTU9fVVJMPWh0dHA6Ly8xOTIuMTY4LjEwLjMwOjgwMDAKVFVSQkFMQU5DRV9BR0VOVF9MT09QX01TPTUwMDAKVFVSQkFMQU5DRV9BR0VOVF9QT1NUX1RJTUVPVVRfTVM9MTAwMDAKVFVSQkFMQU5DRV9BR0VOVF9TRVFVRU5DRV9QQVRIPS92YXIvbGliL3R1cmJhbGFuY2UvbGl2ZS1tYWNoaW5lLWFnZW50L3NlcXVlbmNlLW5vClRVUkJBTEFOQ0VfQUdFTlRfU1BPT0xfRElSPS92YXIvc3Bvb2wvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQKVFVSQkFMQU5DRV9BR0VOVF9NQVhfUkVQTEFZPTI1ClRVUkJBTEFOQ0VfQ09MTEVDVE9SX1RPS0VOPQpUVVJCQUxBTkNFX0NPTExFQ1RPUl9ITUFDX1NFQ1JFVD0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX0lOVEVSRkFDRT0KVFVSQkFMQU5DRV9ER1hfSU5URVJDT05ORUNUX1NVQk5FVF9QUkVGSVg9ClRVUkJBTEFOQ0VfTUFDSElORV9CRU5DSE1BUktTPTAKVFVSQkFMQU5DRV9QSV9CRU5DSE1BUktTPTEKVFVSQkFMQU5DRV9CRU5DSE1BUktfVFRMX01TPTkwMDAwMApUVVJCQUxBTkNFX0JFTkNITUFSS19EVVJBVElPTl9NUz00NTAKVFVSQkFMQU5DRV9CRU5DSE1BUktfQlVGRkVSX01JQj04ClRVUkJBTEFOQ0VfQkVOQ0hNQVJLX0RJU0tfTUlCPTE2ClRVUkJBTEFOQ0VfT1RFTF9GSUxFX1NUT1JBR0VfRElSPS92YXIvbGliL3R1cmJhbGFuY2Uvb3RlbGNvbC9maWxlX3N0b3JhZ2UKVFVSQkFMQU5DRV9PVEVMX0hPU1RfSU5URVJWQUw9MTBzClRVUkJBTEFOQ0VfT1RFTF9ET0NLRVJfSU5URVJWQUw9MTVzClRVUkJBTEFOQ0VfREVQTE9ZTUVOVF9FTlZJUk9OTUVOVD1sYWIK'\\'' | base64 -d | sudo -n tee '\\''/etc/turbalance/live-machine-agent.env'\\'' >/dev/null && sudo -n chmod '\\''600'\\'' '\\''/etc/turbalance/live-machine-agent.env'\\'''"
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2UgbGl2ZSBtYWNoaW5lIHRlbGVtZXRyeSBwdXNoIGFnZW50CkRvY3VtZW50YXRpb249ZmlsZTovb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2RvY3MvYmFyZS1tZXRhbC1mbGVldC1wcm9kdWN0aW9uLm1kCldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldApBZnRlcj1uZXR3b3JrLW9ubGluZS50YXJnZXQKCltTZXJ2aWNlXQpUeXBlPXNpbXBsZQpFbnZpcm9ubWVudEZpbGU9LS9ldGMvdHVyYmFsYW5jZS9saXZlLW1hY2hpbmUtYWdlbnQuZW52CldvcmtpbmdEaXJlY3Rvcnk9L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcwpFeGVjU3RhcnQ9L3Vzci9iaW4vZW52IG5vZGUgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9zY3JpcHRzL3B1c2gtbGl2ZS1tYWNoaW5lLXRlbGVtZXRyeS5qcwpSZXN0YXJ0PWFsd2F5cwpSZXN0YXJ0U2VjPTUKVGltZW91dFN0b3BTZWM9MjAKS2lsbFNpZ25hbD1TSUdJTlQKTm9OZXdQcml2aWxlZ2VzPXRydWUKUHJpdmF0ZVRtcD10cnVlClByb3RlY3RTeXN0ZW09ZnVsbApQcm90ZWN0SG9tZT1yZWFkLW9ubHkKUmVhZFdyaXRlUGF0aHM9L3Zhci9saWIvdHVyYmFsYW5jZSAvdmFyL3Nwb29sL3R1cmJhbGFuY2UgL29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9idWlsZApMb2NrUGVyc29uYWxpdHk9dHJ1ZQpSZXN0cmljdFNVSURTR0lEPXRydWUKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldAo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-live-machine-agent.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVR1cmJhbGFuY2Ugc2NoZWR1bGVkIG1hY2hpbmUgYmVuY2htYXJrIHB1Ymxpc2hlcgpEb2N1bWVudGF0aW9uPWZpbGU6L29wdC90dXJiYWxhbmNlL0FuYWx5dGljcy9kb2NzL2JhcmUtbWV0YWwtZmxlZXQtcHJvZHVjdGlvbi5tZApXYW50cz1uZXR3b3JrLW9ubGluZS50YXJnZXQKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CgpbU2VydmljZV0KVHlwZT1vbmVzaG90CkVudmlyb25tZW50RmlsZT0tL2V0Yy90dXJiYWxhbmNlL2xpdmUtbWFjaGluZS1hZ2VudC5lbnYKV29ya2luZ0RpcmVjdG9yeT0vb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzCkV4ZWNTdGFydD0vdXNyL2Jpbi9lbnYgbm9kZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL3NjcmlwdHMvcHVzaC1saXZlLW1hY2hpbmUtdGVsZW1ldHJ5LmpzIC0tYmVuY2htYXJrLXN1aXRlIDEgLS1mYXN0LXJlZnJlc2ggMSAtLW9sbGFtYS1wcm9iZSAwCk5pY2U9MTAKSU9TY2hlZHVsaW5nQ2xhc3M9YmVzdC1lZmZvcnQKSU9TY2hlZHVsaW5nUHJpb3JpdHk9NwpOb05ld1ByaXZpbGVnZXM9dHJ1ZQpQcml2YXRlVG1wPXRydWUKUHJvdGVjdFN5c3RlbT1mdWxsClByb3RlY3RIb21lPXJlYWQtb25seQpSZWFkV3JpdGVQYXRocz0vdmFyL2xpYi90dXJiYWxhbmNlIC92YXIvc3Bvb2wvdHVyYmFsYW5jZSAvb3B0L3R1cmJhbGFuY2UvQW5hbHl0aWNzL2J1aWxkCkxvY2tQZXJzb25hbGl0eT10cnVlClJlc3RyaWN0U1VJRFNHSUQ9dHJ1ZQo='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.service'\\'''"
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'printf %s '\\''W1VuaXRdCkRlc2NyaXB0aW9uPVJ1biBUdXJiYWxhbmNlIG1hY2hpbmUgYmVuY2htYXJrcyBwZXJpb2RpY2FsbHkKCltUaW1lcl0KT25Cb290U2VjPTVtaW4KT25Vbml0QWN0aXZlU2VjPTE1bWluCkFjY3VyYWN5U2VjPTFtaW4KUGVyc2lzdGVudD10cnVlClJhbmRvbWl6ZWREZWxheVNlYz05MHMKCltJbnN0YWxsXQpXYW50ZWRCeT10aW1lcnMudGFyZ2V0Cg=='\\'' | base64 -d | sudo -n tee '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'' >/dev/null && sudo -n chmod '\\''644'\\'' '\\''/etc/systemd/system/turbalance-machine-benchmark.timer'\\'''"
+        },
+        {
+          "step": "systemd-reload",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'sudo -n systemctl daemon-reload'"
+        },
+        {
+          "step": "enable-live-agent",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'sudo -n systemctl enable --now turbalance-live-machine-agent.service'"
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "command": "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=accept-new 'pi@pi12' 'sudo -n systemctl enable --now turbalance-machine-benchmark.timer'"
+        }
+      ]
+    }
+  ],
+  "results": [
+    {
+      "remote": "pi@pi1",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi2",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi3",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi4",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi5",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi6",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi7",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi8",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi9",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi10",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi11",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "remote": "pi@pi12",
+      "role": "pi",
+      "steps": [
+        {
+          "step": "prepare-directories",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-agent-env",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-live-machine-agent.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.service",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "install-turbalance-machine-benchmark.timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "systemd-reload",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-live-agent",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        },
+        {
+          "step": "enable-benchmark-timer",
+          "ok": true,
+          "status": 0,
+          "signal": "",
+          "timedOut": false,
+          "stdout": "",
+          "stderr": ""
+        }
+      ]
+    }
+  ]
+}

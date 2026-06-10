@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import sys
+import time
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -73,6 +75,7 @@ class SourceBundleIngestRequest(BaseModel):
     tenantId: str = "demo-tenant"
     hostId: str = "source-bundle"
     agentId: str = "source-bundle-adapter"
+    sequenceNo: int = 0
     bundle: dict[str, Any]
 
 
@@ -88,8 +91,11 @@ class CollectorStats:
         self.backpressure_rejections = 0
         self.mtls_authentications = 0
         self.mtls_failures = 0
+        self.report_rate_window_seconds = 60.0
+        self._report_timestamps: deque[float] = deque()
 
     def render_prometheus(self) -> str:
+        report_count, reports_per_second, reports_per_minute = self.report_rate_snapshot()
         return "\n".join(
             [
                 "# HELP turbalance_collector_accepted_batches_total Accepted telemetry batches.",
@@ -122,9 +128,39 @@ class CollectorStats:
                 "# HELP turbalance_collector_mtls_failures_total Collector requests rejected by mTLS identity enforcement.",
                 "# TYPE turbalance_collector_mtls_failures_total counter",
                 f"turbalance_collector_mtls_failures_total {self.mtls_failures}",
+                "# HELP turbalance_collector_incoming_telemetry_reports_per_second Accepted telemetry reports per second over the rolling collector window.",
+                "# TYPE turbalance_collector_incoming_telemetry_reports_per_second gauge",
+                f"turbalance_collector_incoming_telemetry_reports_per_second {reports_per_second:.6f}",
+                "# HELP turbalance_collector_incoming_telemetry_reports_per_minute Accepted telemetry reports per minute over the rolling collector window.",
+                "# TYPE turbalance_collector_incoming_telemetry_reports_per_minute gauge",
+                f"turbalance_collector_incoming_telemetry_reports_per_minute {reports_per_minute:.6f}",
+                "# HELP turbalance_collector_incoming_telemetry_reports_window_count Accepted telemetry reports observed inside the rolling collector window.",
+                "# TYPE turbalance_collector_incoming_telemetry_reports_window_count gauge",
+                f"turbalance_collector_incoming_telemetry_reports_window_count {report_count}",
+                "# HELP turbalance_collector_incoming_telemetry_reports_window_seconds Rolling window used for incoming telemetry report rate gauges.",
+                "# TYPE turbalance_collector_incoming_telemetry_reports_window_seconds gauge",
+                f"turbalance_collector_incoming_telemetry_reports_window_seconds {self.report_rate_window_seconds:g}",
                 "",
             ]
         )
+
+    def record_report(self, timestamp: float | None = None) -> None:
+        observed_at = time.monotonic() if timestamp is None else timestamp
+        self._report_timestamps.append(observed_at)
+        self._prune_report_timestamps(observed_at)
+
+    def report_rate_snapshot(self) -> tuple[int, float, float]:
+        self._prune_report_timestamps()
+        report_count = len(self._report_timestamps)
+        reports_per_second = report_count / self.report_rate_window_seconds
+        reports_per_minute = reports_per_second * 60.0
+        return report_count, reports_per_second, reports_per_minute
+
+    def _prune_report_timestamps(self, timestamp: float | None = None) -> None:
+        observed_at = time.monotonic() if timestamp is None else timestamp
+        cutoff = observed_at - self.report_rate_window_seconds
+        while self._report_timestamps and self._report_timestamps[0] < cutoff:
+            self._report_timestamps.popleft()
 
 
 def create_app(settings: CollectorSettings | None = None) -> FastAPI:
@@ -310,6 +346,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 tenant_id=body.tenantId,
                 host_id=body.hostId,
                 agent_id=body.agentId,
+                sequence_no=body.sequenceNo,
             )
             _record_write_result(stats, result)
             audit.write("source_bundle_ingested", hostId=body.hostId, status=result.get("status"), rowCount=result.get("rowCount"))
@@ -328,6 +365,7 @@ def _record_write_result(stats: CollectorStats, result: dict[str, Any]) -> None:
     if result.get("status") == "written":
         stats.accepted_batches += 1
         stats.written_rows += int(result.get("rowCount") or 0)
+        stats.record_report()
     elif result.get("status") == "quarantined":
         stats.quarantined_batches += 1
     else:

@@ -96,6 +96,30 @@ def create_app(settings: QuerySettings | None = None) -> FastAPI:
         rows = lake.system_identification(tenant_id=tenant_id, limit=limit)
         return {"count": len(rows), "rows": rows}
 
+    @app.get("/v1/virtual-sensors/hardware-health")
+    async def hardware_health(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        limit: int = Query(default=5000, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        rows = lake.hardware_health(tenant_id=tenant_id, limit=limit)
+        return {"count": len(rows), "rows": rows}
+
+    @app.get("/v1/virtual-sensors/repair-candidates")
+    async def repair_candidates(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        limit: int = Query(default=5000, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        rows = lake.repair_candidates(tenant_id=tenant_id, limit=limit)
+        return {"count": len(rows), "rows": rows}
+
+    @app.get("/v1/virtual-sensors/fleet-rca")
+    async def fleet_rca(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        limit: int = Query(default=5000, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        rows = lake.fleet_rca(tenant_id=tenant_id, limit=limit)
+        return {"count": len(rows), "rows": rows}
+
     return app
 
 

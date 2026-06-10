@@ -14,6 +14,8 @@ const windowMinutes = numberArg(args["window-minutes"], 60);
 const fastRefresh = args["fast-refresh"] === "1" || args["skip-gpu-processes"] === "1";
 const loopMs = numberArg(args["loop-ms"], 0);
 const gpuSampleMs = numberArg(args["gpu-sample-ms"], fastRefresh ? 2000 : 0);
+const gpuBackend = (args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "auto").toLowerCase();
+const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "gpustat";
 const ollamaProbeEnabled = args["ollama-probe"] !== "0";
 const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
@@ -138,9 +140,10 @@ function collectAndWrite({ gpuOverride = null } = {}) {
   const ncclRuntime = detectNcclRuntime({ docker, network: host.network });
   const benchmark = collectBenchmarkSuite({ host });
   const services = collectServices(hostUrl);
+  const hardware = collectHardwareHealth({ host, gpu, docker, services, benchmark });
   const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
   const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
-  const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime, benchmark });
+  const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime, benchmark, hardware });
 
   if (!skipValidation) {
     assertValidSourceBundle(bundle);
@@ -390,79 +393,189 @@ function collectGpu({ includeProcesses = true, previousGpu: cachedGpu = null, ma
     });
   }
 
-  const queryResult = commandResult("nvidia-smi", [
-    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
-    "--format=csv,noheader,nounits"
-  ]);
-  const query = queryResult.stdout;
-  if (
-    queryResult.status !== 0
-    || /nvidia-smi has failed|couldn't communicate with the nvidia driver|failed to initialize/i.test(query)
-    || !query.trim()
-  ) {
-    return {
-      present: false,
-      count: 0,
-      gpus: [],
-      processes: [],
-      processesObserved: false,
-      processesSkipped: !includeProcesses,
-      collectedAtMs: Date.now(),
-      sampleCached: false,
-      sampleAgeMs: 0,
-      source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
-      error: compactWhitespace(queryResult.stderr || query || queryResult.errorMessage || "nvidia-smi returned no GPU rows")
-    };
-  }
-
-  const processesText = includeProcesses
-    ? command("nvidia-smi", [
-      "--query-compute-apps=pid,process_name,used_memory",
-      "--format=csv,noheader,nounits"
-    ])
-    : "";
-  return parseGpuQuery(query, { includeProcesses, processesText });
+  return collectGpuByBackend({ includeProcesses });
 }
 
 async function collectGpuAsync({ includeProcesses = true } = {}) {
-  const queryResult = await commandResultAsync("nvidia-smi", [
-    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
-    "--format=csv,noheader,nounits"
-  ]);
-  if (
-    queryResult.status !== 0
-    || /nvidia-smi has failed|couldn't communicate with the nvidia driver|failed to initialize/i.test(queryResult.stdout)
-    || !queryResult.stdout.trim()
-  ) {
-    return {
-      present: false,
-      count: 0,
-      gpus: [],
-      processes: [],
-      processesObserved: false,
-      processesSkipped: !includeProcesses,
-      collectedAtMs: Date.now(),
-      sampleCached: false,
-      sampleAgeMs: 0,
+  return collectGpuByBackendAsync({ includeProcesses });
+}
+
+function collectGpuByBackend({ includeProcesses = true } = {}) {
+  const failures = [];
+  for (const backend of gpuBackendOrder()) {
+    const sample = collectGpuFromBackend(backend, { includeProcesses });
+    if (sample.present) {
+      return {
+        ...sample,
+        requestedSource: gpuBackend
+      };
+    }
+    failures.push(sample);
+    if (gpuBackend !== "auto") break;
+  }
+  const fallback = failures[failures.length - 1] || unavailableGpuSample({
+    source: "gpu-telemetry-unavailable",
+    error: "No GPU telemetry backend attempted",
+    includeProcesses
+  });
+  return {
+    ...fallback,
+    requestedSource: gpuBackend,
+    attemptedSources: failures.map((failure) => failure.source).filter(Boolean),
+    error: compactWhitespace(failures.map((failure) => failure.error).filter(Boolean).join("; ") || fallback.error)
+  };
+}
+
+async function collectGpuByBackendAsync({ includeProcesses = true } = {}) {
+  const failures = [];
+  for (const backend of gpuBackendOrder()) {
+    const sample = await collectGpuFromBackendAsync(backend, { includeProcesses });
+    if (sample.present) {
+      return {
+        ...sample,
+        requestedSource: gpuBackend
+      };
+    }
+    failures.push(sample);
+    if (gpuBackend !== "auto") break;
+  }
+  const fallback = failures[failures.length - 1] || unavailableGpuSample({
+    source: "gpu-telemetry-unavailable",
+    error: "No GPU telemetry backend attempted",
+    includeProcesses
+  });
+  return {
+    ...fallback,
+    requestedSource: gpuBackend,
+    attemptedSources: failures.map((failure) => failure.source).filter(Boolean),
+    error: compactWhitespace(failures.map((failure) => failure.error).filter(Boolean).join("; ") || fallback.error)
+  };
+}
+
+function collectGpuFromBackend(backend, { includeProcesses = true } = {}) {
+  if (backend === "gpustat") return collectGpuFromGpustat({ includeProcesses });
+  return collectGpuFromNvidiaSmi({ includeProcesses });
+}
+
+async function collectGpuFromBackendAsync(backend, { includeProcesses = true } = {}) {
+  if (backend === "gpustat") return collectGpuFromGpustatAsync({ includeProcesses });
+  return collectGpuFromNvidiaSmiAsync({ includeProcesses });
+}
+
+function collectGpuFromNvidiaSmi({ includeProcesses = true } = {}) {
+  const queryResult = commandResult("nvidia-smi", nvidiaSmiGpuQueryArgs());
+  if (nvidiaSmiUnavailable(queryResult)) {
+    return unavailableGpuSample({
       source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
-      error: compactWhitespace(queryResult.stderr || queryResult.stdout || queryResult.errorMessage || "nvidia-smi returned no GPU rows")
-    };
+      error: compactWhitespace(queryResult.stderr || queryResult.stdout || queryResult.errorMessage || "nvidia-smi returned no GPU rows"),
+      includeProcesses
+    });
+  }
+
+  const processesText = includeProcesses
+    ? command("nvidia-smi", nvidiaSmiProcessQueryArgs())
+    : "";
+  return parseNvidiaSmiGpuQuery(queryResult.stdout, { includeProcesses, processesText });
+}
+
+async function collectGpuFromNvidiaSmiAsync({ includeProcesses = true } = {}) {
+  const queryResult = await commandResultAsync("nvidia-smi", nvidiaSmiGpuQueryArgs());
+  if (
+    nvidiaSmiUnavailable(queryResult)
+  ) {
+    return unavailableGpuSample({
+      source: queryResult.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "nvidia-smi-unavailable",
+      error: compactWhitespace(queryResult.stderr || queryResult.stdout || queryResult.errorMessage || "nvidia-smi returned no GPU rows"),
+      includeProcesses
+    });
   }
 
   const processResult = includeProcesses
-    ? await commandResultAsync("nvidia-smi", [
-      "--query-compute-apps=pid,process_name,used_memory",
-      "--format=csv,noheader,nounits"
-    ])
+    ? await commandResultAsync("nvidia-smi", nvidiaSmiProcessQueryArgs())
     : { stdout: "" };
 
-  return parseGpuQuery(queryResult.stdout, {
+  return parseNvidiaSmiGpuQuery(queryResult.stdout, {
     includeProcesses,
     processesText: processResult.stdout || ""
   });
 }
 
-function parseGpuQuery(query, { includeProcesses, processesText }) {
+function collectGpuFromGpustat({ includeProcesses = true } = {}) {
+  const result = commandResult(gpustatBin, ["--json"]);
+  if (result.status !== 0 || !result.stdout.trim()) {
+    return unavailableGpuSample({
+      source: result.errorCode === "ENOENT" ? "gpustat-not-found" : "gpustat-unavailable",
+      error: compactWhitespace(result.stderr || result.errorMessage || "gpustat --json returned no GPU rows"),
+      includeProcesses
+    });
+  }
+  return parseGpustatJson(result.stdout, { includeProcesses });
+}
+
+async function collectGpuFromGpustatAsync({ includeProcesses = true } = {}) {
+  const result = await commandResultAsync(gpustatBin, ["--json"]);
+  if (result.status !== 0 || !result.stdout.trim()) {
+    return unavailableGpuSample({
+      source: result.errorCode === "ENOENT" ? "gpustat-not-found" : "gpustat-unavailable",
+      error: compactWhitespace(result.stderr || result.errorMessage || "gpustat --json returned no GPU rows"),
+      includeProcesses
+    });
+  }
+  return parseGpustatJson(result.stdout, { includeProcesses });
+}
+
+function parseGpustatJson(text, { includeProcesses }) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    return unavailableGpuSample({
+      source: "gpustat-unavailable",
+      error: `gpustat --json parse failed: ${error.message}`,
+      includeProcesses
+    });
+  }
+  const gpus = Array.isArray(parsed.gpus) ? parsed.gpus.map((entry) => ({
+    name: String(entry.name || ""),
+    index: finite(entry.index),
+    uuid: String(entry.uuid || ""),
+    utilizationGpuPct: finite(entry["utilization.gpu"]),
+    utilizationMemoryPct: finite(entry["utilization.memory"]),
+    memoryUsedMiB: finite(entry["memory.used"]),
+    memoryTotalMiB: finite(entry["memory.total"]),
+    powerDrawWatts: finite(entry["power.draw"]),
+    temperatureC: finite(entry["temperature.gpu"]),
+    pcieGen: undefined,
+    pcieWidth: undefined
+  })).filter((entry) => entry.name) : [];
+
+  const processes = includeProcesses
+    ? (parsed.gpus || []).flatMap((gpuEntry) => (Array.isArray(gpuEntry.processes) ? gpuEntry.processes : [])
+      .map((processEntry) => ({
+        pid: Number(processEntry.pid),
+        processName: processEntry.command || processEntry.process_name || processEntry.name || "",
+        usedMemoryMiB: finite(processEntry.gpu_memory_usage ?? processEntry["gpu_memory_usage"] ?? processEntry.used_memory),
+        username: processEntry.username || ""
+      }))
+      .filter((entry) => Number.isFinite(entry.pid)))
+    : [];
+
+  return {
+    present: gpus.length > 0,
+    count: gpus.length,
+    gpus,
+    processes,
+    processesObserved: includeProcesses,
+    processesSkipped: !includeProcesses,
+    collectedAtMs: Date.now(),
+    sampleCached: false,
+    sampleAgeMs: 0,
+    source: "gpustat",
+    error: ""
+  };
+}
+
+function parseNvidiaSmiGpuQuery(query, { includeProcesses, processesText }) {
   const gpus = query.trim().split("\n").map((line) => {
     const [
       name,
@@ -523,6 +636,48 @@ function parseGpuQuery(query, { includeProcesses, processesText }) {
   };
 }
 
+function nvidiaSmiGpuQueryArgs() {
+  return [
+    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
+    "--format=csv,noheader,nounits"
+  ];
+}
+
+function nvidiaSmiProcessQueryArgs() {
+  return [
+    "--query-compute-apps=pid,process_name,used_memory",
+    "--format=csv,noheader,nounits"
+  ];
+}
+
+function nvidiaSmiUnavailable(result) {
+  return result.status !== 0
+    || /nvidia-smi has failed|couldn't communicate with the nvidia driver|failed to initialize/i.test(result.stdout)
+    || !result.stdout.trim();
+}
+
+function unavailableGpuSample({ source, error, includeProcesses }) {
+  return {
+    present: false,
+    count: 0,
+    gpus: [],
+    processes: [],
+    processesObserved: false,
+    processesSkipped: !includeProcesses,
+    collectedAtMs: Date.now(),
+    sampleCached: false,
+    sampleAgeMs: 0,
+    source,
+    error
+  };
+}
+
+function gpuBackendOrder() {
+  if (gpuBackend === "gpustat") return ["gpustat"];
+  if (gpuBackend === "nvidia-smi") return ["nvidia-smi"];
+  return ["gpustat", "nvidia-smi"];
+}
+
 function collectDocker() {
   const psText = command("docker", ["ps", "--format", "{{.Names}}\t{{.Image}}\t{{.Status}}"]);
   const statsText = command("docker", ["stats", "--no-stream", "--format", "{{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"]);
@@ -550,13 +705,15 @@ function collectDocker() {
 }
 
 function collectServices(hostUrl) {
-  const grafana = httpJson("http://127.0.0.1:3000/api/health");
+  const grafanaRuntime = collectGrafanaRuntime(hostUrl);
   const netdata = httpJson("http://127.0.0.1:19999/api/v1/info");
   const ollama = httpJson("http://127.0.0.1:11434/api/tags");
   const ollamaPs = ollama.ok ? httpJson("http://127.0.0.1:11434/api/ps") : { ok: false, body: null };
   const ollamaTelemetry = ollama.ok ? collectOllamaTelemetry({ running: ollamaPs.body }) : null;
   const appMetricsText = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9500/metrics"]);
   const appMetricsUp = /gb100_app_collector_up\s+1\b/.test(appMetricsText) || appMetricsText.includes("gb100_metric_capability");
+  const collectorMetricsText = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:8801/metrics"]);
+  const collectorGateway = parseCollectorGatewayMetrics(collectorMetricsText);
   const profilingExporter = collectProfilingExporter();
   const nodeExporter = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9100/metrics"]);
   const hostAddress = primaryAddress();
@@ -566,12 +723,15 @@ function collectServices(hostUrl) {
 
   return {
     hostUrl,
-    grafana: grafana.ok ? grafana.body : null,
+    grafana: grafanaRuntime.health,
+    grafanaRuntime,
     netdata: netdata.ok ? netdata.body : null,
     ollama: ollama.ok ? ollama.body : null,
     ollamaRunning: ollamaPs.ok ? ollamaPs.body : null,
     ollamaTelemetry,
     appMetricsUp,
+    collectorGatewayUp: collectorGateway.reachable,
+    collectorGateway,
     profilingExporter,
     kafka: kafkaReachable ? {
       bootstrapServers: "spark1-kafka.turbalance-demo.svc.cluster.local:9092",
@@ -580,14 +740,364 @@ function collectServices(hostUrl) {
     } : null,
     nodeExporterUp: nodeExporter.includes("# HELP"),
     observedServices: [
-      grafana.ok ? "grafana" : null,
+      grafanaRuntime.reachable ? "grafana" : null,
       netdata.ok ? "netdata" : null,
       ollama.ok ? "ollama" : null,
       appMetricsUp ? "app-metrics" : null,
+      collectorGateway.reachable ? "collector-gateway" : null,
       kafkaReachable ? "kafka" : null,
       nodeExporter.includes("# HELP") ? "node-exporter" : null
     ].filter(Boolean)
   };
+}
+
+function collectGrafanaRuntime(hostUrl) {
+  const publicBaseUrl = process.env.TURBALANCE_GRAFANA_PUBLIC_URL
+    || publicServiceUrl(hostUrl, process.env.TURBALANCE_GRAFANA_PUBLIC_PORT || "3001");
+  const candidates = [
+    process.env.TURBALANCE_GRAFANA_URL,
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:3000"
+  ].filter(Boolean);
+  for (const baseUrl of candidates) {
+    const health = httpJson(`${String(baseUrl).replace(/\/+$/, "")}/api/health`);
+    if (!health.ok) continue;
+    const dashboardUrl = `${publicBaseUrl}/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s`;
+    return {
+      reachable: true,
+      baseUrl: publicBaseUrl,
+      internalBaseUrl: String(baseUrl).replace(/\/+$/, ""),
+      health: health.body,
+      dashboardUid: "turbalance-fleet-runtime",
+      dashboardSlug: "turbalance-fleet-runtime",
+      dashboardTitle: "turbalance Fleet Runtime",
+      datasourceUid: "prometheus",
+      datasourceName: "turbalance Prometheus",
+      dashboardUrl,
+      exploreUrl: `${publicBaseUrl}/explore?orgId=1`
+    };
+  }
+  return {
+    reachable: false,
+    baseUrl: publicBaseUrl,
+    internalBaseUrl: "",
+    health: null,
+    dashboardUid: "turbalance-fleet-runtime",
+    dashboardSlug: "turbalance-fleet-runtime",
+    dashboardTitle: "turbalance Fleet Runtime",
+    datasourceUid: "prometheus",
+    datasourceName: "turbalance Prometheus",
+    dashboardUrl: `${publicBaseUrl}/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s`,
+    exploreUrl: `${publicBaseUrl}/explore?orgId=1`
+  };
+}
+
+function publicServiceUrl(hostUrl, port) {
+  try {
+    const url = new URL(hostUrl || "http://127.0.0.1");
+    url.port = String(port || "3001");
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/+$/, "");
+  } catch (_error) {
+    return `http://127.0.0.1:${port || "3001"}`;
+  }
+}
+
+function parseCollectorGatewayMetrics(text) {
+  return {
+    reachable: text.includes("turbalance_collector_accepted_batches_total")
+      || text.includes("turbalance_collector_incoming_telemetry_reports_per_minute"),
+    acceptedBatchesTotal: prometheusMetricValue(text, "turbalance_collector_accepted_batches_total"),
+    writtenRowsTotal: prometheusMetricValue(text, "turbalance_collector_written_rows_total"),
+    incomingReportsPerSecond: prometheusMetricValue(text, "turbalance_collector_incoming_telemetry_reports_per_second"),
+    incomingReportsPerMinute: prometheusMetricValue(text, "turbalance_collector_incoming_telemetry_reports_per_minute"),
+    incomingReportsWindowCount: prometheusMetricValue(text, "turbalance_collector_incoming_telemetry_reports_window_count"),
+    incomingReportsWindowSeconds: prometheusMetricValue(text, "turbalance_collector_incoming_telemetry_reports_window_seconds")
+  };
+}
+
+function prometheusMetricValue(text, metricName) {
+  const escapedName = String(metricName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(text || "").match(new RegExp(`^${escapedName}(?:\\{[^}]*\\})?\\s+(-?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[-+]?\\d+)?)\\b`, "mi"));
+  if (!match) return undefined;
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function collectHardwareHealth({ host, gpu, docker, services, benchmark }) {
+  const hostRole = hardwareHostRole(host);
+  const kernel = collectKernelFaultSignals();
+  const failedUnits = collectFailedSystemdUnits();
+  const thermal = collectThermalThrottleState();
+  const faults = [];
+
+  if (kernel.machineCheckCount > 0) {
+    faults.push(hardwareFault({
+      id: "machine-check",
+      category: "cpu-memory",
+      severity: kernel.machineCheckCount >= 3 ? "critical" : "high",
+      source: kernel.source,
+      count: kernel.machineCheckCount,
+      detail: `${kernel.machineCheckCount} machine-check, MCE, EDAC, ECC, or hardware-error event${kernel.machineCheckCount === 1 ? "" : "s"} observed.`,
+      suggestedAction: "open-repair-ticket"
+    }));
+  }
+  if (kernel.gpuXidCount > 0) {
+    faults.push(hardwareFault({
+      id: "gpu-xid",
+      category: "gpu",
+      severity: kernel.gpuXidCount >= 3 ? "critical" : "high",
+      source: kernel.source,
+      count: kernel.gpuXidCount,
+      detail: `${kernel.gpuXidCount} NVIDIA Xid or NVRM event${kernel.gpuXidCount === 1 ? "" : "s"} observed.`,
+      suggestedAction: "restart-gpu-workload-or-open-ticket"
+    }));
+  }
+  if (kernel.storageErrorCount > 0) {
+    faults.push(hardwareFault({
+      id: "storage-error",
+      category: "storage",
+      severity: kernel.storageErrorCount >= 3 ? "critical" : "high",
+      source: kernel.source,
+      count: kernel.storageErrorCount,
+      detail: `${kernel.storageErrorCount} storage, NVMe, ATA, or I/O error event${kernel.storageErrorCount === 1 ? "" : "s"} observed.`,
+      suggestedAction: "open-repair-ticket"
+    }));
+  }
+  if (kernel.pcieAerCount > 0) {
+    faults.push(hardwareFault({
+      id: "pcie-aer",
+      category: "pcie",
+      severity: kernel.pcieAerCount >= 5 ? "high" : "medium",
+      source: kernel.source,
+      count: kernel.pcieAerCount,
+      detail: `${kernel.pcieAerCount} PCIe AER/error event${kernel.pcieAerCount === 1 ? "" : "s"} observed.`,
+      suggestedAction: "inspect-pcie-link"
+    }));
+  }
+  if (kernel.oomKillCount > 0) {
+    faults.push(hardwareFault({
+      id: "oom-kill",
+      category: "memory",
+      severity: kernel.oomKillCount >= 2 ? "high" : "medium",
+      source: kernel.source,
+      count: kernel.oomKillCount,
+      detail: `${kernel.oomKillCount} OOM kill or out-of-memory event${kernel.oomKillCount === 1 ? "" : "s"} observed.`,
+      suggestedAction: "reduce-memory-pressure"
+    }));
+  }
+  if (failedUnits.count > 0) {
+    faults.push(hardwareFault({
+      id: "failed-systemd-units",
+      category: "service",
+      severity: failedUnits.count >= 3 ? "high" : "medium",
+      source: "systemctl",
+      count: failedUnits.count,
+      detail: `${failedUnits.count} failed systemd unit${failedUnits.count === 1 ? "" : "s"}: ${failedUnits.units.slice(0, 4).join(", ")}`,
+      suggestedAction: "restart-failed-services"
+    }));
+  }
+  if (thermal.active || finite(host.cpuTemperatureC, 0) >= 82) {
+    faults.push(hardwareFault({
+      id: "thermal-throttle",
+      category: "thermal",
+      severity: finite(host.cpuTemperatureC, 0) >= 90 ? "critical" : "high",
+      source: thermal.source || "host-temperature",
+      count: 1,
+      detail: thermal.active ? `Thermal throttle state is ${thermal.raw}.` : `CPU temperature is ${round(host.cpuTemperatureC, 1)} C.`,
+      suggestedAction: "inspect-cooling-power"
+    }));
+  }
+  const primaryGpu = gpu.gpus?.[0] || {};
+  if (finite(primaryGpu.temperatureC, 0) >= 86) {
+    faults.push(hardwareFault({
+      id: "gpu-thermal",
+      category: "gpu",
+      severity: finite(primaryGpu.temperatureC, 0) >= 92 ? "critical" : "high",
+      source: gpu.source || "gpu",
+      count: 1,
+      detail: `GPU temperature is ${round(primaryGpu.temperatureC, 1)} C.`,
+      suggestedAction: "inspect-cooling-power"
+    }));
+  }
+  if (hostRole !== "pi" && !gpu.present && /nvidia|gpu/i.test(`${gpu.source || ""} ${gpu.error || ""}`)) {
+    faults.push(hardwareFault({
+      id: "gpu-telemetry-unavailable",
+      category: "gpu",
+      severity: "medium",
+      source: gpu.source || "gpu-telemetry",
+      count: 1,
+      detail: gpu.error || "GPU telemetry source did not return counters.",
+      suggestedAction: "restart-gpu-telemetry"
+    }));
+  }
+  if (finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0) > 0) {
+    faults.push(hardwareFault({
+      id: "network-errors",
+      category: "network",
+      severity: "medium",
+      source: "procfs-netdev",
+      count: finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0),
+      detail: `${round(finite(host.network.rxErrors, 0), 0)} RX and ${round(finite(host.network.txErrors, 0), 0)} TX interface errors observed on ${host.network.iface || "primary interface"}.`,
+      suggestedAction: "inspect-network-link"
+    }));
+  }
+  if (finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0) > 0) {
+    faults.push(hardwareFault({
+      id: "network-drops",
+      category: "network",
+      severity: "low",
+      source: "procfs-netdev",
+      count: finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0),
+      detail: `${round(finite(host.network.rxDrops, 0), 0)} RX and ${round(finite(host.network.txDrops, 0), 0)} TX drops observed on ${host.network.iface || "primary interface"}.`,
+      suggestedAction: "inspect-network-link"
+    }));
+  }
+  if (!host.clock.synchronized && host.clock.ptpInstalled) {
+    faults.push(hardwareFault({
+      id: "clock-sync-not-synchronized",
+      category: "clock",
+      severity: "medium",
+      source: host.clock.source || "clock-sync",
+      count: 1,
+      detail: host.clock.detail || "PTP/clock stack is installed but the host is not synchronized.",
+      suggestedAction: "restart-clock-sync"
+    }));
+  }
+
+  const scoredFaults = faults.slice(0, 12);
+  const faultScore = Math.min(100, scoredFaults.reduce((total, fault) => total + hardwareSeverityScore(fault.severity) * Math.max(1, Math.min(3, finite(fault.count, 1))), 0));
+  const action = recommendedHardwareAction(scoredFaults, { docker, services, benchmark });
+  const level = faultScore >= 80 ? "critical" : faultScore >= 45 ? "high" : faultScore >= 18 ? "watch" : "healthy";
+  const dimensions = {
+    hostRole,
+    platform: host.platform,
+    arch: host.arch,
+    kernel: host.kernel,
+    gpuSource: gpu.source || "",
+    gpuName: primaryGpu.name || "",
+    clockSource: host.clock.source || "",
+    ptpActive: Boolean(host.clock.ptpActive),
+    collectorGateway: Boolean(services.collectorGatewayUp),
+    benchmarkStatus: benchmark.status || "disabled"
+  };
+  return {
+    healthScore: Math.max(0, 100 - faultScore),
+    faultScore,
+    level,
+    faultCount: scoredFaults.length,
+    criticalFaultCount: scoredFaults.filter((fault) => fault.severity === "critical").length,
+    warningFaultCount: scoredFaults.filter((fault) => ["high", "medium"].includes(fault.severity)).length,
+    kernelEventCount: kernel.eventCount,
+    machineCheckCount: kernel.machineCheckCount,
+    gpuXidCount: kernel.gpuXidCount,
+    storageErrorCount: kernel.storageErrorCount,
+    pcieAerCount: kernel.pcieAerCount,
+    oomKillCount: kernel.oomKillCount,
+    failedUnitCount: failedUnits.count,
+    thermalThrottleActive: thermal.active,
+    thermalThrottleRaw: thermal.raw,
+    repairAction: action.id,
+    repairConfidence: action.confidence,
+    repairRequiresApproval: action.requiresApproval,
+    rcaFingerprint: hardwareRcaFingerprint(scoredFaults, dimensions),
+    dimensions,
+    faults: scoredFaults
+  };
+}
+
+function collectKernelFaultSignals() {
+  const journal = command("journalctl", ["-k", "--since", "-15 minutes", "--no-pager", "-o", "short-iso"]);
+  const dmesg = journal ? "" : command("dmesg", ["--level=err,warn"]);
+  const text = journal || dmesg || "";
+  return {
+    source: journal ? "journalctl-kernel" : dmesg ? "dmesg" : "unavailable",
+    eventCount: countMatches(text, /hardware error|machine check|mce:|edac|ecc|ras|nvrm|xid|nvme|i\/o error|blk_update_request|buffer i\/o|pcie|aer:|oom-kill|out of memory/gi),
+    machineCheckCount: countMatches(text, /hardware error|machine check|mce:|edac|ecc|ras/gi),
+    gpuXidCount: countMatches(text, /\bXid\b|NVRM.*Xid/gi),
+    storageErrorCount: countMatches(text, /nvme.*(?:error|reset|timeout|critical)|i\/o error|blk_update_request|buffer i\/o|medium error|ata\d.*error/gi),
+    pcieAerCount: countMatches(text, /pcie.*(?:aer|error)|aer:/gi),
+    oomKillCount: countMatches(text, /oom-kill|out of memory|killed process/gi)
+  };
+}
+
+function collectFailedSystemdUnits() {
+  const text = command("systemctl", ["--failed", "--no-legend", "--plain"]);
+  const units = text.split("\n")
+    .map((line) => line.trim().split(/\s+/)[0])
+    .filter((unit) => unit && unit.endsWith(".service"));
+  return { count: units.length, units };
+}
+
+function collectThermalThrottleState() {
+  const raw = command("vcgencmd", ["get_throttled"]).trim();
+  const match = raw.match(/0x([0-9a-f]+)/i);
+  const value = match ? Number.parseInt(match[1], 16) : 0;
+  return {
+    source: raw ? "vcgencmd" : "",
+    raw,
+    active: Number.isFinite(value) && value > 0
+  };
+}
+
+function hardwareHostRole(host = {}) {
+  const hostname = String(host.hostname || "").toLowerCase();
+  const identity = `${hostname} ${host.cpuModel || ""} ${host.osName || ""}`.toLowerCase();
+  if (/^pi\d+$/.test(hostname) || identity.includes("raspberry pi") || /\bbcm\d+/.test(identity)) {
+    return "pi";
+  }
+  if (/spark/i.test(host.hostname || "")) {
+    return "spark";
+  }
+  return "nuc";
+}
+
+function hardwareFault({ id, category, severity, source, count, detail, suggestedAction }) {
+  return {
+    id,
+    category,
+    severity,
+    source,
+    count: round(finite(count, 1), 0),
+    detail: compactWhitespace(detail),
+    suggestedAction
+  };
+}
+
+function hardwareSeverityScore(severity) {
+  if (severity === "critical") return 35;
+  if (severity === "high") return 22;
+  if (severity === "medium") return 12;
+  return 5;
+}
+
+function recommendedHardwareAction(faults) {
+  const top = [...faults].sort((left, right) => hardwareSeverityScore(right.severity) - hardwareSeverityScore(left.severity))[0];
+  if (!top) return { id: "observe", confidence: 0.5, requiresApproval: false };
+  if (["machine-check", "storage-error", "gpu-xid", "gpu-thermal", "thermal-throttle"].includes(top.id)) {
+    return { id: top.suggestedAction, confidence: top.severity === "critical" ? 0.9 : 0.78, requiresApproval: true };
+  }
+  if (["failed-systemd-units", "gpu-telemetry-unavailable", "clock-sync-not-synchronized"].includes(top.id)) {
+    return { id: top.suggestedAction, confidence: 0.72, requiresApproval: false };
+  }
+  return { id: top.suggestedAction || "inspect-host", confidence: 0.65, requiresApproval: false };
+}
+
+function hardwareRcaFingerprint(faults, dimensions) {
+  const categories = [...new Set(faults.map((fault) => fault.category))].sort().join("-");
+  return safeId([
+    dimensions.hostRole,
+    dimensions.arch,
+    dimensions.kernel,
+    dimensions.gpuSource,
+    categories || "healthy"
+  ].filter(Boolean).join("-"));
+}
+
+function countMatches(text, pattern) {
+  return ((String(text || "").match(pattern) || []).length);
 }
 
 function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
@@ -644,7 +1154,7 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
   };
 }
 
-function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime = {}, benchmark = {} }) {
+function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime = {}, benchmark = {}, hardware = {} }) {
   const primaryGpu = gpu.gpus[0] || {};
   const gpuName = gpuLabel(primaryGpu, gpu);
   const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
@@ -663,12 +1173,12 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   const sourceAdapters = machineSourceAdapters(gpu, services, ncclRuntime, benchmark, host.clock);
 
   return {
-    metadata: {
+      metadata: {
       generatedAt: generatedIso,
       source: "collect-local-machine-bundle.js",
       observedHost: host.hostname,
       sourceAdapters,
-      note: "Strict live machine observation. The bundle only claims data collected from nvidia-smi when present, host OS counters, Docker when present, and reachable local services; Kubernetes, DCGM, eBPF, scheduler, and provider exports are not synthesized."
+      note: "Strict live machine observation. The bundle only claims data collected from gpustat/NVML or nvidia-smi when present, host OS counters, Docker when present, and reachable local services; Kubernetes, DCGM, eBPF, scheduler, and provider exports are not synthesized."
     },
     ingestion: {
       schemaVersion: "turba.ingestion.v1",
@@ -841,6 +1351,44 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
               blockIo: container.stats?.blockIo || ""
             })),
             observedServices: services.observedServices,
+            grafanaBaseUrl: services.grafanaRuntime?.baseUrl || "",
+            grafanaInstance: services.grafanaRuntime?.health?.version ? `Grafana ${services.grafanaRuntime.health.version}` : "",
+            grafanaOrgId: "1",
+            grafanaDashboardUid: services.grafanaRuntime?.dashboardUid || "",
+            grafanaDashboardSlug: services.grafanaRuntime?.dashboardSlug || "",
+            grafanaDashboardTitle: services.grafanaRuntime?.dashboardTitle || "",
+            grafanaDatasourceUid: services.grafanaRuntime?.datasourceUid || "",
+            grafanaDatasourceName: services.grafanaRuntime?.datasourceName || "",
+            grafanaDashboardUrl: services.grafanaRuntime?.dashboardUrl || "",
+            grafanaExploreUrl: services.grafanaRuntime?.exploreUrl || "",
+            collectorGatewayReachable: Boolean(services.collectorGatewayUp),
+            collectorAcceptedBatchesTotal: roundOptional(services.collectorGateway?.acceptedBatchesTotal, 0),
+            collectorWrittenRowsTotal: roundOptional(services.collectorGateway?.writtenRowsTotal, 0),
+            collectorIncomingReportsPerSecond: roundOptional(services.collectorGateway?.incomingReportsPerSecond, 3),
+            collectorIncomingReportsPerMinute: roundOptional(services.collectorGateway?.incomingReportsPerMinute, 2),
+            collectorIncomingReportsWindowCount: roundOptional(services.collectorGateway?.incomingReportsWindowCount, 0),
+            collectorIncomingReportsWindowSeconds: roundOptional(services.collectorGateway?.incomingReportsWindowSeconds, 0),
+            hardwareHealthScore: roundOptional(hardware.healthScore, 2),
+            hardwareFaultScore: roundOptional(hardware.faultScore, 2),
+            hardwareFaultLevel: hardware.level || "unknown",
+            hardwareFaultCount: round(finite(hardware.faultCount, 0), 0),
+            hardwareCriticalFaultCount: round(finite(hardware.criticalFaultCount, 0), 0),
+            hardwareWarningFaultCount: round(finite(hardware.warningFaultCount, 0), 0),
+            hardwareKernelEventCount: round(finite(hardware.kernelEventCount, 0), 0),
+            hardwareMachineCheckCount: round(finite(hardware.machineCheckCount, 0), 0),
+            hardwareGpuXidCount: round(finite(hardware.gpuXidCount, 0), 0),
+            hardwareStorageErrorCount: round(finite(hardware.storageErrorCount, 0), 0),
+            hardwarePcieAerCount: round(finite(hardware.pcieAerCount, 0), 0),
+            hardwareOomKillCount: round(finite(hardware.oomKillCount, 0), 0),
+            hardwareFailedUnitCount: round(finite(hardware.failedUnitCount, 0), 0),
+            hardwareThermalThrottleActive: Boolean(hardware.thermalThrottleActive),
+            hardwareThermalThrottleRaw: hardware.thermalThrottleRaw || "",
+            hardwareRepairAction: hardware.repairAction || "observe",
+            hardwareRepairConfidence: roundOptional(hardware.repairConfidence, 2),
+            hardwareRepairRequiresApproval: Boolean(hardware.repairRequiresApproval),
+            hardwareRcaFingerprint: hardware.rcaFingerprint || "",
+            hardwareFaults: hardware.faults || [],
+            hardwareRcaDimensions: hardware.dimensions || {},
             kafkaBootstrapServers: services.kafka?.bootstrapServers || "",
             kafkaNodePortBootstrap: services.kafka?.nodePortBootstrap || "",
             kafkaSmokeStatus: services.kafka?.smokeStatus || "",
@@ -867,6 +1415,8 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpuPresent: gpu.present,
             gpuName: primaryGpu.name || "",
             gpuSource: gpu.source,
+            gpuBackendRequested: gpu.requestedSource || gpuBackend,
+            gpuAttemptedSources: gpu.attemptedSources || [],
             gpuError: gpu.error || "",
             gpuUuid: primaryGpu.uuid,
             gpuUtilizationPct: round(metrics.gpuUtil, 2),
@@ -931,12 +1481,14 @@ function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, 
   return [...new Set([
     "local-machine",
     gb10Present ? "gb10" : null,
-    gpu.present ? "nvidia-smi" : null,
-    !gpu.present && gpu.source === "nvidia-smi-unavailable" ? "nvidia-smi-unavailable" : null,
+    gpu.present && gpu.source === "gpustat" ? "gpustat" : null,
+    gpu.present && gpu.source === "nvidia-smi" ? "nvidia-smi" : null,
+    !gpu.present && /nvidia-smi-unavailable|gpustat-unavailable|gpu-telemetry-unavailable/.test(gpu.source || "") ? "gpu-telemetry-unavailable" : null,
     hostCounters,
     gb10Present ? "linux-uma-memory" : null,
     command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
     services.appMetricsUp ? "app-metrics" : null,
+    services.collectorGatewayUp ? "collector-gateway" : null,
     gb10Present && services.profilingExporter?.hooksPresent ? "nsight-cupti-profiling" : null,
     ncclRuntime.present ? "nccl-runtime" : null,
     ["fresh", "cached", "stale"].includes(benchmark.status) ? "pi-benchmark" : null,
@@ -984,7 +1536,7 @@ function buildGb10MonitoringList({ host, gpu, services }) {
   return [
     {
       id: "gb10-nvml-nvidia-smi",
-      label: "GB10 NVML/nvidia-smi",
+      label: "GB10 NVML/gpustat/nvidia-smi",
       status: gpu.present ? "live" : "missing",
       detail: gpu.present ? `${primaryGpu.name || "GB10"} via ${gpu.source}` : gpu.error || "No NVIDIA GPU counters"
     },
@@ -1856,7 +2408,7 @@ function valueFromText(text, key) {
 }
 
 function finite(value, fallback = undefined) {
-  const parsed = Number(String(value || "").replace(/[^\d.-]/g, ""));
+  const parsed = Number(String(value === undefined || value === null ? "" : value).replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 

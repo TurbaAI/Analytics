@@ -5,6 +5,14 @@ metadata:
   namespace: turbalance-lakehouse
 data:
   config.yaml: |-
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+      file_storage/production:
+        directory: /var/lib/otelcol/file_storage
+        timeout: 10s
+        fsync: true
+
     receivers:
       otlp:
         protocols:
@@ -53,10 +61,19 @@ data:
         endpoint: ${env:TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT}
         headers:
           Authorization: ${env:TURBALANCE_OTEL_BACKEND_AUTHORIZATION}
+        sending_queue:
+          storage: file_storage/production
+          queue_size: 2000
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 60s
+          max_elapsed_time: 0
       prometheus:
         endpoint: 0.0.0.0:9464
 
     service:
+      extensions: [health_check, file_storage/production]
       telemetry:
         metrics:
           address: 0.0.0.0:8888

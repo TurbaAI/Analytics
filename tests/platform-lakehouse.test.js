@@ -72,7 +72,34 @@ function liveMachineRun(id, hostname, localAddress, peerAddress, cpuUsagePct, gp
       gpuMemoryUsedPct: 8,
       gpuPowerWatts: 42,
       gpuTemperatureC: 61,
-      dockerContainers: [{ name: "ray", cpuPct: 12 }]
+      dockerContainers: [{ name: "ray", cpuPct: 12 }],
+      hardwareHealthScore: hostname === "SPARK1" ? 54 : 100,
+      hardwareFaultScore: hostname === "SPARK1" ? 46 : 0,
+      hardwareFaultLevel: hostname === "SPARK1" ? "high" : "healthy",
+      hardwareFaultCount: hostname === "SPARK1" ? 1 : 0,
+      hardwareCriticalFaultCount: 0,
+      hardwareWarningFaultCount: hostname === "SPARK1" ? 1 : 0,
+      hardwareKernelEventCount: hostname === "SPARK1" ? 2 : 0,
+      hardwareMachineCheckCount: 0,
+      hardwareGpuXidCount: hostname === "SPARK1" ? 2 : 0,
+      hardwareStorageErrorCount: 0,
+      hardwarePcieAerCount: 0,
+      hardwareOomKillCount: 0,
+      hardwareFailedUnitCount: 0,
+      hardwareThermalThrottleActive: false,
+      hardwareRepairAction: hostname === "SPARK1" ? "restart-gpu-workload-or-open-ticket" : "observe",
+      hardwareRepairConfidence: hostname === "SPARK1" ? 0.78 : 0.5,
+      hardwareRepairRequiresApproval: hostname === "SPARK1",
+      hardwareRcaFingerprint: hostname === "SPARK1" ? "spark-linux-gpustat-gpu" : "healthy",
+      hardwareFaults: hostname === "SPARK1" ? [{
+        id: "gpu-xid",
+        category: "gpu",
+        severity: "high",
+        source: "journalctl-kernel",
+        count: 2,
+        detail: "2 NVIDIA Xid or NVRM events observed.",
+        suggestedAction: "restart-gpu-workload-or-open-ticket"
+      }] : []
     }
   };
 }
@@ -171,6 +198,25 @@ assert.equal(liveRawResult.status, "written");
 assert.ok(liveRawResult.rowCount >= 12);
 assert.ok(liveRawResult.files.some((file) => file.table_name === "raw_source_bundle_metric"));
 
+const sequencedSourceBundleResult = JSON.parse(run([
+  "-c",
+  `
+import json
+from raw_writer import TelemetryLakeWriter
+bundle = json.load(open(${JSON.stringify(liveMachineBundlePath)}))
+result = TelemetryLakeWriter(${JSON.stringify(lakeRoot)}).write_source_bundle(
+  bundle,
+  tenant_id="tenant-a",
+  host_id="dgx-spark-fleet",
+  agent_id="live-machine-push",
+  sequence_no=42,
+)
+print(json.dumps(result, default=str))
+`
+]));
+
+assert.equal(sequencedSourceBundleResult.status, "written");
+
 const transformResult = JSON.parse(run([
   "-m",
   "transform_runner",
@@ -185,6 +231,9 @@ assert.ok(transformResult.tables.some((table) => table.table === "vs_resource_pr
 assert.ok(transformResult.tables.some((table) => table.table === "vs_cpu_gpu_ram_net_covariance"));
 assert.ok(transformResult.tables.some((table) => table.table === "vs_principal_resource_mode"));
 assert.ok(transformResult.tables.some((table) => table.table === "vs_network_gpu_coupling"));
+assert.ok(transformResult.tables.some((table) => table.table === "vs_host_hardware_health"));
+assert.ok(transformResult.tables.some((table) => table.table === "vs_repair_candidates"));
+assert.ok(transformResult.tables.some((table) => table.table === "vs_fleet_rca"));
 
 const queryResult = JSON.parse(run([
   "-c",
@@ -197,10 +246,14 @@ print(json.dumps({
   "engine": lake.engine,
   "tables": lake.list_tables(),
   "metricRows": len(lake.metric_rows(tenant_id="tenant-a")),
+  "sequenceNos": sorted({row["sequence_no"] for row in lake.read_table("raw_source_bundle_metric", tenant_id="tenant-a")}),
   "resourceRows": len(lake.resource_pressure(tenant_id="tenant-a")),
   "resourceHosts": sorted({row["host_id"] for row in lake.resource_pressure(tenant_id="tenant-a")}),
   "covarianceSampleCount": lake.covariance(tenant_id="tenant-a")["sampleCount"],
   "networkCouplingRows": len(lake.network_gpu_coupling(tenant_id="tenant-a")),
+  "hardwareHealthRows": len(lake.hardware_health(tenant_id="tenant-a")),
+  "repairCandidateRows": len(lake.repair_candidates(tenant_id="tenant-a")),
+  "fleetRcaRows": len(lake.fleet_rca(tenant_id="tenant-a")),
   "alertCandidateRows": len(lake.alert_candidates(tenant_id="tenant-a")),
   "alerts": AlertEngine(lake).evaluate(tenant_id="tenant-a")
 }, default=str))
@@ -209,13 +262,17 @@ print(json.dumps({
 
 assert.ok(queryResult.tables.includes("raw_source_bundle_metric"));
 assert.ok(queryResult.metricRows >= rawResult.rowCount + liveRawResult.rowCount);
+assert.ok(queryResult.sequenceNos.includes(42));
 assert.ok(queryResult.resourceRows >= 1);
 assert.ok(queryResult.resourceHosts.includes("SPARK1"));
 assert.ok(queryResult.resourceHosts.includes("SPARK2"));
 assert.ok(queryResult.covarianceSampleCount >= 1);
 assert.ok(queryResult.networkCouplingRows >= 1);
+assert.ok(queryResult.hardwareHealthRows >= 1);
+assert.ok(queryResult.repairCandidateRows >= 1);
+assert.ok(queryResult.fleetRcaRows >= 1);
 assert.ok(queryResult.alertCandidateRows >= 0);
-assert.ok(Array.isArray(queryResult.alerts));
+assert.ok(queryResult.alerts.some((alert) => alert.incidentKey.includes("hardware")));
 
 const observabilityResult = JSON.parse(run([
   "-c",
@@ -639,13 +696,22 @@ headers = {
 }
 first = client.post("/v1/telemetry/batches", content=body, headers=headers)
 second = client.post("/v1/telemetry/batches", content=body, headers=headers)
-print(json.dumps({"first": first.status_code, "second": second.status_code, "audit": (lake.parent / "audit.jsonl").exists()}))
+metrics = client.get("/metrics").text
+print(json.dumps({
+    "first": first.status_code,
+    "second": second.status_code,
+    "audit": (lake.parent / "audit.jsonl").exists(),
+    "hasReportRate": "turbalance_collector_incoming_telemetry_reports_per_minute" in metrics,
+    "hasReportWindowCount": "turbalance_collector_incoming_telemetry_reports_window_count 1" in metrics,
+}))
 `
 ]));
 
 assert.equal(securityResult.first, 200);
 assert.equal(securityResult.second, 409);
 assert.equal(securityResult.audit, true);
+assert.equal(securityResult.hasReportRate, true);
+assert.equal(securityResult.hasReportWindowCount, true);
 
 const mtlsResult = JSON.parse(run([
   "-c",

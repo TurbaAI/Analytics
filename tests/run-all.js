@@ -12,6 +12,8 @@ const checks = [
   { label: "provider config generator", args: ["tests/provider-config-generator.test.js"] },
   { label: "demo prep", args: ["tests/prepare-demo.test.js"] },
   { label: "local machine bundle", args: ["tests/local-machine-bundle.test.js"] },
+  { label: "fleet remediation", args: ["tests/fleet-remediation.test.js"] },
+  { label: "live machine push agent", args: ["tests/live-machine-push-agent.test.js"] },
   { label: "system identification worker", args: ["tests/system-identification-worker.test.js"] },
   { label: "system characterization automation", args: ["tests/system-characterization-automation.test.js"] },
   { label: "SPARK1 Kubernetes demo collector", args: ["tests/spark1-kubernetes-demo.test.js"] },

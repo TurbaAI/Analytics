@@ -310,6 +310,149 @@ def alert_candidate_rows(samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return candidates
 
 
+def hardware_health_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    samples = _hardware_samples_from_metric_rows(rows)
+    return sorted(samples.values(), key=lambda sample: (str(sample.get("host_id") or ""), str(sample.get("event_ts") or "")))
+
+
+def repair_candidate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest = _latest_hardware_by_host(rows)
+    candidates = []
+    for host_id, sample in sorted(latest.items()):
+        fault_score = _number(sample.get("hardware_fault_score")) or 0.0
+        critical = _number(sample.get("hardware_critical_fault_count")) or 0.0
+        if fault_score < 18 and critical <= 0:
+            continue
+        family, action = _hardware_repair_action(sample)
+        severity = "critical" if critical > 0 or fault_score >= 80 else "warning" if fault_score >= 45 else "info"
+        confidence = max(0.5, min(0.95, (_number(sample.get("hardware_repair_confidence")) or 0.55) + min(0.2, fault_score / 500.0)))
+        candidates.append(
+            {
+                "incident_key": f"{host_id}:hardware:{family}",
+                "host_id": host_id,
+                "event_ts": sample.get("event_ts") or "",
+                "severity": severity,
+                "title": f"Hardware health degraded: {family.replace('-', ' ')}",
+                "confidence": round(confidence, 3),
+                "owner": "fleet-reliability",
+                "evidence": _hardware_evidence(sample, family),
+                "source_table": "vs_host_hardware_health",
+                "suggested_action": action,
+                "requires_approval": bool((_number(sample.get("hardware_repair_requires_approval")) or 0) >= 1),
+                "fault_score": fault_score,
+            }
+        )
+    return candidates
+
+
+def fleet_rca_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    latest = _latest_hardware_by_host(rows)
+    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for sample in latest.values():
+        fault_score = _number(sample.get("hardware_fault_score")) or 0.0
+        if fault_score < 18:
+            continue
+        family, _action = _hardware_repair_action(sample)
+        groups[family].append(sample)
+
+    fleet_size = max(1, len(latest))
+    result = []
+    for family, samples in sorted(groups.items(), key=lambda item: (-len(item[1]), item[0])):
+        hosts = sorted(str(sample.get("host_id") or "") for sample in samples if sample.get("host_id"))
+        mean_score = sum((_number(sample.get("hardware_fault_score")) or 0.0) for sample in samples) / len(samples)
+        support = len(samples)
+        result.append(
+            {
+                "root_cause_key": f"hardware:{family}",
+                "title": f"{family.replace('-', ' ').title()} pattern across fleet",
+                "support_count": support,
+                "fleet_size": fleet_size,
+                "affected_hosts_json": json.dumps(hosts, sort_keys=True),
+                "confidence": round(min(0.95, 0.45 + support / fleet_size * 0.35 + mean_score / 500.0), 3),
+                "mean_fault_score": round(mean_score, 3),
+                "evidence": f"{support}/{fleet_size} observed host{'' if fleet_size == 1 else 's'} show {family.replace('-', ' ')} symptoms.",
+                "suggested_action": _hardware_family_action(family),
+            }
+        )
+    return result
+
+
+def _hardware_samples_from_metric_rows(rows: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        metric_name = str(row.get("metric_name") or "")
+        if not metric_name.startswith("hardware_"):
+            continue
+        host_id = str(row.get("host_id") or "")
+        event_ts = str(row.get("event_ts") or "")
+        key = (host_id, event_ts)
+        sample = grouped.setdefault(key, {"host_id": host_id, "event_ts": event_ts})
+        value = _number(row.get("metric_value"))
+        if value is not None:
+            sample[metric_name] = value
+    return grouped
+
+
+def _latest_hardware_by_host(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for sample in hardware_health_rows(rows):
+        host_id = str(sample.get("host_id") or "")
+        if not host_id:
+            continue
+        if host_id not in latest or str(sample.get("event_ts") or "") >= str(latest[host_id].get("event_ts") or ""):
+            latest[host_id] = sample
+    return latest
+
+
+def _hardware_repair_action(sample: dict[str, Any]) -> tuple[str, str]:
+    if (_number(sample.get("hardware_machine_check_count")) or 0) > 0:
+        return "machine-check", "open-repair-ticket"
+    if (_number(sample.get("hardware_storage_error_count")) or 0) > 0:
+        return "storage-error", "open-repair-ticket"
+    if (_number(sample.get("hardware_gpu_xid_count")) or 0) > 0:
+        return "gpu-xid", "restart-gpu-workload-or-open-ticket"
+    if (_number(sample.get("hardware_thermal_throttle_active")) or 0) >= 1:
+        return "thermal-throttle", "inspect-cooling-power"
+    if (_number(sample.get("hardware_failed_unit_count")) or 0) > 0:
+        return "failed-systemd-units", "restart-failed-services"
+    if (_number(sample.get("hardware_oom_kill_count")) or 0) > 0:
+        return "oom-kill", "reduce-memory-pressure"
+    if (_number(sample.get("hardware_pcie_aer_count")) or 0) > 0:
+        return "pcie-aer", "inspect-pcie-link"
+    return "hardware-health", "inspect-host"
+
+
+def _hardware_family_action(family: str) -> str:
+    return {
+        "machine-check": "open-repair-ticket",
+        "storage-error": "open-repair-ticket",
+        "gpu-xid": "restart-gpu-workload-or-open-ticket",
+        "thermal-throttle": "inspect-cooling-power",
+        "failed-systemd-units": "restart-failed-services",
+        "oom-kill": "reduce-memory-pressure",
+        "pcie-aer": "inspect-pcie-link",
+    }.get(family, "inspect-host")
+
+
+def _hardware_evidence(sample: dict[str, Any], family: str) -> str:
+    score = _number(sample.get("hardware_fault_score")) or 0.0
+    bits = [f"fault score {score:.1f}"]
+    for key, label in (
+        ("hardware_machine_check_count", "machine-check"),
+        ("hardware_storage_error_count", "storage"),
+        ("hardware_gpu_xid_count", "GPU Xid"),
+        ("hardware_failed_unit_count", "failed unit"),
+        ("hardware_oom_kill_count", "OOM"),
+        ("hardware_pcie_aer_count", "PCIe AER"),
+    ):
+        value = _number(sample.get(key)) or 0.0
+        if value > 0:
+            bits.append(f"{value:.0f} {label}")
+    if (_number(sample.get("hardware_thermal_throttle_active")) or 0) >= 1:
+        bits.append("thermal throttle active")
+    return f"{family.replace('-', ' ')} candidate from " + ", ".join(bits) + "."
+
+
 def _map_metric(name: str, value: float) -> tuple[str, float] | None:
     lowered = name.lower()
     if "gpu_utilization" in lowered or lowered.endswith("gpu.utilization"):

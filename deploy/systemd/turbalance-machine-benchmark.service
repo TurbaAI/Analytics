@@ -1,0 +1,21 @@
+[Unit]
+Description=Turbalance scheduled machine benchmark publisher
+Documentation=file:/opt/turbalance/Analytics/docs/bare-metal-fleet-production.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/turbalance/live-machine-agent.env
+WorkingDirectory=/opt/turbalance/Analytics
+ExecStart=/usr/bin/env node /opt/turbalance/Analytics/scripts/push-live-machine-telemetry.js --benchmark-suite 1 --fast-refresh 1 --ollama-probe 0
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/var/lib/turbalance /var/spool/turbalance /opt/turbalance/Analytics/build
+LockPersonality=true
+RestrictSUIDSGID=true

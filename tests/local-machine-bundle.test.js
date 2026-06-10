@@ -62,6 +62,8 @@ assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.observedServices)
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuComputeProcessQuerySkipped, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleCached, "boolean");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleAgeMs, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuBackendRequested, "string");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.gpuAttemptedSources));
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.ollamaRunningModels));
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTelemetryStatus, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTokensPerSecond, "number");
@@ -90,6 +92,17 @@ if ("networkUtilizationPct" in bundle.ingestion.runs[0].sourceContext) {
   assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkUtilizationPct, "number");
 }
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.appMetricsReachable, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.collectorGatewayReachable, "boolean");
+if ("collectorIncomingReportsPerMinute" in bundle.ingestion.runs[0].sourceContext) {
+  assert.equal(typeof bundle.ingestion.runs[0].sourceContext.collectorIncomingReportsPerMinute, "number");
+}
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareHealthScore, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareFaultScore, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareFaultLevel, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareFaultCount, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareRepairAction, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.hardwareRepairRequiresApproval, "boolean");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.hardwareFaults));
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingStatus, "string");
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.nsightCuptiProfilingScripts));
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimePresent, "boolean");
@@ -102,11 +115,17 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimeHostIp, "s
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimeDetail, "string");
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
+assert.ok(bundle.metadata.note.includes("gpustat/NVML"));
 const localCollectorSource = fs.readFileSync(path.join(root, "scripts/collect-local-machine-bundle.js"), "utf8");
 const fleetCollectorSource = fs.readFileSync(path.join(root, "scripts/collect-machine-fleet-bundle.js"), "utf8");
 assert.ok(localCollectorSource.includes("collectKafkaSmokeEvidence"));
 assert.ok(localCollectorSource.includes("kafkaSmokeMessageId"));
 assert.ok(localCollectorSource.includes("collectOllamaTelemetry"));
+assert.ok(localCollectorSource.includes("parseCollectorGatewayMetrics"));
+assert.ok(localCollectorSource.includes("turbalance_collector_incoming_telemetry_reports_per_minute"));
+assert.ok(localCollectorSource.includes("collectHardwareHealth"));
+assert.ok(localCollectorSource.includes("machine-check"));
+assert.ok(localCollectorSource.includes("hardwareRepairAction"));
 assert.ok(localCollectorSource.includes("timeToFirstTokenMs"));
 assert.ok(localCollectorSource.includes("collectCpuTemperatureC"));
 assert.ok(localCollectorSource.includes("vcgencmd"));
@@ -125,6 +144,10 @@ assert.ok(localCollectorSource.includes("durationTextToNanoseconds"));
 assert.ok(localCollectorSource.includes("clockOffsetNs"));
 assert.ok(localCollectorSource.includes("buildGb10MonitoringList"));
 assert.ok(localCollectorSource.includes("gb10-nvml-nvidia-smi"));
+assert.ok(localCollectorSource.includes("gpustat --json"));
+assert.ok(localCollectorSource.includes("TURBALANCE_GPU_BACKEND"));
+assert.ok(localCollectorSource.includes("TURBALANCE_GPUSTAT_BIN"));
+assert.ok(localCollectorSource.includes("parseGpustatJson"));
 assert.ok(localCollectorSource.includes("linux-uma-memory"));
 assert.ok(localCollectorSource.includes("app-metrics"));
 assert.ok(localCollectorSource.includes("nsight-cupti-profiling"));
@@ -175,6 +198,66 @@ const fastBundle = JSON.parse(fs.readFileSync(fastOutPath, "utf8"));
 assert.equal(fastBundle.ingestion.runs[0].id, "machine-demo-fast-test");
 assert.equal(fastBundle.ingestion.runs[0].sourceContext.gpuComputeProcessQuerySkipped, true);
 assert.equal(fastBundle.ingestion.runs[0].sourceContext.gpuSampleCached, false);
+
+const gpustatOutPath = path.join(tempDir, "live-machine-bundle-gpustat.json");
+const fakeBinDir = path.join(tempDir, "fake-bin");
+fs.mkdirSync(fakeBinDir, { recursive: true });
+const fakeGpustatPath = path.join(fakeBinDir, "gpustat");
+fs.writeFileSync(fakeGpustatPath, `#!/usr/bin/env node
+console.log(JSON.stringify({
+  hostname: "fake-gpu-host",
+  gpus: [{
+    index: 0,
+    uuid: "GPU-fake-gpustat",
+    name: "NVIDIA GB10",
+    "temperature.gpu": 47,
+    "utilization.gpu": 42,
+    "utilization.memory": 12,
+    "memory.used": 512,
+    "memory.total": 4096,
+    "power.draw": 35.5,
+    processes: [{ pid: 1234, command: "python", username: "user", gpu_memory_usage: 256 }]
+  }]
+}));
+`);
+fs.chmodSync(fakeGpustatPath, 0o755);
+const gpustatResult = spawnSync(process.execPath, [
+  "scripts/collect-local-machine-bundle.js",
+  "--out",
+  gpustatOutPath,
+  "--host-url",
+  "http://192.168.10.30:8000",
+  "--run-id",
+  "machine-demo-gpustat-test",
+  "--gpu-backend",
+  "gpustat",
+  "--ollama-probe",
+  "0"
+], {
+  cwd: root,
+  encoding: "utf8",
+  env: {
+    ...process.env,
+    PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH || ""}`
+  },
+  maxBuffer: 20 * 1024 * 1024
+});
+assert.equal(gpustatResult.status, 0, gpustatResult.stderr);
+const gpustatBundle = JSON.parse(fs.readFileSync(gpustatOutPath, "utf8"));
+const gpustatContext = gpustatBundle.ingestion.runs[0].sourceContext;
+assert.equal(gpustatContext.gpuSource, "gpustat");
+assert.equal(gpustatContext.gpuBackendRequested, "gpustat");
+assert.equal(gpustatContext.gpuName, "NVIDIA GB10");
+assert.equal(gpustatContext.gpuUtilizationPct, 42);
+assert.equal(gpustatContext.gpuMemoryUsedMiB, 512);
+assert.equal(gpustatContext.gpuMemoryTotalMiB, 4096);
+assert.equal(gpustatContext.gpuPowerWatts, 35.5);
+assert.equal(gpustatContext.gpuTemperatureC, 47);
+assert.equal(gpustatContext.gpuComputeProcesses[0].pid, 1234);
+assert.equal(gpustatContext.gpuComputeProcesses[0].processName, "python");
+assert.equal(gpustatContext.gpuComputeProcesses[0].usedMemoryMiB, 256);
+assert.ok(gpustatBundle.ingestion.sourceAdapters.includes("gpustat"));
+assert.ok(!gpustatBundle.ingestion.sourceAdapters.includes("nvidia-smi"));
 
 const benchmarkResult = spawnSync(process.execPath, [
   "scripts/collect-local-machine-bundle.js",

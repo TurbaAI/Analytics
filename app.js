@@ -58,6 +58,8 @@ const STORAGE_SCHEMA = {
   key: "turba.analytics.workspace.v2"
 };
 
+const THEME_STORAGE_KEY = "turba.analytics.theme";
+
 const SAMPLE_INGESTION = {
   schemaVersion: INGESTION_SCHEMA.version,
   entities: {
@@ -1197,12 +1199,88 @@ const TREND_METRIC_DEFS = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initThemeMode();
   bindEvents();
   prefillMachineDemoUrl();
   render();
   maybeAutoLoadMachineDemoBundle();
   maybeStartSparkPairClockFeed();
 });
+
+function initThemeMode() {
+  applyThemeMode(resolveThemeMode());
+  const toggle = document.querySelector("#themeToggle");
+  if (!toggle) return;
+
+  toggle.addEventListener("change", (event) => {
+    applyThemeMode(event.target.checked ? "dark" : "light", { persist: true });
+  });
+
+  try {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onSystemThemeChange = (event) => {
+      if (readThemeMode()) return;
+      applyThemeMode(event.matches ? "dark" : "light");
+    };
+    if (media.addEventListener) {
+      media.addEventListener("change", onSystemThemeChange);
+    } else if (media.addListener) {
+      media.addListener(onSystemThemeChange);
+    }
+  } catch {
+    // Theme switching remains available even if system preference listeners are blocked.
+  }
+}
+
+function resolveThemeMode() {
+  const stored = readThemeMode();
+  if (stored) return stored;
+
+  try {
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function readThemeMode() {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "dark" || stored === "light" ? stored : "";
+  } catch {
+    return "";
+  }
+}
+
+function writeThemeMode(theme) {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Non-persistent browser contexts still get the in-session theme.
+  }
+}
+
+function applyThemeMode(theme, { persist = false } = {}) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = normalized;
+  document.documentElement.style.colorScheme = normalized;
+
+  const toggle = document.querySelector("#themeToggle");
+  const label = document.querySelector("#themeToggleText");
+  const switcher = document.querySelector(".theme-switch");
+  if (toggle) {
+    toggle.checked = normalized === "dark";
+    toggle.setAttribute("aria-checked", String(toggle.checked));
+  }
+  if (label) label.textContent = normalized === "dark" ? "Dark" : "Light";
+  if (switcher) {
+    switcher.dataset.theme = normalized;
+    switcher.title = normalized === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  }
+
+  if (persist) writeThemeMode(normalized);
+}
 
 function loadWorkspaceStore(defaultIngestion) {
   const persisted = readWorkspaceStore();
@@ -4137,6 +4215,32 @@ function machineDemoContext(summary) {
     linuxUmaMemoryAvailableBytes: numeric(context.linuxUmaMemoryAvailableBytes, context.memoryAvailableBytes),
     linuxUmaMemoryUsedPct: numeric(context.linuxUmaMemoryUsedPct, context.memoryUsedPct),
     appMetricsReachable: Boolean(context.appMetricsReachable),
+    collectorGatewayReachable: Boolean(context.collectorGatewayReachable),
+    collectorAcceptedBatchesTotal: optionalMetric(context, "collectorAcceptedBatchesTotal"),
+    collectorWrittenRowsTotal: optionalMetric(context, "collectorWrittenRowsTotal"),
+    collectorIncomingReportsPerSecond: optionalMetric(context, "collectorIncomingReportsPerSecond"),
+    collectorIncomingReportsPerMinute: optionalMetric(context, "collectorIncomingReportsPerMinute"),
+    collectorIncomingReportsWindowCount: optionalMetric(context, "collectorIncomingReportsWindowCount"),
+    collectorIncomingReportsWindowSeconds: optionalMetric(context, "collectorIncomingReportsWindowSeconds"),
+    hardwareHealthScore: optionalMetric(context, "hardwareHealthScore"),
+    hardwareFaultScore: optionalMetric(context, "hardwareFaultScore"),
+    hardwareFaultLevel: String(context.hardwareFaultLevel || ""),
+    hardwareFaultCount: optionalMetric(context, "hardwareFaultCount"),
+    hardwareCriticalFaultCount: optionalMetric(context, "hardwareCriticalFaultCount"),
+    hardwareWarningFaultCount: optionalMetric(context, "hardwareWarningFaultCount"),
+    hardwareKernelEventCount: optionalMetric(context, "hardwareKernelEventCount"),
+    hardwareMachineCheckCount: optionalMetric(context, "hardwareMachineCheckCount"),
+    hardwareGpuXidCount: optionalMetric(context, "hardwareGpuXidCount"),
+    hardwareStorageErrorCount: optionalMetric(context, "hardwareStorageErrorCount"),
+    hardwarePcieAerCount: optionalMetric(context, "hardwarePcieAerCount"),
+    hardwareOomKillCount: optionalMetric(context, "hardwareOomKillCount"),
+    hardwareFailedUnitCount: optionalMetric(context, "hardwareFailedUnitCount"),
+    hardwareThermalThrottleActive: Boolean(context.hardwareThermalThrottleActive),
+    hardwareRepairAction: String(context.hardwareRepairAction || ""),
+    hardwareRepairConfidence: optionalMetric(context, "hardwareRepairConfidence"),
+    hardwareRepairRequiresApproval: Boolean(context.hardwareRepairRequiresApproval),
+    hardwareRcaFingerprint: String(context.hardwareRcaFingerprint || ""),
+    hardwareFaults: Array.isArray(context.hardwareFaults) ? context.hardwareFaults : [],
     nsightCuptiProfilingStatus: String(context.nsightCuptiProfilingStatus || ""),
     ncclRuntimePresent: Boolean(context.ncclRuntimePresent),
     ncclRuntimeStatus: String(context.ncclRuntimeStatus || ""),
@@ -4370,6 +4474,23 @@ function renderLiveResources(summary) {
   const umaMemoryUsed = Math.max(0, umaMemoryTotal - umaMemoryAvailable);
   const umaMemoryUsedPct = machineContext.linuxUmaMemoryUsedPct || machineContext.memoryUsedPct;
   const networkDisplay = liveNetworkDisplay(machineContext);
+  const collectorRateAvailable = machineContext.collectorGatewayReachable
+    && Number.isFinite(machineContext.collectorIncomingReportsPerMinute);
+  const collectorWindowSeconds = Number.isFinite(machineContext.collectorIncomingReportsWindowSeconds)
+    ? Math.max(1, round(machineContext.collectorIncomingReportsWindowSeconds))
+    : 60;
+  const collectorWindowCount = Number.isFinite(machineContext.collectorIncomingReportsWindowCount)
+    ? number.format(round(machineContext.collectorIncomingReportsWindowCount))
+    : "0";
+  const collectorAccepted = Number.isFinite(machineContext.collectorAcceptedBatchesTotal)
+    ? number.format(round(machineContext.collectorAcceptedBatchesTotal))
+    : "n/a";
+  const hardwareScoreAvailable = Number.isFinite(machineContext.hardwareHealthScore);
+  const hardwareFaultCount = Number.isFinite(machineContext.hardwareFaultCount) ? round(machineContext.hardwareFaultCount) : 0;
+  const hardwareTopFault = machineContext.hardwareFaults[0];
+  const hardwareNote = hardwareFaultCount > 0
+    ? `${hardwareFaultCount} fault${hardwareFaultCount === 1 ? "" : "s"} | ${machineContext.hardwareRepairAction || "inspect-host"}`
+    : "No observed hardware fault pattern";
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -4458,6 +4579,24 @@ function renderLiveResources(summary) {
       percent: null,
       tone: ollamaReachable ? (machineContext.ollamaTelemetryAvailable ? "good" : "watch") : "poor"
     }),
+    liveResourceCard({
+      label: "Hardware health",
+      value: hardwareScoreAvailable ? `${round(machineContext.hardwareHealthScore)}/100` : "learning",
+      note: hardwareTopFault?.detail || hardwareNote,
+      percent: hardwareScoreAvailable ? machineContext.hardwareHealthScore : null,
+      tone: Number.isFinite(machineContext.hardwareFaultScore)
+        ? inverseGrade(machineContext.hardwareFaultScore, 35, 70).key
+        : "watch"
+    }),
+    ...(machineContext.collectorGatewayReachable ? [
+      liveResourceCard({
+        label: "Telemetry ingest",
+        value: collectorRateAvailable ? `${formatDecimal(machineContext.collectorIncomingReportsPerMinute, machineContext.collectorIncomingReportsPerMinute >= 100 ? 0 : 1)}/min` : "reachable",
+        note: `last ${collectorWindowSeconds}s: ${collectorWindowCount} reports | ${collectorAccepted} total`,
+        percent: collectorRateAvailable ? clamp((machineContext.collectorIncomingReportsPerMinute / 120) * 100) : null,
+        tone: collectorRateAvailable && machineContext.collectorIncomingReportsPerMinute > 0 ? "good" : "watch"
+      })
+    ] : []),
     ...(machineContext.gb10Present ? [
       liveResourceCard({
         label: "GB10 monitor",
@@ -7097,6 +7236,19 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
   const covarianceMatrix = buildLiveCovarianceMatrix(window);
   const alerts = [];
 
+  if (Number.isFinite(machineContext.hardwareFaultScore) && machineContext.hardwareFaultScore >= 18) {
+    const topFault = machineContext.hardwareFaults[0];
+    alerts.push(liveTelemetryAlert({
+      severity: machineContext.hardwareFaultScore >= 80 || machineContext.hardwareCriticalFaultCount > 0 ? "critical" : machineContext.hardwareFaultScore >= 45 ? "high" : "medium",
+      title: "Hardware health needs attention",
+      evidence: topFault?.detail || `Hardware fault score is ${round(machineContext.hardwareFaultScore)} with ${round(numeric(machineContext.hardwareFaultCount))} observed fault signals.`,
+      recommendation: machineContext.hardwareRepairRequiresApproval
+        ? `${machineContext.hardwareRepairAction || "Inspect host"} requires operator approval.`
+        : machineContext.hardwareRepairAction || "Inspect host and keep remediation in dry-run until confirmed.",
+      confidence: Number.isFinite(machineContext.hardwareRepairConfidence) ? machineContext.hardwareRepairConfidence : 0.72
+    }));
+  }
+
   if (sampleCount < 6) {
     return {
       contextKey: liveObservationContextKey(null, machineContext, window),
@@ -9417,14 +9569,30 @@ function renderGrafanaHandoff(summary) {
 
   if (machineContext) {
     const services = machineDemoServices(machineContext.context.observedServices);
+    const grafanaLinks = [
+      machineContext.context.grafanaDashboardUrl ? {
+        label: machineContext.context.grafanaDashboardTitle || "turbalance Fleet Runtime",
+        type: "dashboard",
+        url: machineContext.context.grafanaDashboardUrl
+      } : null,
+      machineContext.context.grafanaExploreUrl ? {
+        label: "Explore",
+        type: "explore",
+        url: machineContext.context.grafanaExploreUrl
+      } : null
+    ].filter(Boolean);
     badge.textContent = services.includes("grafana") ? "Service reachable" : "No Grafana";
     context.replaceChildren(
-      grafanaContextItem("Dashboard", "No dashboard overlay imported"),
-      grafanaContextItem("Datasource", services.includes("node-exporter") ? "node-exporter reachable" : "No datasource export"),
+      grafanaContextItem("Dashboard", machineContext.context.grafanaDashboardTitle || "No dashboard overlay imported"),
+      grafanaContextItem("Datasource", machineContext.context.grafanaDatasourceName || (services.includes("node-exporter") ? "node-exporter reachable" : "No datasource export")),
       grafanaContextItem("Window", "live host sample"),
       grafanaContextItem("Variables", machineContext.host)
     );
     links.replaceChildren();
+    if (grafanaLinks.length) {
+      grafanaLinks.forEach((link) => links.append(grafanaLinkItem(link)));
+      return;
+    }
     const empty = document.createElement("div");
     empty.className = "grafana-empty";
     empty.textContent = services.includes("grafana")

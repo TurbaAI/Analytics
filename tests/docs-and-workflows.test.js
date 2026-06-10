@@ -9,6 +9,7 @@ const readme = read("README.md");
 
 [
   "docs/data-contract.md",
+  "docs/bare-metal-fleet-production.md",
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
   "docs/backend-ingestion.md",
@@ -66,6 +67,8 @@ const readme = read("README.md");
   "scripts/generate-provider-pilot-config.js",
   "scripts/collect-local-machine-bundle.js",
   "scripts/collect-machine-fleet-bundle.js",
+  "scripts/push-live-machine-telemetry.js",
+  "scripts/rollout-production-fleet.js",
   "scripts/check-spark1-kafka.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
@@ -179,6 +182,7 @@ const readme = read("README.md");
   "lakehouse/dbt/models/vs_input_pipeline_stall.sql",
   "lakehouse/dbt/models/vs_alert_candidates.sql",
   "deploy/docker/lakehouse-compose.yml",
+  "deploy/docker/fleet-observability-compose.yml",
   "deploy/docker/Dockerfile.ebpf-agent",
   "deploy/docker/Dockerfile.platform-service",
   "deploy/docker/Dockerfile.platform-worker",
@@ -186,6 +190,10 @@ const readme = read("README.md");
   "deploy/docker/Dockerfile.sqlmesh",
   "deploy/docker/otel-collector-config.yaml",
   "deploy/docker/otel-collector-config.production.yaml",
+  "deploy/systemd/turbalance-live-machine-agent.env.example",
+  "deploy/systemd/turbalance-live-machine-agent.service",
+  "deploy/systemd/turbalance-machine-benchmark.service",
+  "deploy/systemd/turbalance-machine-benchmark.timer",
   "deploy/docker/grafana/provisioning/datasources/turbalance-api.yml",
   "deploy/docker/grafana/provisioning/dashboards/lakehouse.yml",
   "ops/kubernetes/lakehouse-platform.yaml",
@@ -209,6 +217,8 @@ const readme = read("README.md");
   "ops/kubernetes/lakehouse/spire/kustomization.yaml",
   "ops/kubernetes/lakehouse/consul/kustomization.yaml",
   "ops/kubernetes/lakehouse-prometheus-rules.yaml",
+  "ops/otel/bare-metal-agent.yaml",
+  "ops/otel/bare-metal-agent-local.yaml",
   "ops/terraform/lakehouse/aws/versions.tf",
   "ops/terraform/lakehouse/aws/variables.tf",
   "ops/terraform/lakehouse/aws/main.tf",
@@ -249,6 +259,7 @@ const readme = read("README.md");
 
 [
   "docs/data-contract.md",
+  "docs/bare-metal-fleet-production.md",
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
   "docs/backend-ingestion.md",
@@ -275,6 +286,7 @@ const readme = read("README.md");
   "scripts/collect-local-machine-bundle.js",
   "scripts/collect-machine-fleet-bundle.js",
   "scripts/push-live-machine-telemetry.js",
+  "scripts/rollout-production-fleet.js",
   "scripts/run-live-lakehouse-fleet.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",
@@ -581,6 +593,8 @@ assert.ok(lakehouseCompose.includes("queue-gateway"));
 assert.ok(lakehouseCompose.includes("TURBALANCE_QUEUE_GATEWAY_PRODUCER_COMMAND"));
 assert.ok(lakehouseCompose.includes("otel-collector"));
 assert.ok(lakehouseCompose.includes("OTEL_EXPORTER_OTLP_ENDPOINT"));
+assert.ok(lakehouseCompose.includes("13133:13133"));
+assert.ok(lakehouseCompose.includes("build/otelcol"));
 assert.ok(lakehouseCompose.includes("dagster"));
 assert.ok(lakehouseCompose.includes("Dockerfile.sqlmesh"));
 assert.ok(lakehouseCompose.includes("grafana/grafana:11.5.2"));
@@ -588,6 +602,7 @@ assert.ok(lakehouseCompose.includes("GF_INSTALL_PLUGINS: marcusolsson-json-datas
 
 const lakehouseComposeOtel = read("deploy/docker/otel-collector-config.yaml");
 assert.ok(lakehouseComposeOtel.includes("receivers:"));
+assert.ok(lakehouseComposeOtel.includes("health_check"));
 assert.ok(lakehouseComposeOtel.includes("otlp:"));
 assert.ok(lakehouseComposeOtel.includes("prometheus:"));
 assert.ok(lakehouseComposeOtel.includes("endpoint: 0.0.0.0:4318"));
@@ -596,6 +611,46 @@ assert.ok(lakehouseComposeOtel.includes("exporters: [prometheus, debug]"));
 const lakehouseComposeOtelProduction = read("deploy/docker/otel-collector-config.production.yaml");
 assert.ok(lakehouseComposeOtelProduction.includes("otlphttp/backend"));
 assert.ok(lakehouseComposeOtelProduction.includes("TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT"));
+assert.ok(lakehouseComposeOtelProduction.includes("file_storage/production"));
+assert.ok(lakehouseComposeOtelProduction.includes("sending_queue"));
+
+const bareMetalFleet = read("docs/bare-metal-fleet-production.md");
+assert.ok(bareMetalFleet.includes("node-local live agent"));
+assert.ok(bareMetalFleet.includes("rollout-production-fleet"));
+assert.ok(bareMetalFleet.includes("turbalance-machine-benchmark.timer"));
+assert.ok(bareMetalFleet.includes("node_exporter/cAdvisor/DCGM/OpenTelemetry"));
+
+const livePushAgent = read("scripts/push-live-machine-telemetry.js");
+assert.ok(livePushAgent.includes("TURBALANCE_AGENT_SEQUENCE_PATH"));
+assert.ok(livePushAgent.includes("TURBALANCE_AGENT_SPOOL_DIR"));
+assert.ok(livePushAgent.includes("x-turbalance-signature"));
+assert.ok(livePushAgent.includes("replaySpool"));
+
+const fleetRollout = read("scripts/rollout-production-fleet.js");
+assert.ok(fleetRollout.includes("PI_FLEET_REMOTES"));
+assert.ok(fleetRollout.includes("turbalance-live-machine-agent.service"));
+assert.ok(fleetRollout.includes("fleet-observability-compose.yml"));
+assert.ok(fleetRollout.includes("StrictHostKeyChecking=accept-new"));
+
+const fleetObservabilityCompose = read("deploy/docker/fleet-observability-compose.yml");
+assert.ok(fleetObservabilityCompose.includes("prom/node-exporter"));
+assert.ok(fleetObservabilityCompose.includes("gcr.io/cadvisor/cadvisor"));
+assert.ok(fleetObservabilityCompose.includes("dcgm-exporter"));
+assert.ok(fleetObservabilityCompose.includes("otel/opentelemetry-collector-contrib"));
+
+const liveAgentService = read("deploy/systemd/turbalance-live-machine-agent.service");
+assert.ok(liveAgentService.includes("Restart=always"));
+assert.ok(liveAgentService.includes("ReadWritePaths=/var/lib/turbalance /var/spool/turbalance"));
+
+const benchmarkTimer = read("deploy/systemd/turbalance-machine-benchmark.timer");
+assert.ok(benchmarkTimer.includes("OnUnitActiveSec=15min"));
+assert.ok(benchmarkTimer.includes("RandomizedDelaySec=90s"));
+
+const bareMetalOtel = read("ops/otel/bare-metal-agent.yaml");
+assert.ok(bareMetalOtel.includes("hostmetrics"));
+assert.ok(bareMetalOtel.includes("docker_stats"));
+assert.ok(bareMetalOtel.includes("file_storage/fleet"));
+assert.ok(bareMetalOtel.includes("sending_queue"));
 
 const lakehouseKubernetes = read("ops/kubernetes/lakehouse-platform.yaml");
 assert.ok(lakehouseKubernetes.includes("kind: NetworkPolicy"));
@@ -658,7 +713,13 @@ assert.ok(lakehouseOtelCollector.includes("kind: Deployment"));
 assert.ok(lakehouseOtelCollector.includes("otel/opentelemetry-collector-contrib"));
 assert.ok(lakehouseOtelCollector.includes("endpoint: 0.0.0.0:4318"));
 assert.ok(lakehouseOtelCollector.includes("turbalance-api-server"));
+assert.ok(lakehouseOtelCollector.includes("health_check"));
+assert.ok(lakehouseOtelCollector.includes("containerPort: 13133"));
 assert.ok(lakehouseOtelCollector.includes("exporters: [prometheus, debug]"));
+
+const lakehouseOtelBackendPatch = read("ops/kubernetes/lakehouse/otel-backend/otel-backend-config-patch.yaml");
+assert.ok(lakehouseOtelBackendPatch.includes("file_storage/production"));
+assert.ok(lakehouseOtelBackendPatch.includes("sending_queue"));
 
 const lakehouseMtls = read("ops/kubernetes/lakehouse-mtls.yaml");
 assert.ok(lakehouseMtls.includes("collector-mtls-gateway"));
@@ -990,7 +1051,7 @@ assert.ok(demoLogistics.includes("DGX-pat"));
 assert.ok(demoLogistics.includes("1 second"));
 assert.ok(demoLogistics.includes("tokens-per-second"));
 assert.ok(demoLogistics.includes("time-to-first-token"));
-assert.ok(demoLogistics.includes("GB10 NVML/nvidia-smi"));
+assert.ok(demoLogistics.includes("GB10 NVML/gpustat/nvidia-smi"));
 assert.ok(demoLogistics.includes("Linux UMA memory"));
 assert.ok(demoLogistics.includes("App metrics"));
 assert.ok(demoLogistics.includes("Nsight/CUPTI optional profiling exporter"));
@@ -1004,7 +1065,7 @@ assert.ok(demoLogistics.includes("SPARK1 Kafka smoke test passed"));
 
 const metricCapabilityMatrix = read("docs/metric-capability-matrix.md");
 assert.ok(metricCapabilityMatrix.includes("native_os"));
-assert.ok(metricCapabilityMatrix.includes("GB10 NVML/nvidia-smi"));
+assert.ok(metricCapabilityMatrix.includes("GB10 NVML/gpustat/nvidia-smi"));
 assert.ok(metricCapabilityMatrix.includes("Linux UMA memory"));
 assert.ok(metricCapabilityMatrix.includes("App metrics"));
 assert.ok(metricCapabilityMatrix.includes("Nsight/CUPTI optional profiling exporter"));

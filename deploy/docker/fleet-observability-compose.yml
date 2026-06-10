@@ -1,0 +1,67 @@
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: turbalance-node-exporter
+    restart: unless-stopped
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
+    volumes:
+      - /:/host:ro,rslave
+      - /var/lib/node_exporter/textfile_collector:/var/lib/node_exporter/textfile_collector:ro
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.2
+    container_name: turbalance-cadvisor
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "127.0.0.1:8088:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+
+  dcgm-exporter:
+    image: nvcr.io/nvidia/k8s/dcgm-exporter:4.5.3-4.8.2-ubuntu22.04
+    container_name: turbalance-dcgm-exporter
+    restart: unless-stopped
+    profiles: ["gpu"]
+    privileged: true
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    ports:
+      - "127.0.0.1:9400:9400"
+    volumes:
+      - ../../metrics/gb100-dcgm-fields.csv:/etc/dcgm-exporter/gb100-dcgm-fields.csv:ro
+    command: ["-f", "/etc/dcgm-exporter/gb100-dcgm-fields.csv", "-c", "${DCGM_EXPORTER_INTERVAL:-1000}"]
+
+  otel-agent:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: turbalance-otel-agent
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TURBALANCE_HOST_ID: "${TURBALANCE_HOST_ID:-}"
+      TURBALANCE_DEPLOYMENT_ENVIRONMENT: "${TURBALANCE_DEPLOYMENT_ENVIRONMENT:-lab}"
+      TURBALANCE_OTEL_HOST_ROOT: /host
+      TURBALANCE_OTEL_HOST_INTERVAL: "${TURBALANCE_OTEL_HOST_INTERVAL:-10s}"
+      TURBALANCE_OTEL_DOCKER_INTERVAL: "${TURBALANCE_OTEL_DOCKER_INTERVAL:-15s}"
+      TURBALANCE_OTEL_FILE_STORAGE_DIR: /var/lib/otelcol/file_storage
+      TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT: "${TURBALANCE_OTEL_BACKEND_OTLP_ENDPOINT:-}"
+      TURBALANCE_OTEL_BACKEND_AUTHORIZATION: "${TURBALANCE_OTEL_BACKEND_AUTHORIZATION:-}"
+    command: ["--config=/etc/otelcol-contrib/bare-metal-agent-local.yaml"]
+    volumes:
+      - ../../ops/otel/bare-metal-agent-local.yaml:/etc/otelcol-contrib/bare-metal-agent-local.yaml:ro
+      - ../../ops/otel/bare-metal-agent.yaml:/etc/otelcol-contrib/bare-metal-agent.yaml:ro
+      - /:/host:ro,rslave
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/turbalance/otelcol:/var/lib/otelcol
+    depends_on:
+      - node-exporter
+      - cadvisor

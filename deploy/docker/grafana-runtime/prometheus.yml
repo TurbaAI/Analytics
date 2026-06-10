@@ -1,0 +1,45 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+  external_labels:
+    cluster: turbalance-lab
+    node: NUC14E
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9091"]
+        labels:
+          host: NUC14E
+
+  - job_name: turbalance-collector
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:8801"]
+        labels:
+          host: NUC14E
+          service: collector-gateway
+
+  - job_name: turbalance-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:8080"]
+        labels:
+          host: NUC14E
+          service: api-server
+
+  - job_name: node-exporter
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+        labels:
+          host: NUC14E
+          service: node-exporter
+
+  - job_name: blackbox-exporter
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["127.0.0.1:9115"]
+        labels:
+          host: NUC14E
+          service: blackbox-exporter

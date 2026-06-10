@@ -1,0 +1,72 @@
+{
+  "minFaultScore": 18,
+  "allowedApplyModes": ["safe"],
+  "remotes": {
+    "SPARK1": "user@192.168.10.20",
+    "SPARK2": "user@192.168.10.21",
+    "pi1": "pi@pi1",
+    "pi2": "pi@pi2",
+    "pi3": "pi@pi3",
+    "pi4": "pi@pi4",
+    "pi5": "pi@pi5",
+    "pi6": "pi@pi6",
+    "pi7": "pi@pi7",
+    "pi8": "pi@pi8",
+    "pi9": "pi@pi9",
+    "pi10": "pi@pi10",
+    "pi11": "pi@pi11",
+    "pi12": "pi@pi12"
+  },
+  "actions": {
+    "restart-failed-services": {
+      "mode": "safe",
+      "requiresApproval": false,
+      "command": "systemctl --failed --no-legend --plain"
+    },
+    "restart-gpu-telemetry": {
+      "mode": "safe",
+      "requiresApproval": false,
+      "command": "systemctl --user restart turbalance-live-machine-agent.service || true"
+    },
+    "restart-clock-sync": {
+      "mode": "safe",
+      "requiresApproval": false,
+      "command": "sudo -n systemctl restart chrony || sudo -n systemctl restart systemd-timesyncd || true"
+    },
+    "reduce-memory-pressure": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "inspect-network-link": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "inspect-pcie-link": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "inspect-cooling-power": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "restart-gpu-workload-or-open-ticket": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "open-repair-ticket": {
+      "mode": "ticket",
+      "requiresApproval": true,
+      "command": ""
+    },
+    "inspect-host": {
+      "mode": "manual",
+      "requiresApproval": true,
+      "command": ""
+    }
+  }
+}

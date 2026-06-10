@@ -6,6 +6,10 @@ metadata:
   labels: { app: otel-collector, app.kubernetes.io/part-of: turbalance-lakehouse }
 data:
   config.yaml: |-
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
     receivers:
       otlp:
         protocols:
@@ -56,6 +60,7 @@ data:
         endpoint: 0.0.0.0:9464
 
     service:
+      extensions: [health_check]
       telemetry:
         metrics:
           address: 0.0.0.0:8888
@@ -96,13 +101,15 @@ spec:
             - { name: otlp-http, containerPort: 4318 }
             - { name: metrics, containerPort: 9464 }
             - { name: internal, containerPort: 8888 }
+            - { name: health, containerPort: 13133 }
           volumeMounts:
             - { name: config, mountPath: /etc/otelcol-contrib/config.yaml, subPath: config.yaml, readOnly: true }
+            - { name: otel-storage, mountPath: /var/lib/otelcol }
           readinessProbe:
-            tcpSocket: { port: otlp-http }
+            httpGet: { path: /, port: health }
             periodSeconds: 10
           livenessProbe:
-            tcpSocket: { port: otlp-http }
+            httpGet: { path: /, port: health }
             periodSeconds: 30
           resources:
             requests: { cpu: 100m, memory: 256Mi }
@@ -114,6 +121,8 @@ spec:
       volumes:
         - name: config
           configMap: { name: otel-collector-config }
+        - name: otel-storage
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
@@ -128,6 +137,7 @@ spec:
     - { name: otlp-http, port: 4318, targetPort: otlp-http }
     - { name: metrics, port: 9464, targetPort: metrics }
     - { name: internal, port: 8888, targetPort: internal }
+    - { name: health, port: 13133, targetPort: health }
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
