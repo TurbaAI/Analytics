@@ -116,6 +116,7 @@ const sources = compactObject({
   scheduler: readJsonArray("scheduler.json"),
   grafana: readJsonArray("grafana.json"),
   ebpf: readJsonArray("ebpf.json"),
+  redfish: readJsonArray("redfish.json"),
   provider,
   opportunities: readJsonArray("opportunities.json")
 });

@@ -21,8 +21,9 @@ const validResult = spawnSync(process.execPath, [
 assert.equal(validResult.status, 0, validResult.stderr);
 const validReport = JSON.parse(validResult.stdout);
 assert.equal(validReport.ok, true);
-assert.equal(validReport.approved.length, 8);
+assert.equal(validReport.approved.length, 9);
 assert.ok(validReport.requiredSystems.includes("grafana"));
+assert.ok(validReport.requiredSystems.includes("redfish"));
 
 const approvals = JSON.parse(fs.readFileSync(path.join(root, "ops", "source-approvals.sandbox.json"), "utf8"));
 approvals.approvals = approvals.approvals.filter((approval) => approval.system !== "grafana");

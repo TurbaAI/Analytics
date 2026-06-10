@@ -49,6 +49,11 @@ assert.throws(
 );
 
 assert.throws(
+  () => context.buildIngestionFromExternalPayload({ sources: { redfish: [{}] } }),
+  /sources\.redfish\[1\] is missing runId\./
+);
+
+assert.throws(
   () => context.buildIngestionFromExternalPayload({ sources: { scheduler: [{}] } }),
   /sources\.scheduler\[1\] is missing runId\./
 );
@@ -143,6 +148,67 @@ assert.ok(ebpfRun.inputPipeline.cpuPrep > 0);
 assert.equal(ebpfRun.reliability.noiseEvents, 2);
 assert.equal(ebpfRun.sourceContext.ebpfExportId, "ebpf-test");
 assert.equal(ebpfRun.sourceContext.cgroupPath, "/kubepods.slice/training/trainer-0");
+
+const redfishBundle = context.buildIngestionFromExternalPayload({
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    runs: [
+      {
+        id: "run-redfish",
+        name: "redfish import",
+        allocation: { allocatedGpuHours: 10 }
+      }
+    ]
+  },
+  sources: {
+    redfish: [
+      {
+        runId: "run-redfish",
+        hostId: "node-a-bmc",
+        redfishBaseUrl: "https://bmc-node-a.example/redfish/v1",
+        serviceRoot: { redfishVersion: "1.20.0", uuid: "node-a-bmc" },
+        systems: [
+          { id: "System.Embedded.1", name: "node-a", biosVersion: "2.7.4", powerState: "On", health: "Warning", state: "Enabled", criticalLogEntries: 1 }
+        ],
+        chassis: [
+          { id: "Chassis.1", name: "node-a chassis", powerWatts: 4850, powerLimitWatts: 5200, inletTempCelsius: 31, exhaustTempCelsius: 58, maxTempCelsius: 58, health: "Warning", state: "Enabled" }
+        ],
+        managers: [
+          { id: "BMC", name: "Node BMC", firmwareVersion: "6.11.2", health: "OK", state: "Enabled" }
+        ],
+        firmwareInventory: [
+          { id: "BIOS", name: "System BIOS", version: "2.7.4", health: "OK", state: "Enabled" }
+        ],
+        metrics: {
+          redfish_systems_total: 1,
+          redfish_chassis_total: 1,
+          redfish_managers_total: 1,
+          redfish_unhealthy_resources_total: 2,
+          redfish_power_watts: 4850,
+          redfish_power_limit_watts: 5200,
+          redfish_inlet_temp_celsius: 31,
+          redfish_exhaust_temp_celsius: 58,
+          redfish_max_temp_celsius: 58,
+          redfish_critical_log_entries_total: 1
+        },
+        health: {
+          rollup: "Warning",
+          unhealthyResources: [
+            { type: "system", id: "System.Embedded.1", health: "Warning", state: "Enabled" },
+            { type: "chassis", id: "Chassis.1", health: "Warning", state: "Enabled" }
+          ]
+        }
+      }
+    ]
+  }
+});
+const redfishRun = redfishBundle.runs[0];
+assert.ok(redfishBundle.sourceAdapters.includes("redfish"));
+assert.equal(redfishRun.reliability.noiseEvents, 2);
+assert.ok(redfishRun.reliability.contentionPct > 0);
+assert.equal(redfishRun.sourceContext.redfishPowerWatts, 4850);
+assert.equal(redfishRun.sourceContext.redfishBiosVersion, "2.7.4");
+assert.deepEqual(redfishRun.sourceContext.redfishSystems, ["node-a"]);
 
 const schedulerBundle = context.buildIngestionFromExternalPayload({
   ingestion: {

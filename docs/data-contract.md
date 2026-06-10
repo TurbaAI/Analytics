@@ -54,6 +54,7 @@ Use this shape when the upstream system exports source-shaped metrics and the da
     "scheduler": [],
     "grafana": [],
     "ebpf": [],
+    "redfish": [],
     "provider": [],
     "opportunities": []
   },
@@ -61,9 +62,9 @@ Use this shape when the upstream system exports source-shaped metrics and the da
 }
 ```
 
-`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `grafana/turbalance-provider-overview.json` is a ready-to-import Grafana dashboard template for provider pilots. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
+`fixtures/external-source-bundle.json` is the canonical source-bundle fixture. `fixtures/provider-overlay-template.json` is the minimal provider overlay template. `grafana/turbalance-provider-overview.json` is a ready-to-import Grafana dashboard template for provider pilots. `scripts/build-scheduler-overlay.js` is a dependency-free scheduler event exporter example. `scripts/build-ebpf-overlay.js` is a dependency-free eBPF summary exporter example. `scripts/fetch-redfish-source-export.js` is a Redfish/BMC source exporter. `schemas/turba-source-bundle.v1.schema.json` is the machine-readable schema for preflight validation of source-shaped imports.
 
-For all-lanes provider pilots, `scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` emits one bundle that includes Prometheus, DCGM, Kubernetes, scheduler, Grafana, eBPF, provider billing/SLO, opportunity, and NCCL trace exports.
+For all-lanes provider pilots, `scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs` emits one bundle that includes Prometheus, DCGM, Kubernetes, scheduler, Grafana, eBPF, Redfish, provider billing/SLO, opportunity, and NCCL trace exports.
 
 ### Workspace Export
 
@@ -111,6 +112,7 @@ Each run should include:
 - `commercial`: provider-side billing and commitment context
 - `slo`: queue, efficiency, priority, and support-ticket targets
 - `opportunities`: optional upstream ranked actions, if a source system already emits recommendations
+- `sourceContext`: optional source provenance, including scheduler, Grafana, eBPF, Redfish, Kubernetes, or provider fields
 
 Percent-like values are expressed as `0` to `100` in normalized ingestion feeds. Source adapters accept source-native ratios where documented, such as Prometheus `0.52` for `52%`.
 
@@ -277,6 +279,56 @@ Prefer summary values by `runId`, pod, container, or cgroup. Do not import raw e
 
 Live machine bundles may also include `sourceContext.networkInterface`, `networkLinkSpeedMbps`, `networkRxBytes`, `networkTxBytes`, `networkRxBytesPerSecond`, `networkTxBytesPerSecond`, `networkUtilizationPct`, `networkRxDrops`, `networkTxDrops`, `networkRxErrors`, and `networkTxErrors`. Byte counters are cumulative; bytes-per-second and utilization are only present after the collector has two samples for the same interface.
 
+## Redfish Hardware Overlay
+
+Redfish/BMC summaries should use `sources.redfish`. This source is optional and should be treated as management-plane evidence, not as a replacement for DCGM/NVML GPU counters, eBPF host telemetry, scheduler events, or workload traces. It is useful for explaining hardware health, power, thermal, firmware, and BMC event-service context.
+
+```json
+{
+  "sources": {
+    "redfish": [
+      {
+        "runId": "run-7421",
+        "hostId": "h100-a1-01",
+        "sourceSystem": "redfish",
+        "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+        "systems": [
+          {
+            "id": "System.Embedded.1",
+            "name": "h100-a1-01",
+            "biosVersion": "2.7.4",
+            "powerState": "On",
+            "health": "Warning"
+          }
+        ],
+        "chassis": [
+          {
+            "id": "Chassis.1",
+            "powerWatts": 4850,
+            "powerLimitWatts": 5200,
+            "inletTempCelsius": 31,
+            "exhaustTempCelsius": 58,
+            "health": "Warning"
+          }
+        ],
+        "metrics": {
+          "redfish_unhealthy_resources_total": 2,
+          "redfish_power_watts": 4850,
+          "redfish_inlet_temp_celsius": 31
+        },
+        "health": {
+          "rollup": "Warning"
+        }
+      }
+    ]
+  }
+}
+```
+
+The importer preserves Redfish inventory and BMC context in `sourceContext`. It maps Redfish into normalized reliability pressure only when warning/critical health, unhealthy resources, concerning thermal/power readings, or critical/warning logs are present.
+
+Use `scripts/fetch-redfish-source-export.js` for direct BMC collection or `scripts/fetch-source-system-export.js --system redfish` when a source gateway already exposes approved Redfish snapshots. See `docs/redfish-integration.md`.
+
 ## Neo-Cloud Provider Overlay
 
 Neo-cloud operators can import tenant and commercial metadata directly on each run or through `sources.provider`.
@@ -330,6 +382,6 @@ Imports are rejected when:
 - `runs` exists but is not an array
 - a feed has no runs
 - a run is missing a stable `id`
-- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.ebpf`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
+- `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.ebpf`, `sources.redfish`, `sources.provider`, `sources.opportunities`, or `ncclTraces` exists but is not an array
 
 Rejected imports leave the current workspace unchanged and show the reason in the ingestion status chip.

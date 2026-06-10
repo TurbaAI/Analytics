@@ -1,0 +1,139 @@
+{
+  "runId": "run-7421",
+  "hostId": "h100-a1-01",
+  "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+  "serviceRoot": {
+    "RedfishVersion": "1.20.0",
+    "UUID": "bmc-h100-a1-01",
+    "Name": "Redfish Service",
+    "Vendor": "Example Systems",
+    "Product": "AI Node BMC"
+  },
+  "systems": [
+    {
+      "Id": "System.Embedded.1",
+      "Name": "h100-a1-01",
+      "Manufacturer": "Example Systems",
+      "Model": "HGX H100 Node",
+      "SerialNumber": "EXAMPLE-SERIAL-0001",
+      "BiosVersion": "2.7.4",
+      "PowerState": "On",
+      "Status": {
+        "Health": "Warning",
+        "State": "Enabled"
+      },
+      "ProcessorSummary": {
+        "Count": 2,
+        "Model": "Example CPU"
+      },
+      "MemorySummary": {
+        "TotalSystemMemoryGiB": 2048,
+        "Status": {
+          "Health": "OK"
+        }
+      },
+      "LogEntries": [
+        {
+          "Id": "SEL-1",
+          "Severity": "Warning",
+          "Message": "Power supply redundancy degraded"
+        }
+      ]
+    }
+  ],
+  "chassis": [
+    {
+      "Id": "Chassis.1",
+      "Name": "h100-a1-01 chassis",
+      "ChassisType": "RackMount",
+      "Manufacturer": "Example Systems",
+      "Model": "HGX Carrier",
+      "SerialNumber": "EXAMPLE-CHASSIS-0001",
+      "PowerState": "On",
+      "Status": {
+        "Health": "Warning",
+        "State": "Enabled"
+      },
+      "Power": {
+        "PowerControl": [
+          {
+            "PowerConsumedWatts": 4850,
+            "PowerLimit": {
+              "LimitInWatts": 5200
+            }
+          }
+        ]
+      },
+      "Thermal": {
+        "Temperatures": [
+          {
+            "Name": "Inlet Temp",
+            "PhysicalContext": "Intake",
+            "ReadingCelsius": 31
+          },
+          {
+            "Name": "GPU Exhaust Temp",
+            "PhysicalContext": "Exhaust",
+            "ReadingCelsius": 58
+          }
+        ],
+        "Fans": [
+          { "Name": "Fan 1", "Reading": 72, "ReadingUnits": "Percent" },
+          { "Name": "Fan 2", "Reading": 74, "ReadingUnits": "Percent" }
+        ]
+      }
+    }
+  ],
+  "managers": [
+    {
+      "Id": "BMC",
+      "Name": "Node BMC",
+      "ManagerType": "BMC",
+      "FirmwareVersion": "6.11.2",
+      "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+      }
+    }
+  ],
+  "firmwareInventory": [
+    {
+      "Id": "BMC",
+      "Name": "BMC Firmware",
+      "Version": "6.11.2",
+      "Updateable": true,
+      "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+      }
+    },
+    {
+      "Id": "BIOS",
+      "Name": "System BIOS",
+      "Version": "2.7.4",
+      "Updateable": true,
+      "Status": {
+        "Health": "OK",
+        "State": "Enabled"
+      }
+    }
+  ],
+  "eventService": {
+    "Id": "EventService",
+    "Name": "Event Service",
+    "ServiceEnabled": true,
+    "Status": {
+      "Health": "OK",
+      "State": "Enabled"
+    }
+  },
+  "telemetryService": {
+    "Id": "TelemetryService",
+    "Name": "Telemetry Service",
+    "ServiceEnabled": true,
+    "Status": {
+      "Health": "OK",
+      "State": "Enabled"
+    }
+  }
+}

@@ -62,6 +62,16 @@
       "url": "https://source-gateway.provider.example/ebpf/summary"
     },
     {
+      "system": "redfish",
+      "owner": "hardware-ops@example.com",
+      "approvedBy": "source-owner@example.com",
+      "approvedAt": "2026-06-01",
+      "expiresAt": "2099-12-31",
+      "ticket": "CHANGE-12353",
+      "scope": "Read-only Redfish/BMC snapshots approved for the provider pilot.",
+      "url": "https://source-gateway.provider.example/redfish/snapshots"
+    },
+    {
       "system": "nccl",
       "owner": "fabric-team@example.com",
       "approvedBy": "source-owner@example.com",

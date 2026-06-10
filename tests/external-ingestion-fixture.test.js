@@ -23,6 +23,9 @@ assert.equal(fixture.sources.opportunities[0].category, "Scheduler + Capacity");
 assert.equal(fixture.sources.ebpf.length, 1);
 assert.equal(fixture.sources.ebpf[0].ebpfExportId, "ebpf-2026-05-week-4");
 assert.equal(fixture.sources.ebpf[0].network.tcpRetransmitPct, 2.4);
+assert.equal(fixture.sources.redfish.length, 1);
+assert.equal(fixture.sources.redfish[0].health.rollup, "Warning");
+assert.equal(fixture.sources.redfish[0].metrics.redfish_power_watts, 4850);
 assert.equal(fixture.ncclTraces.length, 1);
 
 const topologyIndex = {

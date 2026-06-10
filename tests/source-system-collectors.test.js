@@ -75,6 +75,41 @@ const responses = {
     cpu: { offCpuTimePct: 6 },
     network: { tcpRetransmitPct: 1.8 }
   }],
+  "/redfish": [{
+    runId,
+    hostId: "node-1-bmc",
+    sourceSystem: "redfish",
+    redfishBaseUrl: "https://bmc-node-1.example/redfish/v1",
+    serviceRoot: {
+      redfishVersion: "1.20.0",
+      uuid: "node-1-bmc"
+    },
+    systems: [{
+      id: "System.Embedded.1",
+      name: "node-1",
+      biosVersion: "2.7.4",
+      powerState: "On",
+      health: "OK",
+      state: "Enabled"
+    }],
+    chassis: [{
+      id: "Chassis.1",
+      name: "node-1 chassis",
+      powerWatts: 280,
+      powerLimitWatts: 500,
+      inletTempCelsius: 24,
+      health: "OK",
+      state: "Enabled"
+    }],
+    metrics: {
+      redfish_systems_total: 1,
+      redfish_chassis_total: 1,
+      redfish_power_watts: 280
+    },
+    health: {
+      rollup: "OK"
+    }
+  }],
   "/nccl": [{
     runId,
     rankCount: 128,
@@ -110,6 +145,7 @@ const responses = {
     ["grafana", "/grafana"],
     ["billing-slo", "/billing-slo"],
     ["ebpf", "/ebpf"],
+    ["redfish", "/redfish"],
     ["nccl", "/nccl"],
     ["opportunities", "/opportunities"]
   ];
@@ -143,6 +179,7 @@ const responses = {
     "billing-records.json",
     "support-tickets.json",
     "ebpf.json",
+    "redfish.json",
     "nccl-traces.json",
     "opportunities.json"
   ].forEach((fileName) => {
@@ -157,6 +194,7 @@ const responses = {
   assert.equal(bundle.sources.kubernetes[0].runId, runId);
   assert.equal(bundle.sources.provider[0].commercial.billableGpuHours, 422);
   assert.equal(bundle.sources.grafana[0].dashboardUid, "turbalance-provider-overview");
+  assert.equal(bundle.sources.redfish[0].metrics.redfish_power_watts, 280);
   assert.equal(bundle.ncclTraces[0].rankCount, 128);
 
   console.log("source system collector tests passed");

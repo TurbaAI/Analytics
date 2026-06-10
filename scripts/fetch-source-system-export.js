@@ -12,7 +12,7 @@ const outDir = args["out-dir"] || process.env.TURBALANCE_SOURCE_EXPORT_OUT_DIR |
 const outPath = args.out || process.env.TURBALANCE_SOURCE_EXPORT_OUTPUT || "";
 
 if (!system || !url) {
-  process.stderr.write("usage: fetch-source-system-export.js --system kubernetes|scheduler-admission|grafana|billing-slo|ebpf|nccl|opportunities --url https://source.example/export [--out-dir provider-inputs]\n");
+  process.stderr.write("usage: fetch-source-system-export.js --system kubernetes|scheduler-admission|grafana|billing-slo|ebpf|redfish|nccl|opportunities --url https://source.example/export [--out-dir provider-inputs]\n");
   process.exit(1);
 }
 
@@ -108,6 +108,12 @@ function normalize(system, payload) {
   if (system === "ebpf") {
     return {
       "ebpf.json": arrayPayload(payload).map(compactObject).filter((row) => row.runId)
+    };
+  }
+
+  if (system === "redfish") {
+    return {
+      "redfish.json": redfishPayloadSamples(payload).map(toRedfishSample).filter((row) => row.runId)
     };
   }
 
@@ -214,13 +220,73 @@ function toGrafanaSample(row) {
   });
 }
 
+function toRedfishSample(row) {
+  const serviceRoot = row.serviceRoot || {};
+  const metrics = row.metrics || {};
+  const health = row.health || {};
+  const sourceContext = row.sourceContext || {};
+
+  return compactObject({
+    runId: row.runId || row.hostId || sourceContext.hostId,
+    hostId: row.hostId || sourceContext.hostId,
+    sourceSystem: row.sourceSystem || "redfish",
+    collectedAt: row.collectedAt,
+    redfishBaseUrl: row.redfishBaseUrl || sourceContext.redfishBaseUrl,
+    serviceRoot: compactObject({
+      redfishVersion: serviceRoot.redfishVersion || serviceRoot.RedfishVersion,
+      uuid: serviceRoot.uuid || serviceRoot.UUID,
+      name: serviceRoot.name || serviceRoot.Name,
+      vendor: serviceRoot.vendor || serviceRoot.Vendor,
+      product: serviceRoot.product || serviceRoot.Product
+    }),
+    systems: arrayPayload(row.systems).map(compactObject),
+    chassis: arrayPayload(row.chassis).map(compactObject),
+    managers: arrayPayload(row.managers).map(compactObject),
+    firmwareInventory: arrayPayload(row.firmwareInventory).map(compactObject),
+    eventService: row.eventService,
+    telemetryService: row.telemetryService,
+    metrics: compactMetrics(metrics),
+    health: compactObject({
+      rollup: health.rollup,
+      unhealthyResources: arrayPayload(health.unhealthyResources).map(compactObject),
+      warnings: arrayPayload(health.warnings)
+    }),
+    sourceContext: compactObject({
+      ...sourceContext,
+      redfishBaseUrl: row.redfishBaseUrl || sourceContext.redfishBaseUrl,
+      redfishServiceUuid: sourceContext.redfishServiceUuid || serviceRoot.uuid || serviceRoot.UUID,
+      redfishVersion: sourceContext.redfishVersion || serviceRoot.redfishVersion || serviceRoot.RedfishVersion,
+      redfishHealthRollup: sourceContext.redfishHealthRollup || health.rollup,
+      redfishSystemCount: numeric(sourceContext.redfishSystemCount ?? arrayPayload(row.systems).length),
+      redfishChassisCount: numeric(sourceContext.redfishChassisCount ?? arrayPayload(row.chassis).length),
+      redfishManagerCount: numeric(sourceContext.redfishManagerCount ?? arrayPayload(row.managers).length),
+      redfishUnhealthyResources: numeric(sourceContext.redfishUnhealthyResources ?? arrayPayload(health.unhealthyResources).length)
+    })
+  });
+}
+
+function redfishPayloadSamples(payload) {
+  if (Array.isArray(payload.sources?.redfish)) return payload.sources.redfish;
+  if (Array.isArray(payload.sourceExports?.redfish)) return payload.sourceExports.redfish;
+  if (payload && typeof payload === "object" && !Array.isArray(payload) && (payload.runId || payload.systems || payload.chassis || payload.serviceRoot)) return [payload];
+  return arrayPayload(payload);
+}
+
 function arrayPayload(payload) {
+  if (!payload) return [];
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload.items)) return payload.items;
   if (Array.isArray(payload.results)) return payload.results;
   if (Array.isArray(payload.data)) return payload.data;
   if (Array.isArray(payload.dashboards)) return payload.dashboards;
   return [];
+}
+
+function compactMetrics(value) {
+  return Object.fromEntries(
+    Object.entries(value || {}).filter(([, entry]) => Number.isFinite(Number(entry)))
+      .map(([key, entry]) => [key, Number(entry)])
+  );
 }
 
 function label(labels, key) {

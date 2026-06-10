@@ -1039,7 +1039,7 @@ const FLEET_COMPARISON_HOST_LIMIT = 16;
 const SYSTEM_CHARACTERIZATION_HOST_LIMIT = 16;
 const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
-const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
+const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "redfish", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
 const DASHBOARD_BLOCK_STORAGE_KEY = "turba.dashboard.blocks.v1";
 const DASHBOARD_BLOCKS = [
@@ -1666,6 +1666,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
     mergeImportedSections(importedByRun, importEbpfSamples(sources.ebpf), "ebpf");
     adapters.push("ebpf");
   }
+  if (sources.redfish?.length) {
+    mergeImportedSections(importedByRun, importRedfishSamples(sources.redfish), "redfish");
+    adapters.push("redfish");
+  }
   if (sources.provider?.length) {
     mergeImportedSections(importedByRun, importProviderSamples(sources.provider), "provider");
     adapters.push("provider");
@@ -2147,6 +2151,127 @@ function importEbpfSamples(samples = []) {
       })
     };
   });
+}
+
+function importRedfishSamples(samples = []) {
+  return samples.map((sample) => {
+    const metrics = sample.metrics || {};
+    const health = sample.health || {};
+    const systems = Array.isArray(sample.systems) ? sample.systems : [];
+    const chassis = Array.isArray(sample.chassis) ? sample.chassis : [];
+    const managers = Array.isArray(sample.managers) ? sample.managers : [];
+    const firmwareInventory = Array.isArray(sample.firmwareInventory) ? sample.firmwareInventory : [];
+    const unhealthyResources = Array.isArray(health.unhealthyResources) ? health.unhealthyResources : [];
+    const warnings = Array.isArray(health.warnings) ? health.warnings : [];
+    const powerWatts = firstFinite(
+      metrics.redfish_power_watts,
+      maxFinite(...chassis.map((item) => item.powerWatts))
+    );
+    const powerLimitWatts = firstFinite(
+      metrics.redfish_power_limit_watts,
+      maxFinite(...chassis.map((item) => item.powerLimitWatts))
+    );
+    const inletTempCelsius = firstFinite(
+      metrics.redfish_inlet_temp_celsius,
+      maxFinite(...chassis.map((item) => item.inletTempCelsius))
+    );
+    const exhaustTempCelsius = firstFinite(
+      metrics.redfish_exhaust_temp_celsius,
+      maxFinite(...chassis.map((item) => item.exhaustTempCelsius))
+    );
+    const maxTempCelsius = firstFinite(
+      metrics.redfish_max_temp_celsius,
+      maxFinite(...chassis.map((item) => item.maxTempCelsius))
+    );
+    const criticalLogEntries = firstFinite(
+      metrics.redfish_critical_log_entries_total,
+      systems.reduce((total, system) => total + numeric(system.criticalLogEntries), 0)
+    );
+    const unhealthyCount = firstFinite(
+      metrics.redfish_unhealthy_resources_total,
+      unhealthyResources.length
+    );
+    const healthPressure = redfishHealthPressure([
+      health.rollup,
+      sample.sourceContext?.redfishHealthRollup,
+      ...systems.map((item) => item.health),
+      ...chassis.map((item) => item.health),
+      ...managers.map((item) => item.health),
+      ...firmwareInventory.map((item) => item.health)
+    ]);
+    const thermalPressure = maxFinite(
+      pressure(maxTempCelsius, 75, 95),
+      pressure(inletTempCelsius, 28, 40),
+      pressure(exhaustTempCelsius, 45, 70)
+    );
+    const powerPressure = powerWatts && powerLimitWatts
+      ? pressure((powerWatts / powerLimitWatts) * 100, 70, 95)
+      : undefined;
+    const redfishPressure = maxFinite(
+      healthPressure,
+      pressure(unhealthyCount, 0, 4),
+      pressure(criticalLogEntries, 0, 5),
+      thermalPressure,
+      powerPressure
+    );
+    const sourceContext = compactObject({
+      ...(sample.sourceContext || {}),
+      redfishBaseUrl: sample.redfishBaseUrl || sample.sourceContext?.redfishBaseUrl,
+      redfishServiceUuid: sample.serviceRoot?.uuid || sample.serviceRoot?.UUID || sample.sourceContext?.redfishServiceUuid,
+      redfishVersion: sample.serviceRoot?.redfishVersion || sample.serviceRoot?.RedfishVersion || sample.sourceContext?.redfishVersion,
+      redfishHealthRollup: health.rollup || sample.sourceContext?.redfishHealthRollup,
+      redfishSystemCount: firstFinite(metrics.redfish_systems_total, systems.length),
+      redfishChassisCount: firstFinite(metrics.redfish_chassis_total, chassis.length),
+      redfishManagerCount: firstFinite(metrics.redfish_managers_total, managers.length),
+      redfishUnhealthyResources: unhealthyCount,
+      redfishCriticalLogEntries: criticalLogEntries,
+      redfishPowerWatts: powerWatts,
+      redfishPowerLimitWatts: powerLimitWatts,
+      redfishInletTempCelsius: inletTempCelsius,
+      redfishExhaustTempCelsius: exhaustTempCelsius,
+      redfishMaxTempCelsius: maxTempCelsius,
+      redfishPowerState: sample.sourceContext?.redfishPowerState || firstString(systems.map((system) => system.powerState)),
+      redfishBiosVersion: sample.sourceContext?.redfishBiosVersion || firstString(systems.map((system) => system.biosVersion)),
+      redfishManagerFirmwareVersion: sample.sourceContext?.redfishManagerFirmwareVersion || firstString(managers.map((manager) => manager.firmwareVersion)),
+      redfishSystems: redfishResourceLabels(systems),
+      redfishChassis: redfishResourceLabels(chassis),
+      redfishManagers: redfishResourceLabels(managers),
+      redfishFirmwareInventory: redfishResourceLabels(firmwareInventory),
+      redfishWarnings: warnings.length > 0 ? warnings.slice(0, 8) : undefined
+    });
+
+    return {
+      runId: sample.runId,
+      sections: compactSections({
+        reliability: redfishPressure > 0 ? compactMetrics({
+          noiseEvents: maxFinite(unhealthyCount, criticalLogEntries),
+          contentionPct: redfishPressure,
+          latencyTail: maxFinite(thermalPressure, powerPressure)
+        }) : {},
+        sourceContext
+      })
+    };
+  });
+}
+
+function redfishHealthPressure(values = []) {
+  const labels = values.map((value) => String(value || "").toLowerCase()).filter(Boolean);
+  if (labels.some((label) => label.includes("critical"))) return 100;
+  if (labels.some((label) => label.includes("warning"))) return 55;
+  return undefined;
+}
+
+function redfishResourceLabels(resources = []) {
+  const labels = resources
+    .map((resource) => resource.name || resource.id || resource.model || resource.version)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return labels.length > 0 ? labels.slice(0, 12) : undefined;
+}
+
+function firstString(values = []) {
+  return values.map((value) => String(value || "").trim()).find(Boolean) || undefined;
 }
 
 function importProviderSamples(samples = []) {
@@ -2691,7 +2816,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "redfish", "provider", "opportunities"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -2715,7 +2840,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "redfish", "provider", "opportunities"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -2750,6 +2875,7 @@ function extractSourceExports(payload) {
     scheduler: Array.isArray(sourceRoot.scheduler) ? sourceRoot.scheduler : [],
     grafana: Array.isArray(sourceRoot.grafana) ? sourceRoot.grafana : [],
     ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
+    redfish: Array.isArray(sourceRoot.redfish) ? sourceRoot.redfish : [],
     provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : [],
     opportunities: Array.isArray(sourceRoot.opportunities) ? sourceRoot.opportunities : []
   };
@@ -2779,6 +2905,7 @@ function hasSourceExports(sources) {
     || sources.scheduler.length > 0
     || sources.grafana.length > 0
     || sources.ebpf.length > 0
+    || sources.redfish.length > 0
     || sources.provider.length > 0
     || sources.opportunities.length > 0;
 }
@@ -3392,6 +3519,7 @@ function redactWorkspaceStore(store) {
     "provider and eBPF source context",
     "scheduler source context",
     "Grafana dashboard and Explore links",
+    "Redfish management-plane context",
     "imported opportunity free text"
     ]
   };
@@ -3440,6 +3568,14 @@ function buildRedactionPlan(store) {
       ...((run.grafanaContext?.links || []).map((link) => link?.url))
     ]), "grafana-url"),
     grafanaVariableValues: buildValueMap(flattenRunValues(runs, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
+    redfishBaseUrls: buildValueMap(runs.map((run) => run.sourceContext?.redfishBaseUrl), "redfish-base"),
+    redfishServiceUuids: buildValueMap(runs.map((run) => run.sourceContext?.redfishServiceUuid), "redfish-service"),
+    redfishBiosVersions: buildValueMap(runs.map((run) => run.sourceContext?.redfishBiosVersion), "redfish-bios"),
+    redfishManagerFirmwareVersions: buildValueMap(runs.map((run) => run.sourceContext?.redfishManagerFirmwareVersion), "redfish-manager-fw"),
+    redfishSystems: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishSystems || []), "redfish-system"),
+    redfishChassis: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishChassis || []), "redfish-chassis"),
+    redfishManagers: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishManagers || []), "redfish-manager"),
+    redfishFirmwareInventory: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishFirmwareInventory || []), "redfish-firmware"),
     schedulerNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
     schedulerQueues: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
     priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
@@ -3642,7 +3778,16 @@ function redactSourceContext(context, plan) {
     grafanaDatasourceUid: mappedValue(plan.grafanaDatasourceUids, context.grafanaDatasourceUid, "grafana-datasource"),
     grafanaDatasourceName: mappedValue(plan.grafanaDatasourceNames, context.grafanaDatasourceName, "grafana-datasource-name"),
     grafanaDashboardUrl: mappedValue(plan.grafanaUrls, context.grafanaDashboardUrl, "grafana-url"),
-    grafanaExploreUrl: mappedValue(plan.grafanaUrls, context.grafanaExploreUrl, "grafana-url")
+    grafanaExploreUrl: mappedValue(plan.grafanaUrls, context.grafanaExploreUrl, "grafana-url"),
+    redfishBaseUrl: mappedValue(plan.redfishBaseUrls, context.redfishBaseUrl, "redfish-base"),
+    redfishServiceUuid: mappedValue(plan.redfishServiceUuids, context.redfishServiceUuid, "redfish-service"),
+    redfishBiosVersion: mappedValue(plan.redfishBiosVersions, context.redfishBiosVersion, "redfish-bios"),
+    redfishManagerFirmwareVersion: mappedValue(plan.redfishManagerFirmwareVersions, context.redfishManagerFirmwareVersion, "redfish-manager-fw"),
+    redfishSystems: redactValueList(plan.redfishSystems, context.redfishSystems, "redfish-system"),
+    redfishChassis: redactValueList(plan.redfishChassis, context.redfishChassis, "redfish-chassis"),
+    redfishManagers: redactValueList(plan.redfishManagers, context.redfishManagers, "redfish-manager"),
+    redfishFirmwareInventory: redactValueList(plan.redfishFirmwareInventory, context.redfishFirmwareInventory, "redfish-firmware"),
+    redfishWarnings: Array.isArray(context.redfishWarnings) ? context.redfishWarnings.map((_warning, index) => `redfish-warning-${index + 1}`) : undefined
   });
 }
 

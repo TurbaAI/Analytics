@@ -33,6 +33,11 @@
       "bearerTokenEnv": "TURBALANCE_SOURCE_EXPORT_BEARER_TOKEN"
     },
     {
+      "system": "redfish",
+      "url": "https://source-gateway.provider.example/redfish/snapshots",
+      "bearerTokenEnv": "TURBALANCE_SOURCE_EXPORT_BEARER_TOKEN"
+    },
+    {
       "system": "nccl",
       "url": "https://source-gateway.provider.example/nccl/traces",
       "bearerTokenEnv": "TURBALANCE_SOURCE_EXPORT_BEARER_TOKEN"

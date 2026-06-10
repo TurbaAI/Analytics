@@ -35,7 +35,7 @@ checkNotExample(pilotConfig.objectBucket, "storage.object_bucket_real", "Object 
 check(Boolean(pilotConfig.objectPrefix), "storage.object_prefix", "Object prefix is configured");
 
 if (sourceContracts) {
-  const requiredSystems = ["prometheus", "kubernetes", "scheduler-admission", "grafana", "billing-slo", "ebpf", "nccl", "opportunities"];
+  const requiredSystems = ["prometheus", "kubernetes", "scheduler-admission", "grafana", "billing-slo", "ebpf", "redfish", "nccl", "opportunities"];
   const enabledContracts = Array.isArray(sourceContracts.contracts) ? sourceContracts.contracts.filter((contract) => contract.enabled !== false) : [];
   const systems = new Set(enabledContracts.map((contract) => String(contract.system || "").toLowerCase()));
   check(enabledContracts.length > 0, "contracts.enabled", "At least one source contract is enabled");

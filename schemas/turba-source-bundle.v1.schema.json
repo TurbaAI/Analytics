@@ -10,6 +10,7 @@
     { "required": ["runs"] },
     { "required": ["scheduler"] },
     { "required": ["grafana"] },
+    { "required": ["redfish"] },
     { "required": ["opportunities"] },
     { "required": ["ncclTraces"] },
     { "required": ["traces"] },
@@ -44,6 +45,10 @@
     "grafana": {
       "type": "array",
       "items": { "$ref": "#/$defs/grafanaSample" }
+    },
+    "redfish": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/redfishSample" }
     },
     "ncclTraces": {
       "type": "array",
@@ -86,6 +91,10 @@
         "ebpf": {
           "type": "array",
           "items": { "$ref": "#/$defs/ebpfSample" }
+        },
+        "redfish": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/redfishSample" }
         },
         "provider": {
           "type": "array",
@@ -335,6 +344,69 @@
         },
         "slo": {
           "$ref": "#/$defs/slo"
+        }
+      },
+      "additionalProperties": true
+    },
+    "redfishSample": {
+      "type": "object",
+      "required": ["runId"],
+      "properties": {
+        "runId": { "type": "string", "minLength": 1 },
+        "hostId": { "type": "string" },
+        "sourceSystem": { "type": "string" },
+        "collectedAt": { "type": "string" },
+        "redfishBaseUrl": { "type": "string" },
+        "serviceRoot": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "systems": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "chassis": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "managers": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "firmwareInventory": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "eventService": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "telemetryService": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "health": {
+          "type": "object",
+          "properties": {
+            "rollup": { "type": "string" },
+            "unhealthyResources": {
+              "type": "array",
+              "items": { "type": "object" }
+            },
+            "warnings": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": true
+        },
+        "sourceContext": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "additionalProperties": true

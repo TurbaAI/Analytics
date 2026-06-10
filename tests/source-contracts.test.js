@@ -28,6 +28,18 @@ const sourcePayload = {
     supportTickets: [{ runId, priority: "urgent", supportTicketId: "case-1", targetStartMinutes: 15 }]
   },
   "/ebpf": [{ runId, collector: "bpftrace-summary", cpu: { offCpuTimePct: 6 } }],
+  "/redfish": [{
+    runId,
+    sourceSystem: "redfish",
+    hostId: "node-contract-bmc",
+    metrics: {
+      redfish_systems_total: 1,
+      redfish_power_watts: 310
+    },
+    health: {
+      rollup: "OK"
+    }
+  }],
   "/nccl": [{ runId, rankCount: 8, events: [{ op: "all_reduce", durationMs: 10 }] }],
   "/opportunities": [{ runId, category: "scheduler", impactDollars: 1000, recommendation: "Improve queue SLO" }]
 };
@@ -68,6 +80,7 @@ const server = http.createServer((req, res) => {
       { system: "grafana", url: `http://127.0.0.1:${port}/grafana` },
       { system: "billing-slo", url: `http://127.0.0.1:${port}/billing-slo` },
       { system: "ebpf", url: `http://127.0.0.1:${port}/ebpf` },
+      { system: "redfish", url: `http://127.0.0.1:${port}/redfish` },
       { system: "nccl", url: `http://127.0.0.1:${port}/nccl` },
       { system: "opportunities", url: `http://127.0.0.1:${port}/opportunities` }
     ]
@@ -85,11 +98,13 @@ const server = http.createServer((req, res) => {
   assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.ok, true);
-  assert.equal(report.contracts.length, 8);
+  assert.equal(report.contracts.length, 9);
   assert.equal(report.sourceCounts.prometheus, 1);
+  assert.equal(report.sourceCounts.redfish, 1);
   assert.equal(report.sourceCounts.provider, 1);
   assert.ok(report.runIds.includes(runId));
   assert.ok(fs.existsSync(path.join(tempDir, "staging", "prometheus.json")));
+  assert.ok(fs.existsSync(path.join(tempDir, "staging", "redfish.json")));
   assert.ok(fs.existsSync(path.join(tempDir, "staging", "billing-records.json")));
 
   console.log("source contract tests passed");

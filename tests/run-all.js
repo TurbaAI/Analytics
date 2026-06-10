@@ -34,6 +34,7 @@ const checks = [
   { label: "scheduler exporter", args: ["tests/scheduler-exporter.test.js"] },
   { label: "eBPF exporter", args: ["tests/ebpf-exporter.test.js"] },
   { label: "Prometheus source exporter", args: ["tests/prometheus-source-exporter.test.js"] },
+  { label: "Redfish source exporter", args: ["tests/redfish-source-exporter.test.js"] },
   { label: "source system collectors", args: ["tests/source-system-collectors.test.js"] },
   { label: "source contracts", args: ["tests/source-contracts.test.js"] },
   { label: "source approvals", args: ["tests/source-approvals.test.js"] },

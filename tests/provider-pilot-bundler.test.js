@@ -23,6 +23,7 @@ assert.equal(validation.ok, true, validation.errors.join("; "));
   "scheduler",
   "grafana",
   "ebpf",
+  "redfish",
   "provider",
   "opportunities"
 ].forEach((key) => {
@@ -34,5 +35,7 @@ assert.equal(bundle.sources.provider[0].slo.supportTicketId, "CS-2044");
 assert.equal(bundle.sources.grafana[0].dashboardUid, "turbalance-provider-overview");
 assert.equal(bundle.sources.scheduler[0].placementRetries, 8);
 assert.equal(bundle.sources.ebpf[0].network.tcpRetransmitPct, 3.2);
+assert.equal(bundle.sources.redfish[0].metrics.redfish_power_watts, 4850);
+assert.equal(bundle.sources.redfish[0].health.rollup, "Warning");
 
 console.log("provider pilot bundler tests passed");

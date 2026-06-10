@@ -1,0 +1,88 @@
+[
+  {
+    "runId": "provider-run-9001",
+    "hostId": "h100-a1-01",
+    "sourceSystem": "redfish",
+    "collectedAt": "2026-06-10T07:00:00.000Z",
+    "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+    "serviceRoot": {
+      "redfishVersion": "1.20.0",
+      "uuid": "bmc-h100-a1-01",
+      "vendor": "Example Systems",
+      "product": "AI Node BMC"
+    },
+    "systems": [
+      {
+        "id": "System.Embedded.1",
+        "name": "h100-a1-01",
+        "model": "HGX H100 Node",
+        "biosVersion": "2.7.4",
+        "powerState": "On",
+        "health": "Warning",
+        "state": "Enabled",
+        "criticalLogEntries": 1
+      }
+    ],
+    "chassis": [
+      {
+        "id": "Chassis.1",
+        "name": "h100-a1-01 chassis",
+        "powerWatts": 4850,
+        "powerLimitWatts": 5200,
+        "inletTempCelsius": 31,
+        "exhaustTempCelsius": 58,
+        "maxTempCelsius": 58,
+        "fanCount": 2,
+        "health": "Warning",
+        "state": "Enabled"
+      }
+    ],
+    "managers": [
+      {
+        "id": "BMC",
+        "name": "Node BMC",
+        "managerType": "BMC",
+        "firmwareVersion": "6.11.2",
+        "health": "OK",
+        "state": "Enabled"
+      }
+    ],
+    "firmwareInventory": [
+      {
+        "id": "BIOS",
+        "name": "System BIOS",
+        "version": "2.7.4",
+        "updateable": true,
+        "health": "OK",
+        "state": "Enabled"
+      }
+    ],
+    "metrics": {
+      "redfish_systems_total": 1,
+      "redfish_chassis_total": 1,
+      "redfish_managers_total": 1,
+      "redfish_unhealthy_resources_total": 2,
+      "redfish_power_watts": 4850,
+      "redfish_power_limit_watts": 5200,
+      "redfish_inlet_temp_celsius": 31,
+      "redfish_exhaust_temp_celsius": 58,
+      "redfish_max_temp_celsius": 58,
+      "redfish_fan_count": 2,
+      "redfish_critical_log_entries_total": 1
+    },
+    "health": {
+      "rollup": "Warning",
+      "unhealthyResources": [
+        { "type": "system", "id": "System.Embedded.1", "health": "Warning", "state": "Enabled" },
+        { "type": "chassis", "id": "Chassis.1", "health": "Warning", "state": "Enabled" }
+      ]
+    },
+    "sourceContext": {
+      "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+      "redfishServiceUuid": "bmc-h100-a1-01",
+      "redfishHealthRollup": "Warning",
+      "redfishBiosVersion": "2.7.4",
+      "redfishManagerFirmwareVersion": "6.11.2"
+    }
+  }
+]

@@ -2,7 +2,7 @@
 
 ![turbalance Analytics desktop screenshot](build/turbalance-analytics-desktop.png)
 
-turbalance Analytics is an operator cockpit for AI infrastructure. It combines live machine telemetry, durable lakehouse telemetry, scheduler/source overlays, GPU observability, system identification, and production runbooks into one workflow for finding wasted accelerator time, explaining why it is happening, and proving a change before a customer sees it.
+turbalance Analytics is an operator cockpit for AI infrastructure. It combines live machine telemetry, durable lakehouse telemetry, scheduler/source overlays, GPU observability, Redfish/BMC evidence, system identification, product packaging, and production runbooks into one workflow for finding wasted accelerator time, explaining why it is happening, and proving a change before a customer sees it.
 
 The repo now supports two connected delivery lanes:
 
@@ -15,7 +15,19 @@ The fastest orientation path is:
 - Durable data platform and Kubernetes lane: `docs/e2e-data-platform.md`
 - Lakehouse operations and production runbooks: `docs/lakehouse-operations.md`
 - Bare-metal fleet production notes: `docs/bare-metal-fleet-production.md`
+- Redfish/BMC hardware-management bridge: `docs/redfish-integration.md`
 - Visual QA checklist: `docs/visual-qa.md`
+
+## What This Is Now
+
+This repository has moved from a static analytics prototype into a friendly-pilot product appliance plus a production lakehouse lane:
+
+- **Pilot appliance**: a single NUC14E controller for SPARK1, SPARK2, and `pi@pi1` through `pi@pi12`, with HTTPS, mTLS collector edge, API auth, Grafana, Prometheus, live agents, periodic benchmarks, support bundles, releases, rollback, and doctor checks.
+- **Analytics cockpit**: static dashboard with live resource tiles, SPARK pair comparison, Pi fleet histograms, PTP/NTP/chrony clock offset tracking, system characterization, opportunity analysis, provider lens, evidence packs, dark mode, and block settings.
+- **Source-bundle bridge**: import and backend ingest for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, Redfish, provider billing/SLO, opportunity exports, and NCCL traces.
+- **Lakehouse platform**: collector gateway, queue/spool handling, raw writer, Parquet lake, DuckDB query service, transforms, alert engine, API, OpenTelemetry, Kubernetes overlays, managed storage, security manifests, and release/go-live gates.
+
+It is pilot-ready for controlled customer evaluation. It is not yet a turnkey multi-tenant SaaS; see `## Deployment Boundary` for the remaining enterprise rollout work.
 
 ## Current Live Pilot
 
@@ -30,8 +42,8 @@ The active lab/pilot deployment is centered on NUC14E:
 | mTLS collector edge | `https://192.168.10.30:9443/v1/source-bundles` | Requires generated client certificate |
 | Prometheus | `http://192.168.10.30:9091` | Authenticated API metrics scrape is configured |
 | Grafana | `http://192.168.10.30:3001` | Runtime dashboard stack |
-| Release bundle | `/home/user/turbalance-analytics/build/releases/turbalance-product-0.1.0-live-20260610.tar.gz` | Checksummed customer release package |
-| Latest support bundle | `/home/user/turbalance-analytics/build/support/turbalance-support-2026-06-10T07-40-25-881Z.tar.gz` | Redacted diagnostic archive |
+| Release bundle | `/home/user/turbalance-analytics/build/releases/turbalance-product-0.1.0-redfish-20260610.tar.gz` | Checksummed customer release package including the Redfish bridge |
+| Latest support bundle | `/home/user/turbalance-analytics/build/support/turbalance-support-2026-06-10T08-05-58-129Z.tar.gz` | Redacted diagnostic archive with remote checks |
 
 Controller services are managed by user systemd with lingering enabled:
 
@@ -46,7 +58,7 @@ Runtime containers:
 - `turbalance-grafana-runtime`
 - `turbalance-product-edge`
 
-The live doctor currently checks internal HTTP services, Prometheus readiness, Prometheus target health, Grafana, the live-machine bundle, runtime containers, HTTPS dashboard/API, the mTLS collector path, and rejection of collector requests without a client certificate.
+The live doctor currently checks internal HTTP services, Prometheus readiness, Prometheus target health, Grafana, the live-machine bundle, runtime containers, HTTPS dashboard/API, the mTLS collector path, rejection of collector requests without a client certificate, and remote agent/benchmark state across SPARK and Pi machines.
 
 ```sh
 ssh user@192.168.10.30 'cd /home/user/turbalance-analytics && node scripts/turbalance-doctor.js --config ops/turbalance-product.example.json --timeout 15000'
@@ -62,6 +74,8 @@ flowchart TD
   Spark["SPARK1 / SPARK2"]
   Nuc["NUC14E controller"]
   Agent["live-machine push agent"]
+  Redfish["Redfish/BMC snapshots"]
+  Sources["Prometheus / DCGM / K8s / scheduler / Grafana / eBPF / provider"]
   Collector["collector gateway :8801"]
   Edge["HTTPS + mTLS edge :8443/:9443"]
   Lake["Parquet/DuckDB lakehouse"]
@@ -73,6 +87,8 @@ flowchart TD
   Pi --> Agent
   Spark --> Agent
   Agent --> Collector
+  Redfish --> Collector
+  Sources --> Collector
   Edge --> Collector
   Collector --> Lake
   API --> Lake
@@ -264,7 +280,7 @@ Install, update, and rollback packaged releases with:
 ```sh
 node scripts/manage-product-release.js \
   --action install \
-  --source build/releases/turbalance-product-0.1.0-live-20260610.tar.gz \
+  --source build/releases/turbalance-product-0.1.0-redfish-20260610.tar.gz \
   --install-root /opt/turbalance/product \
   --apply
 ```
@@ -282,6 +298,7 @@ Current operator surfaces include:
 - Provider Lens for tenant/account/reservation, queue SLO, sellable waste, commit burn, gross margin, and customer risk
 - Scheduler/capacity simulator and Opportunity Engine
 - Grafana Handoff links through `sources.grafana`
+- Redfish/BMC hardware evidence through `sources.redfish`
 - Live System Resources with CPU, RAM, disk, network, Docker, Ollama, GPU, power, temperature, and signal freshness
 - Fleet Comparison for SPARK/NUC/Pi groups
 - Raspberry Pi benchmark histograms across `pi@pi1` through `pi@pi12`
@@ -291,7 +308,7 @@ Current operator surfaces include:
 - Light and dark modes
 - Observation Log that records interpreted events rather than raw one-second noise
 
-Known live hosts include `192.168.10.30`, `nuc14e`, `192.168.10.20`, `spark1`, `192.168.10.21`, `pi1` through `pi12`, `100.96.89.98`, and `dgx-pat`.
+Known live hosts include `192.168.10.30` / `NUC14E`, `192.168.10.20` / `SPARK1`, `192.168.10.21` / `SPARK2`, `pi1` through `pi12`, and optional lab targets such as `100.96.89.98` / `dgx-pat` when reachable.
 
 ## Live Telemetry And Benchmarks
 
@@ -300,6 +317,18 @@ The live-machine collector samples Linux/macOS/BSD host counters, optional `gpus
 For NVIDIA telemetry, the preferred lightweight path is `gpustat` when present, with selective `nvidia-smi` fallback. DCGM remains the serious datacenter path for GB100/GB200 telemetry, health, power, clocks, ECC, MIG, and diagnostics.
 
 Periodic benchmarks are conservative and cache-aware. The Pi fleet gets CPU/RAM/network/disk benchmark histograms for comparison. SPARK/NUC hosts can opt into broader active characterization while still avoiding unsafe default GPU/RAM/network/disk stress.
+
+## Redfish Bridge And Positioning
+
+Redfish support is implemented as a hardware-management source lane, not as a replacement for this product.
+
+- Redfish gives turbalance BMC-side facts: inventory, health rollup, power state, power draw, inlet/exhaust temperature, fan/sensor summaries, firmware inventory, event-service state, and telemetry-service state.
+- turbalance correlates that management-plane evidence with workload telemetry, GPU counters, scheduler events, provider economics, Grafana links, eBPF host evidence, NCCL traces, system characterization, Pi/SPARK fleet comparison, and customer-ready evidence packs.
+- `scripts/fetch-redfish-source-export.js` collects directly from Redfish endpoints or normalizes saved snapshots.
+- `scripts/fetch-source-system-export.js --system redfish` supports customer source-gateway workflows.
+- `sources.redfish` is validated by `schemas/turba-source-bundle.v1.schema.json`, counted by `lib/source-bundle-validator.js`, included in provider pilot bundles, covered by source contracts/approvals/readiness, and redacted in workspace/evidence exports.
+
+In short: Redfish is the BMC bridge. turbalance is the cross-layer analytics, comparison, evidence, and product delivery layer around it.
 
 ## System Identification
 
@@ -389,6 +418,7 @@ The primary normalized feed is `turba.ingestion.v1`. Source bundles can include:
 - `sources.scheduler`
 - `sources.grafana`
 - `sources.ebpf`
+- `sources.redfish`
 - `sources.provider`
 - `sources.opportunities`
 - `ncclTraces`
@@ -404,6 +434,8 @@ Validate source bundles before import or upload:
 ```sh
 node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
 ```
+
+Redfish/BMC hardware-management evidence is supported through `sources.redfish`. Use `scripts/fetch-redfish-source-export.js` for direct Redfish collection or `scripts/fetch-source-system-export.js --system redfish` when a customer source gateway exposes normalized snapshots. See `docs/redfish-integration.md`.
 
 ## Backend Ingestion
 
@@ -439,7 +471,7 @@ For customer exposure, replace the generated self-signed/local CA material with 
 - `nccl-trace-parser.js`, `nccl-trace-fixtures.js`: NCCL parser and fixtures
 - `assets/`: turbalance logo and UI assets
 - `docs/`: operator, productization, deployment, provider, telemetry, demo, and QA docs
-- `fixtures/`: sample source bundles and provider/scheduler/eBPF inputs
+- `fixtures/`: sample source bundles and provider/scheduler/eBPF/Redfish inputs
 - `grafana/`: dashboard templates
 - `lib/`: shared config and validation helpers
 - `ops/`: product config, Kubernetes manifests, Terraform, source contracts, approvals
@@ -461,6 +493,7 @@ The README intentionally references these files and tests because they are part 
 - `docs/neo-cloud-provider-fit.md`
 - `docs/provider-export-template.md`
 - `docs/neo-cloud-pilot-validation.md`
+- `docs/redfish-integration.md`
 - `docs/telemetry-integration.md`
 - `docs/operations.md`
 - `docs/visual-qa.md`
@@ -501,6 +534,7 @@ The README intentionally references these files and tests because they are part 
 - `scripts/run-sandbox-go-live.js`
 - `scripts/run-sandbox-source-gateway.js`
 - `scripts/fetch-source-system-export.js`
+- `scripts/fetch-redfish-source-export.js`
 - `scripts/fetch-prometheus-source-export.js`
 - `scripts/render-managed-kubernetes.js`
 - `scripts/validate-source-contracts.js`
@@ -633,6 +667,7 @@ The README intentionally references these files and tests because they are part 
 - `tests/scheduler-exporter.test.js`
 - `tests/ebpf-exporter.test.js`
 - `tests/prometheus-source-exporter.test.js`
+- `tests/redfish-source-exporter.test.js`
 - `tests/spark1-kafka.test.js`
 - `tests/source-system-collectors.test.js`
 - `tests/source-contracts.test.js`
@@ -656,10 +691,10 @@ The README intentionally references these files and tests because they are part 
 - `tests/lakehouse-go-live.test.js`
 - `tests/lakehouse-production-readiness.test.js`
 
-Run `node tests/run-all.js` before sharing a customer build. The last full local run passed after the product edge and mTLS work, including screenshot QA for desktop and mobile.
+Run `node tests/run-all.js` before sharing a customer build. The last full local run passed after the Redfish bridge, product edge, and mTLS work, including screenshot QA for desktop and mobile.
 
 ## Deployment Boundary
 
-This repo is now productized enough for friendly pilot delivery on a single controller: managed services, auth defaults, HTTPS/mTLS edge, Prometheus/Grafana, fleet rollout, doctor checks, support bundles, checksummed release packages, install/update/rollback, and customer-facing docs are implemented.
+This repo is now productized enough for friendly pilot delivery on a single controller: managed services, auth defaults, HTTPS/mTLS edge, Prometheus/Grafana, fleet rollout, Redfish source integration, source-owner approvals, doctor checks, support bundles, checksummed release packages, install/update/rollback, and customer-facing docs are implemented.
 
 It is not yet a fully managed multi-tenant SaaS. Before broader customer rollout, replace lab-generated certificates with customer-managed certs, wire the customer identity provider, pick managed storage/metadata backends, decide HA topology, and run the lakehouse production go-live lane for environments that need Kubernetes-scale operations.

@@ -20,6 +20,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "docs/neo-cloud-provider-fit.md",
   "docs/provider-export-template.md",
   "docs/neo-cloud-pilot-validation.md",
+  "docs/redfish-integration.md",
   "docs/telemetry-integration.md",
   "docs/operations.md",
   "docs/visual-qa.md",
@@ -91,6 +92,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "scripts/run-sandbox-go-live.js",
   "scripts/run-sandbox-source-gateway.js",
   "scripts/fetch-source-system-export.js",
+  "scripts/fetch-redfish-source-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-contracts.js",
@@ -257,6 +259,8 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "fixtures/prometheus-collector-queries.json",
   "fixtures/provider-overlay-template.json",
   "fixtures/provider-pilot-export-inputs/prometheus.json",
+  "fixtures/provider-pilot-export-inputs/redfish.json",
+  "fixtures/redfish-source-snapshot.json",
   "fixtures/scheduler-export-inputs/scheduler-events.json",
   "fixtures/ebpf-export-inputs/host-samples.json",
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
@@ -282,6 +286,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "docs/neo-cloud-provider-fit.md",
   "docs/provider-export-template.md",
   "docs/neo-cloud-pilot-validation.md",
+  "docs/redfish-integration.md",
   "docs/telemetry-integration.md",
   "docs/operations.md",
   "docs/visual-qa.md",
@@ -309,6 +314,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "scripts/run-sandbox-go-live.js",
   "scripts/run-sandbox-source-gateway.js",
   "scripts/fetch-source-system-export.js",
+  "scripts/fetch-redfish-source-export.js",
   "scripts/fetch-prometheus-source-export.js",
   "scripts/render-managed-kubernetes.js",
   "scripts/validate-source-contracts.js",
@@ -440,6 +446,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "tests/scheduler-exporter.test.js",
   "tests/ebpf-exporter.test.js",
   "tests/prometheus-source-exporter.test.js",
+  "tests/redfish-source-exporter.test.js",
   "tests/spark1-kafka.test.js",
   "tests/source-system-collectors.test.js",
   "tests/source-contracts.test.js",
@@ -519,6 +526,7 @@ assert.ok(dataContract.includes("sources.provider"));
 assert.ok(dataContract.includes("sources.scheduler"));
 assert.ok(dataContract.includes("sources.grafana"));
 assert.ok(dataContract.includes("sources.ebpf"));
+assert.ok(dataContract.includes("sources.redfish"));
 assert.ok(dataContract.includes("sources.opportunities"));
 assert.ok(dataContract.includes("Opportunity Overlay"));
 assert.ok(dataContract.includes("Scheduler Event Overlay"));
@@ -526,10 +534,12 @@ assert.ok(dataContract.includes("Grafana Handoff Overlay"));
 assert.ok(dataContract.includes("Scheduler Simulator"));
 assert.ok(dataContract.includes("Markdown evidence pack"));
 assert.ok(dataContract.includes("eBPF Host Overlay"));
+assert.ok(dataContract.includes("Redfish Hardware Overlay"));
 assert.ok(dataContract.includes("Neo-Cloud Provider Overlay"));
 assert.ok(dataContract.includes("Validation Behavior"));
 assert.ok(dataContract.includes("validate-source-bundle.js"));
 assert.ok(dataContract.includes("build-provider-pilot-bundle.js"));
+assert.ok(dataContract.includes("fetch-redfish-source-export.js"));
 
 const e2eDataPlatform = read("docs/e2e-data-platform.md");
 assert.ok(e2eDataPlatform.includes("Host -> eBPF agent -> collector gateway -> raw writer"));
@@ -912,6 +922,7 @@ assert.ok(operations.includes("scripts/provision-tenant.js"));
 assert.ok(operations.includes("scripts/provision-customer-iam.js"));
 assert.ok(operations.includes("scripts/render-managed-kubernetes.js"));
 assert.ok(operations.includes("scripts/fetch-source-system-export.js"));
+assert.ok(operations.includes("redfish"));
 assert.ok(operations.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(operations.includes("scripts/check-spark1-kafka.js"));
 assert.ok(operations.includes("scripts/build-publish-ingestion-image.js"));
@@ -930,16 +941,19 @@ assert.ok(telemetry.includes("Prometheus"));
 assert.ok(telemetry.includes("DCGM"));
 assert.ok(telemetry.includes("Kubernetes"));
 assert.ok(telemetry.includes("Linux eBPF Host Overlay"));
+assert.ok(telemetry.includes("Redfish Hardware Overlay"));
 assert.ok(telemetry.includes("Grafana Handoff Overlay"));
 assert.ok(telemetry.includes("Opportunity Overlay"));
 assert.ok(telemetry.includes("NCCL"));
 assert.ok(telemetry.includes("Provider Commercial Overlay"));
 assert.ok(telemetry.includes("sources.ebpf"));
+assert.ok(telemetry.includes("sources.redfish"));
 assert.ok(telemetry.includes("sources.grafana"));
 assert.ok(telemetry.includes("sources.provider"));
 assert.ok(telemetry.includes("sources.scheduler"));
 assert.ok(telemetry.includes("sources.opportunities"));
 assert.ok(telemetry.includes("scripts/build-ebpf-overlay.js"));
+assert.ok(telemetry.includes("scripts/fetch-redfish-source-export.js"));
 assert.ok(telemetry.includes("scripts/fetch-source-system-export.js"));
 assert.ok(telemetry.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(telemetry.includes("scripts/check-spark1-kafka.js"));
@@ -958,6 +972,7 @@ assert.ok(providerFit.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerFit.includes("scripts/build-scheduler-overlay.js"));
 assert.ok(providerFit.includes("scripts/build-ebpf-overlay.js"));
 assert.ok(providerFit.includes("scripts/build-provider-pilot-bundle.js"));
+assert.ok(providerFit.includes("Redfish/BMC"));
 assert.ok(providerFit.includes("server/ingestion-server.js"));
 assert.ok(providerFit.includes("sources.grafana"));
 assert.ok(providerFit.includes("grafana/turbalance-provider-overview.json"));
@@ -972,6 +987,7 @@ assert.ok(providerTemplate.includes("fixtures/provider-overlay-template.json"));
 assert.ok(providerTemplate.includes("scripts/build-provider-overlay.js"));
 assert.ok(providerTemplate.includes("scripts/build-provider-pilot-bundle.js"));
 assert.ok(providerTemplate.includes("scripts/fetch-source-system-export.js"));
+assert.ok(providerTemplate.includes("sources.redfish"));
 assert.ok(providerTemplate.includes("scripts/fetch-prometheus-source-export.js"));
 assert.ok(providerTemplate.includes("scripts/validate-source-contracts.js"));
 assert.ok(providerTemplate.includes("scripts/build-scheduler-overlay.js"));

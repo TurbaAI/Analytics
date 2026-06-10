@@ -13,12 +13,17 @@ assert.equal(report.ok, true);
 assert.equal(report.sourceCounts.prometheus, 1);
 assert.equal(report.sourceCounts.scheduler, 1);
 assert.equal(report.sourceCounts.grafana, 1);
+assert.equal(report.sourceCounts.redfish, 1);
 assert.equal(report.sourceCounts.ncclTraces, 1);
 assert.ok(report.runIds.includes("run-7421"));
 
 const invalid = validateSourceBundle({ sources: { provider: [{}] } }, { requireSourceExport: true });
 assert.equal(invalid.ok, false);
 assert.ok(invalid.errors.some((error) => error.includes("sources.provider[1] is missing runId")));
+
+const invalidRedfish = validateSourceBundle({ sources: { redfish: [{}] } }, { requireSourceExport: true });
+assert.equal(invalidRedfish.ok, false);
+assert.ok(invalidRedfish.errors.some((error) => error.includes("sources.redfish[1] is missing runId")));
 
 const cliResult = spawnSync(
   process.execPath,

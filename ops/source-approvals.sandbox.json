@@ -62,6 +62,16 @@
       "url": "http://127.0.0.1:8891/ebpf/summary"
     },
     {
+      "system": "redfish",
+      "owner": "sandbox-hardware-ops",
+      "approvedBy": "sandbox-hardware-ops-lead",
+      "approvedAt": "2026-06-01",
+      "expiresAt": "2099-12-31",
+      "ticket": "SANDBOX-REDFISH-001",
+      "scope": "Read-only Redfish/BMC snapshot fixture contract for sandbox burn-in.",
+      "url": "http://127.0.0.1:8891/redfish/snapshots"
+    },
+    {
       "system": "nccl",
       "owner": "sandbox-fabric",
       "approvedBy": "sandbox-fabric-lead",

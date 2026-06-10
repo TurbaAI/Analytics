@@ -21,7 +21,7 @@ node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-input
 node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
 ```
 
-The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, Grafana exports can add `sources.grafana` for dashboard handoff links, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
+The script joins Kubernetes labels, Slurm accounting, billing records, and support tickets by `runId`, then emits a `sources.provider` overlay that can be imported into the dashboard. Scheduler systems can add `sources.scheduler` for queue/admission evidence, Grafana exports can add `sources.grafana` for dashboard handoff links, Redfish/BMC systems can add `sources.redfish` for hardware health/power/thermal/firmware evidence, and recommendation systems can add `sources.opportunities` beside the provider overlay when they already have ranked actions to validate.
 
 For approved live Prometheus access, `scripts/fetch-prometheus-source-export.js` can generate the `prometheus.json` and `dcgm.json` files consumed by the bundle builder:
 
@@ -42,7 +42,7 @@ node scripts/fetch-source-system-export.js \
   --out-dir fixtures/provider-pilot-export-inputs
 ```
 
-Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`.
+Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `redfish`, `nccl`, and `opportunities`.
 
 Before scheduling collectors, validate the source-owner contract file:
 
@@ -64,6 +64,7 @@ Map commercial, scheduler, and support systems into `sources.provider`:
 - Tenant/account catalog: `tenant`, `account`, `reservation`
 - Scheduler/admission system: `sources.scheduler[].queueName`, `priorityClass`, `requestedGpuShape`, `queueWaitMinutes`, `placementRetries`, `localityMisses`, `preemptionCount`, and `events`
 - Grafana: `sources.grafana[].dashboardUrl`, `exploreUrl`, `dashboardUid`, `datasourceUid`, `variables`, and `timeRange`
+- Redfish/BMC: `sources.redfish[].health.rollup`, `metrics.redfish_unhealthy_resources_total`, `metrics.redfish_power_watts`, `systems[].biosVersion`, `chassis[].inletTempCelsius`, and `managers[].firmwareVersion`
 - Opportunity system: `sources.opportunities[].category`, `impactDollars`, `impactGpuHours`, `riskScore`, `confidence`, `evidence`, and `recommendation`
 
 ## Kubernetes Join Keys
@@ -96,7 +97,7 @@ Prefer surrogate IDs before import when sharing outside the provider operator gr
 
 ## Validation
 
-Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.provider`, `sources.opportunities`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.
+Use `schemas/turba-source-bundle.v1.schema.json` to validate source bundles before import. The schema covers `sources.prometheus`, `sources.dcgm`, `sources.kubernetes`, `sources.scheduler`, `sources.grafana`, `sources.ebpf`, `sources.redfish`, `sources.provider`, `sources.opportunities`, and NCCL trace arrays while allowing source-specific fields that provider operators may need during a pilot.
 
 Use `grafana/turbalance-provider-overview.json` as a starter dashboard when the operator wants a consistent Grafana target for `sources.grafana` handoff links.
 

@@ -198,7 +198,7 @@ node scripts/fetch-source-system-export.js \
   --out-dir /var/run/turbalance-provider-exports
 ```
 
-Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `nccl`, and `opportunities`. Prometheus/DCGM collection remains in `scripts/fetch-prometheus-source-export.js` because it uses Prometheus query semantics.
+Supported systems are `kubernetes`, `scheduler-admission`, `grafana`, `billing-slo`, `ebpf`, `redfish`, `nccl`, and `opportunities`. Prometheus/DCGM collection remains in `scripts/fetch-prometheus-source-export.js` because it uses Prometheus query semantics.
 
 For the SPARK1 single-node Kubernetes demo, use the local `kubectl` plus Prometheus collector instead of a source-owner HTTP gateway. After a reboot, restart the SPARK1 observability stack and local forwards before collecting:
 

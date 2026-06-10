@@ -125,7 +125,7 @@ node scripts/fetch-prometheus-source-export.js \
 
 Set `TURBALANCE_PROMETHEUS_BEARER_TOKEN` or pass `--bearer-token` when the Prometheus gateway requires auth. Keep query files provider-specific: the included fixture is a starter map for DCGM-style metric names, not a promise that every provider exports identical names.
 
-For Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, NCCL trace, and opportunity systems, use `scripts/fetch-source-system-export.js` with a source-owner-approved read-only endpoint:
+For Kubernetes, scheduler/admission, Grafana, billing/SLO, eBPF summary, Redfish/BMC snapshot, NCCL trace, and opportunity systems, use `scripts/fetch-source-system-export.js` with a source-owner-approved read-only endpoint:
 
 ```sh
 node scripts/fetch-source-system-export.js \
@@ -245,6 +245,46 @@ Expected fields:
 
 The browser adapter converts those summaries into the existing dashboard lanes: network wait, network utilization, storage wait, CPU preprocessing pressure, contention, latency tail, and noise events. Keep `networkWait` for socket latency, retransmits, or stall pressure. Use `networkUtilization` for NIC/link throughput pressure.
 
+## Redfish Hardware Overlay
+
+Redfish summaries should use `sources.redfish`. Keep this adapter as management-plane evidence from the BMC: hardware health rollup, inventory, power, thermals, firmware, event-service state, and telemetry-service state. It should not replace DCGM/NVML for GPU telemetry, eBPF/OpenTelemetry for host telemetry, or NCCL traces for collective attribution.
+
+Use the direct Redfish exporter when the collector can reach BMCs:
+
+```sh
+node scripts/fetch-redfish-source-export.js \
+  --url https://bmc-h100-a1-01.example/redfish/v1 \
+  --run-id run-7421 \
+  --host-id h100-a1-01 \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
+Use the generic source-system collector when a customer source gateway already normalizes Redfish snapshots:
+
+```sh
+node scripts/fetch-source-system-export.js \
+  --system redfish \
+  --url https://source-gateway.example/redfish/snapshots \
+  --out-dir /var/run/turbalance-provider-exports
+```
+
+Expected fields:
+
+- `runId`
+- `hostId`
+- `redfishBaseUrl`
+- `serviceRoot.redfishVersion`
+- `systems[].health`, `systems[].biosVersion`, and `systems[].powerState`
+- `chassis[].powerWatts`, `powerLimitWatts`, `inletTempCelsius`, `exhaustTempCelsius`, and `health`
+- `managers[].firmwareVersion`
+- `firmwareInventory[]`
+- `metrics.redfish_unhealthy_resources_total`
+- `metrics.redfish_power_watts`
+- `metrics.redfish_inlet_temp_celsius`
+- `health.rollup`
+
+The dashboard keeps Redfish provenance in `sourceContext` and only raises normalized reliability pressure when warning/critical health, unhealthy resources, concerning power/thermal readings, or critical/warning log entries are present.
+
 ## Opportunity Overlay
 
 The dashboard computes ranked opportunities locally, but upstream systems can contribute recommendation rows with `sources.opportunities`. Use this when an external scheduler simulator, inference tuner, support workflow, or capacity-planning tool already knows the action it wants an operator to validate.
@@ -340,7 +380,7 @@ node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-input
 node scripts/validate-source-bundle.js --require-source-export provider-pilot-bundle.json
 ```
 
-That bundle can include Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, Linux eBPF, NCCL traces, billing/SLO, and optional opportunity exports keyed by `runId`.
+That bundle can include Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, Linux eBPF, Redfish/BMC, NCCL traces, billing/SLO, and optional opportunity exports keyed by `runId`.
 
 Expected fields:
 

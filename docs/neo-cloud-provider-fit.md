@@ -113,7 +113,7 @@ Provider overlays should use hashed or surrogate tenant, account, reservation, c
 
 `grafana/turbalance-provider-overview.json` is the starter dashboard for provider pilots that want the turbalance handoff panel to point at a consistent Grafana view.
 
-`scripts/build-provider-pilot-bundle.js` is the all-lanes provider pilot bundler for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, NCCL trace, billing/SLO, and opportunity exports.
+`scripts/build-provider-pilot-bundle.js` is the all-lanes provider pilot bundler for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, Redfish/BMC, NCCL trace, billing/SLO, and opportunity exports.
 
 `server/ingestion-server.js` is the optional controlled ingestion service for signed upload, role-aware auth, JWKS/JWT tenant mapping, tenant provisioning, metrics, audit export, token/key rotation, and retention workflows.
 
