@@ -43,7 +43,7 @@ The active lab/pilot deployment is centered on NUC14E:
 | Prometheus | `http://192.168.10.30:9091` | Authenticated API metrics scrape is configured |
 | Grafana | `http://192.168.10.30:3001` | Runtime dashboard stack |
 | Release bundle | `/home/user/turbalance-analytics/build/releases/turbalance-product-0.1.0-redfish-20260610.tar.gz` | Checksummed customer release package including the Redfish bridge |
-| Latest support bundle | `/home/user/turbalance-analytics/build/support/turbalance-support-2026-06-10T08-05-58-129Z.tar.gz` | Redacted diagnostic archive with remote checks |
+| Support bundles | `/home/user/turbalance-analytics/build/support/turbalance-support-*.tar.gz` | Redacted diagnostic archives with remote checks, rebuilt on demand |
 
 Controller services are managed by user systemd with lingering enabled:
 
