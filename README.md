@@ -50,6 +50,8 @@ For SPARK1, the same platform runs as a single-host Kubernetes activation using 
 
 See `docs/e2e-data-platform.md` for the full data path, container map, raw table contracts, virtual sensor model list, checks, schedules, and phased implementation plan. See `docs/lakehouse-operations.md` for replay, certificate rotation, compaction, reconciliation, transform validation, Grafana, and alert runbooks.
 
+For the bare-metal pilot appliance path, start with `docs/customer-productization.md`. It defines the single product config, runtime renderer, fleet rollout command, doctor check, and redacted support bundle flow that turn the current NUC/SPARK/Pi lab deployment into something we can operate for a friendly customer.
+
 The executable platform slice includes:
 
 - `proto/telemetry/v1/telemetry_batch.proto` and `schemas/turba-telemetry-batch.v1.schema.json` define the batch contract.

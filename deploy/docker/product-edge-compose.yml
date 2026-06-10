@@ -1,0 +1,11 @@
+name: turbalance-product-edge
+
+services:
+  edge:
+    image: nginx:1.27-alpine
+    container_name: turbalance-product-edge
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./product-edge/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../../build/product-tls:/etc/turbalance/tls:ro

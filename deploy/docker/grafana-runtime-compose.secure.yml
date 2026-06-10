@@ -1,0 +1,16 @@
+services:
+  prometheus:
+    volumes:
+      - ./grafana-runtime/prometheus.secure.yml:/etc/prometheus/prometheus.secure.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.secure.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.listen-address=0.0.0.0:9091
+      - --web.enable-lifecycle
+    secrets:
+      - turbalance_api_viewer_token
+
+secrets:
+  turbalance_api_viewer_token:
+    file: ${TURBALANCE_PROMETHEUS_API_TOKEN_FILE:-../../build/product-secrets/api-viewer-token}

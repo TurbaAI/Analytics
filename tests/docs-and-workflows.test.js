@@ -7,11 +7,14 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "u
 const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 const readme = read("README.md");
 
+assert.ok(readme.includes("docs/customer-productization.md"));
+
 [
   "docs/data-contract.md",
   "docs/bare-metal-fleet-production.md",
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
+  "docs/customer-productization.md",
   "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
@@ -43,6 +46,7 @@ const readme = read("README.md");
   "ops/source-approvals.sandbox.json",
   "ops/lakehouse-production.env.example",
   "ops/lakehouse-production.values.example.json",
+  "ops/turbalance-product.example.json",
   "ops/lakehouse-ebpf-hosts.example.json",
   "ops/lakehouse-slo-policy.example.json",
   "ops/kubernetes/ingestion-configmap.yaml",
@@ -69,6 +73,17 @@ const readme = read("README.md");
   "scripts/collect-machine-fleet-bundle.js",
   "scripts/push-live-machine-telemetry.js",
   "scripts/rollout-production-fleet.js",
+  "scripts/render-product-runtime.js",
+  "scripts/turbalance-doctor.js",
+  "scripts/turbalance-support-bundle.js",
+  "scripts/package-product-release.js",
+  "scripts/manage-product-release.js",
+  "scripts/manage-product-controller-services.js",
+  "scripts/manage-product-observability.js",
+  "scripts/generate-product-edge-tls.js",
+  "scripts/manage-product-edge.js",
+  "scripts/generate-product-secrets.js",
+  "scripts/apply-product-security.js",
   "scripts/check-spark1-kafka.js",
   "scripts/prepare-demo.js",
   "scripts/validate-provider-readiness.js",

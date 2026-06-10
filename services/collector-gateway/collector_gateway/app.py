@@ -46,13 +46,15 @@ class CollectorSettings:
     queue_token: str = ""
     queue_timeout_seconds: float = 2.0
     service_name: str = "collector-gateway"
+    product_version: str = "0.1.0"
+    deployment_environment: str = "pilot"
 
     @classmethod
     def from_env(cls) -> "CollectorSettings":
         return cls(
             lake_root=os.environ.get("TURBALANCE_LAKE_ROOT", "build/lakehouse"),
-            bearer_token=os.environ.get("TURBALANCE_COLLECTOR_TOKEN", ""),
-            hmac_secret=os.environ.get("TURBALANCE_COLLECTOR_HMAC_SECRET", ""),
+            bearer_token=_secret_env("TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_TOKEN_FILE"),
+            hmac_secret=_secret_env("TURBALANCE_COLLECTOR_HMAC_SECRET", "TURBALANCE_COLLECTOR_HMAC_SECRET_FILE"),
             replay_db=Path(os.environ.get("TURBALANCE_COLLECTOR_REPLAY_DB", "build/collector/replay.sqlite")),
             audit_log=Path(os.environ.get("TURBALANCE_COLLECTOR_AUDIT_LOG", "build/collector/audit.jsonl")),
             max_body_bytes=int(os.environ.get("TURBALANCE_COLLECTOR_MAX_BODY_BYTES", str(5 * 1024 * 1024))),
@@ -68,6 +70,8 @@ class CollectorSettings:
             queue_token=os.environ.get("TURBALANCE_COLLECTOR_QUEUE_TOKEN", ""),
             queue_timeout_seconds=float(os.environ.get("TURBALANCE_COLLECTOR_QUEUE_TIMEOUT_SECONDS", "2")),
             service_name=os.environ.get("TURBALANCE_OTEL_SERVICE_NAME", "collector-gateway"),
+            product_version=os.environ.get("TURBALANCE_PRODUCT_VERSION", "0.1.0"),
+            deployment_environment=os.environ.get("TURBALANCE_DEPLOYMENT_ENVIRONMENT", "pilot"),
         )
 
 
@@ -260,7 +264,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        return {"status": "ok"}
+        return {"status": "ok", "version": settings.product_version}
 
     @app.get("/ready")
     async def ready() -> dict[str, Any]:
@@ -268,7 +272,25 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
             writer.storage.local_root.mkdir(parents=True, exist_ok=True)
         else:
             writer.storage.fs.create_dir(writer.storage.base_path, recursive=True)
-        return {"status": "ready", "lakeRoot": str(settings.lake_root), "backpressure": backpressure.snapshot()}
+        return {
+            "status": "ready",
+            "lakeRoot": str(settings.lake_root),
+            "backpressure": backpressure.snapshot(),
+            "auth": {
+                "bearerToken": bool(settings.bearer_token),
+                "hmac": bool(settings.hmac_secret),
+                "mtls": settings.require_mtls,
+            },
+            "version": settings.product_version,
+        }
+
+    @app.get("/version")
+    async def version() -> dict[str, str]:
+        return {
+            "name": "turbalance-collector",
+            "version": settings.product_version,
+            "environment": settings.deployment_environment,
+        }
 
     @app.post("/v1/telemetry/batches")
     async def ingest_batch(
@@ -374,6 +396,19 @@ def _record_write_result(stats: CollectorStats, result: dict[str, Any]) -> None:
 
 def _env_bool(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _secret_env(value_name: str, file_name: str) -> str:
+    direct = os.environ.get(value_name, "")
+    if direct:
+        return direct
+    file_path = os.environ.get(file_name, "")
+    if not file_path:
+        return ""
+    try:
+        return Path(file_path).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 app = create_app()

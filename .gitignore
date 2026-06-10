@@ -26,3 +26,7 @@ build/screenshot-qa-prep*.json
 build/provider-*/
 build/provider-*.json
 build/provider-*.yaml
+build/product-runtime/
+build/product-secrets/
+build/releases/
+build/support/

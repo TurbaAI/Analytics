@@ -59,6 +59,7 @@ const STORAGE_SCHEMA = {
 };
 
 const THEME_STORAGE_KEY = "turba.analytics.theme";
+const PLATFORM_API_TOKEN_STORAGE_KEY = "turba.analytics.platformApiToken.v1";
 
 const SAMPLE_INGESTION = {
   schemaVersion: INGESTION_SCHEMA.version,
@@ -1045,6 +1046,7 @@ const DASHBOARD_BLOCKS = [
   { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
   { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
   { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
+  { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
   { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
   { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
   { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
@@ -2952,6 +2954,7 @@ function platformApiBaseUrl() {
   const params = new URLSearchParams(window.location.search);
   const value = params.get("platformApi");
   if (!value && isLakehouseDashboardHost()) {
+    if (window.location.protocol === "https:") return `${window.location.origin}/api`;
     return `${window.location.protocol}//${window.location.hostname}:8080`;
   }
   if (!value) return "";
@@ -2970,6 +2973,37 @@ function isLakehouseDashboardHost() {
 function platformApiUrl(path) {
   const base = platformApiBaseUrl();
   return base ? `${base}${path}` : "";
+}
+
+function platformApiAuthToken() {
+  const params = new URLSearchParams(window.location.search);
+  const queryToken = String(params.get("apiToken") || "").trim();
+  if (queryToken) return queryToken;
+  try {
+    return String(window.localStorage.getItem(PLATFORM_API_TOKEN_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function writePlatformApiAuthToken(token) {
+  try {
+    if (token) {
+      window.localStorage.setItem(PLATFORM_API_TOKEN_STORAGE_KEY, token);
+    } else {
+      window.localStorage.removeItem(PLATFORM_API_TOKEN_STORAGE_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function platformApiFetch(path) {
+  const url = platformApiUrl(path);
+  const token = platformApiAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  return window.fetch(url, { headers });
 }
 
 function cacheBustUrl(url) {
@@ -3915,8 +3949,54 @@ function renderDashboardSettingsPanel() {
     grid.append(dashboardBlockToggle(block));
   });
 
-  controls.replaceChildren(actions, grid);
+  controls.replaceChildren(actions, dashboardApiTokenControl(), grid);
   panel.hidden = false;
+}
+
+function dashboardApiTokenControl() {
+  const wrap = document.createElement("div");
+  wrap.className = "dashboard-api-token-control";
+
+  const label = document.createElement("label");
+  label.setAttribute("for", "platformApiTokenInput");
+  label.textContent = "Platform API token";
+
+  const input = document.createElement("input");
+  input.id = "platformApiTokenInput";
+  input.type = "password";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.placeholder = platformApiAuthToken() ? "Token saved locally" : "Paste bearer token";
+  input.value = platformApiAuthToken();
+
+  const status = document.createElement("span");
+  status.textContent = platformApiAuthToken() ? "Saved locally" : "No token";
+  status.dataset.tone = platformApiAuthToken() ? "good" : "watch";
+
+  const save = document.createElement("button");
+  save.type = "button";
+  save.textContent = "Save";
+  save.addEventListener("click", () => {
+    const ok = writePlatformApiAuthToken(input.value.trim());
+    status.textContent = ok ? (input.value.trim() ? "Saved locally" : "No token") : "Not saved";
+    status.dataset.tone = ok ? (input.value.trim() ? "good" : "watch") : "poor";
+  });
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.textContent = "Clear";
+  clear.addEventListener("click", () => {
+    input.value = "";
+    const ok = writePlatformApiAuthToken("");
+    status.textContent = ok ? "No token" : "Not cleared";
+    status.dataset.tone = ok ? "watch" : "poor";
+  });
+
+  const actions = document.createElement("div");
+  actions.append(save, clear);
+
+  wrap.append(label, input, actions, status);
+  return wrap;
 }
 
 function dashboardBlockToggle(block) {
@@ -4222,6 +4302,10 @@ function machineDemoContext(summary) {
     collectorIncomingReportsPerMinute: optionalMetric(context, "collectorIncomingReportsPerMinute"),
     collectorIncomingReportsWindowCount: optionalMetric(context, "collectorIncomingReportsWindowCount"),
     collectorIncomingReportsWindowSeconds: optionalMetric(context, "collectorIncomingReportsWindowSeconds"),
+    collectorAuthBearer: Boolean(context.collectorAuthBearer),
+    collectorAuthHmac: Boolean(context.collectorAuthHmac),
+    collectorAuthMtls: Boolean(context.collectorAuthMtls),
+    apiAuthRequired: Boolean(context.apiAuthRequired),
     hardwareHealthScore: optionalMetric(context, "hardwareHealthScore"),
     hardwareFaultScore: optionalMetric(context, "hardwareFaultScore"),
     hardwareFaultLevel: String(context.hardwareFaultLevel || ""),
@@ -4764,6 +4848,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const replayBadge = document.querySelector("#replayModeBadge");
   const grafanaPanel = document.querySelector("#grafanaMiniPanel");
   const grafanaBadge = document.querySelector("#grafanaMiniBadge");
+  const productReadinessPanel = document.querySelector("#productReadinessPanel");
+  const productReadinessBadge = document.querySelector("#productReadinessBadge");
   const fleetTiles = document.querySelector("#fleetTiles");
   const fleetBadge = document.querySelector("#fleetTilesBadge");
   const sparkPairComparePanel = document.querySelector("#sparkPairComparePanel");
@@ -4772,7 +4858,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const fleetComparisonBadge = document.querySelector("#fleetComparisonBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -4785,6 +4871,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     confidencePanel.replaceChildren();
     replayPanel.replaceChildren();
     grafanaPanel.replaceChildren();
+    productReadinessPanel.replaceChildren();
     fleetTiles.replaceChildren();
     sparkPairComparePanel.replaceChildren();
     fleetComparisonPanel.replaceChildren();
@@ -4801,6 +4888,10 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   if (confidenceDetailBadge) confidenceDetailBadge.textContent = cockpit.confidence.label;
   if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : `${liveTelemetryHistory.length} samples`;
   if (grafanaBadge) grafanaBadge.textContent = cockpit.grafana.links.length ? `${cockpit.grafana.links.length} links` : "No link";
+  if (productReadinessBadge) {
+    productReadinessBadge.textContent = cockpit.productReadiness.badge;
+    productReadinessBadge.dataset.tone = cockpit.productReadiness.tone;
+  }
   if (fleetBadge) fleetBadge.textContent = `${cockpit.fleet.length} ${cockpit.fleet.length === 1 ? "host" : "hosts"}`;
   if (sparkPairCompareBadge) {
     sparkPairCompareBadge.textContent = cockpit.sparkComparison.badge;
@@ -4819,6 +4910,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
   grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
+  productReadinessPanel.replaceChildren(...operatorProductReadinessNodes(cockpit.productReadiness));
   fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
   latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
   renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
@@ -4850,6 +4942,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   const fleet = buildOperatorFleetTiles(summary, machineContext);
   const sparkComparison = buildSparkPairComparison(summary, machineContext);
   const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
+  const productReadiness = buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence });
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
   const hostLabel = machineContext?.host || clusters[0] || summary.label || "current selection";
 
@@ -4869,6 +4962,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     confidence,
     timeline,
     grafana,
+    productReadiness,
     fleet,
     sparkComparison,
     fleetComparison,
@@ -5030,6 +5124,127 @@ function buildOperatorConfidence(heartbeats, summary, machineContext) {
     workloadScore,
     sourceScore
   };
+}
+
+function buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence }) {
+  const baselineFleetHosts = 15;
+  const observedHosts = unique([
+    ...fleet.map((host) => host.host).filter(Boolean),
+    ...(summary.sourceItems || []).map((item) => item.source?.context?.hostname).filter(Boolean)
+  ]).length;
+  const expectedFleetHosts = Math.max(baselineFleetHosts, observedHosts);
+  const hostCoveragePct = clamp((observedHosts / expectedFleetHosts) * 100);
+  const collectorRate = Number.isFinite(machineContext?.collectorIncomingReportsPerMinute)
+    ? machineContext.collectorIncomingReportsPerMinute
+    : null;
+  const freshnessGood = ageMilliseconds === null || ageMilliseconds <= 120000;
+  const freshnessWatch = ageMilliseconds === null || ageMilliseconds <= 300000;
+  const grafanaReady = Boolean(grafana.links.length || machineContext?.context?.grafanaDashboardUrl);
+  const apiAuthReady = Boolean(machineContext?.apiAuthRequired);
+  const collectorAuthReady = Boolean(machineContext?.collectorAuthBearer || machineContext?.collectorAuthHmac || machineContext?.collectorAuthMtls);
+  const mtlsReady = Boolean(machineContext?.collectorAuthMtls);
+  const securityValue = apiAuthReady && collectorAuthReady
+    ? mtlsReady ? "mTLS enabled" : "auth enabled"
+    : apiAuthReady || collectorAuthReady ? "partial auth" : "lab defaults";
+  const securityNote = apiAuthReady && collectorAuthReady
+    ? mtlsReady
+      ? "API auth and collector mTLS/HMAC controls are live"
+      : "API and collector auth are live; add HTTPS/mTLS before broader customer access"
+    : "Enable API auth, collector auth, and HTTPS/mTLS before customer access";
+  const securityTone = apiAuthReady && collectorAuthReady && mtlsReady
+    ? "good"
+    : apiAuthReady || collectorAuthReady ? "watch" : "watch";
+  const operationalRows = [
+    {
+      label: "Fleet visibility",
+      value: `${observedHosts}/${expectedFleetHosts} hosts`,
+      note: observedHosts >= expectedFleetHosts ? "Controller, SPARK, and Pi hosts are represented" : "Some expected hosts are missing from the live bundle",
+      tone: observedHosts >= expectedFleetHosts ? "good" : observedHosts >= Math.ceil(expectedFleetHosts * 0.7) ? "watch" : "poor"
+    },
+    {
+      label: "Telemetry freshness",
+      value: ageMilliseconds === null ? "attached" : formatHostSampleAgeMilliseconds(ageMilliseconds),
+      note: freshnessGood ? "Live sample is within the full-fleet collection window" : "Live sample is delayed; run doctor or check the fleet loop",
+      tone: freshnessGood ? "good" : freshnessWatch ? "watch" : "poor"
+    },
+    {
+      label: "Collector ingest",
+      value: collectorRate === null ? "learning" : `${formatDecimal(collectorRate, collectorRate >= 100 ? 0 : 1)}/min`,
+      note: machineContext?.collectorGatewayReachable ? "Collector gateway is reachable from the controller sample" : "Collector gateway reachability is not proven in the latest sample",
+      tone: collectorRate !== null && collectorRate > 0 ? "good" : machineContext?.collectorGatewayReachable ? "watch" : "poor"
+    },
+    {
+      label: "Observability handoff",
+      value: grafanaReady ? "linked" : "missing",
+      note: grafanaReady ? "Grafana/Prometheus handoff is discoverable from the dashboard" : "Provision Grafana runtime or attach dashboard URLs",
+      tone: grafanaReady ? "good" : "watch"
+    }
+  ];
+  const hardeningRows = [
+    {
+      label: "Support workflow",
+      value: "available",
+      note: "Use render-product-runtime, turbalance-doctor, and turbalance-support-bundle for pilot operations",
+      tone: "good"
+    },
+    {
+      label: "Security gate",
+      value: securityValue,
+      note: securityNote,
+      tone: securityTone
+    },
+    {
+      label: "Upgrade path",
+      value: "rendered",
+      note: "Use the product config plus rollout command for repeatable agent updates",
+      tone: "good"
+    }
+  ];
+  const rows = [...operationalRows, ...hardeningRows];
+  const score = Math.round(rows.reduce((total, row) => total + (row.tone === "good" ? 100 : row.tone === "watch" ? 55 : 15), 0) / rows.length);
+  const hardBlockers = rows.filter((row) => row.tone === "poor").length;
+  const badge = hardBlockers ? "Needs repair" : score >= 82 ? "Pilot-ready" : "Hardening";
+  return {
+    score,
+    badge,
+    tone: hardBlockers ? "poor" : score >= 82 ? "good" : "watch",
+    hostCoveragePct,
+    rows
+  };
+}
+
+function operatorProductReadinessNodes(readiness) {
+  const summary = document.createElement("div");
+  summary.className = "product-readiness-summary";
+  summary.dataset.tone = readiness.tone;
+
+  const score = document.createElement("strong");
+  score.textContent = `${readiness.score}/100`;
+  const copy = document.createElement("span");
+  copy.textContent = readiness.badge === "Pilot-ready"
+    ? "Operationally ready for a friendly pilot; customer security gates still need explicit sign-off."
+    : readiness.badge === "Needs repair"
+      ? "Repair failing runtime checks before putting this in front of a customer."
+      : "Core runtime is taking shape; finish customer hardening gates before external access.";
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "product-readiness-grid";
+  readiness.rows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "product-readiness-item";
+    item.dataset.tone = row.tone;
+    const label = document.createElement("span");
+    label.textContent = row.label;
+    const value = document.createElement("strong");
+    value.textContent = row.value;
+    const note = document.createElement("small");
+    note.textContent = row.note;
+    item.append(label, value, note);
+    grid.append(item);
+  });
+
+  return [summary, grid];
 }
 
 function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence }) {
@@ -7640,9 +7855,9 @@ async function refreshPlatformVirtualSensors(container, analysis) {
   platformVirtualSensorCache.inFlight = true;
   try {
     const [covariance, principalMode, systemIdentification] = await Promise.all([
-      fetch(platformApiUrl("/v1/virtual-sensors/covariance")).then((response) => response.ok ? response.json() : null),
-      fetch(platformApiUrl("/v1/virtual-sensors/principal-resource-mode")).then((response) => response.ok ? response.json() : null),
-      fetch(platformApiUrl("/v1/virtual-sensors/system-identification")).then((response) => response.ok ? response.json() : null)
+      platformApiFetch("/v1/virtual-sensors/covariance").then((response) => response.ok ? response.json() : null),
+      platformApiFetch("/v1/virtual-sensors/principal-resource-mode").then((response) => response.ok ? response.json() : null),
+      platformApiFetch("/v1/virtual-sensors/system-identification").then((response) => response.ok ? response.json() : null)
     ]);
     const matrix = platformCovarianceMatrix(covariance, principalMode);
     const characterization = platformSystemIdentification(systemIdentification);

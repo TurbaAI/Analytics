@@ -15,11 +15,16 @@ const collectorUrl = args["collector-url"] || process.env.TURBALANCE_COLLECTOR_U
 const tenantId = args["tenant-id"] || process.env.TURBALANCE_TENANT_ID || "dgx-lab";
 const configuredHostId = args["host-id"] || process.env.TURBALANCE_HOST_ID || "";
 const agentId = args["agent-id"] || process.env.TURBALANCE_AGENT_ID || "live-machine-push";
+const productVersion = args.version || process.env.TURBALANCE_PRODUCT_VERSION || "0.1.0";
 const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.30:8000";
 const outPath = args.out || "";
 const loopMs = numberArg(args["loop-ms"] || process.env.TURBALANCE_AGENT_LOOP_MS, 0);
-const token = args.token || process.env.TURBALANCE_COLLECTOR_TOKEN || "";
-const hmacSecret = args["hmac-secret"] || process.env.TURBALANCE_COLLECTOR_HMAC_SECRET || "";
+const token = args.token || secretEnv("TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_TOKEN_FILE");
+const hmacSecret = args["hmac-secret"] || secretEnv("TURBALANCE_COLLECTOR_HMAC_SECRET", "TURBALANCE_COLLECTOR_HMAC_SECRET_FILE");
+const collectorCaFile = args["collector-ca-file"] || process.env.TURBALANCE_COLLECTOR_CA_FILE || "";
+const collectorClientCertFile = args["collector-client-cert-file"] || process.env.TURBALANCE_COLLECTOR_CLIENT_CERT_FILE || "";
+const collectorClientKeyFile = args["collector-client-key-file"] || process.env.TURBALANCE_COLLECTOR_CLIENT_KEY_FILE || "";
+const collectorTlsSkipVerify = flagArg(args["collector-tls-skip-verify"]) || process.env.TURBALANCE_COLLECTOR_TLS_SKIP_VERIFY === "1";
 const fastRefresh = args["fast-refresh"] === undefined ? "1" : flagValue(args["fast-refresh"]);
 const ollamaProbe = args["ollama-probe"] === undefined ? "0" : flagValue(args["ollama-probe"]);
 const benchmarkSuite = flagArg(args["benchmark-suite"]) || process.env.TURBALANCE_MACHINE_BENCHMARKS === "1" || process.env.TURBALANCE_PI_BENCHMARKS === "1";
@@ -73,6 +78,11 @@ async function runLoop() {
 
 async function runOnce() {
   const bundle = collectLocalBundle();
+  bundle.metadata = {
+    ...(bundle.metadata || {}),
+    productVersion,
+    agentId
+  };
   if (outPath) writeFileAtomic(path.resolve(outPath), `${JSON.stringify(bundle, null, 2)}\n`);
   const hostId = configuredHostId || liveBundleHostId(bundle);
   const payload = {
@@ -97,6 +107,8 @@ async function runOnce() {
     pushedAt: new Date().toISOString(),
     status: response.status || "accepted",
     hostId,
+    agentId,
+    productVersion,
     sequenceNo: payload.sequenceNo,
     rowCount: response.rowCount || 0,
     collectorUrl,
@@ -173,7 +185,8 @@ function postJson(url, payload) {
       hostname: target.hostname,
       port: target.port || (target.protocol === "https:" ? 443 : 80),
       path: `${target.pathname}${target.search}`,
-      headers
+      headers,
+      ...tlsRequestOptions(target)
     }, (response) => {
       let responseBody = "";
       response.setEncoding("utf8");
@@ -197,6 +210,16 @@ function postJson(url, payload) {
     }
     request.end(body);
   });
+}
+
+function tlsRequestOptions(target) {
+  if (target.protocol !== "https:") return {};
+  const options = {};
+  if (collectorCaFile) options.ca = fs.readFileSync(collectorCaFile);
+  if (collectorClientCertFile) options.cert = fs.readFileSync(collectorClientCertFile);
+  if (collectorClientKeyFile) options.key = fs.readFileSync(collectorClientKeyFile);
+  if (collectorTlsSkipVerify) options.rejectUnauthorized = false;
+  return options;
 }
 
 async function replaySpool({ quiet = false } = {}) {
@@ -354,6 +377,18 @@ function flagValue(value) {
 
 function safeId(value) {
   return String(value || "unknown").toLowerCase().replace(/[^a-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
+}
+
+function secretEnv(valueName, fileName) {
+  const direct = process.env[valueName] || "";
+  if (direct) return direct;
+  const filePath = process.env[fileName] || "";
+  if (!filePath) return "";
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
 }
 
 function parseArgs(argv) {

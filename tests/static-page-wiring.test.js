@@ -87,6 +87,8 @@ selectorMatches.forEach((selector) => {
   "sparkPairCompareBadge",
   "fleetComparisonPanel",
   "fleetComparisonBadge",
+  "productReadinessPanel",
+  "productReadinessBadge",
   "systemCharacterizationPanel",
   "systemCharacterizationBadge",
   "trendChart",
@@ -156,6 +158,8 @@ assert.ok(app.includes("Telemetry ingest"));
 assert.ok(app.includes("collectorIncomingReportsPerMinute"));
 assert.ok(app.includes("Hardware health"));
 assert.ok(app.includes("hardwareRepairAction"));
+assert.ok(app.includes("buildProductReadinessState"));
+assert.ok(app.includes("operatorProductReadinessNodes"));
 assert.ok(app.includes("renderLiveTelemetryGraphs"));
 assert.ok(app.includes("renderAnalysisResourceFallback"));
 assert.ok(app.includes("analyzeAnalysisResourceRelationships"));
@@ -218,6 +222,11 @@ assert.ok(app.includes("buildPrincipalResourceMode"));
 assert.ok(app.includes("calculatePrincipalResourceMode"));
 assert.ok(app.includes("telemetryPrincipalModeTrend"));
 assert.ok(app.includes("platformApiBaseUrl"));
+assert.ok(app.includes("PLATFORM_API_TOKEN_STORAGE_KEY"));
+assert.ok(app.includes("platformApiAuthToken"));
+assert.ok(app.includes("writePlatformApiAuthToken"));
+assert.ok(app.includes("platformApiFetch"));
+assert.ok(app.includes("dashboardApiTokenControl"));
 assert.ok(app.includes("isLakehouseDashboardHost"));
 assert.ok(app.includes("192.168.10.30"));
 assert.ok(app.includes("refreshPlatformVirtualSensors"));
@@ -278,12 +287,13 @@ assert.ok(html.includes("liveResourceGrid"));
 assert.ok(html.includes("liveTelemetryAlerts"));
 assert.ok(html.includes("liveObservationLog"));
 assert.ok(html.includes("liveTelemetryGraphs"));
-assert.ok(html.includes("app.js?v=theme-mode-20260610"));
+assert.ok(html.includes("app.js?v=product-secure-20260610"));
 assert.ok(html.includes("styles.css?v=theme-mode-20260610"));
 assert.ok(html.includes("turba.analytics.theme"));
 assert.ok(html.includes('id="themeToggle"'));
 assert.ok(html.includes('data-dashboard-block="sparkPair"'));
 assert.ok(html.includes('data-dashboard-block="fleetComparison"'));
+assert.ok(html.includes('data-dashboard-block="productReadiness"'));
 assert.ok(app.includes("renderLiveObservationLog"));
 assert.ok(app.includes("liveObservationActions"));
 assert.ok(app.includes("liveSignificantSampleObservations"));
@@ -300,6 +310,8 @@ assert.ok(css.includes("dashboard-settings-grid"));
 assert.ok(css.includes("dashboard-block-toggle"));
 assert.ok(css.includes("theme-switch"));
 assert.ok(css.includes('html[data-theme="dark"]'));
+assert.ok(css.includes("product-readiness-panel"));
+assert.ok(css.includes("product-readiness-summary"));
 assert.ok(app.includes("initThemeMode"));
 assert.ok(app.includes("applyThemeMode"));
 assert.ok(app.includes("THEME_STORAGE_KEY"));

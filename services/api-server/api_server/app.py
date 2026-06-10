@@ -55,6 +55,8 @@ class ApiSettings:
     jwt_role_claim: str = "role"
     jwt_subject_claim: str = "sub"
     service_name: str = "api-server"
+    product_version: str = "0.1.0"
+    deployment_environment: str = "pilot"
 
     @classmethod
     def from_env(cls) -> "ApiSettings":
@@ -93,6 +95,8 @@ class ApiSettings:
             jwt_role_claim=os.environ.get("TURBALANCE_API_JWT_ROLE_CLAIM", "role"),
             jwt_subject_claim=os.environ.get("TURBALANCE_API_JWT_SUBJECT_CLAIM", "sub"),
             service_name=os.environ.get("TURBALANCE_OTEL_SERVICE_NAME", "api-server"),
+            product_version=os.environ.get("TURBALANCE_PRODUCT_VERSION", "0.1.0"),
+            deployment_environment=os.environ.get("TURBALANCE_DEPLOYMENT_ENVIRONMENT", "pilot"),
         )
 
 
@@ -139,7 +143,27 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "queryEngine": lake.engine}
+        return {"status": "ok", "queryEngine": lake.engine, "version": settings.product_version}
+
+    @app.get("/ready")
+    async def ready() -> dict[str, Any]:
+        if "://" not in str(settings.lake_root):
+            settings.lake_root.mkdir(parents=True, exist_ok=True)
+        return {
+            "status": "ready",
+            "lakeRoot": str(settings.lake_root),
+            "queryEngine": lake.engine,
+            "authRequired": auth.require_auth,
+            "version": settings.product_version,
+        }
+
+    @app.get("/version")
+    async def version() -> dict[str, str]:
+        return {
+            "name": "turbalance-api",
+            "version": settings.product_version,
+            "environment": settings.deployment_environment,
+        }
 
     viewer_dependency = _auth_dependency(auth, "viewer")
     operator_dependency = _auth_dependency(auth, "operator")

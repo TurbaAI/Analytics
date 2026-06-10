@@ -75,6 +75,21 @@ By default this syncs the repo to `/opt/turbalance/Analytics`, writes `/etc/turb
 - `turbalance-machine-benchmark.service`
 - `turbalance-machine-benchmark.timer`
 
+If a lab host does not allow passwordless sudo, use rootless user units instead:
+
+```sh
+node scripts/rollout-production-fleet.js \
+  --apply \
+  --systemd-mode user \
+  --remote-root "$HOME/turbalance-analytics" \
+  --collector-url http://192.168.10.30:8801/v1/source-bundles \
+  --host-url http://192.168.10.30:8000 \
+  --benchmarks \
+  --remote user@192.168.10.20
+```
+
+User mode writes `~/.config/turbalance/live-machine-agent.env`, installs units under `~/.config/systemd/user`, and stores sequence/spool files under `~/.local/state/turbalance`. For unattended customer deployments, prefer the default system mode plus proper sudo/systemd provisioning.
+
 The live agent pushes every `TURBALANCE_AGENT_LOOP_MS` and fails over to local spool if the collector does not answer within `TURBALANCE_AGENT_POST_TIMEOUT_MS`. The benchmark timer runs every 15 minutes with a randomized delay so the Pis do not all benchmark at the same instant.
 
 ## Agent Durability
@@ -83,6 +98,8 @@ The live agent signs requests when `TURBALANCE_COLLECTOR_HMAC_SECRET` is set. It
 
 - sequence number: `/var/lib/turbalance/live-machine-agent/sequence-no`
 - offline spool: `/var/spool/turbalance/live-machine-agent`
+
+In user mode, these paths move under `~/.local/state/turbalance/live-machine-agent`.
 
 Replay queued telemetry manually:
 

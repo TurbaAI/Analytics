@@ -1,0 +1,107 @@
+{
+  "schemaVersion": "turba.product.v1",
+  "product": {
+    "name": "turbalance Analytics",
+    "version": "0.1.0",
+    "environment": "pilot"
+  },
+  "controller": {
+    "host": "192.168.10.30",
+    "publicBaseUrl": "http://192.168.10.30:8000",
+    "staticUrl": "http://192.168.10.30:8000",
+    "apiUrl": "http://192.168.10.30:8080",
+    "collectorUrl": "http://192.168.10.30:8801/v1/source-bundles",
+    "prometheusUrl": "http://192.168.10.30:9091",
+    "grafanaUrl": "http://192.168.10.30:3001",
+    "remoteRoot": "/home/user/turbalance-analytics",
+    "lakeRoot": "build/lakehouse",
+    "liveBundlePath": "build/demo/live-machine-bundle.json",
+    "loopMs": 1000,
+    "transformIntervalMs": 10000,
+    "dataRetentionDays": 30,
+    "services": {
+      "staticDashboard": {
+        "name": "dashboard",
+        "port": 8000
+      },
+      "api": {
+        "name": "api-server",
+        "port": 8080
+      },
+      "collector": {
+        "name": "collector-gateway",
+        "port": 8801
+      },
+      "grafana": {
+        "name": "turbalance-grafana-runtime",
+        "port": 3001,
+        "container": "turbalance-grafana-runtime"
+      },
+      "prometheus": {
+        "name": "turbalance-prometheus-runtime",
+        "port": 9091,
+        "container": "turbalance-prometheus-runtime"
+      }
+    }
+  },
+  "fleet": {
+    "tenantId": "dgx-lab",
+    "defaultRemoteRoot": "/opt/turbalance/Analytics",
+    "agentLoopMs": 5000,
+    "postTimeoutMs": 10000,
+    "includePiFleet": true,
+    "machines": [
+      {
+        "id": "SPARK1",
+        "remote": "user@192.168.10.20",
+        "role": "spark",
+        "benchmarks": true,
+        "dgxInterconnectInterface": "enp1s0f1np1",
+        "dgxInterconnectSubnetPrefix": "192.168.100."
+      },
+      {
+        "id": "SPARK2",
+        "remote": "user@192.168.10.21",
+        "role": "spark",
+        "benchmarks": true,
+        "dgxInterconnectInterface": "enp1s0f1np1",
+        "dgxInterconnectSubnetPrefix": "192.168.100."
+      },
+      { "id": "pi1", "remote": "pi@pi1", "role": "pi", "benchmarks": true },
+      { "id": "pi2", "remote": "pi@pi2", "role": "pi", "benchmarks": true },
+      { "id": "pi3", "remote": "pi@pi3", "role": "pi", "benchmarks": true },
+      { "id": "pi4", "remote": "pi@pi4", "role": "pi", "benchmarks": true },
+      { "id": "pi5", "remote": "pi@pi5", "role": "pi", "benchmarks": true },
+      { "id": "pi6", "remote": "pi@pi6", "role": "pi", "benchmarks": true },
+      { "id": "pi7", "remote": "pi@pi7", "role": "pi", "benchmarks": true },
+      { "id": "pi8", "remote": "pi@pi8", "role": "pi", "benchmarks": true },
+      { "id": "pi9", "remote": "pi@pi9", "role": "pi", "benchmarks": true },
+      { "id": "pi10", "remote": "pi@pi10", "role": "pi", "benchmarks": true },
+      { "id": "pi11", "remote": "pi@pi11", "role": "pi", "benchmarks": true },
+      { "id": "pi12", "remote": "pi@pi12", "role": "pi", "benchmarks": true }
+    ]
+  },
+  "security": {
+    "requireApiAuth": true,
+    "apiTokensFile": "build/product-secrets/api-tokens",
+    "collectorToken": "",
+    "collectorTokenFile": "build/product-secrets/collector-token",
+    "collectorHmacSecret": "",
+    "collectorHmacSecretFile": "build/product-secrets/collector-hmac-secret",
+    "tlsMode": "edge-self-signed",
+    "edgeHttpsPort": 8443,
+    "collectorMtlsPort": 9443,
+    "tlsCaFile": "build/product-tls/ca.crt",
+    "collectorClientCertFile": "build/product-tls/agent-client.crt",
+    "collectorClientKeyFile": "build/product-tls/agent-client.key",
+    "allowedCorsOrigins": ["http://192.168.10.30:8000"]
+  },
+  "observability": {
+    "prometheusUrl": "http://192.168.10.30:9091",
+    "grafanaUrl": "http://192.168.10.30:3001",
+    "grafanaDashboardUrl": "http://192.168.10.30:3001/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s",
+    "prometheusApiTokenFile": "build/product-secrets/api-viewer-token",
+    "otelEndpoint": "",
+    "supportBundleRetentionDays": 14
+  }
+}

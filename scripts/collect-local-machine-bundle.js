@@ -714,6 +714,8 @@ function collectServices(hostUrl) {
   const appMetricsUp = /gb100_app_collector_up\s+1\b/.test(appMetricsText) || appMetricsText.includes("gb100_metric_capability");
   const collectorMetricsText = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:8801/metrics"]);
   const collectorGateway = parseCollectorGatewayMetrics(collectorMetricsText);
+  const collectorReady = httpJson("http://127.0.0.1:8801/ready");
+  const apiReady = httpJson("http://127.0.0.1:8080/ready");
   const profilingExporter = collectProfilingExporter();
   const nodeExporter = command("curl", ["-sS", "--max-time", "2", "http://127.0.0.1:9100/metrics"]);
   const hostAddress = primaryAddress();
@@ -732,6 +734,8 @@ function collectServices(hostUrl) {
     appMetricsUp,
     collectorGatewayUp: collectorGateway.reachable,
     collectorGateway,
+    collectorReady: collectorReady.ok ? collectorReady.body : null,
+    apiReady: apiReady.ok ? apiReady.body : null,
     profilingExporter,
     kafka: kafkaReachable ? {
       bootstrapServers: "spark1-kafka.turbalance-demo.svc.cluster.local:9092",
@@ -1368,6 +1372,10 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             collectorIncomingReportsPerMinute: roundOptional(services.collectorGateway?.incomingReportsPerMinute, 2),
             collectorIncomingReportsWindowCount: roundOptional(services.collectorGateway?.incomingReportsWindowCount, 0),
             collectorIncomingReportsWindowSeconds: roundOptional(services.collectorGateway?.incomingReportsWindowSeconds, 0),
+            collectorAuthBearer: Boolean(services.collectorReady?.auth?.bearerToken),
+            collectorAuthHmac: Boolean(services.collectorReady?.auth?.hmac),
+            collectorAuthMtls: Boolean(services.collectorReady?.auth?.mtls),
+            apiAuthRequired: Boolean(services.apiReady?.authRequired),
             hardwareHealthScore: roundOptional(hardware.healthScore, 2),
             hardwareFaultScore: roundOptional(hardware.faultScore, 2),
             hardwareFaultLevel: hardware.level || "unknown",

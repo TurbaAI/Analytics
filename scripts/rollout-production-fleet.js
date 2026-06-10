@@ -23,6 +23,7 @@ const options = {
   apply: flagArg(args.apply),
   sync: args.sync === undefined ? true : flagArg(args.sync),
   installSystemd: args["install-systemd"] === undefined ? true : flagArg(args["install-systemd"]),
+  systemdMode: normalizeSystemdMode(args["systemd-mode"] || process.env.TURBALANCE_SYSTEMD_MODE || "system"),
   restart: args.restart === undefined ? true : flagArg(args.restart),
   benchmarks: flagArg(args.benchmarks),
   otel: flagArg(args.otel),
@@ -34,8 +35,13 @@ const options = {
   agentLoopMs: args["agent-loop-ms"] || process.env.TURBALANCE_AGENT_LOOP_MS || "5000",
   postTimeoutMs: args["post-timeout-ms"] || process.env.TURBALANCE_AGENT_POST_TIMEOUT_MS || "10000",
   commandTimeoutMs: Number(args["command-timeout-ms"] || process.env.TURBALANCE_ROLLOUT_COMMAND_TIMEOUT_MS || "60000"),
-  token: args.token || process.env.TURBALANCE_COLLECTOR_TOKEN || "",
-  hmacSecret: args["hmac-secret"] || process.env.TURBALANCE_COLLECTOR_HMAC_SECRET || "",
+  productVersion: args["product-version"] || process.env.TURBALANCE_PRODUCT_VERSION || "0.1.0",
+  deploymentEnvironment: args["deployment-environment"] || process.env.TURBALANCE_DEPLOYMENT_ENVIRONMENT || "pilot",
+  token: args.token || secretEnv("TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_TOKEN_FILE"),
+  hmacSecret: args["hmac-secret"] || secretEnv("TURBALANCE_COLLECTOR_HMAC_SECRET", "TURBALANCE_COLLECTOR_HMAC_SECRET_FILE"),
+  collectorCaFile: args["collector-ca-file"] || process.env.TURBALANCE_COLLECTOR_CA_FILE || "",
+  collectorClientCertFile: args["collector-client-cert-file"] || process.env.TURBALANCE_COLLECTOR_CLIENT_CERT_FILE || "",
+  collectorClientKeyFile: args["collector-client-key-file"] || process.env.TURBALANCE_COLLECTOR_CLIENT_KEY_FILE || "",
   out: args.out || ""
 };
 
@@ -53,6 +59,7 @@ function main() {
     options: {
       sync: options.sync,
       installSystemd: options.installSystemd,
+      systemdMode: options.systemdMode,
       restart: options.restart,
       benchmarks: options.benchmarks,
       otel: options.otel,
@@ -88,10 +95,13 @@ function resolveTargets() {
 
 function buildTargetPlan(target) {
   const env = targetEnv(target);
+  const userMode = targetSystemdMode(target) === "user";
   const commands = [];
   commands.push({
     step: "prepare-directories",
-    command: target.local ? localPrepareCommand() : ssh(target.remote, remotePrepareCommand())
+    command: target.local
+      ? localPrepareCommand(target)
+      : ssh(target.remote, userMode ? remoteUserPrepareCommand(target) : remotePrepareCommand())
   });
   if (options.sync && !target.local) {
     commands.push({
@@ -99,34 +109,77 @@ function buildTargetPlan(target) {
       command: shellJoin(rsyncCommand(target.remote))
     });
   }
+  const tlsMaterial = collectorTlsMaterial();
+  if (tlsMaterial.length && !target.local) {
+    commands.push({
+      step: "install-agent-tls-material",
+      command: ssh(target.remote, tlsMaterial.map((item) => installTextCommand(remoteTlsPath(item.value), fs.readFileSync(localTlsPath(item.value), "utf8"), item.mode, { sudo: !userMode })).join(" && "))
+    });
+  }
   if (options.installSystemd) {
     commands.push({
       step: "install-agent-env",
-      command: target.local ? localInstallEnvCommand(env) : ssh(target.remote, installTextCommand("/etc/turbalance/live-machine-agent.env", renderEnv(env), "600"))
+      command: target.local
+        ? localInstallEnvCommand(target, env)
+        : ssh(target.remote, installTextCommand(agentEnvPath(target), renderEnv(env), "600", { sudo: !userMode }))
     });
-    for (const unit of systemdUnits()) {
+    for (const unit of systemdUnits(target)) {
       commands.push({
         step: `install-${path.basename(unit.path)}`,
-        command: target.local ? localInstallFileCommand(unit.path, unit.content, "644") : ssh(target.remote, installTextCommand(unit.path, unit.content, "644"))
+        command: target.local
+          ? localInstallFileCommand(target, unit.path, unit.content, "644")
+          : ssh(target.remote, installTextCommand(unit.path, unit.content, "644", { sudo: !userMode }))
       });
     }
     commands.push({
       step: "systemd-reload",
-      command: target.local ? "sudo -n systemctl daemon-reload" : ssh(target.remote, "sudo -n systemctl daemon-reload")
+      command: target.local ? systemdCommand(target, "daemon-reload") : ssh(target.remote, systemdCommand(target, "daemon-reload"))
     });
     if (options.restart) {
       commands.push({
+        step: "stop-live-agent",
+        command: target.local
+          ? tolerantSystemdCommand(target, "stop turbalance-live-machine-agent.service")
+          : ssh(target.remote, tolerantSystemdCommand(target, "stop turbalance-live-machine-agent.service"))
+      });
+      if (options.benchmarks || target.role === "pi") {
+        commands.push({
+          step: "stop-benchmark-service",
+          command: target.local
+            ? tolerantSystemdCommand(target, "stop turbalance-machine-benchmark.service")
+            : ssh(target.remote, tolerantSystemdCommand(target, "stop turbalance-machine-benchmark.service"))
+        });
+      }
+      commands.push({
+        step: "stop-orphan-agent-processes",
+        command: target.local
+          ? killAgentProcessesCommand()
+          : ssh(target.remote, killAgentProcessesCommand())
+      });
+      commands.push({
         step: "enable-live-agent",
         command: target.local
-          ? "sudo -n systemctl enable --now turbalance-live-machine-agent.service"
-          : ssh(target.remote, "sudo -n systemctl enable --now turbalance-live-machine-agent.service")
+          ? systemdCommand(target, "enable --now turbalance-live-machine-agent.service")
+          : ssh(target.remote, systemdCommand(target, "enable --now turbalance-live-machine-agent.service"))
+      });
+      commands.push({
+        step: "restart-live-agent",
+        command: target.local
+          ? systemdCommand(target, "restart turbalance-live-machine-agent.service")
+          : ssh(target.remote, systemdCommand(target, "restart turbalance-live-machine-agent.service"))
       });
       if (options.benchmarks || target.role === "pi") {
         commands.push({
           step: "enable-benchmark-timer",
           command: target.local
-            ? "sudo -n systemctl enable --now turbalance-machine-benchmark.timer"
-            : ssh(target.remote, "sudo -n systemctl enable --now turbalance-machine-benchmark.timer")
+            ? systemdCommand(target, "enable --now turbalance-machine-benchmark.timer")
+            : ssh(target.remote, systemdCommand(target, "enable --now turbalance-machine-benchmark.timer"))
+        });
+        commands.push({
+          step: "restart-benchmark-timer",
+          command: target.local
+            ? systemdCommand(target, "restart turbalance-machine-benchmark.timer")
+            : ssh(target.remote, systemdCommand(target, "restart turbalance-machine-benchmark.timer"))
         });
       }
     }
@@ -143,20 +196,46 @@ function buildTargetPlan(target) {
   return { ...target, env, commands };
 }
 
+function collectorTlsMaterial() {
+  return [
+    { value: options.collectorCaFile, mode: "644" },
+    { value: options.collectorClientCertFile, mode: "644" },
+    { value: options.collectorClientKeyFile, mode: "600" }
+  ].filter((item) => item.value);
+}
+
+function localTlsPath(value) {
+  return path.resolve(root, value);
+}
+
+function remoteTlsPath(value) {
+  return path.posix.isAbsolute(value)
+    ? value
+    : path.posix.join(options.remoteRoot, value.split(path.sep).join(path.posix.sep));
+}
+
 function targetEnv(target) {
+  const userMode = targetSystemdMode(target) === "user";
+  const home = targetHome(target);
+  const stateDir = userMode ? `${home}/.local/state/turbalance/live-machine-agent` : "/var/lib/turbalance/live-machine-agent";
+  const spoolDir = userMode ? `${stateDir}/spool` : "/var/spool/turbalance/live-machine-agent";
   return {
     TURBALANCE_TENANT_ID: options.tenantId,
     TURBALANCE_HOST_ID: "",
     TURBALANCE_AGENT_ID: target.role === "pi" ? "pi-live-machine-push" : target.role === "spark" ? "spark-live-machine-push" : "nuc-live-machine-push",
+    TURBALANCE_PRODUCT_VERSION: options.productVersion,
     TURBALANCE_COLLECTOR_URL: options.collectorUrl,
     TURBALANCE_MACHINE_DEMO_URL: options.hostUrl,
     TURBALANCE_AGENT_LOOP_MS: options.agentLoopMs,
     TURBALANCE_AGENT_POST_TIMEOUT_MS: options.postTimeoutMs,
-    TURBALANCE_AGENT_SEQUENCE_PATH: "/var/lib/turbalance/live-machine-agent/sequence-no",
-    TURBALANCE_AGENT_SPOOL_DIR: "/var/spool/turbalance/live-machine-agent",
+    TURBALANCE_AGENT_SEQUENCE_PATH: `${stateDir}/sequence-no`,
+    TURBALANCE_AGENT_SPOOL_DIR: spoolDir,
     TURBALANCE_AGENT_MAX_REPLAY: "25",
     TURBALANCE_COLLECTOR_TOKEN: options.token,
     TURBALANCE_COLLECTOR_HMAC_SECRET: options.hmacSecret,
+    TURBALANCE_COLLECTOR_CA_FILE: options.collectorCaFile,
+    TURBALANCE_COLLECTOR_CLIENT_CERT_FILE: options.collectorClientCertFile,
+    TURBALANCE_COLLECTOR_CLIENT_KEY_FILE: options.collectorClientKeyFile,
     TURBALANCE_GPU_BACKEND: "auto",
     TURBALANCE_GPUSTAT_BIN: "",
     TURBALANCE_DGX_INTERCONNECT_INTERFACE: target.role === "spark" ? "enp1s0f1np1" : "",
@@ -167,10 +246,10 @@ function targetEnv(target) {
     TURBALANCE_BENCHMARK_DURATION_MS: target.role === "pi" ? "450" : "250",
     TURBALANCE_BENCHMARK_BUFFER_MIB: target.role === "pi" ? "8" : "16",
     TURBALANCE_BENCHMARK_DISK_MIB: target.role === "pi" ? "16" : "32",
-    TURBALANCE_OTEL_FILE_STORAGE_DIR: "/var/lib/turbalance/otelcol/file_storage",
+    TURBALANCE_OTEL_FILE_STORAGE_DIR: userMode ? `${home}/.local/state/turbalance/otelcol/file_storage` : "/var/lib/turbalance/otelcol/file_storage",
     TURBALANCE_OTEL_HOST_INTERVAL: "10s",
     TURBALANCE_OTEL_DOCKER_INTERVAL: "15s",
-    TURBALANCE_DEPLOYMENT_ENVIRONMENT: "lab"
+    TURBALANCE_DEPLOYMENT_ENVIRONMENT: options.deploymentEnvironment
   };
 }
 
@@ -196,14 +275,21 @@ function applyTargetPlan(targetPlan) {
   };
 }
 
-function systemdUnits() {
-  return [
+function systemdUnits(target) {
+  const fileNames = [
     "turbalance-live-machine-agent.service",
     "turbalance-machine-benchmark.service",
     "turbalance-machine-benchmark.timer"
-  ].map((fileName) => ({
-    path: `/etc/systemd/system/${fileName}`,
-    content: fs.readFileSync(path.join(root, "deploy", "systemd", fileName), "utf8")
+  ];
+  if (targetSystemdMode(target) !== "user") {
+    return fileNames.map((fileName) => ({
+      path: `/etc/systemd/system/${fileName}`,
+      content: fs.readFileSync(path.join(root, "deploy", "systemd", fileName), "utf8")
+    }));
+  }
+  return fileNames.map((fileName) => ({
+    path: path.posix.join(userUnitDir(target), fileName),
+    content: renderUserSystemdUnit(target, fileName)
   }));
 }
 
@@ -217,7 +303,20 @@ function remotePrepareCommand() {
   ].join("; ");
 }
 
-function localPrepareCommand() {
+function remoteUserPrepareCommand(target) {
+  const env = targetEnv(target);
+  const stateDir = path.posix.dirname(env.TURBALANCE_AGENT_SEQUENCE_PATH);
+  return [
+    "set -e",
+    `mkdir -p ${quote(options.remoteRoot)} ${quote(path.posix.join(options.remoteRoot, "build"))} ${quote(path.posix.dirname(agentEnvPath(target)))} ${quote(userUnitDir(target))} ${quote(stateDir)} ${quote(env.TURBALANCE_AGENT_SPOOL_DIR)} ${quote(env.TURBALANCE_OTEL_FILE_STORAGE_DIR)} ${quote(path.posix.join(targetHome(target), ".local/share/turbalance/node-exporter-textfile"))}`,
+    `chmod 700 ${quote(stateDir)} ${quote(env.TURBALANCE_AGENT_SPOOL_DIR)}`
+  ].join("; ");
+}
+
+function localPrepareCommand(target) {
+  if (targetSystemdMode(target) === "user") {
+    return remoteUserPrepareCommand(target);
+  }
   return [
     `sudo -n mkdir -p ${quote(path.join(options.remoteRoot, "build"))} /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage`,
     "sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent"
@@ -238,17 +337,100 @@ function rsyncCommand(remote) {
   ];
 }
 
-function localInstallEnvCommand(env) {
-  return installTextCommand("/etc/turbalance/live-machine-agent.env", renderEnv(env), "600");
+function localInstallEnvCommand(target, env) {
+  return installTextCommand(agentEnvPath(target), renderEnv(env), "600", { sudo: targetSystemdMode(target) !== "user" });
 }
 
-function localInstallFileCommand(filePath, content, mode) {
-  return installTextCommand(filePath, content, mode);
+function localInstallFileCommand(target, filePath, content, mode) {
+  return installTextCommand(filePath, content, mode, { sudo: targetSystemdMode(target) !== "user" });
 }
 
-function installTextCommand(filePath, content, mode) {
+function installTextCommand(filePath, content, mode, { sudo = true } = {}) {
   const encoded = Buffer.from(content, "utf8").toString("base64");
+  if (!sudo) {
+    return `mkdir -p ${quote(path.posix.dirname(filePath))} && printf %s ${quote(encoded)} | base64 -d > ${quote(filePath)} && chmod ${quote(mode)} ${quote(filePath)}`;
+  }
   return `printf %s ${quote(encoded)} | base64 -d | sudo -n tee ${quote(filePath)} >/dev/null && sudo -n chmod ${quote(mode)} ${quote(filePath)}`;
+}
+
+function renderUserSystemdUnit(target, fileName) {
+  const envPath = agentEnvPath(target);
+  const workDir = options.remoteRoot;
+  if (fileName === "turbalance-live-machine-agent.service") {
+    return [
+      "[Unit]",
+      "Description=Turbalance live machine telemetry push agent",
+      "After=network-online.target",
+      "",
+      "[Service]",
+      "Type=simple",
+      `EnvironmentFile=-${envPath}`,
+      `WorkingDirectory=${workDir}`,
+      `ExecStart=/usr/bin/env node ${workDir}/scripts/push-live-machine-telemetry.js`,
+      "Restart=always",
+      "RestartSec=5",
+      "TimeoutStopSec=20",
+      "KillSignal=SIGINT",
+      "NoNewPrivileges=true",
+      "PrivateTmp=true",
+      "",
+      "[Install]",
+      "WantedBy=default.target",
+      ""
+    ].join("\n");
+  }
+  if (fileName === "turbalance-machine-benchmark.service") {
+    return [
+      "[Unit]",
+      "Description=Turbalance scheduled machine benchmark publisher",
+      "After=network-online.target",
+      "",
+      "[Service]",
+      "Type=oneshot",
+      `EnvironmentFile=-${envPath}`,
+      `WorkingDirectory=${workDir}`,
+      `ExecStart=/usr/bin/env node ${workDir}/scripts/push-live-machine-telemetry.js --benchmark-suite 1 --fast-refresh 1 --ollama-probe 0`,
+      "Nice=10",
+      "IOSchedulingClass=best-effort",
+      "IOSchedulingPriority=7",
+      "NoNewPrivileges=true",
+      "PrivateTmp=true",
+      ""
+    ].join("\n");
+  }
+  return fs.readFileSync(path.join(root, "deploy", "systemd", fileName), "utf8");
+}
+
+function systemdCommand(target, command) {
+  return targetSystemdMode(target) === "user" ? `systemctl --user ${command}` : `sudo -n systemctl ${command}`;
+}
+
+function tolerantSystemdCommand(target, command) {
+  return `${systemdCommand(target, command)} || true`;
+}
+
+function killAgentProcessesCommand() {
+  return "pkill -f '[p]ush-live-machine-telemetry.js' || true";
+}
+
+function targetSystemdMode() {
+  return options.systemdMode;
+}
+
+function agentEnvPath(target) {
+  return targetSystemdMode(target) === "user"
+    ? path.posix.join(targetHome(target), ".config/turbalance/live-machine-agent.env")
+    : "/etc/turbalance/live-machine-agent.env";
+}
+
+function userUnitDir(target) {
+  return path.posix.join(targetHome(target), ".config/systemd/user");
+}
+
+function targetHome(target) {
+  if (target.local) return process.env.HOME || "/tmp";
+  const user = String(target.remote || "").split("@")[0];
+  return user ? `/home/${user}` : "$HOME";
 }
 
 function renderEnv(env) {
@@ -364,6 +546,23 @@ function unique(values) {
 
 function flagArg(value) {
   return value === true || value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function normalizeSystemdMode(value) {
+  const mode = String(value || "system").toLowerCase();
+  return mode === "user" ? "user" : "system";
+}
+
+function secretEnv(valueName, fileName) {
+  const direct = process.env[valueName] || "";
+  if (direct) return direct;
+  const filePath = process.env[fileName] || "";
+  if (!filePath) return "";
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
 }
 
 function quote(value) {

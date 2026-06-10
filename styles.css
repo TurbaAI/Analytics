@@ -898,6 +898,82 @@ input[type="url"] {
   box-shadow: 0 0 0 3px rgba(15, 172, 128, 0.08);
 }
 
+.dashboard-api-token-control {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.65fr) minmax(160px, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.dashboard-api-token-control label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.dashboard-api-token-control input {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.dashboard-api-token-control div {
+  display: flex;
+  gap: 8px;
+}
+
+.dashboard-api-token-control button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--teal-ink);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.dashboard-api-token-control button:hover,
+.dashboard-api-token-control button:focus-visible {
+  border-color: rgba(15, 172, 128, 0.45);
+  box-shadow: 0 0 0 3px rgba(15, 172, 128, 0.08);
+}
+
+.dashboard-api-token-control > span {
+  justify-self: end;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--amber-2);
+  color: var(--amber);
+  font-size: 0.68rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.dashboard-api-token-control > span[data-tone="good"] {
+  background: var(--green-2);
+  color: var(--green);
+}
+
+.dashboard-api-token-control > span[data-tone="poor"] {
+  background: var(--red-2);
+  color: var(--red);
+}
+
 .dashboard-settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -4701,6 +4777,14 @@ button.fleet-tile:focus-visible {
     grid-template-columns: 1fr;
   }
 
+  .dashboard-api-token-control {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-api-token-control > span {
+    justify-self: start;
+  }
+
   .operator-loop {
     order: 1;
   }
@@ -6246,6 +6330,125 @@ button.fleet-tile:hover {
   outline-offset: 3px;
 }
 
+.product-readiness-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.product-readiness-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background:
+    linear-gradient(90deg, rgba(10, 141, 120, 0.1), transparent 58%),
+    #ffffff;
+}
+
+.product-readiness-summary strong {
+  color: var(--teal-ink);
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.product-readiness-summary span {
+  min-width: 0;
+  color: #4e5b62;
+  font-size: 0.85rem;
+  font-weight: 750;
+  line-height: 1.32;
+}
+
+.product-readiness-summary[data-tone="watch"] {
+  background:
+    linear-gradient(90deg, rgba(154, 101, 22, 0.12), transparent 58%),
+    #ffffff;
+}
+
+.product-readiness-summary[data-tone="watch"] strong {
+  color: var(--amber);
+}
+
+.product-readiness-summary[data-tone="poor"] {
+  background:
+    linear-gradient(90deg, rgba(182, 67, 56, 0.12), transparent 58%),
+    #ffffff;
+}
+
+.product-readiness-summary[data-tone="poor"] strong {
+  color: var(--red);
+}
+
+.product-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.product-readiness-item {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 92px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: linear-gradient(180deg, #ffffff, #f8fafa);
+  box-shadow: var(--shadow-hairline);
+}
+
+.product-readiness-item::before {
+  content: "";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 4px rgba(154, 101, 22, 0.1);
+}
+
+.product-readiness-item[data-tone="good"]::before {
+  background: var(--teal);
+  box-shadow: 0 0 0 4px rgba(10, 141, 120, 0.1);
+}
+
+.product-readiness-item[data-tone="poor"]::before {
+  background: var(--red);
+  box-shadow: 0 0 0 4px rgba(182, 67, 56, 0.12);
+}
+
+.product-readiness-item span {
+  padding-right: 18px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.product-readiness-item strong {
+  color: #111619;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.16;
+}
+
+.product-readiness-item small {
+  color: #56636b;
+  font-size: 0.76rem;
+  line-height: 1.28;
+}
+
 html[data-theme="dark"] {
   color-scheme: dark;
   --bg: #101616;
@@ -6307,6 +6510,7 @@ html[data-theme="dark"] .topbar .rate-label {
 html[data-theme="dark"] select,
 html[data-theme="dark"] input[type="number"],
 html[data-theme="dark"] input[type="url"],
+html[data-theme="dark"] input[type="password"],
 html[data-theme="dark"] .topbar select,
 html[data-theme="dark"] .topbar input[type="number"],
 html[data-theme="dark"] .topbar .toggle,
@@ -6315,6 +6519,7 @@ html[data-theme="dark"] .toggle,
 html[data-theme="dark"] .secondary-button,
 html[data-theme="dark"] .icon-button,
 html[data-theme="dark"] .dashboard-settings-actions button,
+html[data-theme="dark"] .dashboard-api-token-control button,
 html[data-theme="dark"] .demo-command-button,
 html[data-theme="dark"] .replay-controls button {
   border-color: rgba(140, 162, 166, 0.32);
@@ -6366,7 +6571,10 @@ html[data-theme="dark"] .panel-heading {
 
 html[data-theme="dark"] .entity-row,
 html[data-theme="dark"] .dashboard-block-toggle,
+html[data-theme="dark"] .dashboard-api-token-control,
 html[data-theme="dark"] .live-resource-card,
+html[data-theme="dark"] .product-readiness-summary,
+html[data-theme="dark"] .product-readiness-item,
 html[data-theme="dark"] .source-heartbeat-card,
 html[data-theme="dark"] .operator-card,
 html[data-theme="dark"] .fleet-tile,
@@ -6444,8 +6652,32 @@ html[data-theme="dark"] .live-resource-head p,
 html[data-theme="dark"] .dashboard-settings-head p,
 html[data-theme="dark"] .diagnosis-copy p:last-child,
 html[data-theme="dark"] .live-resource-card small,
+html[data-theme="dark"] .product-readiness-summary span,
+html[data-theme="dark"] .product-readiness-item small,
 html[data-theme="dark"] .dashboard-block-toggle small {
   color: var(--muted);
+}
+
+html[data-theme="dark"] .product-readiness-item strong {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .product-readiness-summary {
+  background:
+    linear-gradient(90deg, rgba(73, 201, 173, 0.14), transparent 58%),
+    linear-gradient(180deg, #1b2425, #171f20);
+}
+
+html[data-theme="dark"] .product-readiness-summary[data-tone="watch"] {
+  background:
+    linear-gradient(90deg, rgba(240, 191, 99, 0.14), transparent 58%),
+    linear-gradient(180deg, #1b2425, #171f20);
+}
+
+html[data-theme="dark"] .product-readiness-summary[data-tone="poor"] {
+  background:
+    linear-gradient(90deg, rgba(255, 143, 127, 0.14), transparent 58%),
+    linear-gradient(180deg, #1b2425, #171f20);
 }
 
 html[data-theme="dark"] .analysis-stamp span,
