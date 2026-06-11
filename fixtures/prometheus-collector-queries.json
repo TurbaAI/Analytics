@@ -2,6 +2,13 @@
   "prometheus": {
     "turba_gpu_utilization_ratio": "avg(DCGM_FI_DEV_GPU_UTIL) / 100",
     "turba_useful_compute_ratio": "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) / 100",
+    "turba_gpu_power_watts": "avg((DCGM_FI_DEV_POWER_USAGE) or (GPU_POWER_USAGE) or (GPU_PACKAGE_POWER) or (GPU_AVERAGE_PACKAGE_POWER))",
+    "turba_gpu_activity_ratio": "avg((DCGM_FI_DEV_GPU_UTIL / 100) or (DCGM_FI_PROF_SM_ACTIVE) or (GPU_GFX_ACTIVITY / 100) or (GPU_GFX_BUSY_INSTANTANEOUS / 100))",
+    "turba_gpu_memory_used_ratio": "avg((DCGM_FI_DEV_FB_USED / clamp_min(DCGM_FI_DEV_FB_TOTAL, 1)) or (GPU_USED_VRAM / clamp_min(GPU_TOTAL_VRAM, 1)))",
+    "turba_gpu_thermal_celsius": "avg(DCGM_FI_DEV_GPU_TEMP or GPU_EDGE_TEMPERATURE or GPU_JUNCTION_TEMPERATURE)",
+    "turba_gpu_interconnect_bytes_per_second": "avg((DCGM_FI_PROF_PCIE_TX_BYTES) or (DCGM_FI_PROF_PCIE_RX_BYTES) or (DCGM_FI_PROF_NVLINK_TX_BYTES) or (DCGM_FI_PROF_NVLINK_RX_BYTES) or (PCIE_BANDWIDTH * 125000) or (PCIE_BIDIRECTIONAL_BANDWIDTH * 1000000000))",
+    "turba_gpu_ecc_errors_total": "sum((DCGM_FI_DEV_ECC_SBE_AGG_TOTAL) or (DCGM_FI_DEV_ECC_DBE_AGG_TOTAL) or (GPU_ECC_CORRECT_TOTAL) or (GPU_ECC_UNCORRECT_TOTAL))",
+    "turba_gpu_clock_mhz": "avg(DCGM_FI_DEV_SM_CLOCK or GPU_CLOCK)",
     "turba_network_wait_ratio": "avg(turbalance_network_wait_ratio)",
     "turba_network_utilization_ratio": "avg(turbalance_network_utilization_ratio)",
     "turba_queue_wait_minutes": "avg(turbalance_queue_wait_minutes)"
@@ -10,6 +17,12 @@
     "DCGM_FI_PROF_SM_OCCUPANCY": "avg(DCGM_FI_PROF_SM_OCCUPANCY)",
     "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE": "avg(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)",
     "DCGM_FI_DEV_FB_USED_RATIO": "avg(DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_TOTAL) * 100",
-    "DCGM_FI_PROF_DRAM_ACTIVE": "avg(DCGM_FI_PROF_DRAM_ACTIVE)"
+    "DCGM_FI_PROF_DRAM_ACTIVE": "avg(DCGM_FI_PROF_DRAM_ACTIVE)",
+    "DCGM_FI_DEV_POWER_USAGE": "avg(DCGM_FI_DEV_POWER_USAGE)",
+    "DCGM_FI_DEV_GPU_TEMP": "avg(DCGM_FI_DEV_GPU_TEMP)",
+    "DCGM_FI_PROF_PCIE_TX_BYTES": "avg(DCGM_FI_PROF_PCIE_TX_BYTES)",
+    "DCGM_FI_PROF_PCIE_RX_BYTES": "avg(DCGM_FI_PROF_PCIE_RX_BYTES)",
+    "DCGM_FI_PROF_NVLINK_TX_BYTES": "avg(DCGM_FI_PROF_NVLINK_TX_BYTES)",
+    "DCGM_FI_PROF_NVLINK_RX_BYTES": "avg(DCGM_FI_PROF_NVLINK_RX_BYTES)"
   }
 }

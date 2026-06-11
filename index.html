@@ -20,14 +20,14 @@
         }
       }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=benchmark-ladder-20260610">
+    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611">
   </head>
   <body>
     <header class="topbar">
       <div class="brand" aria-label="turbalance Analytics">
         <span class="brand-copy">
-          <img class="brand-wordmark" src="assets/turbalance-wordmark-transparent.png" alt="turbalance">
-          <span>Infrastructure performance intelligence</span>
+          <img class="brand-wordmark" src="assets/turbalance-wordmark-special-t.png?v=logo-size-20260610-200px" alt="turbalance">
+          <span>Analytics</span>
         </span>
       </div>
 
@@ -238,6 +238,27 @@
                   <span id="autoDiscoveryDeploymentBadge">Dry-run</span>
                 </div>
                 <div id="autoDiscoveryDeploymentPanel" class="auto-discovery-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="executionIdleEnergy">
+                <div class="operator-card-head">
+                  <p>Execution-Idle Energy</p>
+                  <span id="executionIdleEnergyBadge">Learning</span>
+                </div>
+                <div id="executionIdleEnergyPanel" class="execution-idle-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="gpuExporterCoverage">
+                <div class="operator-card-head">
+                  <p>GPU Exporter Coverage</p>
+                  <span id="gpuExporterCoverageBadge">Learning</span>
+                </div>
+                <div id="gpuExporterCoveragePanel" class="gpu-exporter-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="backgroundTasks">
+                <div class="operator-card-head">
+                  <p>Background Tasks</p>
+                  <span id="backgroundTasksBadge">Watching</span>
+                </div>
+                <div id="backgroundTasksPanel" class="background-tasks-panel"></div>
               </section>
               <section class="operator-card" data-dashboard-block="kafkaStream">
                 <div class="operator-card-head">
@@ -588,6 +609,6 @@
     <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
     <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
     <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
-    <script src="app.js?v=benchmark-ladder-20260610"></script>
+    <script src="app.js?v=machine-inventory-20260611"></script>
   </body>
 </html>

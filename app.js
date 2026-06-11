@@ -60,6 +60,36 @@ const STORAGE_SCHEMA = {
 
 const THEME_STORAGE_KEY = "turba.analytics.theme";
 const PLATFORM_API_TOKEN_STORAGE_KEY = "turba.analytics.platformApiToken.v1";
+const PANEL_POPOUT_SELECTOR = [
+  ".diagnosis-band",
+  ".dashboard-settings-panel",
+  ".live-resource-panel",
+  ".operator-cockpit-panel",
+  ".operator-card",
+  ".panel",
+  ".entity-row",
+  ".live-resource-card",
+  ".source-heartbeat-card",
+  ".fleet-tile",
+  ".live-relationship-card",
+  ".live-alert-card",
+  ".live-telemetry-card",
+  ".benchmark-metric-card",
+  ".benchmark-ladder-summary-item",
+  ".execution-idle-summary-item",
+  ".execution-idle-row",
+  ".gpu-exporter-summary-item",
+  ".gpu-exporter-row",
+  ".background-task-row",
+  ".spark-pair-clock-panel",
+  ".system-characterization-host",
+  ".fleet-comparison-summary-item",
+  ".spark-pair-summary-item"
+].join(",");
+const PANEL_POPOUT_INTERACTIVE_SELECTOR = "a, button, input, label, select, textarea, [contenteditable='true'], [role='button']";
+let activePanelPopout = null;
+let activePanelPopoutScope = null;
+const panelPopoutCleanups = new WeakMap();
 
 const SAMPLE_INGESTION = {
   schemaVersion: INGESTION_SCHEMA.version,
@@ -1038,11 +1068,83 @@ const SYSTEM_ID_SUBSYSTEMS = [
 const FLEET_COMPARISON_HOST_LIMIT = 16;
 const FLEET_AGGREGATE_KEY = "__fleet_aggregate__";
 const FLEET_AGGREGATE_LABEL = "Fleet Aggregate";
+const MACHINE_INVENTORY_ARCHIVE_LIMIT = 128;
 const SYSTEM_CHARACTERIZATION_HOST_LIMIT = 16;
 const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
-const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "redfish", "provider", "nccl-trace"];
+const EXECUTION_IDLE_LOW_ACTIVITY_PCT = 5;
+const EXECUTION_IDLE_COMMUNICATION_BPS = 1_000_000_000;
+const EXECUTION_IDLE_SUSTAINED_SECONDS = 5;
+const EXECUTION_IDLE_MIN_POWER_GAP_WATTS = 15;
+const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "amd-dme", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "redfish", "provider", "nccl-trace"];
 const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
+const GPU_EXPORTER_METRIC_GROUPS = [
+  {
+    key: "powerEnergy",
+    label: "Power + energy",
+    normalized: ["gpuPowerWatts", "gpu_power_watts", "gpu_power_instant_watts", "turba_gpu_power_watts", "gpuEnergyConsumedMicrojoules"],
+    nvidia: ["DCGM_FI_DEV_POWER_USAGE", "DCGM_FI_DEV_POWER_USAGE_INSTANT", "nvidia_smi_power_draw_watts"],
+    amd: ["GPU_POWER_USAGE", "GPU_PACKAGE_POWER", "GPU_AVERAGE_PACKAGE_POWER", "GPU_ENERGY_CONSUMED", "amd_gpu_power_usage", "amd_gpu_package_power"],
+    use: "Execution-idle watts, daily cost, and downscale dry-runs"
+  },
+  {
+    key: "activity",
+    label: "Activity",
+    normalized: ["gpuUtilizationPct", "gpuSmActivePct", "gpuSmOccupancyPct", "gpuTensorActivePct", "gpuDramActivePct", "turba_gpu_activity_ratio"],
+    nvidia: ["DCGM_FI_DEV_GPU_UTIL", "DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_PROF_SM_OCCUPANCY", "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE", "DCGM_FI_PROF_DRAM_ACTIVE"],
+    amd: ["GPU_GFX_ACTIVITY", "GPU_GFX_BUSY_INSTANTANEOUS", "GPU_UMC_ACTIVITY", "GPU_PROCESS_CU_OCCUPANCY", "amd_gpu_gfx_activity"],
+    use: "Low-activity proof and useful-compute comparisons"
+  },
+  {
+    key: "memory",
+    label: "Memory",
+    normalized: ["gpuMemoryUsedPct", "gpuMemoryUsedMiB", "gpuMemoryTotalMiB", "gpu_memory_used_ratio", "turba_gpu_memory_used_ratio"],
+    nvidia: ["DCGM_FI_DEV_FB_USED", "DCGM_FI_DEV_FB_TOTAL", "DCGM_FI_DEV_FB_USED_RATIO", "DCGM_FI_PROF_DRAM_ACTIVE"],
+    amd: ["GPU_USED_VRAM", "GPU_TOTAL_VRAM", "GPU_FREE_VRAM", "GPU_USED_VISIBLE_VRAM", "GPU_VISIBLE_VRAM"],
+    use: "Residency checks, HBM pressure, and capacity comparisons"
+  },
+  {
+    key: "thermal",
+    label: "Thermal",
+    normalized: ["gpuTemperatureC", "gpu_temperature_celsius", "turba_gpu_thermal_celsius"],
+    nvidia: ["DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_MEMORY_TEMP", "nvidia_smi_temperature_gpu"],
+    amd: ["GPU_EDGE_TEMPERATURE", "GPU_JUNCTION_TEMPERATURE", "GPU_MEMORY_TEMPERATURE", "GPU_HBM_TEMPERATURE"],
+    use: "Thermal throttle context and rack cooling fingerprints"
+  },
+  {
+    key: "interconnect",
+    label: "Interconnect",
+    normalized: ["gpuPcieTxBytesPerSecond", "gpuPcieRxBytesPerSecond", "gpuNvlinkTxBytesPerSecond", "gpuNvlinkRxBytesPerSecond", "turba_gpu_interconnect_bytes_per_second"],
+    nvidia: ["DCGM_FI_PROF_PCIE_TX_BYTES", "DCGM_FI_PROF_PCIE_RX_BYTES", "DCGM_FI_PROF_NVLINK_TX_BYTES", "DCGM_FI_PROF_NVLINK_RX_BYTES"],
+    amd: ["PCIE_BANDWIDTH", "PCIE_BIDIRECTIONAL_BANDWIDTH", "XGMI_LINK_RX", "XGMI_LINK_TX", "amd_gpu_pcie_bandwidth"],
+    use: "PCIe/NVLink/XGMI precursor classification"
+  },
+  {
+    key: "ras",
+    label: "RAS",
+    normalized: ["gpuEccErrorsTotal", "gpuXidErrorCode", "turba_gpu_ecc_errors_total"],
+    nvidia: ["DCGM_FI_DEV_ECC_SBE_AGG_TOTAL", "DCGM_FI_DEV_ECC_DBE_AGG_TOTAL", "DCGM_FI_DEV_XID_ERRORS", "DCGM_FI_DEV_FABRIC_HEALTH_MASK"],
+    amd: ["GPU_ECC_CORRECT_TOTAL", "GPU_ECC_UNCORRECT_TOTAL", "PCIE_REPLAY_COUNT", "PCIE_RECOVERY_COUNT", "PCIE_NACK_SENT_COUNT", "PCIE_NACK_RECEIVED_COUNT"],
+    use: "Health gating before benchmark or policy action"
+  },
+  {
+    key: "clockThrottle",
+    label: "Clocks + throttle",
+    normalized: ["gpuClockMHz", "gpuMemoryClockMHz", "turba_gpu_clock_mhz"],
+    nvidia: ["DCGM_FI_DEV_SM_CLOCK", "DCGM_FI_DEV_MEM_CLOCK", "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"],
+    amd: ["GPU_CLOCK", "GPU_MIN_CLOCK", "GPU_MAX_CLOCK", "GPU_VIOLATION_PPT_RESIDENCY_PERCENTAGE", "GPU_VIOLATION_HBM_THERMAL_RESIDENCY_PERCENTAGE"],
+    use: "SLO-aware downscale planning and throttle diagnosis"
+  },
+  {
+    key: "schedulerLabels",
+    label: "Scheduler labels",
+    normalized: ["namespace", "podName", "containerName", "slurmJobId", "job_id"],
+    nvidia: ["namespace", "pod", "container", "job_id"],
+    amd: ["JOB_ID", "JOB_USER", "JOB_PARTITION", "CLUSTER_NAME", "NAMESPACE", "CONTAINER"],
+    use: "Per-job attribution, rack/cluster rollups, and OCP demo evidence"
+  }
+];
+const GPU_EXPORTER_EXECUTION_IDLE_GROUPS = ["powerEnergy", "activity", "memory", "interconnect"];
 const DASHBOARD_BLOCK_STORAGE_KEY = "turba.dashboard.blocks.v1";
 const DASHBOARD_BLOCKS = [
   { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
@@ -1055,6 +1157,9 @@ const DASHBOARD_BLOCKS = [
   { id: "eventTimeline", label: "Event timeline", note: "Operator event stream", defaultOn: false },
   { id: "demoLaunchpad", label: "Demo launchpad", note: "SPARK demo command shortcuts", defaultOn: false },
   { id: "autoDiscoveryDeployment", label: "Auto Discovery and Deployment", note: "Subnet discovery with credential-gated agent rollout", defaultOn: false },
+  { id: "executionIdleEnergy", label: "Execution-idle energy", note: "Loaded-but-low-activity GPU power exposure and policy hints", defaultOn: true },
+  { id: "gpuExporterCoverage", label: "GPU exporter coverage", note: "NVIDIA/AMD exporter metric coverage and normalization", defaultOn: true },
+  { id: "backgroundTasks", label: "Background tasks", note: "Live refresh, agent, benchmark, discovery, clock, and queue work", defaultOn: true },
   { id: "kafkaStream", label: "Kafka stream", note: "Broker smoke and stream panel", defaultOn: false },
   { id: "dataConfidence", label: "Data confidence", note: "Source quality scoring details", defaultOn: false },
   { id: "replayMode", label: "Replay mode", note: "Telemetry replay controls", defaultOn: false },
@@ -1069,7 +1174,8 @@ const DASHBOARD_BLOCK_DEFAULTS = Object.fromEntries(DASHBOARD_BLOCKS.map((block)
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
 let dashboardBlockPreferences = loadDashboardBlockPreferences();
-let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
+let machineInventoryArchive = normalizeMachineInventoryArchive(workspaceStore.machineInventory);
+let activeIngestion = applyPersistedBaselines(reconcileMachineInventory(workspaceStore.ingestion), workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
@@ -1207,6 +1313,7 @@ const TREND_METRIC_DEFS = {
 document.addEventListener("DOMContentLoaded", () => {
   initThemeMode();
   bindEvents();
+  initPanelPopouts();
   prefillMachineDemoUrl();
   render();
   maybeAutoLoadMachineDemoBundle();
@@ -1294,6 +1401,7 @@ function loadWorkspaceStore(defaultIngestion) {
   if (isValidWorkspaceStore(persisted)) {
     return {
       ...persisted,
+      machineInventory: normalizeMachineInventoryArchive(persisted.machineInventory),
       snapshots: normalizeSnapshotStore(persisted.snapshots),
       taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
       storageLabel: "Loaded locally",
@@ -1319,7 +1427,8 @@ function persistWorkspaceStore() {
     savedAt: new Date(),
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
-    taskHistory
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const saved = writeWorkspaceStore(nextStore);
 
@@ -1335,7 +1444,8 @@ function persistWorkspaceStore() {
 function replaceActiveIngestion(nextIngestion, label) {
   const previousKey = state.selectedKey;
   const previousIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === previousKey)) : "";
-  activeIngestion = applyPersistedBaselines(nextIngestion, buildBaselineStore(nextIngestion.runs));
+  const retainedIngestion = reconcileMachineInventory(nextIngestion);
+  activeIngestion = applyPersistedBaselines(retainedIngestion, buildBaselineStore(retainedIngestion.runs));
   jobs = normalizeIngestion(activeIngestion);
   state.scope = "job";
   state.selectedKey = resolveJobSelectionKey(previousKey, previousIdentity) || jobs[0]?.id || "";
@@ -1362,11 +1472,8 @@ function resolveJobSelectionKey(previousKey, previousIdentity) {
 function jobSelectionIdentity(job) {
   if (!job) return "";
   if (isMachineDemoItem(job)) {
-    const context = job.source?.context || {};
-    const address = context.networkLocalAddress || context.hostAddress || context.primaryAddress || "";
-    if (address) return `machine-address:${normalizedSelectionToken(address)}`;
-    const host = context.hostname || context.node || job.cluster || "";
-    if (host) return `machine-host:${normalizedSelectionToken(host)}`;
+    const key = machineInventoryKeyForItem(job);
+    if (key) return key;
   }
   return job.id ? `job:${job.id}` : "";
 }
@@ -1378,8 +1485,229 @@ function normalizedSelectionToken(value) {
     .replace(/\s+/g, " ");
 }
 
+function reconcileMachineInventory(feed) {
+  if (!isIngestionFeed(feed)) return feed;
+
+  const existingArchive = new Map(normalizeMachineInventoryArchive(machineInventoryArchive).map((record) => [record.key, record]));
+  const liveKeys = new Set();
+  const sourceRuns = Array.isArray(feed.runs) ? feed.runs : [];
+  const retainedRuns = [];
+
+  sourceRuns.forEach((run) => {
+    if (isMachineInventoryMissingRun(run)) return;
+
+    if (!isMachineRunLike(run)) {
+      retainedRuns.push(run);
+      return;
+    }
+
+    const key = machineInventoryKeyForRun(run);
+    if (!key) {
+      retainedRuns.push(run);
+      return;
+    }
+
+    const lastSeenAt = machineRunObservedAt(run);
+    const liveRun = machineInventoryLiveRunSnapshot(run, key, lastSeenAt);
+    liveKeys.add(key);
+    existingArchive.set(key, {
+      key,
+      lastSeenAt,
+      run: liveRun
+    });
+    retainedRuns.push(liveRun);
+  });
+
+  machineInventoryArchive = Array.from(existingArchive.values())
+    .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
+    .slice(0, MACHINE_INVENTORY_ARCHIVE_LIMIT);
+
+  const usedIds = new Set(retainedRuns.map((run) => run.id).filter(Boolean));
+  const archivedRuns = machineInventoryArchive
+    .filter((record) => !liveKeys.has(record.key))
+    .map((record) => machineInventoryArchivedRun(record, usedIds))
+    .filter(Boolean);
+
+  return {
+    ...feed,
+    runs: [...retainedRuns, ...archivedRuns]
+  };
+}
+
+function normalizeMachineInventoryArchive(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  const byKey = new Map();
+  records.forEach((record) => {
+    if (!isPlainObject(record) || !isPlainObject(record.run)) return;
+    const key = normalizeMachineInventoryKey(record.key || machineInventoryKeyForRun(record.run));
+    if (!key) return;
+    const lastSeenAt = validDateIso(record.lastSeenAt || machineRunObservedAt(record.run));
+    if (!lastSeenAt) return;
+    const normalized = {
+      key,
+      lastSeenAt,
+      run: machineInventoryLiveRunSnapshot(record.run, key, lastSeenAt)
+    };
+    const existing = byKey.get(key);
+    if (!existing || new Date(normalized.lastSeenAt).getTime() >= new Date(existing.lastSeenAt).getTime()) {
+      byKey.set(key, normalized);
+    }
+  });
+
+  return Array.from(byKey.values())
+    .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
+    .slice(0, MACHINE_INVENTORY_ARCHIVE_LIMIT);
+}
+
+function isMachineRunLike(run) {
+  const context = machineInventoryContextForRun(run);
+  const adapters = Array.isArray(run?.importedSources)
+    ? run.importedSources
+    : Array.isArray(run?.source?.adapters) ? run.source.adapters : [];
+
+  return adapters.includes("local-machine")
+    || Boolean(
+      (context.hostname || context.node || context.networkLocalAddress || context.hostAddress || context.primaryAddress)
+      && (
+        context.generatedAt
+        || context.uptimeSeconds !== undefined
+        || context.gpuUuid
+        || context.gpuName
+        || Array.isArray(context.observedServices)
+        || Array.isArray(context.ollamaModels)
+      )
+    );
+}
+
+function machineInventoryContextForRun(run) {
+  return isPlainObject(run?.sourceContext)
+    ? run.sourceContext
+    : isPlainObject(run?.source?.context) ? run.source.context : {};
+}
+
+function isMachineInventoryMissingRun(run) {
+  const context = machineInventoryContextForRun(run);
+  return Boolean(context.machineInventoryMissing);
+}
+
+function machineInventoryKeyForRun(run) {
+  const context = machineInventoryContextForRun(run);
+  return machineInventoryKeyFromContext(context, {
+    cluster: run?.refs?.cluster || run?.cluster,
+    name: run?.name,
+    id: run?.id
+  });
+}
+
+function machineInventoryKeyForItem(item) {
+  const context = item?.source?.context || {};
+  return machineInventoryKeyFromContext(context, {
+    cluster: item?.cluster,
+    name: item?.name,
+    id: item?.id
+  });
+}
+
+function machineInventoryKeyFromContext(context = {}, fallback = {}) {
+  const existingKey = normalizeMachineInventoryKey(context.machineInventoryKey);
+  if (existingKey) return existingKey;
+
+  const host = firstString([
+    context.hostname,
+    context.node,
+    context.host,
+    context.hostName,
+    context.cluster,
+    fallback.cluster,
+    fallback.name
+  ]);
+  if (host) return `machine-host:${normalizedSelectionToken(host)}`;
+
+  const address = firstString([
+    context.networkLocalAddress,
+    context.hostAddress,
+    context.primaryAddress,
+    context.ncclRuntimeHostIp,
+    context.ipAddress
+  ]);
+  if (address) return `machine-address:${normalizedSelectionToken(address)}`;
+
+  return fallback.id ? `machine-id:${normalizedSelectionToken(fallback.id)}` : "";
+}
+
+function normalizeMachineInventoryKey(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return key.includes(":") ? key : "";
+}
+
+function machineRunObservedAt(run) {
+  const context = machineInventoryContextForRun(run);
+  const observed = validDateIso(
+    context.generatedAt
+      || context.machineInventoryLastSeenAt
+      || context.clockTimeUnixMs
+      || run?.metadata?.generatedAt
+  );
+  return observed || dateIso(new Date());
+}
+
+function machineInventoryLiveRunSnapshot(run, key, lastSeenAt) {
+  const snapshot = cloneJson(run);
+  const context = isPlainObject(snapshot.sourceContext) ? snapshot.sourceContext : {};
+  snapshot.sourceContext = {
+    ...context,
+    machineInventoryKey: key,
+    machineInventoryLive: true,
+    machineInventoryLastSeenAt: lastSeenAt
+  };
+  delete snapshot.sourceContext.machineInventoryMissing;
+  delete snapshot.sourceContext.machineInventoryMissingSince;
+  return snapshot;
+}
+
+function machineInventoryArchivedRun(record, usedIds) {
+  if (!isPlainObject(record) || !isPlainObject(record.run)) return null;
+
+  const run = cloneJson(record.run);
+  const key = normalizeMachineInventoryKey(record.key || machineInventoryKeyForRun(run));
+  if (!key) return null;
+
+  const lastSeenAt = validDateIso(record.lastSeenAt || machineRunObservedAt(run)) || dateIso(new Date());
+  const context = isPlainObject(run.sourceContext) ? run.sourceContext : {};
+  const host = firstString([context.hostname, context.node, run.refs?.cluster, run.name, run.id]) || "machine";
+  const archivedId = machineInventoryArchivedRunId(key, usedIds);
+
+  run.id = archivedId;
+  run.name = `${host} last-known host window`;
+  run.status = "Offline - last known telemetry";
+  run.importedSources = unique(["local-machine", "last-known-machine", ...(run.importedSources || [])]);
+  run.sourceContext = {
+    ...context,
+    hostname: context.hostname || host,
+    generatedAt: lastSeenAt,
+    machineInventoryKey: key,
+    machineInventoryLive: false,
+    machineInventoryMissing: true,
+    machineInventoryMissingSince: dateIso(new Date()),
+    machineInventoryLastSeenAt: lastSeenAt
+  };
+  usedIds.add(archivedId);
+  return run;
+}
+
+function machineInventoryArchivedRunId(key, usedIds) {
+  const base = `machine-archive-${String(key).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "host"}`;
+  if (!usedIds.has(base)) return base;
+  let index = 2;
+  while (usedIds.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
 function restoreWorkspaceStore(store, label) {
-  activeIngestion = applyPersistedBaselines(store.ingestion, store.baselines);
+  machineInventoryArchive = normalizeMachineInventoryArchive(store.machineInventory);
+  const retainedIngestion = reconcileMachineInventory(store.ingestion);
+  activeIngestion = applyPersistedBaselines(retainedIngestion, store.baselines);
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = normalizeSnapshotStore(store.snapshots);
   taskHistory = normalizeTaskHistoryStore(store.taskHistory);
@@ -1397,7 +1725,7 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [] }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], machineInventory = [] }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
@@ -1405,6 +1733,7 @@ function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = 
     lastAnalysisAt: dateIso(lastAnalysisAt),
     ingestion,
     baselines: buildBaselineStore(ingestion.runs),
+    machineInventory: normalizeMachineInventoryArchive(machineInventory),
     snapshots: normalizeSnapshotStore(snapshots),
     taskHistory: normalizeTaskHistoryStore(taskHistory)
   };
@@ -1738,7 +2067,8 @@ function importPrometheusSamples(samples = []) {
           tokensM: numeric(metrics.turba_tokens_million_total),
           steps: numeric(metrics.turba_training_steps_total),
           inferenceRequestsM: numeric(metrics.turba_inference_requests_million_total)
-        }
+        },
+        sourceContext: prometheusGpuSourceContext(metrics)
       }
     };
   });
@@ -1760,9 +2090,70 @@ function importDcgmSamples(samples = []) {
           hbmBandwidth: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
           memoryFragmentation: metric(fields, "DCGM_FI_DEV_MEM_FRAGMENTATION"),
           kvCachePressure: metric(fields, "DCGM_FI_DEV_KV_CACHE_PRESSURE")
-        }
+        },
+        sourceContext: dcgmGpuSourceContext(fields)
       }
     };
+  });
+}
+
+function prometheusGpuSourceContext(metrics = {}) {
+  const gpuUtilizationPct = firstFinite(
+    ratioPercent(metrics.turba_gpu_utilization_ratio),
+    ratioPercent(metrics.turba_gpu_activity_ratio)
+  );
+  const gpuMemoryUsedPct = firstFinite(
+    ratioPercent(metrics.turba_gpu_memory_used_ratio),
+    optionalPercent(metrics.turba_gpu_memory_used_pct)
+  );
+  const hasGpuMetrics = gpuExporterObjectHasAny(metrics, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ]));
+
+  return compactObject({
+    rawPrometheusMetrics: metrics,
+    gpuExporterMetrics: metrics,
+    gpuPresent: hasGpuMetrics || Number.isFinite(gpuUtilizationPct),
+    gpuName: metrics.turba_gpu_model || "",
+    gpuUtilizationPct,
+    gpuPowerWatts: firstFinite(metrics.turba_gpu_power_watts, metrics.turba_gpu_power_instant_watts),
+    gpuMemoryUsedPct,
+    gpuTemperatureC: firstFinite(metrics.turba_gpu_thermal_celsius, metrics.turba_gpu_temperature_celsius),
+    gpuExporterInterconnectBytesPerSecond: firstFinite(metrics.turba_gpu_interconnect_bytes_per_second),
+    gpuEccErrorsTotal: firstFinite(metrics.turba_gpu_ecc_errors_total),
+    gpuClockMHz: firstFinite(metrics.turba_gpu_clock_mhz)
+  });
+}
+
+function dcgmGpuSourceContext(fields = {}) {
+  const fbUsed = metric(fields, "DCGM_FI_DEV_FB_USED");
+  const fbTotal = metric(fields, "DCGM_FI_DEV_FB_TOTAL");
+  const fbRatio = Number.isFinite(fbUsed) && Number.isFinite(fbTotal) && fbTotal > 0
+    ? (fbUsed / fbTotal) * 100
+    : metric(fields, "DCGM_FI_DEV_FB_USED_RATIO");
+  return compactObject({
+    rawDcgmFields: fields,
+    gpuExporterMetrics: fields,
+    gpuPresent: gpuExporterObjectHasAny(fields, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => group.nvidia)),
+    gpuPowerWatts: firstFinite(metric(fields, "DCGM_FI_DEV_POWER_USAGE"), metric(fields, "DCGM_FI_DEV_POWER_USAGE_INSTANT")),
+    gpuUtilizationPct: metric(fields, "DCGM_FI_DEV_GPU_UTIL"),
+    gpuSmActivePct: metric(fields, "DCGM_FI_PROF_SM_ACTIVE"),
+    gpuSmOccupancyPct: metric(fields, "DCGM_FI_PROF_SM_OCCUPANCY"),
+    gpuTensorActivePct: metric(fields, "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"),
+    gpuDramActivePct: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
+    gpuMemoryUsedPct: fbRatio,
+    gpuTemperatureC: metric(fields, "DCGM_FI_DEV_GPU_TEMP"),
+    gpuMemoryTemperatureC: metric(fields, "DCGM_FI_DEV_MEMORY_TEMP"),
+    gpuPcieTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_TX_BYTES"),
+    gpuPcieRxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_RX_BYTES"),
+    gpuNvlinkTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_NVLINK_TX_BYTES"),
+    gpuNvlinkRxBytesPerSecond: metric(fields, "DCGM_FI_PROF_NVLINK_RX_BYTES"),
+    gpuEccErrorsTotal: firstFinite(metric(fields, "DCGM_FI_DEV_ECC_SBE_AGG_TOTAL"), metric(fields, "DCGM_FI_DEV_ECC_DBE_AGG_TOTAL")),
+    gpuXidErrorCode: metric(fields, "DCGM_FI_DEV_XID_ERRORS"),
+    gpuClockMHz: metric(fields, "DCGM_FI_DEV_SM_CLOCK"),
+    gpuMemoryClockMHz: metric(fields, "DCGM_FI_DEV_MEM_CLOCK")
   });
 }
 
@@ -3184,7 +3575,8 @@ function exportWorkspace({ redacted = false } = {}) {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
-    taskHistory
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
   const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
@@ -3212,7 +3604,8 @@ function exportEvidencePack() {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
-    taskHistory
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const plan = buildRedactionPlan(store);
   const markdown = buildEvidencePackMarkdown({
@@ -3525,6 +3918,7 @@ function redactWorkspaceStore(store) {
 
   redacted.ingestion = redactIngestion(redacted.ingestion, plan);
   redacted.baselines = redactBaselineStore(redacted.baselines, plan);
+  redacted.machineInventory = redactMachineInventoryArchive(redacted.machineInventory, plan);
   redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
   redacted.taskHistory = redactTaskHistory(redacted.taskHistory, plan);
   redacted.redaction = {
@@ -3539,6 +3933,7 @@ function redactWorkspaceStore(store) {
     "scheduler source context",
     "Grafana dashboard and Explore links",
     "Redfish management-plane context",
+    "machine inventory archive",
     "imported opportunity free text"
     ]
   };
@@ -3549,58 +3944,74 @@ function redactWorkspaceStore(store) {
 function buildRedactionPlan(store) {
   const ingestion = store.ingestion || {};
   const runs = Array.isArray(ingestion.runs) ? ingestion.runs : [];
+  const machineInventoryRuns = Array.isArray(store.machineInventory)
+    ? store.machineInventory.map((record) => record?.run).filter(isPlainObject)
+    : [];
+  const sourceRuns = [...runs, ...machineInventoryRuns];
   const entities = ingestion.entities || {};
   const taskRecords = Array.isArray(store.taskHistory) ? store.taskHistory : [];
   const plan = {
     entities: {},
-    runs: buildValueMap(runs.map((run) => run.id), "run"),
+    runs: buildValueMap(sourceRuns.map((run) => run.id), "run"),
     taskKeys: buildValueMap(taskRecords.map((record) => record.taskKey), "task"),
-    contracts: buildValueMap(runs.map((run) => run.commercial?.contractId), "contract"),
-    tickets: buildValueMap(runs.map((run) => run.slo?.supportTicketId), "ticket"),
-    namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
-    podSelectors: buildValueMap(runs.map((run) => run.sourceContext?.podSelector), "pod-selector"),
-    slurmJobIds: buildValueMap(runs.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
-    ebpfExports: buildValueMap(runs.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
-    hosts: buildValueMap(runs.map((run) => run.sourceContext?.host), "host"),
-    nodes: buildValueMap(runs.map((run) => run.sourceContext?.node), "node"),
-    podNames: buildValueMap(runs.map((run) => run.sourceContext?.podName), "pod"),
-    containerNames: buildValueMap(runs.map((run) => run.sourceContext?.containerName), "container"),
-    cgroupPaths: buildValueMap(runs.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
-    providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
-    billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
-    reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
-    schedulerExports: buildValueMap(runs.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
-    grafanaBaseUrls: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaBaseUrl, run.grafanaContext?.grafanaBaseUrl]), "grafana-base"),
-    grafanaInstances: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaInstance, run.grafanaContext?.instanceName]), "grafana-instance"),
-    grafanaOrgIds: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaOrgId, run.grafanaContext?.orgId]), "grafana-org"),
-    grafanaDashboardUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardUid, run.grafanaContext?.dashboardUid]), "grafana-dashboard"),
-    grafanaDashboardSlugs: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardSlug, run.grafanaContext?.dashboardSlug]), "grafana-slug"),
-    grafanaDashboardTitles: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardTitle, run.grafanaContext?.dashboardTitle]), "grafana-title"),
-    grafanaFolders: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaFolder, run.grafanaContext?.folder]), "grafana-folder"),
-    grafanaDatasourceUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceUid, run.grafanaContext?.datasourceUid]), "grafana-datasource"),
-    grafanaDatasourceNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceName, run.grafanaContext?.datasourceName]), "grafana-datasource-name"),
-    grafanaUrls: buildValueMap(flattenRunValues(runs, (run) => [
+    contracts: buildValueMap(sourceRuns.map((run) => run.commercial?.contractId), "contract"),
+    tickets: buildValueMap(sourceRuns.map((run) => run.slo?.supportTicketId), "ticket"),
+    namespaces: buildValueMap(sourceRuns.map((run) => run.sourceContext?.namespace), "namespace"),
+    podSelectors: buildValueMap(sourceRuns.map((run) => run.sourceContext?.podSelector), "pod-selector"),
+    slurmJobIds: buildValueMap(sourceRuns.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
+    ebpfExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
+    hosts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.host), "host"),
+    hostnames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.hostname), "host"),
+    nodes: buildValueMap(sourceRuns.map((run) => run.sourceContext?.node), "node"),
+    networkAddresses: buildValueMap(flattenRunValues(sourceRuns, (run) => [
+      run.sourceContext?.networkLocalAddress,
+      run.sourceContext?.hostAddress,
+      run.sourceContext?.primaryAddress,
+      run.sourceContext?.ncclRuntimeHostIp,
+      run.sourceContext?.ipAddress
+    ]), "net-addr"),
+    machineInventoryKeys: buildValueMap([
+      ...(Array.isArray(store.machineInventory) ? store.machineInventory.map((record) => record?.key) : []),
+      ...sourceRuns.map((run) => run.sourceContext?.machineInventoryKey)
+    ], "machine"),
+    podNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.podName), "pod"),
+    containerNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.containerName), "container"),
+    cgroupPaths: buildValueMap(sourceRuns.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
+    providerExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.providerExportId), "provider-export"),
+    billingAccounts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
+    reservationWindows: buildValueMap(sourceRuns.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
+    schedulerExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
+    grafanaBaseUrls: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaBaseUrl, run.grafanaContext?.grafanaBaseUrl]), "grafana-base"),
+    grafanaInstances: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaInstance, run.grafanaContext?.instanceName]), "grafana-instance"),
+    grafanaOrgIds: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaOrgId, run.grafanaContext?.orgId]), "grafana-org"),
+    grafanaDashboardUids: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardUid, run.grafanaContext?.dashboardUid]), "grafana-dashboard"),
+    grafanaDashboardSlugs: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardSlug, run.grafanaContext?.dashboardSlug]), "grafana-slug"),
+    grafanaDashboardTitles: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardTitle, run.grafanaContext?.dashboardTitle]), "grafana-title"),
+    grafanaFolders: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaFolder, run.grafanaContext?.folder]), "grafana-folder"),
+    grafanaDatasourceUids: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDatasourceUid, run.grafanaContext?.datasourceUid]), "grafana-datasource"),
+    grafanaDatasourceNames: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDatasourceName, run.grafanaContext?.datasourceName]), "grafana-datasource-name"),
+    grafanaUrls: buildValueMap(flattenRunValues(sourceRuns, (run) => [
       run.sourceContext?.grafanaDashboardUrl,
       run.sourceContext?.grafanaExploreUrl,
       run.grafanaContext?.dashboardUrl,
       run.grafanaContext?.exploreUrl,
       ...((run.grafanaContext?.links || []).map((link) => link?.url))
     ]), "grafana-url"),
-    grafanaVariableValues: buildValueMap(flattenRunValues(runs, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
-    redfishBaseUrls: buildValueMap(runs.map((run) => run.sourceContext?.redfishBaseUrl), "redfish-base"),
-    redfishServiceUuids: buildValueMap(runs.map((run) => run.sourceContext?.redfishServiceUuid), "redfish-service"),
-    redfishBiosVersions: buildValueMap(runs.map((run) => run.sourceContext?.redfishBiosVersion), "redfish-bios"),
-    redfishManagerFirmwareVersions: buildValueMap(runs.map((run) => run.sourceContext?.redfishManagerFirmwareVersion), "redfish-manager-fw"),
-    redfishSystems: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishSystems || []), "redfish-system"),
-    redfishChassis: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishChassis || []), "redfish-chassis"),
-    redfishManagers: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishManagers || []), "redfish-manager"),
-    redfishFirmwareInventory: buildValueMap(flattenRunValues(runs, (run) => run.sourceContext?.redfishFirmwareInventory || []), "redfish-firmware"),
-    schedulerNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
-    schedulerQueues: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
-    priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
-    admissionClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
-    requestedGpuShapes: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
-    localityPreferences: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality"),
+    grafanaVariableValues: buildValueMap(flattenRunValues(sourceRuns, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
+    redfishBaseUrls: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishBaseUrl), "redfish-base"),
+    redfishServiceUuids: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishServiceUuid), "redfish-service"),
+    redfishBiosVersions: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishBiosVersion), "redfish-bios"),
+    redfishManagerFirmwareVersions: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishManagerFirmwareVersion), "redfish-manager-fw"),
+    redfishSystems: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishSystems || []), "redfish-system"),
+    redfishChassis: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishChassis || []), "redfish-chassis"),
+    redfishManagers: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishManagers || []), "redfish-manager"),
+    redfishFirmwareInventory: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishFirmwareInventory || []), "redfish-firmware"),
+    schedulerNames: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
+    schedulerQueues: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
+    priorityClasses: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
+    admissionClasses: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
+    requestedGpuShapes: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
+    localityPreferences: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality"),
     taskGpuModels: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.gpuModels || []), "gpu-model"),
     taskClusters: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.clusters || []), "cluster"),
     taskNodes: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.nodes || []), "node"),
@@ -3613,7 +4024,7 @@ function buildRedactionPlan(store) {
   Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
     plan.entities[collection] = buildEntityValueMap(
       entities[collection] || {},
-      runs.map((run) => run.refs?.[singularCollection(collection)]),
+      sourceRuns.map((run) => run.refs?.[singularCollection(collection)]),
       prefix
     );
   });
@@ -3627,6 +4038,23 @@ function redactIngestion(ingestion, plan) {
     entities: redactEntities(ingestion.entities || {}, plan),
     runs: (ingestion.runs || []).map((run) => redactRun(run, plan))
   };
+}
+
+function redactMachineInventoryArchive(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .filter((record) => isPlainObject(record) && isPlainObject(record.run))
+    .map((record) => ({
+      key: redactMachineInventoryKey(record.key, plan),
+      lastSeenAt: record.lastSeenAt,
+      run: redactRun(record.run, plan)
+    }));
+}
+
+function redactMachineInventoryKey(value, plan) {
+  if (!value) return undefined;
+  return `machine-id:${mappedValue(plan.machineInventoryKeys, value, "machine")}`;
 }
 
 function redactEntities(entities, plan) {
@@ -3773,7 +4201,14 @@ function redactSourceContext(context, plan) {
     slurmJobId: mappedValue(plan.slurmJobIds, context.slurmJobId, "slurm-job"),
     ebpfExportId: mappedValue(plan.ebpfExports, context.ebpfExportId, "ebpf-export"),
     host: mappedValue(plan.hosts, context.host, "host"),
+    hostname: mappedValue(plan.hostnames, context.hostname, "host"),
     node: mappedValue(plan.nodes, context.node, "node"),
+    networkLocalAddress: mappedValue(plan.networkAddresses, context.networkLocalAddress, "net-addr"),
+    hostAddress: mappedValue(plan.networkAddresses, context.hostAddress, "net-addr"),
+    primaryAddress: mappedValue(plan.networkAddresses, context.primaryAddress, "net-addr"),
+    ncclRuntimeHostIp: mappedValue(plan.networkAddresses, context.ncclRuntimeHostIp, "net-addr"),
+    ipAddress: mappedValue(plan.networkAddresses, context.ipAddress, "net-addr"),
+    machineInventoryKey: redactMachineInventoryKey(context.machineInventoryKey, plan),
     podName: mappedValue(plan.podNames, context.podName, "pod"),
     containerName: mappedValue(plan.containerNames, context.containerName, "container"),
     cgroupPath: mappedValue(plan.cgroupPaths, context.cgroupPath, "cgroup"),
@@ -3959,6 +4394,7 @@ function resetWorkspace() {
   const confirmed = window.confirm("Reset the local turbalance workspace to the sample feed?");
   if (!confirmed) return;
 
+  machineInventoryArchive = [];
   activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = [];
@@ -4028,6 +4464,99 @@ function bindEvents() {
   document.querySelector("#exportRedactedWorkspaceButton").addEventListener("click", () => exportWorkspace({ redacted: true }));
   document.querySelector("#exportEvidencePackButton").addEventListener("click", exportEvidencePack);
   document.querySelector("#resetWorkspaceButton").addEventListener("click", resetWorkspace);
+}
+
+function initPanelPopouts() {
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button > 0) return;
+    const source = event.target instanceof Element ? event.target : null;
+    if (!source) return;
+
+    const target = source.closest(PANEL_POPOUT_SELECTOR);
+    if (!target || target.closest(".topbar, .scope-strip, .ingest-strip")) {
+      collapsePanelPopoutIfOutside(source);
+      return;
+    }
+
+    const interactive = source.closest(PANEL_POPOUT_INTERACTIVE_SELECTOR);
+    if (interactive && interactive !== target && !interactive.matches(PANEL_POPOUT_SELECTOR)) return;
+
+    activatePanelPopout(target);
+  }, true);
+
+  document.addEventListener("pointermove", (event) => collapsePanelPopoutIfOutside(event.target));
+  document.addEventListener("mousemove", (event) => collapsePanelPopoutIfOutside(event.target));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") deactivatePanelPopout();
+  });
+}
+
+function collapsePanelPopoutIfOutside(source) {
+  if (!activePanelPopout || !(source instanceof Node) || activePanelPopout.contains(source)) return;
+  deactivatePanelPopout();
+}
+
+function activatePanelPopout(target) {
+  if (!(target instanceof HTMLElement) || target.hidden || target.closest("[hidden]")) return;
+  if (activePanelPopout === target) return;
+
+  deactivatePanelPopout();
+
+  activePanelPopout = target;
+  activePanelPopoutScope = target.closest(".inventory, .operator-cockpit-panel, .live-resource-panel, .operator-loop, .analysis-grid, .workspace");
+  activePanelPopoutScope?.classList.add("panel-popout-scope");
+
+  target.classList.add("panel-popout-active");
+  target.dataset.popout = "active";
+  if (!target.hasAttribute("tabindex")) {
+    target.dataset.popoutAddedTabindex = "true";
+    target.tabIndex = 0;
+  }
+
+  const collapseOnLeave = () => deactivatePanelPopout(target);
+  const collapseOnFocusOut = (event) => {
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    deactivatePanelPopout(target);
+  };
+  const cleanup = () => {
+    target.removeEventListener("pointerleave", collapseOnLeave);
+    target.removeEventListener("mouseleave", collapseOnLeave);
+    target.removeEventListener("focusout", collapseOnFocusOut);
+  };
+  panelPopoutCleanups.set(target, cleanup);
+  target.addEventListener("pointerleave", collapseOnLeave);
+  target.addEventListener("mouseleave", collapseOnLeave);
+  target.addEventListener("focusout", collapseOnFocusOut);
+}
+
+function deactivatePanelPopout(target = activePanelPopout) {
+  if (!target || target !== activePanelPopout) return;
+
+  const cleanup = panelPopoutCleanups.get(target);
+  if (cleanup) cleanup();
+  panelPopoutCleanups.delete(target);
+
+  target.classList.remove("panel-popout-active");
+  delete target.dataset.popout;
+  if (target.dataset.popoutAddedTabindex === "true") {
+    target.removeAttribute("tabindex");
+    delete target.dataset.popoutAddedTabindex;
+  }
+
+  activePanelPopoutScope?.classList.remove("panel-popout-scope");
+  activePanelPopoutScope = null;
+  activePanelPopout = null;
+}
+
+function activateSelectedInventoryPopout(entryKey) {
+  window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      const list = document.getElementById("entityList");
+      const selected = Array.from(list?.children || []).find((child) => child.dataset.entryKey === entryKey);
+      activatePanelPopout(selected);
+    });
+  }, 40);
 }
 
 function render() {
@@ -4221,6 +4750,10 @@ function buildEntries(scope) {
   });
 
   const entries = Array.from(groups.values()).sort((a, b) => {
+    if (scope === "job") {
+      const missingDelta = Number(entryMachineInventoryMissing(a)) - Number(entryMachineInventoryMissing(b));
+      if (missingDelta !== 0) return missingDelta;
+    }
     const aWaste = summarizeEntry(a).wastedGpuHours;
     const bWaste = summarizeEntry(b).wastedGpuHours;
     return bWaste - aWaste;
@@ -4240,6 +4773,10 @@ function buildEntries(scope) {
   }
 
   return entries;
+}
+
+function entryMachineInventoryMissing(entry) {
+  return (entry.items || []).some((item) => Boolean(item.source?.context?.machineInventoryMissing));
 }
 
 function fleetAggregateSourceItems(items) {
@@ -4368,15 +4905,34 @@ function renderInventory(entries) {
   entries.forEach((entry) => {
     const summary = summarizeEntry(entry);
     const classifier = classifyBottlenecks(summary);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "entity-row";
-    if (summary.isFleetAggregate) button.dataset.aggregate = "true";
-    button.setAttribute("aria-selected", String(entry.key === state.selectedKey));
-    button.addEventListener("click", () => {
+    const machineContext = machineDemoContext(summary);
+    const machineInventoryState = machineInventoryEntryState(summary, machineContext);
+    const row = document.createElement(machineInventoryState.missing ? "div" : "button");
+    if (row.tagName === "BUTTON") row.type = "button";
+    row.className = "entity-row";
+    row.dataset.entryKey = entry.key;
+    if (machineInventoryState.key) row.dataset.machineInventoryKey = machineInventoryState.key;
+    if (machineInventoryState.missing) {
+      row.dataset.machineMissing = "true";
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+    }
+    if (summary.isFleetAggregate) row.dataset.aggregate = "true";
+    row.setAttribute("aria-selected", String(entry.key === state.selectedKey));
+    row.addEventListener("click", () => {
       state.selectedKey = entry.key;
       render();
+      activateSelectedInventoryPopout(entry.key);
     });
+    if (machineInventoryState.missing) {
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        state.selectedKey = entry.key;
+        render();
+        activateSelectedInventoryPopout(entry.key);
+      });
+    }
 
     const titleEl = document.createElement("strong");
     titleEl.textContent = entry.label;
@@ -4387,12 +4943,15 @@ function renderInventory(entries) {
 
     const foot = document.createElement("span");
     foot.className = "entity-foot";
-    const machineContext = machineDemoContext(summary);
     const fleetOverview = summary.isFleetAggregate ? fleetAggregateOverview(summary) : null;
 
     const score = document.createElement("span");
     score.textContent = fleetOverview
       ? `${fleetOverview.hostCount} hosts`
+      : machineInventoryState.missing
+      ? "missing"
+      : Number.isFinite(machineInventoryState.uptimeSeconds)
+      ? `up ${formatMachineUptime(machineInventoryState.uptimeSeconds)}`
       : machineContext?.driverUnavailable || machineContext?.noGpu
       ? "host only"
       : machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
@@ -4400,14 +4959,100 @@ function renderInventory(entries) {
     const bottleneck = document.createElement("span");
     bottleneck.textContent = fleetOverview
       ? `${round(fleetOverview.similarityScore)}% similar`
+      : machineInventoryState.missing
+      ? formatMachineLastSeen(machineInventoryState.lastSeenAt)
       : machineContext?.driverUnavailable
       ? "GPU unavailable"
       : machineContext?.noGpu ? "No GPU telemetry" : machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
 
     foot.append(score, bottleneck);
-    button.append(titleEl, meta, foot);
-    list.append(button);
+    row.append(titleEl, meta, foot);
+
+    if (machineInventoryState.missing) {
+      const actions = document.createElement("span");
+      actions.className = "entity-actions";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "entity-remove-button";
+      remove.textContent = "Remove";
+      remove.title = `Remove ${entry.label} from Inventory Machines`;
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeMachineInventoryEntry(machineInventoryState.key);
+      });
+      actions.append(remove);
+      row.append(actions);
+    }
+
+    list.append(row);
   });
+}
+
+function machineInventoryEntryState(summary, machineContext) {
+  const item = (summary.sourceItems || []).find(isMachineDemoItem) || summary.jobs?.[0] || null;
+  const context = machineContext?.context || item?.source?.context || {};
+  const uptimeSeconds = optionalMetric(context, "uptimeSeconds");
+
+  return {
+    key: machineInventoryKeyForItem(item),
+    missing: Boolean(context.machineInventoryMissing),
+    lastSeenAt: validDateIso(context.machineInventoryLastSeenAt || context.generatedAt),
+    uptimeSeconds
+  };
+}
+
+function removeMachineInventoryEntry(key) {
+  const normalizedKey = normalizeMachineInventoryKey(key);
+  if (!normalizedKey) return;
+
+  machineInventoryArchive = machineInventoryArchive.filter((record) => record.key !== normalizedKey);
+  activeIngestion = {
+    ...activeIngestion,
+    runs: activeIngestion.runs.filter((run) => (
+      !isMachineInventoryMissingRun(run) || machineInventoryKeyForRun(run) !== normalizedKey
+    ))
+  };
+  jobs = normalizeIngestion(activeIngestion);
+
+  const entries = buildEntries(state.scope);
+  if (!entries.some((entry) => entry.key === state.selectedKey)) {
+    state.selectedKey = entries[0]?.key || "";
+  }
+
+  setIngestStatus("Machine removed from inventory", "good");
+  persistWorkspaceStore();
+  render();
+}
+
+function formatMachineUptime(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(numeric(seconds, Number.NaN)));
+  if (!Number.isFinite(totalSeconds)) return "unknown";
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (days >= 1) return `${days}d ${hours}h`;
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  if (minutes >= 1) return `${minutes}m`;
+  return `${totalSeconds}s`;
+}
+
+function formatMachineLastSeen(value) {
+  const date = value ? safeDate(value, new Date(0)) : null;
+  if (!date || date.getTime() <= 0) return "last seen unknown";
+  const ageMs = Date.now() - date.getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 5000) return "last seen just now";
+  return `last seen ${formatMachineAge(ageMs)} ago`;
+}
+
+function formatMachineAge(milliseconds) {
+  const seconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 function renderDiagnosis(summary, classifier) {
@@ -4580,6 +5225,10 @@ function machineDemoContext(summary) {
     clockChronyStratum: optionalMetric(context, "clockChronyStratum"),
     clockSyncServices: Array.isArray(context.clockSyncServices) ? context.clockSyncServices : [],
     clockSyncDetail: String(context.clockSyncDetail || ""),
+    machineInventoryKey: String(context.machineInventoryKey || ""),
+    machineInventoryLive: context.machineInventoryLive !== false,
+    machineInventoryMissing: Boolean(context.machineInventoryMissing),
+    machineInventoryLastSeenAt: String(context.machineInventoryLastSeenAt || context.generatedAt || ""),
     context,
     platform: String(context.platform || ""),
     arch: String(context.arch || ""),
@@ -4633,6 +5282,9 @@ function machineDemoContext(summary) {
 }
 
 function machineDemoHeadline(machineContext, gpuUtil, useful) {
+  if (machineContext.machineInventoryMissing) {
+    return `${machineContext.host} is offline; showing last-known telemetry.`;
+  }
   if (machineContext.driverUnavailable) {
     return `NVIDIA telemetry is unavailable on ${machineContext.host}.`;
   }
@@ -4649,6 +5301,9 @@ function machineDemoHeadline(machineContext, gpuUtil, useful) {
 function machineDemoNarrative(machineContext) {
   const modelText = `${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"}`;
   const serviceText = machineDemoServicePhrase(machineContext);
+  if (machineContext.machineInventoryMissing) {
+    return `${machineContext.host} was ${formatMachineLastSeen(machineContext.machineInventoryLastSeenAt)}. The inventory keeps this grayed-out record until telemetry returns or it is removed from Inventory Machines.`;
+  }
   if (machineContext.driverUnavailable) {
     const error = machineContext.gpuError ? ` ${machineContext.gpuError}` : "";
     return `Observed from ${machineContext.adapters}. nvidia-smi is installed, but it cannot communicate with the NVIDIA driver.${error} ${serviceText}, and ${modelText} are installed.`;
@@ -5646,6 +6301,12 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const launchpad = document.querySelector("#demoLaunchpad");
   const autoDiscoveryDeploymentPanel = document.querySelector("#autoDiscoveryDeploymentPanel");
   const autoDiscoveryDeploymentBadge = document.querySelector("#autoDiscoveryDeploymentBadge");
+  const executionIdleEnergyPanel = document.querySelector("#executionIdleEnergyPanel");
+  const executionIdleEnergyBadge = document.querySelector("#executionIdleEnergyBadge");
+  const gpuExporterCoveragePanel = document.querySelector("#gpuExporterCoveragePanel");
+  const gpuExporterCoverageBadge = document.querySelector("#gpuExporterCoverageBadge");
+  const backgroundTasksPanel = document.querySelector("#backgroundTasksPanel");
+  const backgroundTasksBadge = document.querySelector("#backgroundTasksBadge");
   const kafkaPanel = document.querySelector("#kafkaStreamPanel");
   const kafkaBadge = document.querySelector("#kafkaStreamBadge");
   const confidencePanel = document.querySelector("#confidencePanel");
@@ -5666,7 +6327,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -5675,6 +6336,9 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     timeline.replaceChildren();
     launchpad.replaceChildren();
     autoDiscoveryDeploymentPanel.replaceChildren();
+    executionIdleEnergyPanel.replaceChildren();
+    gpuExporterCoveragePanel.replaceChildren();
+    backgroundTasksPanel.replaceChildren();
     operatorLaunchpadSignature = "";
     kafkaPanel.replaceChildren();
     confidencePanel.replaceChildren();
@@ -5697,6 +6361,18 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   if (autoDiscoveryDeploymentBadge) {
     autoDiscoveryDeploymentBadge.textContent = cockpit.autoDiscovery.badge;
     autoDiscoveryDeploymentBadge.dataset.tone = cockpit.autoDiscovery.tone;
+  }
+  if (executionIdleEnergyBadge) {
+    executionIdleEnergyBadge.textContent = cockpit.executionIdle.badge;
+    executionIdleEnergyBadge.dataset.tone = cockpit.executionIdle.tone;
+  }
+  if (gpuExporterCoverageBadge) {
+    gpuExporterCoverageBadge.textContent = cockpit.gpuExporterCoverage.badge;
+    gpuExporterCoverageBadge.dataset.tone = cockpit.gpuExporterCoverage.tone;
+  }
+  if (backgroundTasksBadge) {
+    backgroundTasksBadge.textContent = cockpit.backgroundTasks.badge;
+    backgroundTasksBadge.dataset.tone = cockpit.backgroundTasks.tone;
   }
   if (kafkaBadge) kafkaBadge.textContent = cockpit.kafka.reachable ? "Reachable" : "Missing";
   if (confidenceDetailBadge) confidenceDetailBadge.textContent = cockpit.confidence.label;
@@ -5725,6 +6401,9 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
   renderOperatorLaunchpad(launchpad, cockpit.commands);
   autoDiscoveryDeploymentPanel.replaceChildren(...operatorAutoDiscoveryDeploymentNodes(cockpit.autoDiscovery));
+  executionIdleEnergyPanel.replaceChildren(...operatorExecutionIdleNodes(cockpit.executionIdle));
+  gpuExporterCoveragePanel.replaceChildren(...operatorGpuExporterCoverageNodes(cockpit.gpuExporterCoverage));
+  backgroundTasksPanel.replaceChildren(...operatorBackgroundTasksNodes(cockpit.backgroundTasks));
   kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
   confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
@@ -5765,6 +6444,22 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   const benchmarkLadder = buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison);
   const productReadiness = buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence });
   const autoDiscovery = buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, confidence });
+  const executionIdle = buildExecutionIdleEnergyState(summary, machineContext);
+  const gpuExporterCoverage = buildGpuExporterCoverageState(summary, machineContext);
+  const backgroundTasks = buildBackgroundTasksState({
+    summary,
+    machineContext,
+    generatedAt,
+    ageMilliseconds,
+    kafka,
+    confidence,
+    autoDiscovery,
+    executionIdle,
+    gpuExporterCoverage,
+    fleetComparison,
+    benchmarkLadder,
+    productReadiness
+  });
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
   const hostLabel = machineContext?.host || clusters[0] || summary.label || "current selection";
 
@@ -5785,6 +6480,9 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     timeline,
     grafana,
     autoDiscovery,
+    executionIdle,
+    gpuExporterCoverage,
+    backgroundTasks,
     productReadiness,
     fleet,
     sparkComparison,
@@ -5804,6 +6502,8 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     kubernetes: adapters.includes("kubernetes") || hasContextField("namespace") || hasContextField("podSelector"),
     prometheus: adapters.includes("prometheus"),
     dcgm: adapters.includes("dcgm"),
+    "amd-dme": adapters.some((adapter) => /amd-dme|device-metrics|rocm/i.test(adapter))
+      || contextItems.some((item) => gpuExporterContextHasAny(item.source?.context || {}, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => group.amd))),
     kafka: kafka.reachable,
     grafana: adapters.includes("grafana") || observedServices.includes("grafana") || numeric(summary.grafana?.sourceCount) > 0,
     docker: adapters.includes("docker") || observedServices.includes("docker"),
@@ -5865,6 +6565,7 @@ function operatorSourceLabel(id) {
     kubernetes: "Kubernetes",
     prometheus: "Prometheus",
     dcgm: "DCGM",
+    "amd-dme": "AMD DME",
     kafka: "Kafka",
     grafana: "Grafana",
     docker: "Docker",
@@ -5898,6 +6599,7 @@ function operatorSourceNote({ id, present, status, ageMilliseconds, summary, mac
   if (id === "kubernetes") return summary.schedulerEvidence?.schedulerNames?.[0] || machineContext?.context?.namespace || "Pod/job evidence";
   if (id === "prometheus") return "Prometheus source metrics";
   if (id === "dcgm") return "GPU counter source";
+  if (id === "amd-dme") return "AMD Device Metrics Exporter source";
   if (id === "docker") return `${machineContext?.dockerContainers?.length || 0} containers observed`;
   if (id === "nccl-trace") {
     if (machineContext?.ncclRuntimePresent) {
@@ -6126,6 +6828,792 @@ function buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, con
   };
 }
 
+function buildExecutionIdleEnergyState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const rows = contexts.map((context) => executionIdleHostRow(context)).filter(Boolean);
+  const gpuRows = rows.filter((row) => row.gpuPresent);
+
+  if (!gpuRows.length) {
+    return {
+      available: false,
+      badge: "No GPU rows",
+      tone: "watch",
+      candidateCount: 0,
+      estimatedWasteWatts: 0,
+      estimatedWasteWattsLabel: "0 W",
+      emptyText: contexts.length
+        ? "Current fleet rows do not include usable GPU exporter power counters."
+        : "Waiting for live machine rows before estimating execution-idle exposure.",
+      summaries: [],
+      rows: [],
+      policyRows: []
+    };
+  }
+
+  const candidateRows = gpuRows.filter((row) => row.isCandidate);
+  const confirmedRows = candidateRows.filter((row) => row.confirmed);
+  const possibleRows = candidateRows.filter((row) => row.state === "possible");
+  const estimatedWasteWatts = candidateRows.reduce((total, row) => total + row.weightedWasteWatts, 0);
+  const maxStreakSeconds = candidateRows
+    .map((row) => row.streakSeconds)
+    .filter(Number.isFinite)
+    .reduce((best, value) => Math.max(best, value), 0);
+  const topCause = executionIdleTopCause(candidateRows);
+  const tone = confirmedRows.length || estimatedWasteWatts >= 120
+    ? "poor"
+    : candidateRows.length || estimatedWasteWatts >= 40 ? "watch" : "good";
+  const badge = confirmedRows.length
+    ? `${confirmedRows.length} confirmed`
+    : candidateRows.length ? `${candidateRows.length} candidates` : `${gpuRows.length} watched`;
+
+  const summaries = [
+    {
+      label: "Exposure",
+      value: executionIdleWattsLabel(estimatedWasteWatts),
+      note: `${executionIdleEnergyLabel((estimatedWasteWatts / 1000) * 24)} projected/day if sustained`,
+      tone
+    },
+    {
+      label: "Candidates",
+      value: `${candidateRows.length}/${gpuRows.length}`,
+      note: possibleRows.length ? `${possibleRows.length} process-state uncertain` : `${EXECUTION_IDLE_LOW_ACTIVITY_PCT}% activity gate`,
+      tone: candidateRows.length ? tone : "good"
+    },
+    {
+      label: "Duration gate",
+      value: maxStreakSeconds ? `${round(maxStreakSeconds)}s` : `${EXECUTION_IDLE_SUSTAINED_SECONDS}s`,
+      note: maxStreakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS ? "sustained interval observed" : "waiting for sustained proof",
+      tone: maxStreakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS ? "poor" : candidateRows.length ? "watch" : "good"
+    },
+    {
+      label: "Likely precursor",
+      value: topCause.label,
+      note: topCause.note,
+      tone: topCause.tone
+    }
+  ];
+
+  return {
+    available: true,
+    badge,
+    tone,
+    candidateCount: candidateRows.length,
+    confirmedCount: confirmedRows.length,
+    estimatedWasteWatts,
+    estimatedWasteWattsLabel: executionIdleWattsLabel(estimatedWasteWatts),
+    summaries,
+    rows: gpuRows.sort(executionIdleRowSort).slice(0, 8),
+    policyRows: executionIdlePolicyRows({ rows: gpuRows, candidateRows, estimatedWasteWatts, topCause })
+  };
+}
+
+function executionIdleHostRow(machineContext) {
+  const context = machineContext?.context || {};
+  const host = machineContext?.host || context.hostname || "host";
+  const gpuPresent = Boolean(machineContext?.gpuPresent || gpuExporterContextHasAny(context, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ])));
+  const gpuModel = machineContext?.gpuModel || context.gpuName || "GPU";
+  const powerWatts = firstFinite(
+    context.gpuPowerWatts,
+    machineContext?.gpuPowerWatts,
+    gpuExporterFirstFinite(context, [
+      "gpu_power_watts",
+      "gpu_power_instant_watts",
+      "turba_gpu_power_watts",
+      "DCGM_FI_DEV_POWER_USAGE",
+      "DCGM_FI_DEV_POWER_USAGE_INSTANT",
+      "GPU_POWER_USAGE",
+      "GPU_PACKAGE_POWER",
+      "GPU_AVERAGE_PACKAGE_POWER",
+      "nvidia_smi_power_draw_watts",
+      "amd_gpu_power_usage",
+      "amd_gpu_package_power"
+    ])
+  );
+  const gpuUtil = executionIdlePercent(firstFinite(
+    context.gpuUtilizationPct,
+    machineContext?.gpuUtilizationPct,
+    ratioPercent(gpuExporterFirstFinite(context, ["turba_gpu_utilization_ratio", "turba_gpu_activity_ratio"])),
+    gpuExporterFirstFinite(context, ["DCGM_FI_DEV_GPU_UTIL", "GPU_GFX_ACTIVITY", "GPU_GFX_BUSY_INSTANTANEOUS", "amd_gpu_gfx_activity"])
+  ));
+  const smActive = executionIdlePercent(firstFinite(
+    context.gpuSmActivePct,
+    context.gpuSmOccupancyPct,
+    context.smOccupancy,
+    context.DCGM_FI_PROF_SM_ACTIVE,
+    context.DCGM_FI_PROF_SM_OCCUPANCY,
+    gpuExporterFirstFinite(context, ["gpu_sm_active_ratio", "gpu_sm_occupancy_ratio", "DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_PROF_SM_OCCUPANCY", "GPU_PROCESS_CU_OCCUPANCY"])
+  ));
+  const tensorActive = executionIdlePercent(firstFinite(
+    context.gpuTensorActivePct,
+    context.gpuTensorPipeActivePct,
+    context.tensorCoreUtil,
+    context.DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
+    gpuExporterFirstFinite(context, ["gpu_tensor_pipe_active_ratio", "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"])
+  ));
+  const dramActive = executionIdlePercent(firstFinite(
+    context.gpuDramActivePct,
+    context.gpuMemoryActivityPct,
+    context.hbmBandwidthPct,
+    context.DCGM_FI_PROF_DRAM_ACTIVE,
+    gpuExporterFirstFinite(context, ["gpu_dram_active_ratio", "DCGM_FI_PROF_DRAM_ACTIVE", "GPU_UMC_ACTIVITY", "GPU_MEM_ACTIVITY"])
+  ));
+  const activityPct = maxFinite(gpuUtil, smActive, tensorActive, dramActive) ?? 0;
+  const pcieBps = maxFinite(
+    context.gpuPcieTxBytesPerSecond,
+    context.gpuPcieRxBytesPerSecond,
+    context.DCGM_FI_PROF_PCIE_TX_BYTES,
+    context.DCGM_FI_PROF_PCIE_RX_BYTES,
+    executionIdleMegabytesPerSecond(context.gpuPcieTxMBps),
+    executionIdleMegabytesPerSecond(context.gpuPcieRxMBps),
+    executionIdleMegabitsPerSecond(gpuExporterFirstFinite(context, ["PCIE_BANDWIDTH", "amd_gpu_pcie_bandwidth"])),
+    executionIdleGigabytesPerSecond(gpuExporterFirstFinite(context, ["PCIE_BIDIRECTIONAL_BANDWIDTH", "amd_gpu_pcie_bidirectional_bandwidth"])),
+    gpuExporterFirstFinite(context, ["turba_gpu_interconnect_bytes_per_second"])
+  );
+  const nvlinkBps = maxFinite(
+    context.gpuNvlinkTxBytesPerSecond,
+    context.gpuNvlinkRxBytesPerSecond,
+    context.DCGM_FI_PROF_NVLINK_TX_BYTES,
+    context.DCGM_FI_PROF_NVLINK_RX_BYTES,
+    executionIdleMegabytesPerSecond(context.gpuNvlinkTxMBps),
+    executionIdleMegabytesPerSecond(context.gpuNvlinkRxMBps),
+    executionIdleGigabytesPerSecond(gpuExporterFirstFinite(context, ["XGMI_LINK_RX", "XGMI_LINK_TX", "amd_gpu_xgmi_link_rx", "amd_gpu_xgmi_link_tx"]))
+  );
+  const deviceCommBps = maxFinite(pcieBps, nvlinkBps) ?? 0;
+  const networkBps = maxFinite(machineContext?.networkRxBytesPerSecond, machineContext?.networkTxBytesPerSecond) ?? 0;
+  const resident = executionIdleResident(machineContext);
+  const deepIdleWatts = executionIdleDeepIdleWatts(gpuModel, powerWatts);
+  const wasteWatts = Number.isFinite(powerWatts) ? Math.max(0, powerWatts - deepIdleWatts) : 0;
+  const elevatedPower = Number.isFinite(powerWatts) && wasteWatts >= EXECUTION_IDLE_MIN_POWER_GAP_WATTS;
+  const lowActivity = activityPct <= EXECUTION_IDLE_LOW_ACTIVITY_PCT && deviceCommBps < EXECUTION_IDLE_COMMUNICATION_BPS;
+  const maybeResident = resident.present || resident.uncertain;
+  const isCandidate = gpuPresent && lowActivity && elevatedPower && maybeResident;
+  const streakSeconds = isCandidate ? executionIdleStreakSeconds(machineContext, { deepIdleWatts }) : 0;
+  const confirmed = Number.isFinite(streakSeconds) && streakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS;
+  const state = !gpuPresent
+    ? "unavailable"
+    : isCandidate
+      ? resident.present ? "candidate" : "possible"
+      : lowActivity ? "deep-idle" : "active";
+  const tone = confirmed || state === "candidate"
+    ? "poor"
+    : state === "possible" ? "watch" : state === "active" ? "good" : "watch";
+  const confidence = !gpuPresent
+    ? 0
+    : confirmed ? 92 : state === "candidate" ? 78 : state === "possible" ? 58 : state === "active" ? 70 : 64;
+  const cause = executionIdleCause({ pcieBps, nvlinkBps, networkBps, machineContext, activityPct });
+  const weightedWasteWatts = isCandidate ? wasteWatts * (state === "possible" ? 0.55 : 1) : 0;
+
+  return {
+    host,
+    gpuModel,
+    gpuPresent,
+    state,
+    stateLabel: executionIdleStateLabel(state, confirmed),
+    tone,
+    confidence,
+    isCandidate,
+    confirmed,
+    powerWatts,
+    deepIdleWatts,
+    wasteWatts,
+    weightedWasteWatts,
+    activityPct,
+    gpuUtil,
+    smActive,
+    tensorActive,
+    dramActive,
+    deviceCommBps,
+    pcieBps,
+    nvlinkBps,
+    networkBps,
+    resident,
+    streakSeconds,
+    cause,
+    sampleAgeMs: sparkPairSampleAgeMilliseconds(machineContext),
+    evidence: executionIdleEvidence({ activityPct, powerWatts, deepIdleWatts, resident, deviceCommBps }),
+    action: executionIdleRowAction({ state, confirmed, resident, cause })
+  };
+}
+
+function executionIdlePercent(value) {
+  if (!Number.isFinite(value)) return undefined;
+  return value >= 0 && value <= 1 ? value * 100 : value;
+}
+
+function executionIdleMegabytesPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 1_000_000 : undefined;
+}
+
+function executionIdleMegabitsPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 125_000 : undefined;
+}
+
+function executionIdleGigabytesPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 1_000_000_000 : undefined;
+}
+
+function executionIdleDeepIdleWatts(gpuModel, powerWatts) {
+  const label = String(gpuModel || "");
+  if (/GB10|DGX[ -]?Spark/i.test(label)) return 8;
+  if (/MI3\d{2}|MI300|MI325|MI350|Instinct/i.test(label)) return 75;
+  if (/MI2\d{2}|MI200|MI250/i.test(label)) return 55;
+  if (/B200|H200/i.test(label)) return 80;
+  if (/H100/i.test(label)) return 70;
+  if (/A100/i.test(label)) return 45;
+  if (/L40|RTX|A6000|6000 Ada/i.test(label)) return 35;
+  if (Number.isFinite(powerWatts) && powerWatts > 0) return clamp(powerWatts * 0.28, 8, 80);
+  return 35;
+}
+
+function executionIdleResident(machineContext) {
+  const context = machineContext?.context || {};
+  const processes = Array.isArray(machineContext?.gpuProcesses) ? machineContext.gpuProcesses : [];
+  const services = machineDemoServices(context.observedServices);
+  const containers = Array.isArray(machineContext?.dockerContainers) ? machineContext.dockerContainers : [];
+  const containerText = containers.map((container) => `${container.name || ""} ${container.image || ""}`).join(" ").toLowerCase();
+  const servingRuntime = /vllm|triton|tensorrt|trt-llm|nim|ray|nccl|ollama/.test(containerText)
+    || services.some((service) => /ollama|vllm|triton|ray|kafka|prometheus/i.test(service));
+  const memoryResident = numeric(machineContext?.gpuMemoryUsedMiB, 0) >= 512 || numeric(context.gpuMemoryUsedMiB, 0) >= 512;
+  const runningModels = Array.isArray(machineContext?.ollamaRunningModels) && machineContext.ollamaRunningModels.length > 0;
+  const processSkipped = Boolean(machineContext?.gpuProcessQuerySkipped);
+  const present = processes.length > 0 || memoryResident || runningModels || servingRuntime || Boolean(machineContext?.ncclRuntimePresent);
+  return {
+    present,
+    uncertain: !present && processSkipped,
+    label: present
+      ? processes.length ? `${processes.length} GPU process${processes.length === 1 ? "" : "es"}` : "resident workload signal"
+      : processSkipped ? "process lookup skipped" : "no resident program seen"
+  };
+}
+
+function executionIdleStreakSeconds(machineContext, row) {
+  const context = machineContext?.context || {};
+  const explicit = firstFinite(context.executionIdleStreakSeconds, context.gpuExecutionIdleStreakSeconds);
+  if (Number.isFinite(explicit)) return explicit;
+  const hostKey = normalizeFleetHostId(machineContext?.host || context.hostname);
+  if (!hostKey || !liveTelemetryHistory.length) return 0;
+  const samples = liveTelemetryHistory.filter((sample) => normalizeFleetHostId(sample.host) === hostKey);
+  const last = samples[samples.length - 1];
+  if (!last) return 0;
+  let first = last;
+  for (let index = samples.length - 1; index >= 0; index -= 1) {
+    const sample = samples[index];
+    const lowActivity = Number.isFinite(sample.gpu) && sample.gpu <= EXECUTION_IDLE_LOW_ACTIVITY_PCT;
+    const elevatedPower = Number.isFinite(sample.gpuPower)
+      && sample.gpuPower - row.deepIdleWatts >= EXECUTION_IDLE_MIN_POWER_GAP_WATTS;
+    if (!lowActivity || !elevatedPower) break;
+    first = sample;
+  }
+  return Math.max(0, (last.timestampMs - first.timestampMs) / 1000);
+}
+
+function executionIdleCause({ pcieBps, nvlinkBps, networkBps, machineContext, activityPct }) {
+  if (Number.isFinite(pcieBps) && pcieBps >= 250_000_000) {
+    return { key: "pcie", label: "PCIe-heavy", note: "paper prior 48%", tone: "watch" };
+  }
+  if (numeric(machineContext?.hardwarePcieAerCount, 0) > 0) {
+    return { key: "pcie", label: "PCIe watch", note: "PCIe AER seen", tone: "poor" };
+  }
+  if (Number.isFinite(networkBps) && networkBps >= 50_000_000) {
+    return { key: "nic", label: "NIC-heavy", note: "paper prior 17%", tone: "watch" };
+  }
+  if (Number.isFinite(nvlinkBps) && nvlinkBps >= 250_000_000) {
+    return { key: "nvlink", label: "NVLink-heavy", note: "paper prior 2%", tone: "watch" };
+  }
+  if (activityPct <= EXECUTION_IDLE_LOW_ACTIVITY_PCT) {
+    return { key: "compute", label: "Compute-to-idle", note: "paper prior 33%", tone: "good" };
+  }
+  return { key: "active", label: "Active", note: "no idle onset", tone: "good" };
+}
+
+function executionIdleStateLabel(state, confirmed) {
+  if (confirmed) return "execution-idle";
+  if (state === "candidate") return "candidate";
+  if (state === "possible") return "possible";
+  if (state === "deep-idle") return "deep idle";
+  if (state === "active") return "active";
+  return "unavailable";
+}
+
+function executionIdleEvidence({ activityPct, powerWatts, deepIdleWatts, resident, deviceCommBps }) {
+  const power = Number.isFinite(powerWatts)
+    ? `${round(powerWatts)} W now, ${round(deepIdleWatts)} W deep-idle estimate`
+    : "power counter missing";
+  const comm = deviceCommBps ? `${formatBytesPerSecond(deviceCommBps)} device comm` : "device comm below threshold or missing";
+  return `${pct(activityPct)} activity | ${power} | ${comm} | ${resident.label}`;
+}
+
+function executionIdleRowAction({ state, confirmed, resident, cause }) {
+  if (confirmed) return "Run SLO-gated downscale dry-run before touching clocks.";
+  if (state === "candidate") return "Hold for sustained proof, then compare SM-only vs SM+HBM policy.";
+  if (state === "possible") return resident.uncertain ? "Enable process/DCGM residency check to separate deep idle from loaded idle." : "Collect one more sample before policy action.";
+  if (state === "deep-idle") return "Keep as spare capacity or pack work here deliberately.";
+  if (cause.key === "active") return "No execution-idle action.";
+  return "Track precursor signature.";
+}
+
+function executionIdleTopCause(candidateRows) {
+  if (!candidateRows.length) {
+    return { label: "None", note: "no current candidates", tone: "good" };
+  }
+  const counts = new Map();
+  candidateRows.forEach((row) => {
+    const key = row.cause.key;
+    counts.set(key, { ...row.cause, count: (counts.get(key)?.count || 0) + 1 });
+  });
+  return Array.from(counts.values()).sort((left, right) => right.count - left.count)[0];
+}
+
+function executionIdleRowSort(left, right) {
+  return right.weightedWasteWatts - left.weightedWasteWatts
+    || right.confidence - left.confidence
+    || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true });
+}
+
+function executionIdlePolicyRows({ rows, candidateRows, estimatedWasteWatts, topCause }) {
+  const watched = rows.filter((row) => row.gpuPresent).length;
+  const candidatePct = watched ? (candidateRows.length / watched) * 100 : 0;
+  return [
+    {
+      label: "Detection rule",
+      value: `${EXECUTION_IDLE_LOW_ACTIVITY_PCT}% / ${formatBytesPerSecond(EXECUTION_IDLE_COMMUNICATION_BPS)}`,
+      note: `${EXECUTION_IDLE_SUSTAINED_SECONDS}s sustained gate with process residency`,
+      tone: "good"
+    },
+    {
+      label: "Policy dry-run",
+      value: estimatedWasteWatts ? executionIdleWattsLabel(estimatedWasteWatts) : "armed",
+      note: "Paper reports 22-34% power reduction with 29-160% p95 latency cost",
+      tone: estimatedWasteWatts ? "watch" : "good"
+    },
+    {
+      label: "Consolidation",
+      value: `${round(candidatePct)}% exposed`,
+      note: "For serving, compare pack-work vs spread-work before adding GPUs",
+      tone: candidatePct >= 30 ? "watch" : "good"
+    },
+    {
+      label: "Precursor model",
+      value: topCause.label,
+      note: "Classify PCIe/NIC/NVLink/compute-to-idle onsets as data arrives",
+      tone: topCause.tone
+    }
+  ];
+}
+
+function executionIdleWattsLabel(value) {
+  const parsed = numeric(value, 0);
+  if (Math.abs(parsed) >= 1000) return `${formatDecimal(parsed / 1000, 1)} kW`;
+  return `${round(parsed)} W`;
+}
+
+function executionIdleEnergyLabel(kwh) {
+  const parsed = numeric(kwh, 0);
+  if (parsed >= 1000) return `${formatDecimal(parsed / 1000, 1)} MWh`;
+  if (parsed >= 10) return `${formatDecimal(parsed, 0)} kWh`;
+  return `${formatDecimal(parsed, 1)} kWh`;
+}
+
+function buildGpuExporterCoverageState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const hostCount = contexts.length;
+  const adapters = unique([
+    ...(summary.sourceAdapters || []),
+    ...(summary.sourceItems || []).flatMap((item) => item.source?.adapters || []),
+    ...contexts.flatMap((context) => String(context.adapters || "").split(",").map((entry) => entry.trim()).filter(Boolean))
+  ]);
+
+  if (!hostCount) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      hostCount: 0,
+      totalFamilies: GPU_EXPORTER_METRIC_GROUPS.length,
+      coveredFamilies: 0,
+      emptyText: "Waiting for source rows with GPU exporter metrics.",
+      summaries: [],
+      rows: [],
+      policyRows: []
+    };
+  }
+
+  const rows = GPU_EXPORTER_METRIC_GROUPS.map((group) => gpuExporterCoverageRow(group, contexts));
+  const coveredFamilies = rows.filter((row) => row.coveredHosts > 0).length;
+  const fullFamilies = rows.filter((row) => row.coveredHosts >= hostCount).length;
+  const nvidiaFamilies = rows.filter((row) => row.nvidiaHosts > 0).length;
+  const amdFamilies = rows.filter((row) => row.amdHosts > 0).length;
+  const proofFamilies = rows.filter((row) => GPU_EXPORTER_EXECUTION_IDLE_GROUPS.includes(row.key) && row.coveredHosts > 0).length;
+  const proofReady = proofFamilies >= 3;
+  const hasPrometheus = adapters.some((adapter) => /prometheus|dcgm|grafana|amd|dme|device-metrics/i.test(adapter));
+  const tone = proofReady && coveredFamilies >= 6
+    ? "good"
+    : proofReady || coveredFamilies >= 4 ? "watch" : "poor";
+  const badge = amdFamilies && nvidiaFamilies
+    ? "Cross-vendor"
+    : amdFamilies ? "AMD map" : nvidiaFamilies ? "NVIDIA map" : `${coveredFamilies}/${GPU_EXPORTER_METRIC_GROUPS.length}`;
+
+  const summaries = [
+    {
+      label: "Families",
+      value: `${coveredFamilies}/${GPU_EXPORTER_METRIC_GROUPS.length}`,
+      note: `${fullFamilies} complete across ${hostCount} ${hostCount === 1 ? "host" : "hosts"}`,
+      tone: coveredFamilies >= 6 ? "good" : coveredFamilies >= 4 ? "watch" : "poor"
+    },
+    {
+      label: "Vendor map",
+      value: amdFamilies && nvidiaFamilies ? "NVIDIA + AMD" : amdFamilies ? "AMD DME" : nvidiaFamilies ? "NVIDIA" : "normalized",
+      note: `${nvidiaFamilies} NVIDIA/DCGM | ${amdFamilies} AMD DME families visible`,
+      tone: amdFamilies && nvidiaFamilies ? "good" : amdFamilies || nvidiaFamilies ? "watch" : "poor"
+    },
+    {
+      label: "Idle proof",
+      value: proofReady ? "ready" : `${proofFamilies}/4`,
+      note: "power, activity, memory, and interconnect evidence for the paper detector",
+      tone: proofReady ? "good" : proofFamilies >= 2 ? "watch" : "poor"
+    },
+    {
+      label: "Handoff",
+      value: hasPrometheus ? "attached" : "local only",
+      note: hasPrometheus ? "Prometheus/Grafana exporter path observed" : "Use source export queries to attach raw exporter families",
+      tone: hasPrometheus ? "good" : "watch"
+    }
+  ];
+
+  const policyRows = [
+    {
+      label: "Normalize first",
+      value: "one ontology",
+      note: "Map DCGM, nvidia-smi exporter, and AMD DME into shared GPU fields before ranking hosts.",
+      tone: "good"
+    },
+    {
+      label: "Compare fairly",
+      value: "family gates",
+      note: "Only compare hosts at a benchmark level when the same metric families are present.",
+      tone: coveredFamilies >= 6 ? "good" : "watch"
+    },
+    {
+      label: "Energy research",
+      value: proofReady ? "usable" : "partial",
+      note: "Execution-idle analysis needs power plus low-activity proof and residency context.",
+      tone: proofReady ? "good" : "watch"
+    },
+    {
+      label: "Fleet rollout",
+      value: "Prometheus",
+      note: "AMD DME exposes :5000/metrics; NVIDIA DCGM defaults to :9400/metrics.",
+      tone: hasPrometheus ? "good" : "watch"
+    }
+  ];
+
+  return {
+    available: true,
+    badge,
+    tone,
+    hostCount,
+    totalFamilies: GPU_EXPORTER_METRIC_GROUPS.length,
+    coveredFamilies,
+    nvidiaFamilies,
+    amdFamilies,
+    summaries,
+    rows,
+    policyRows
+  };
+}
+
+function gpuExporterCoverageRow(group, contexts) {
+  const hostCount = contexts.length;
+  const normalizedHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.normalized)).length;
+  const nvidiaHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.nvidia)).length;
+  const amdHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.amd)).length;
+  const coveredHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ])).length;
+  const examples = gpuExporterCoverageExamples(group, contexts);
+  const coveragePct = hostCount ? (coveredHosts / hostCount) * 100 : 0;
+  const tone = coveredHosts >= hostCount ? "good" : coveredHosts > 0 ? "watch" : "poor";
+
+  return {
+    key: group.key,
+    label: group.label,
+    use: group.use,
+    normalizedHosts,
+    nvidiaHosts,
+    amdHosts,
+    coveredHosts,
+    hostCount,
+    coveragePct,
+    examples,
+    tone
+  };
+}
+
+function gpuExporterCoverageExamples(group, contexts) {
+  const candidates = [...group.normalized, ...group.nvidia, ...group.amd];
+  const examples = [];
+  contexts.forEach((machineContext) => {
+    const match = gpuExporterContextMatchedName(machineContext.context || {}, candidates);
+    if (match && !examples.includes(match)) examples.push(match);
+  });
+  return examples.slice(0, 3);
+}
+
+function gpuExporterContextHasAny(context, names) {
+  return Boolean(gpuExporterContextMatchedName(context, names));
+}
+
+function gpuExporterObjectHasAny(object, names) {
+  if (!isPlainObject(object)) return false;
+  return Boolean(gpuExporterObjectMatchedName(object, names));
+}
+
+function gpuExporterContextMatchedName(context, names) {
+  for (const object of gpuExporterMetricObjects(context)) {
+    const match = gpuExporterObjectMatchedName(object, names);
+    if (match) return match;
+  }
+  return "";
+}
+
+function gpuExporterObjectMatchedName(object, names) {
+  const keyMap = new Map(Object.keys(object || {}).map((key) => [gpuExporterMetricKey(key), key]));
+  for (const name of names || []) {
+    for (const alias of gpuExporterMetricAliases(name)) {
+      const key = keyMap.get(gpuExporterMetricKey(alias));
+      if (key && gpuExporterMetricMeaningful(object[key])) return key;
+    }
+  }
+  return "";
+}
+
+function gpuExporterFirstFinite(context, names) {
+  for (const object of gpuExporterMetricObjects(context)) {
+    const keyMap = new Map(Object.keys(object || {}).map((key) => [gpuExporterMetricKey(key), key]));
+    for (const name of names || []) {
+      for (const alias of gpuExporterMetricAliases(name)) {
+        const key = keyMap.get(gpuExporterMetricKey(alias));
+        if (!key) continue;
+        const value = Number(object[key]);
+        if (Number.isFinite(value)) return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function gpuExporterMetricObjects(context) {
+  return [
+    context,
+    context?.rawPrometheusMetrics,
+    context?.rawDcgmFields,
+    context?.gpuExporterMetrics,
+    context?.amdDeviceMetrics,
+    context?.nvidiaGpuMetrics
+  ].filter(isPlainObject);
+}
+
+function gpuExporterMetricAliases(name) {
+  const value = String(name || "").trim();
+  if (!value) return [];
+  const snake = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+  return unique([
+    value,
+    value.toLowerCase(),
+    snake,
+    `amd_${snake}`,
+    `nvidia_${snake}`,
+    `nvidia_smi_${snake}`,
+    snake.startsWith("gpu_") ? `amd_${snake}` : "",
+    snake.startsWith("dcgm_fi_") ? snake.toUpperCase() : ""
+  ].filter(Boolean));
+}
+
+function gpuExporterMetricKey(name) {
+  return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function gpuExporterMetricMeaningful(value) {
+  if (Number.isFinite(value)) return true;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.length > 0;
+  if (isPlainObject(value)) return Object.keys(value).length > 0;
+  const text = String(value ?? "").trim();
+  return Boolean(text) && !/^(nan|n\/a|null|undefined|unknown)$/i.test(text);
+}
+
+function buildBackgroundTasksState({ summary, machineContext, generatedAt, ageMilliseconds, kafka, confidence, autoDiscovery, executionIdle, gpuExporterCoverage, fleetComparison, benchmarkLadder, productReadiness }) {
+  const benchmarkMetrics = machineContext
+    ? [
+      machineContext.benchmarkCpuOpsPerSecond,
+      machineContext.benchmarkGpuScore,
+      machineContext.benchmarkMemoryMiBps,
+      machineContext.benchmarkNetworkMbps,
+      machineContext.benchmarkDiskReadMiBps,
+      machineContext.benchmarkDiskWriteMiBps
+    ].filter(Number.isFinite).length
+    : 0;
+  const liveFresh = ageMilliseconds === null || ageMilliseconds <= MACHINE_DEMO_FRESH_MS;
+  const benchmarkAge = Number.isFinite(machineContext?.benchmarkSampleAgeMs)
+    ? machineContext.benchmarkSampleAgeMs
+    : machineContext?.benchmarkGeneratedAt ? Math.max(0, Date.now() - safeDate(machineContext.benchmarkGeneratedAt, new Date()).getTime()) : null;
+  const benchmarkTtl = Number.isFinite(machineContext?.benchmarkTtlMs) ? machineContext.benchmarkTtlMs : null;
+  const benchmarkFresh = benchmarkAge === null || benchmarkTtl === null || benchmarkAge <= benchmarkTtl;
+  const systemIdStatus = platformVirtualSensorCache.inFlight
+    ? "running"
+    : platformVirtualSensorCache.systemIdentification?.status === "ready" ? "ready" : "waiting";
+  const systemIdAge = platformVirtualSensorCache.fetchedAt ? Math.max(0, Date.now() - platformVirtualSensorCache.fetchedAt) : null;
+  const collectorRate = Number.isFinite(machineContext?.collectorIncomingReportsPerMinute)
+    ? machineContext.collectorIncomingReportsPerMinute
+    : null;
+  const collectorWindow = Number.isFinite(machineContext?.collectorIncomingReportsWindowSeconds)
+    ? `${number.format(machineContext.collectorIncomingReportsWindowSeconds)}s window`
+    : "metrics window learning";
+
+  const tasks = [
+    {
+      id: "browser-live-refresh",
+      label: "Browser live refresh",
+      value: machineDemoLoadInFlight ? "fetching" : machineDemoRefreshTimer ? "running" : "manual",
+      detail: machineContext
+        ? liveFresh
+          ? `${machineContext.host} sample ${ageMilliseconds === null ? "attached" : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} old`}`
+          : `${machineContext.host} sample is stale`
+        : "Waiting for a live machine bundle",
+      cadence: machineDemoRefreshTimer ? `${MACHINE_DEMO_REFRESH_MS / 1000}s poll` : "on demand",
+      tone: machineContext ? liveFresh ? "good" : "watch" : "poor"
+    },
+    {
+      id: "agent-ingest",
+      label: "Agent ingest",
+      value: collectorRate === null
+        ? machineContext?.collectorGatewayReachable ? "reachable" : "waiting"
+        : `${formatDecimal(collectorRate, collectorRate >= 100 ? 0 : 1)}/min`,
+      detail: machineContext?.collectorGatewayReachable
+        ? `${number.format(numeric(machineContext.collectorAcceptedBatchesTotal, 0))} accepted batches | ${collectorWindow}`
+        : "Collector gateway has not been proven from the current bundle",
+      cadence: "continuous push",
+      tone: collectorRate !== null && collectorRate > 0 ? "good" : machineContext?.collectorGatewayReachable ? "watch" : "poor"
+    },
+    {
+      id: "benchmark-suite",
+      label: "Benchmark suite",
+      value: machineContext?.benchmarkError
+        ? "error"
+        : benchmarkMetrics ? `${benchmarkMetrics} metrics` : machineContext?.benchmarkSuiteStatus || "waiting",
+      detail: machineContext?.benchmarkError
+        || (benchmarkAge === null ? "No benchmark sample attached yet" : `${sparkPairAgeLabel(benchmarkAge)} old | ${benchmarkLadder.available ? benchmarkLadder.badge : "ladder learning"}`),
+      cadence: benchmarkTtl ? `${Math.max(1, Math.round(benchmarkTtl / 60000))}m TTL` : "timer/agent",
+      tone: machineContext?.benchmarkError ? "poor" : benchmarkMetrics && benchmarkFresh ? "good" : benchmarkMetrics ? "watch" : "poor"
+    },
+    {
+      id: "auto-discovery",
+      label: "Auto discovery",
+      value: autoDiscovery.badge,
+      detail: `${autoDiscovery.subnet} | ${autoDiscovery.credentialsFile}`,
+      cadence: "credential gated",
+      tone: autoDiscovery.tone
+    },
+    {
+      id: "execution-idle-watchdog",
+      label: "Execution-idle watchdog",
+      value: executionIdle.available ? executionIdle.badge : "learning",
+      detail: executionIdle.available
+        ? `${executionIdle.candidateCount} candidates | ${executionIdle.estimatedWasteWattsLabel} exposed`
+        : executionIdle.emptyText,
+      cadence: `${EXECUTION_IDLE_SUSTAINED_SECONDS}s sustained rule`,
+      tone: executionIdle.available ? executionIdle.tone : "watch"
+    },
+    {
+      id: "gpu-exporter-normalizer",
+      label: "GPU exporter normalizer",
+      value: gpuExporterCoverage.available ? gpuExporterCoverage.badge : "learning",
+      detail: gpuExporterCoverage.available
+        ? `${gpuExporterCoverage.coveredFamilies}/${gpuExporterCoverage.totalFamilies} metric families | ${gpuExporterCoverage.hostCount} hosts`
+        : gpuExporterCoverage.emptyText,
+      cadence: "on source import",
+      tone: gpuExporterCoverage.available ? gpuExporterCoverage.tone : "watch"
+    },
+    {
+      id: "clock-sync",
+      label: "Clock discipline",
+      value: machineContext?.clockPtpActive
+        ? machineContext.clockPtpPortState || "PTP active"
+        : machineContext?.clockSynchronized ? machineContext.clockSource || "synced" : "unsynced",
+      detail: machineContext?.clockSyncDetail || machineContext?.clockPtpGrandmaster || "Clock status not observed",
+      cadence: "continuous",
+      tone: machineContext?.clockPtpActive || machineContext?.clockSynchronized ? "good" : machineContext?.clockPtpInstalled ? "watch" : "poor"
+    },
+    {
+      id: "queue-smoke",
+      label: "Queue smoke",
+      value: kafka.messageId ? "round trip" : kafka.reachable ? "broker" : "waiting",
+      detail: kafka.messageId || kafka.topic || kafka.nodePortBootstrap || kafka.status,
+      cadence: "on demand",
+      tone: kafka.messageId || kafka.reachable ? "good" : "watch"
+    },
+    {
+      id: "system-id",
+      label: "System-ID worker",
+      value: systemIdStatus,
+      detail: systemIdAge === null
+        ? "Waiting for impulse/step/ramp/sine characterization"
+        : `${sparkPairAgeLabel(systemIdAge)} since virtual sensor fetch`,
+      cadence: "virtual sensor",
+      tone: systemIdStatus === "ready" ? "good" : systemIdStatus === "running" ? "watch" : "watch"
+    },
+    {
+      id: "comparison-engine",
+      label: "Comparison engine",
+      value: fleetComparison.available ? fleetComparison.badge : "learning",
+      detail: productReadiness.badge === "Needs repair"
+        ? "Product readiness is blocking confident comparison"
+        : `${summary.sourceItems?.length || 0} source items | confidence ${pct(confidence.score)}`,
+      cadence: "on render",
+      tone: fleetComparison.available && confidence.score >= 55 ? "good" : confidence.score >= 55 ? "watch" : "poor"
+    },
+    {
+      id: "replay-buffer",
+      label: "Replay buffer",
+      value: state.operatorReplay ? "playing" : `${liveTelemetryHistory.length} samples`,
+      detail: liveTelemetryHistory.length
+        ? `Keeps up to ${LIVE_TELEMETRY_LIMIT} in-browser telemetry samples`
+        : "Waiting for live samples before replay is useful",
+      cadence: "session local",
+      tone: liveTelemetryHistory.length >= 2 ? "good" : "watch"
+    }
+  ];
+
+  const counts = {
+    running: tasks.filter((task) => task.tone === "good").length,
+    watch: tasks.filter((task) => task.tone === "watch").length,
+    blocked: tasks.filter((task) => task.tone === "poor").length
+  };
+  const tone = counts.blocked ? "poor" : counts.watch ? "watch" : "good";
+  const badge = counts.blocked
+    ? `${counts.blocked} blocked`
+    : counts.watch ? `${counts.running} running` : "All running";
+  const generatedLabel = generatedAt ? `${sparkPairAgeLabel(Math.max(0, Date.now() - generatedAt.getTime()))} data age` : "no live timestamp";
+
+  return {
+    badge,
+    tone,
+    generatedLabel,
+    counts,
+    tasks
+  };
+}
+
 function autoDiscoverySubnet(hosts) {
   const address = (hosts || [])
     .map((host) => host.address)
@@ -6210,6 +7698,230 @@ function operatorAutoDiscoveryDeploymentNodes(discovery) {
   }
 
   return [summary, grid, commands, hosts];
+}
+
+function operatorExecutionIdleNodes(executionIdle) {
+  if (!executionIdle.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = executionIdle.emptyText;
+    return [empty];
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "execution-idle-summary";
+  summary.append(...executionIdle.summaries.map(executionIdleSummaryItem));
+
+  const rows = document.createElement("div");
+  rows.className = "execution-idle-grid";
+  rows.append(executionIdleHeader(), ...executionIdle.rows.map(executionIdleRowNode));
+
+  const policies = document.createElement("div");
+  policies.className = "execution-idle-policy-grid";
+  policies.append(...executionIdle.policyRows.map(executionIdlePolicyItem));
+
+  return [summary, rows, policies];
+}
+
+function executionIdleSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "execution-idle-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function executionIdleHeader() {
+  const row = document.createElement("div");
+  row.className = "execution-idle-row execution-idle-head";
+  ["Host", "State", "Power gap", "Activity", "Precursor", "Action"].forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function executionIdleRowNode(rowData) {
+  const row = document.createElement("div");
+  row.className = "execution-idle-row";
+  row.dataset.tone = rowData.tone;
+  row.append(
+    executionIdleCell(rowData.host, rowData.gpuModel),
+    executionIdleCell(rowData.stateLabel, `${round(rowData.confidence)}% confidence`),
+    executionIdleCell(executionIdleWattsLabel(rowData.wasteWatts), Number.isFinite(rowData.powerWatts) ? `${round(rowData.powerWatts)} W board` : "power missing"),
+    executionIdleCell(pct(rowData.activityPct), `${formatBytesPerSecond(rowData.deviceCommBps)} device comm`),
+    executionIdleCell(rowData.cause.label, rowData.cause.note),
+    executionIdleCell(rowData.action, rowData.evidence)
+  );
+  return row;
+}
+
+function executionIdleCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function executionIdlePolicyItem(item) {
+  const node = document.createElement("div");
+  node.className = "execution-idle-policy-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function operatorGpuExporterCoverageNodes(coverage) {
+  if (!coverage.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = coverage.emptyText;
+    return [empty];
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "gpu-exporter-summary";
+  summary.append(...coverage.summaries.map(gpuExporterSummaryItem));
+
+  const rows = document.createElement("div");
+  rows.className = "gpu-exporter-grid";
+  rows.append(gpuExporterHeader(), ...coverage.rows.map(gpuExporterRowNode));
+
+  const policies = document.createElement("div");
+  policies.className = "gpu-exporter-policy-grid";
+  policies.append(...coverage.policyRows.map(gpuExporterPolicyItem));
+
+  return [summary, rows, policies];
+}
+
+function gpuExporterSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "gpu-exporter-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function gpuExporterHeader() {
+  const row = document.createElement("div");
+  row.className = "gpu-exporter-row gpu-exporter-head";
+  ["Family", "NVIDIA/DCGM", "AMD DME", "Normalized", "Use"].forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function gpuExporterRowNode(rowData) {
+  const row = document.createElement("div");
+  row.className = "gpu-exporter-row";
+  row.dataset.tone = rowData.tone;
+  const examples = rowData.examples.length ? rowData.examples.join(", ") : "waiting for raw metric";
+  row.append(
+    gpuExporterCell(rowData.label, `${round(rowData.coveragePct)}% host coverage`),
+    gpuExporterCell(`${rowData.nvidiaHosts}/${rowData.hostCount}`, rowData.nvidiaHosts ? examples : "DCGM/nvidia-smi aliases"),
+    gpuExporterCell(`${rowData.amdHosts}/${rowData.hostCount}`, rowData.amdHosts ? examples : "AMD DME aliases"),
+    gpuExporterCell(`${rowData.normalizedHosts}/${rowData.hostCount}`, rowData.normalizedHosts ? "shared turbalance fields" : "normalizer pending"),
+    gpuExporterCell(rowData.use, examples)
+  );
+  return row;
+}
+
+function gpuExporterCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function gpuExporterPolicyItem(item) {
+  const node = document.createElement("div");
+  node.className = "gpu-exporter-policy-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function operatorBackgroundTasksNodes(backgroundTasks) {
+  const summary = document.createElement("div");
+  summary.className = "background-tasks-summary";
+  summary.dataset.tone = backgroundTasks.tone;
+
+  const score = document.createElement("strong");
+  score.textContent = `${backgroundTasks.counts.running}/${backgroundTasks.tasks.length}`;
+  const copy = document.createElement("span");
+  copy.textContent = `${backgroundTasks.counts.running} running | ${backgroundTasks.counts.watch} watch | ${backgroundTasks.counts.blocked} blocked | ${backgroundTasks.generatedLabel}`;
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "background-task-grid";
+  backgroundTasks.tasks.forEach((task) => {
+    const row = document.createElement("article");
+    row.className = "background-task-row";
+    row.dataset.tone = task.tone;
+    row.dataset.task = task.id;
+
+    const marker = document.createElement("span");
+    marker.className = "background-task-dot";
+    marker.setAttribute("aria-hidden", "true");
+
+    const body = document.createElement("div");
+    const head = document.createElement("div");
+    head.className = "background-task-head";
+    const label = document.createElement("strong");
+    label.textContent = task.label;
+    const value = document.createElement("span");
+    value.textContent = task.value;
+    head.append(label, value);
+
+    const detail = document.createElement("small");
+    detail.textContent = task.detail;
+    const cadence = document.createElement("em");
+    cadence.textContent = task.cadence;
+    body.append(head, detail, cadence);
+    row.append(marker, body);
+    grid.append(row);
+  });
+
+  return [summary, grid];
 }
 
 function shellCommandPart(value) {
@@ -13089,6 +14801,15 @@ function inventoryMeta(summary) {
 
   if (summary.scope === "job") {
     const job = summary.jobs[0];
+    const machineContext = machineDemoContext(summary);
+    if (machineContext) {
+      const presence = machineContext.machineInventoryMissing
+        ? formatMachineLastSeen(machineContext.machineInventoryLastSeenAt)
+        : Number.isFinite(machineContext.uptimeSeconds)
+        ? `up ${formatMachineUptime(machineContext.uptimeSeconds)}`
+        : job.status;
+      return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${presence}`;
+    }
     return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${job.status}`;
   }
 
