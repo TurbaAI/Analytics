@@ -1118,9 +1118,9 @@ const GPU_EXPORTER_METRIC_GROUPS = [
   {
     key: "thermal",
     label: "Thermal",
-    normalized: ["gpuTemperatureC", "gpu_temperature_celsius", "turba_gpu_thermal_celsius"],
-    nvidia: ["DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_MEMORY_TEMP", "nvidia_smi_temperature_gpu"],
-    amd: ["GPU_EDGE_TEMPERATURE", "GPU_JUNCTION_TEMPERATURE", "GPU_MEMORY_TEMPERATURE", "GPU_HBM_TEMPERATURE"],
+    normalized: ["gpuTemperatureC", "gpuFanSpeedPct", "gpu_temperature_celsius", "turba_gpu_thermal_celsius", "gpu_fan_speed_pct"],
+    nvidia: ["DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_MEMORY_TEMP", "DCGM_FI_DEV_FAN_SPEED", "nvidia_smi_temperature_gpu", "nvidia_smi_fan_speed_pct"],
+    amd: ["GPU_EDGE_TEMPERATURE", "GPU_JUNCTION_TEMPERATURE", "GPU_MEMORY_TEMPERATURE", "GPU_HBM_TEMPERATURE", "GPU_FAN_SPEED"],
     use: "Thermal throttle context and rack cooling fingerprints"
   },
   {
@@ -1142,7 +1142,7 @@ const GPU_EXPORTER_METRIC_GROUPS = [
   {
     key: "clockThrottle",
     label: "Clocks + throttle",
-    normalized: ["gpuClockMHz", "gpuMemoryClockMHz", "turba_gpu_clock_mhz"],
+    normalized: ["gpuClockMHz", "gpuSmClockMHz", "gpuMemoryClockMHz", "turba_gpu_clock_mhz", "turba_gpu_sm_clock_mhz", "turba_gpu_memory_clock_mhz"],
     nvidia: ["DCGM_FI_DEV_SM_CLOCK", "DCGM_FI_DEV_MEM_CLOCK", "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"],
     amd: ["GPU_CLOCK", "GPU_MIN_CLOCK", "GPU_MAX_CLOCK", "GPU_VIOLATION_PPT_RESIDENCY_PERCENTAGE", "GPU_VIOLATION_HBM_THERMAL_RESIDENCY_PERCENTAGE"],
     use: "SLO-aware downscale planning and throttle diagnosis"
@@ -2140,10 +2140,22 @@ function prometheusGpuSourceContext(metrics = {}) {
     gpuUtilizationPct,
     gpuPowerWatts: firstFinite(metrics.turba_gpu_power_watts, metrics.turba_gpu_power_instant_watts),
     gpuMemoryUsedPct,
+    gpuMemoryUtilizationPct: firstFinite(
+      optionalPercent(metrics.turba_gpu_memory_utilization_pct),
+      optionalPercent(metrics.turba_gpu_memory_utilization_ratio),
+      optionalPercent(metrics.gpu_memory_utilization_pct)
+    ),
     gpuTemperatureC: firstFinite(metrics.turba_gpu_thermal_celsius, metrics.turba_gpu_temperature_celsius),
+    gpuFanSpeedPct: firstFinite(
+      optionalPercent(metrics.turba_gpu_fan_speed_pct),
+      optionalPercent(metrics.gpu_fan_speed_pct),
+      optionalPercent(metrics.nvidia_smi_fan_speed_pct)
+    ),
     gpuExporterInterconnectBytesPerSecond: firstFinite(metrics.turba_gpu_interconnect_bytes_per_second),
     gpuEccErrorsTotal: firstFinite(metrics.turba_gpu_ecc_errors_total),
-    gpuClockMHz: firstFinite(metrics.turba_gpu_clock_mhz)
+    gpuClockMHz: firstFinite(metrics.turba_gpu_clock_mhz, metrics.turba_gpu_sm_clock_mhz, metrics.gpu_clock_mhz),
+    gpuSmClockMHz: firstFinite(metrics.turba_gpu_sm_clock_mhz, metrics.turba_gpu_clock_mhz, metrics.gpu_sm_clock_mhz),
+    gpuMemoryClockMHz: firstFinite(metrics.turba_gpu_memory_clock_mhz, metrics.gpu_memory_clock_mhz)
   });
 }
 
@@ -2164,8 +2176,10 @@ function dcgmGpuSourceContext(fields = {}) {
     gpuTensorActivePct: metric(fields, "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"),
     gpuDramActivePct: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
     gpuMemoryUsedPct: fbRatio,
+    gpuMemoryUtilizationPct: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
     gpuTemperatureC: metric(fields, "DCGM_FI_DEV_GPU_TEMP"),
     gpuMemoryTemperatureC: metric(fields, "DCGM_FI_DEV_MEMORY_TEMP"),
+    gpuFanSpeedPct: metric(fields, "DCGM_FI_DEV_FAN_SPEED"),
     gpuPcieTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_TX_BYTES"),
     gpuPcieRxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_RX_BYTES"),
     gpuNvlinkTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_NVLINK_TX_BYTES"),
@@ -2173,6 +2187,7 @@ function dcgmGpuSourceContext(fields = {}) {
     gpuEccErrorsTotal: firstFinite(metric(fields, "DCGM_FI_DEV_ECC_SBE_AGG_TOTAL"), metric(fields, "DCGM_FI_DEV_ECC_DBE_AGG_TOTAL")),
     gpuXidErrorCode: metric(fields, "DCGM_FI_DEV_XID_ERRORS"),
     gpuClockMHz: metric(fields, "DCGM_FI_DEV_SM_CLOCK"),
+    gpuSmClockMHz: metric(fields, "DCGM_FI_DEV_SM_CLOCK"),
     gpuMemoryClockMHz: metric(fields, "DCGM_FI_DEV_MEM_CLOCK")
   });
 }
@@ -5258,8 +5273,13 @@ function machineDemoContext(summary) {
     gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
     gpuMemoryUsedMiB: numeric(context.gpuMemoryUsedMiB),
     gpuMemoryTotalMiB: numeric(context.gpuMemoryTotalMiB),
+    gpuMemoryUtilizationPct: optionalMetric(context, "gpuMemoryUtilizationPct"),
     gpuTemperatureC: numeric(context.gpuTemperatureC),
     gpuPowerWatts: numeric(context.gpuPowerWatts),
+    gpuFanSpeedPct: optionalMetric(context, "gpuFanSpeedPct"),
+    gpuClockMHz: firstFinite(optionalMetric(context, "gpuClockMHz"), optionalMetric(context, "gpuSmClockMHz")),
+    gpuSmClockMHz: optionalMetric(context, "gpuSmClockMHz"),
+    gpuMemoryClockMHz: optionalMetric(context, "gpuMemoryClockMHz"),
     gpuProcesses: Array.isArray(context.gpuComputeProcesses) ? context.gpuComputeProcesses : [],
     gpuProcessQuerySkipped: Boolean(context.gpuComputeProcessQuerySkipped),
     gpuSampleCached: Boolean(context.gpuSampleCached),
@@ -5435,12 +5455,28 @@ function renderLiveResources(summary) {
   const gpuMemoryNote = machineContext.gpuPresent
     ? `${number.format(machineContext.gpuMemoryUsedMiB)} / ${number.format(machineContext.gpuMemoryTotalMiB)} MiB`
     : machineContext.driverUnavailable ? "nvidia-smi cannot reach driver" : "No GPU counter source";
-  const gpuPowerAvailable = machineContext.gpuPresent && machineContext.gpuPowerWatts > 0;
-  const gpuTemperatureAvailable = machineContext.gpuPresent && machineContext.gpuTemperatureC > 0;
+  const gpuMissingValue = machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : "not reported";
+  const gpuMissingNote = machineContext.driverUnavailable
+    ? "Driver telemetry blocked"
+    : machineContext.noGpu ? "No GPU counter source" : "Vendor field unavailable";
+  const gpuPowerAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuPowerWatts) && machineContext.gpuPowerWatts > 0;
+  const gpuTemperatureAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuTemperatureC) && machineContext.gpuTemperatureC > 0;
+  const gpuFanAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuFanSpeedPct);
+  const gpuClockAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuClockMHz);
+  const gpuMemoryClockAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuMemoryClockMHz);
+  const gpuMemoryAllocationAvailable = machineContext.gpuPresent && machineContext.gpuMemoryTotalMiB > 0;
+  const gpuMemoryUtilizationAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuMemoryUtilizationPct);
   const pcie = context.gpuPcie ? ` | ${context.gpuPcie}` : "";
   const gpuSampleNote = machineContext.gpuSampleCached
     ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
     : "nvidia-smi live sample";
+  const gpuMemoryAllocationNote = gpuMemoryAllocationAvailable
+    ? `${formatBytes(machineContext.gpuMemoryTotalMiB * 1024 * 1024)} total | ${pct(machineContext.gpuMemoryUsedPct)} allocated`
+    : gpuMemoryNote;
+  const gpuClockNote = Number.isFinite(machineContext.gpuSmClockMHz)
+    && machineContext.gpuSmClockMHz !== machineContext.gpuClockMHz
+    ? `SM ${round(machineContext.gpuSmClockMHz)} MHz${pcie}`
+    : `graphics/SM clock${pcie}`;
   const observedServiceList = machineDemoServices(context.observedServices);
   const ollamaReachable = observedServiceList.includes("ollama");
   const ollamaModelLabel = machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || (Array.isArray(context.ollamaModels) ? context.ollamaModels[0] : "") || "";
@@ -5510,7 +5546,7 @@ function renderLiveResources(summary) {
       })
     ] : []),
     liveResourceCard({
-      label: "GPU",
+      label: "GPU Utilization",
       value: machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : pct(machineContext.gpuUtilizationPct),
       note: machineContext.driverUnavailable
         ? "Driver telemetry blocked"
@@ -5523,18 +5559,53 @@ function renderLiveResources(summary) {
       tone: machineContext.driverUnavailable || machineContext.noGpu ? "poor" : machineContext.gpuUtilizationPct > 0 ? grade(machineContext.gpuUtilizationPct, 30, 70).key : "watch"
     }),
     liveResourceCard({
-      label: "GPU power",
-      value: gpuPowerAvailable ? `${round(machineContext.gpuPowerWatts)} W` : "not reported",
-      note: gpuTemperatureAvailable ? `${round(machineContext.gpuTemperatureC)} C${pcie}` : gpuMemoryNote,
+      label: "Power Draw",
+      value: gpuPowerAvailable ? `${round(machineContext.gpuPowerWatts)} W` : gpuMissingValue,
+      note: gpuPowerAvailable ? gpuSampleNote : gpuMissingNote,
       percent: gpuPowerAvailable ? clamp((machineContext.gpuPowerWatts / 450) * 100) : null,
       tone: gpuPowerAvailable ? inverseGrade(machineContext.gpuPowerWatts, 330, 430).key : "watch"
     }),
     liveResourceCard({
-      label: "GPU memory",
-      value: machineContext.gpuPresent ? pct(machineContext.gpuMemoryUsedPct) : "unavailable",
-      note: gpuMemoryNote,
-      percent: machineContext.gpuPresent ? machineContext.gpuMemoryUsedPct : null,
-      tone: machineContext.gpuPresent ? inverseGrade(machineContext.gpuMemoryUsedPct, 82, 94).key : "poor"
+      label: "Fan Speed",
+      value: gpuFanAvailable ? pct(machineContext.gpuFanSpeedPct) : gpuMissingValue,
+      note: gpuFanAvailable ? "fan.speed" : gpuMissingNote,
+      percent: gpuFanAvailable ? machineContext.gpuFanSpeedPct : null,
+      tone: gpuFanAvailable ? inverseGrade(machineContext.gpuFanSpeedPct, 85, 96).key : "watch"
+    }),
+    liveResourceCard({
+      label: "Temperature",
+      value: gpuTemperatureAvailable ? `${round(machineContext.gpuTemperatureC)} C` : gpuMissingValue,
+      note: gpuTemperatureAvailable ? `${gpuSampleNote}${pcie}` : gpuMissingNote,
+      percent: gpuTemperatureAvailable ? clamp((machineContext.gpuTemperatureC / 95) * 100) : null,
+      tone: gpuTemperatureAvailable ? inverseGrade(machineContext.gpuTemperatureC, 75, 86).key : "watch"
+    }),
+    liveResourceCard({
+      label: "GPU Clock Speed",
+      value: gpuClockAvailable ? `${round(machineContext.gpuClockMHz)} MHz` : gpuMissingValue,
+      note: gpuClockAvailable ? gpuClockNote : gpuMissingNote,
+      percent: gpuClockAvailable ? clamp((machineContext.gpuClockMHz / 2500) * 100) : null,
+      tone: gpuClockAvailable ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Memory Clock Speed",
+      value: gpuMemoryClockAvailable ? `${round(machineContext.gpuMemoryClockMHz)} MHz` : gpuMissingValue,
+      note: gpuMemoryClockAvailable ? "HBM/VRAM memory clock" : gpuMissingNote,
+      percent: gpuMemoryClockAvailable ? clamp((machineContext.gpuMemoryClockMHz / 12000) * 100) : null,
+      tone: gpuMemoryClockAvailable ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Memory allocation",
+      value: gpuMemoryAllocationAvailable ? formatBytes(machineContext.gpuMemoryUsedMiB * 1024 * 1024) : gpuMissingValue,
+      note: gpuMemoryAllocationAvailable ? gpuMemoryAllocationNote : gpuMissingNote,
+      percent: gpuMemoryAllocationAvailable ? machineContext.gpuMemoryUsedPct : null,
+      tone: gpuMemoryAllocationAvailable ? inverseGrade(machineContext.gpuMemoryUsedPct, 82, 94).key : "watch"
+    }),
+    liveResourceCard({
+      label: "Memory Utilization",
+      value: gpuMemoryUtilizationAvailable ? pct(machineContext.gpuMemoryUtilizationPct) : gpuMissingValue,
+      note: gpuMemoryUtilizationAvailable ? "memory controller activity" : gpuMissingNote,
+      percent: gpuMemoryUtilizationAvailable ? machineContext.gpuMemoryUtilizationPct : null,
+      tone: gpuMemoryUtilizationAvailable ? grade(machineContext.gpuMemoryUtilizationPct, 30, 70).key : "watch"
     }),
     liveResourceCard({
       label: "Docker",

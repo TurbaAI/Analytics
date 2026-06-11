@@ -148,6 +148,10 @@ assert.ok(localCollectorSource.includes("gpustat --json"));
 assert.ok(localCollectorSource.includes("TURBALANCE_GPU_BACKEND"));
 assert.ok(localCollectorSource.includes("TURBALANCE_GPUSTAT_BIN"));
 assert.ok(localCollectorSource.includes("parseGpustatJson"));
+assert.ok(localCollectorSource.includes("fan.speed"));
+assert.ok(localCollectorSource.includes("clocks.current.graphics"));
+assert.ok(localCollectorSource.includes("clocks.current.sm"));
+assert.ok(localCollectorSource.includes("clocks.current.memory"));
 assert.ok(localCollectorSource.includes("linux-uma-memory"));
 assert.ok(localCollectorSource.includes("app-metrics"));
 assert.ok(localCollectorSource.includes("nsight-cupti-profiling"));
@@ -216,6 +220,10 @@ console.log(JSON.stringify({
     "memory.used": 512,
     "memory.total": 4096,
     "power.draw": 35.5,
+    "fan.speed": 44,
+    "clocks.current.graphics": 1515,
+    "clocks.current.sm": 1485,
+    "clocks.current.memory": 5001,
     processes: [{ pid: 1234, command: "python", username: "user", gpu_memory_usage: 256 }]
   }]
 }));
@@ -251,8 +259,13 @@ assert.equal(gpustatContext.gpuName, "NVIDIA GB10");
 assert.equal(gpustatContext.gpuUtilizationPct, 42);
 assert.equal(gpustatContext.gpuMemoryUsedMiB, 512);
 assert.equal(gpustatContext.gpuMemoryTotalMiB, 4096);
+assert.equal(gpustatContext.gpuMemoryUtilizationPct, 12);
 assert.equal(gpustatContext.gpuPowerWatts, 35.5);
 assert.equal(gpustatContext.gpuTemperatureC, 47);
+assert.equal(gpustatContext.gpuFanSpeedPct, 44);
+assert.equal(gpustatContext.gpuClockMHz, 1515);
+assert.equal(gpustatContext.gpuSmClockMHz, 1485);
+assert.equal(gpustatContext.gpuMemoryClockMHz, 5001);
 assert.equal(gpustatContext.gpuComputeProcesses[0].pid, 1234);
 assert.equal(gpustatContext.gpuComputeProcesses[0].processName, "python");
 assert.equal(gpustatContext.gpuComputeProcesses[0].usedMemoryMiB, 256);

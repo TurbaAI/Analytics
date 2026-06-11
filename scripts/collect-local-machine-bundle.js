@@ -545,6 +545,10 @@ function parseGpustatJson(text, { includeProcesses }) {
     memoryTotalMiB: finite(entry["memory.total"]),
     powerDrawWatts: finite(entry["power.draw"]),
     temperatureC: finite(entry["temperature.gpu"]),
+    fanSpeedPct: finite(entry["fan.speed"]),
+    gpuClockMHz: finite(entry["clocks.current.graphics"] ?? entry["clocks.current.sm"] ?? entry["gpu.clock"] ?? entry["graphics.clock"]),
+    gpuSmClockMHz: finite(entry["clocks.current.sm"] ?? entry["sm.clock"]),
+    gpuMemoryClockMHz: finite(entry["clocks.current.memory"] ?? entry["memory.clock"]),
     pcieGen: undefined,
     pcieWidth: undefined
   })).filter((entry) => entry.name) : [];
@@ -588,7 +592,11 @@ function parseNvidiaSmiGpuQuery(query, { includeProcesses, processesText }) {
       powerDrawWatts,
       temperatureC,
       pcieGen,
-      pcieWidth
+      pcieWidth,
+      fanSpeedPct,
+      gpuGraphicsClockMHz,
+      gpuSmClockMHz,
+      gpuMemoryClockMHz
     ] = line.split(",").map((item) => item.trim());
 
     return {
@@ -601,6 +609,10 @@ function parseNvidiaSmiGpuQuery(query, { includeProcesses, processesText }) {
       memoryTotalMiB: finite(memoryTotalMiB),
       powerDrawWatts: finite(powerDrawWatts),
       temperatureC: finite(temperatureC),
+      fanSpeedPct: finite(fanSpeedPct),
+      gpuClockMHz: firstFiniteNumber(gpuGraphicsClockMHz, gpuSmClockMHz),
+      gpuSmClockMHz: finite(gpuSmClockMHz),
+      gpuMemoryClockMHz: finite(gpuMemoryClockMHz),
       pcieGen: finite(pcieGen),
       pcieWidth: finite(pcieWidth)
     };
@@ -638,7 +650,7 @@ function parseNvidiaSmiGpuQuery(query, { includeProcesses, processesText }) {
 
 function nvidiaSmiGpuQueryArgs() {
   return [
-    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current",
+    "--query-gpu=name,index,uuid,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw,temperature.gpu,pcie.link.gen.current,pcie.link.width.current,fan.speed,clocks.current.graphics,clocks.current.sm,clocks.current.memory",
     "--format=csv,noheader,nounits"
   ];
 }
@@ -1438,8 +1450,13 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpuMemoryUsedMiB: round(finite(primaryGpu.memoryUsedMiB, 0), 2),
             gpuMemoryTotalMiB: round(finite(primaryGpu.memoryTotalMiB, 0), 2),
             gpuMemoryUsedPct: round(metrics.gpuMemoryPct, 2),
+            gpuMemoryUtilizationPct: roundOptional(primaryGpu.utilizationMemoryPct, 2),
             gpuPowerWatts: round(finite(primaryGpu.powerDrawWatts, 0), 2),
             gpuTemperatureC: round(finite(primaryGpu.temperatureC, 0), 2),
+            gpuFanSpeedPct: roundOptional(primaryGpu.fanSpeedPct, 2),
+            gpuClockMHz: roundOptional(primaryGpu.gpuClockMHz, 2),
+            gpuSmClockMHz: roundOptional(primaryGpu.gpuSmClockMHz, 2),
+            gpuMemoryClockMHz: roundOptional(primaryGpu.gpuMemoryClockMHz, 2),
             gpuComputeProcesses: gpu.processes || [],
             gpuComputeProcessQuerySkipped: Boolean(gpu.processesSkipped),
             gpuSampleCached: Boolean(gpu.sampleCached),
@@ -2425,6 +2442,14 @@ function valueFromText(text, key) {
 function finite(value, fallback = undefined) {
   const parsed = Number(String(value === undefined || value === null ? "" : value).replace(/[^\d.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function firstFiniteNumber(...values) {
+  for (const value of values) {
+    const parsed = finite(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
 }
 
 function optionalFinite(value) {

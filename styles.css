@@ -6278,7 +6278,7 @@ body {
 .brand-copy > span {
   color: rgba(230, 238, 239, 0.74);
   letter-spacing: 0;
-  margin-top: -3px;
+  margin-top: 6px;
   padding-left: 4px;
 }
 
@@ -8113,6 +8113,59 @@ html[data-theme="dark"] .diagnosis-mark {
 @media (max-width: 680px) {
   .brand-wordmark {
     width: min(200px, 62vw);
+  }
+}
+
+.brand-copy > span {
+  position: relative;
+  color: #6ef7ff;
+  background: linear-gradient(100deg, #4ee7f2 0%, #4ee7f2 34%, #f7ffff 48%, #a9ffff 56%, #4ee7f2 72%, #4ee7f2 100%);
+  background-size: 260% 100%;
+  background-position: 180% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow:
+    0 0 8px rgba(78, 231, 242, 0.48),
+    0 0 20px rgba(8, 216, 168, 0.32);
+  animation: analytics-cyan-sweep 7s ease-in-out infinite;
+}
+
+@supports (-webkit-background-clip: text) {
+  .brand-copy > span {
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+@keyframes analytics-cyan-sweep {
+  0% {
+    background-position: 180% 0;
+    text-shadow:
+      0 0 7px rgba(78, 231, 242, 0.44),
+      0 0 18px rgba(8, 216, 168, 0.28);
+  }
+
+  48% {
+    background-position: 24% 0;
+    text-shadow:
+      0 0 12px rgba(138, 255, 255, 0.78),
+      0 0 28px rgba(8, 216, 168, 0.46);
+  }
+
+  100% {
+    background-position: -120% 0;
+    text-shadow:
+      0 0 7px rgba(78, 231, 242, 0.44),
+      0 0 18px rgba(8, 216, 168, 0.28);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-copy > span {
+    animation: none;
+    background-position: 50% 0;
+    text-shadow:
+      0 0 8px rgba(78, 231, 242, 0.46),
+      0 0 18px rgba(8, 216, 168, 0.3);
   }
 }
 
