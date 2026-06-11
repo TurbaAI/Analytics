@@ -58,6 +58,40 @@ const STORAGE_SCHEMA = {
   key: "turba.analytics.workspace.v2"
 };
 
+const THEME_STORAGE_KEY = "turba.analytics.theme";
+const PLATFORM_API_TOKEN_STORAGE_KEY = "turba.analytics.platformApiToken.v1";
+const PANEL_POPOUT_SELECTOR = [
+  ".diagnosis-band",
+  ".dashboard-settings-panel",
+  ".live-resource-panel",
+  ".operator-cockpit-panel",
+  ".operator-card",
+  ".panel",
+  ".entity-row",
+  ".live-resource-card",
+  ".source-heartbeat-card",
+  ".fleet-tile",
+  ".live-relationship-card",
+  ".live-alert-card",
+  ".live-telemetry-card",
+  ".benchmark-metric-card",
+  ".benchmark-ladder-summary-item",
+  ".execution-idle-summary-item",
+  ".execution-idle-row",
+  ".gpu-exporter-summary-item",
+  ".gpu-exporter-row",
+  ".background-task-row",
+  ".spark-pair-clock-panel",
+  ".system-characterization-host",
+  ".fleet-comparison-summary-item",
+  ".spark-pair-summary-item",
+  ".unit-economics-card"
+].join(",");
+const PANEL_POPOUT_INTERACTIVE_SELECTOR = "a, button, input, label, select, textarea, [contenteditable='true'], [role='button']";
+let activePanelPopout = null;
+let activePanelPopoutScope = null;
+const panelPopoutCleanups = new WeakMap();
+
 const SAMPLE_INGESTION = {
   schemaVersion: INGESTION_SCHEMA.version,
   entities: {
@@ -134,6 +168,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 29,
         networkWait: 12,
+        networkUtilization: 64,
         crossRackTraffic: 68,
         crossPodTraffic: 41,
         allToAllTime: 2
@@ -234,6 +269,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 7,
         networkWait: 4,
+        networkUtilization: 36,
         crossRackTraffic: 19,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -327,6 +363,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 4,
         networkWait: 7,
+        networkUtilization: 52,
         crossRackTraffic: 24,
         crossPodTraffic: 0,
         allToAllTime: 13
@@ -420,6 +457,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 9,
         networkWait: 5,
+        networkUtilization: 41,
         crossRackTraffic: 18,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -513,6 +551,7 @@ const SAMPLE_INGESTION = {
       communication: {
         ncclTime: 2,
         networkWait: 3,
+        networkUtilization: 22,
         crossRackTraffic: 8,
         crossPodTraffic: 0,
         allToAllTime: 0
@@ -684,6 +723,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.41,
         turba_nccl_time_ratio: 0.29,
         turba_network_wait_ratio: 0.12,
+        turba_network_utilization_ratio: 0.64,
         turba_dataloader_stall_ratio: 0.05,
         turba_storage_wait_ratio: 0.03,
         turba_cpu_prep_ratio: 0.04,
@@ -703,6 +743,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.35,
         turba_nccl_time_ratio: 0.07,
         turba_network_wait_ratio: 0.04,
+        turba_network_utilization_ratio: 0.36,
         turba_dataloader_stall_ratio: 0.18,
         turba_storage_wait_ratio: 0.15,
         turba_cpu_prep_ratio: 0.12,
@@ -722,6 +763,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.44,
         turba_nccl_time_ratio: 0.04,
         turba_network_wait_ratio: 0.07,
+        turba_network_utilization_ratio: 0.52,
         turba_dataloader_stall_ratio: 0.03,
         turba_storage_wait_ratio: 0.04,
         turba_cpu_prep_ratio: 0.09,
@@ -741,6 +783,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.73,
         turba_nccl_time_ratio: 0.09,
         turba_network_wait_ratio: 0.05,
+        turba_network_utilization_ratio: 0.41,
         turba_dataloader_stall_ratio: 0.04,
         turba_storage_wait_ratio: 0.02,
         turba_cpu_prep_ratio: 0.03,
@@ -760,6 +803,7 @@ const SAMPLE_SOURCE_EXPORTS = {
         turba_useful_compute_ratio: 0.21,
         turba_nccl_time_ratio: 0.02,
         turba_network_wait_ratio: 0.03,
+        turba_network_utilization_ratio: 0.22,
         turba_dataloader_stall_ratio: 0.09,
         turba_storage_wait_ratio: 0.05,
         turba_cpu_prep_ratio: 0.07,
@@ -991,20 +1035,179 @@ const ncclParser = window.TurbaNcclTraceParser;
 const ncclTraceFixtures = window.TurbaNcclTraceFixtures || [];
 const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "account", "reservation"];
 const SNAPSHOT_LIMIT = 360;
+const TASK_HISTORY_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
+const MACHINE_DEMO_FRESH_SECONDS = 30;
+const MACHINE_DEMO_FRESH_MS = MACHINE_DEMO_FRESH_SECONDS * 1000;
+const PI_FLEET_HOSTNAMES = Array.from({ length: 12 }, (_unused, index) => `pi${index + 1}`);
+const SPARK_PAIR_CLOCK_HISTORY_LIMIT = 180;
+const SPARK_PAIR_CLOCK_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
-const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "provider", "nccl-trace"];
+const LIVE_COVARIANCE_METRICS = [
+  { key: "cpu", label: "CPU load", shortLabel: "CPU" },
+  { key: "gpu", label: "GPU utilization", shortLabel: "GPU" },
+  { key: "ram", label: "RAM usage", shortLabel: "RAM" },
+  { key: "networkUtilization", label: "Network utilization", shortLabel: "Net" }
+];
+const SYSTEM_ID_PROFILE_ORDER = ["impulse", "step", "ramp", "sine"];
+const SYSTEM_ID_PROFILE_LABELS = {
+  impulse: "Impulse",
+  step: "Step",
+  ramp: "Ramp",
+  sine: "Sine"
+};
+const SYSTEM_ID_SUBSYSTEMS = [
+  { key: "cpu", target: "cpu", outputMetric: "cpu", label: "CPU", shortLabel: "CPU" },
+  { key: "gpu", target: "gpu", outputMetric: "gpu", label: "GPU", shortLabel: "GPU" },
+  { key: "ram", target: "ram", outputMetric: "ram", label: "RAM", shortLabel: "RAM" },
+  { key: "network", target: "network", outputMetric: "network", label: "Network", shortLabel: "Net" },
+  { key: "disk", target: "disk", outputMetric: "disk", label: "Disk", shortLabel: "Disk" },
+  { key: "gpuMemory", target: "gpu", outputMetric: "gpuMemory", label: "GPU memory", shortLabel: "HBM" }
+];
+const FLEET_COMPARISON_HOST_LIMIT = 16;
+const UNIT_ECONOMICS_HOURS_PER_YEAR = 8760;
+const UNIT_ECONOMICS_DEFAULTS = {
+  electricityUsdPerKwh: 0.12,
+  pue: 1.35,
+  salvagePct: 0.1,
+  gpuUsefulLifeYears: 5,
+  hostUsefulLifeYears: 4,
+  maintenancePctPerYear: 0.08,
+  facilityPctPerYear: 0.04,
+  cpuEquivalentRateFactor: 0.08
+};
+const FLEET_AGGREGATE_KEY = "__fleet_aggregate__";
+const FLEET_AGGREGATE_LABEL = "Fleet Aggregate";
+const MACHINE_INVENTORY_ARCHIVE_LIMIT = 128;
+const SYSTEM_CHARACTERIZATION_HOST_LIMIT = 16;
+const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
+const LIVE_OBSERVATION_LIMIT = 8;
+const EXECUTION_IDLE_LOW_ACTIVITY_PCT = 5;
+const EXECUTION_IDLE_COMMUNICATION_BPS = 1_000_000_000;
+const EXECUTION_IDLE_SUSTAINED_SECONDS = 5;
+const EXECUTION_IDLE_MIN_POWER_GAP_WATTS = 15;
+const OPERATOR_SOURCE_ORDER = ["host", "kubernetes", "prometheus", "dcgm", "amd-dme", "kafka", "grafana", "docker", "ollama", "node-exporter", "ebpf", "redfish", "provider", "nccl-trace"];
+const GB10_OPERATOR_SOURCE_ORDER = ["gb10-nvml-nvidia-smi", "linux-uma-memory", "app-metrics", "nsight-cupti-profiling"];
+const GPU_EXPORTER_METRIC_GROUPS = [
+  {
+    key: "powerEnergy",
+    label: "Power + energy",
+    normalized: ["gpuPowerWatts", "gpu_power_watts", "gpu_power_instant_watts", "turba_gpu_power_watts", "gpuEnergyConsumedMicrojoules"],
+    nvidia: ["DCGM_FI_DEV_POWER_USAGE", "DCGM_FI_DEV_POWER_USAGE_INSTANT", "nvidia_smi_power_draw_watts"],
+    amd: ["GPU_POWER_USAGE", "GPU_PACKAGE_POWER", "GPU_AVERAGE_PACKAGE_POWER", "GPU_ENERGY_CONSUMED", "amd_gpu_power_usage", "amd_gpu_package_power"],
+    use: "Execution-idle watts, daily cost, and downscale dry-runs"
+  },
+  {
+    key: "activity",
+    label: "Activity",
+    normalized: ["gpuUtilizationPct", "gpuSmActivePct", "gpuSmOccupancyPct", "gpuTensorActivePct", "gpuDramActivePct", "turba_gpu_activity_ratio"],
+    nvidia: ["DCGM_FI_DEV_GPU_UTIL", "DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_PROF_SM_OCCUPANCY", "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE", "DCGM_FI_PROF_DRAM_ACTIVE"],
+    amd: ["GPU_GFX_ACTIVITY", "GPU_GFX_BUSY_INSTANTANEOUS", "GPU_UMC_ACTIVITY", "GPU_PROCESS_CU_OCCUPANCY", "amd_gpu_gfx_activity"],
+    use: "Low-activity proof and useful-compute comparisons"
+  },
+  {
+    key: "memory",
+    label: "Memory",
+    normalized: ["gpuMemoryUsedPct", "gpuMemoryUsedMiB", "gpuMemoryTotalMiB", "gpu_memory_used_ratio", "turba_gpu_memory_used_ratio"],
+    nvidia: ["DCGM_FI_DEV_FB_USED", "DCGM_FI_DEV_FB_TOTAL", "DCGM_FI_DEV_FB_USED_RATIO", "DCGM_FI_PROF_DRAM_ACTIVE"],
+    amd: ["GPU_USED_VRAM", "GPU_TOTAL_VRAM", "GPU_FREE_VRAM", "GPU_USED_VISIBLE_VRAM", "GPU_VISIBLE_VRAM"],
+    use: "Residency checks, HBM pressure, and capacity comparisons"
+  },
+  {
+    key: "thermal",
+    label: "Thermal",
+    normalized: ["gpuTemperatureC", "gpu_temperature_celsius", "turba_gpu_thermal_celsius"],
+    nvidia: ["DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_MEMORY_TEMP", "nvidia_smi_temperature_gpu"],
+    amd: ["GPU_EDGE_TEMPERATURE", "GPU_JUNCTION_TEMPERATURE", "GPU_MEMORY_TEMPERATURE", "GPU_HBM_TEMPERATURE"],
+    use: "Thermal throttle context and rack cooling fingerprints"
+  },
+  {
+    key: "interconnect",
+    label: "Interconnect",
+    normalized: ["gpuPcieTxBytesPerSecond", "gpuPcieRxBytesPerSecond", "gpuNvlinkTxBytesPerSecond", "gpuNvlinkRxBytesPerSecond", "turba_gpu_interconnect_bytes_per_second"],
+    nvidia: ["DCGM_FI_PROF_PCIE_TX_BYTES", "DCGM_FI_PROF_PCIE_RX_BYTES", "DCGM_FI_PROF_NVLINK_TX_BYTES", "DCGM_FI_PROF_NVLINK_RX_BYTES"],
+    amd: ["PCIE_BANDWIDTH", "PCIE_BIDIRECTIONAL_BANDWIDTH", "XGMI_LINK_RX", "XGMI_LINK_TX", "amd_gpu_pcie_bandwidth"],
+    use: "PCIe/NVLink/XGMI precursor classification"
+  },
+  {
+    key: "ras",
+    label: "RAS",
+    normalized: ["gpuEccErrorsTotal", "gpuXidErrorCode", "turba_gpu_ecc_errors_total"],
+    nvidia: ["DCGM_FI_DEV_ECC_SBE_AGG_TOTAL", "DCGM_FI_DEV_ECC_DBE_AGG_TOTAL", "DCGM_FI_DEV_XID_ERRORS", "DCGM_FI_DEV_FABRIC_HEALTH_MASK"],
+    amd: ["GPU_ECC_CORRECT_TOTAL", "GPU_ECC_UNCORRECT_TOTAL", "PCIE_REPLAY_COUNT", "PCIE_RECOVERY_COUNT", "PCIE_NACK_SENT_COUNT", "PCIE_NACK_RECEIVED_COUNT"],
+    use: "Health gating before benchmark or policy action"
+  },
+  {
+    key: "clockThrottle",
+    label: "Clocks + throttle",
+    normalized: ["gpuClockMHz", "gpuMemoryClockMHz", "turba_gpu_clock_mhz"],
+    nvidia: ["DCGM_FI_DEV_SM_CLOCK", "DCGM_FI_DEV_MEM_CLOCK", "DCGM_FI_DEV_CLOCK_THROTTLE_REASONS"],
+    amd: ["GPU_CLOCK", "GPU_MIN_CLOCK", "GPU_MAX_CLOCK", "GPU_VIOLATION_PPT_RESIDENCY_PERCENTAGE", "GPU_VIOLATION_HBM_THERMAL_RESIDENCY_PERCENTAGE"],
+    use: "SLO-aware downscale planning and throttle diagnosis"
+  },
+  {
+    key: "schedulerLabels",
+    label: "Scheduler labels",
+    normalized: ["namespace", "podName", "containerName", "slurmJobId", "job_id"],
+    nvidia: ["namespace", "pod", "container", "job_id"],
+    amd: ["JOB_ID", "JOB_USER", "JOB_PARTITION", "CLUSTER_NAME", "NAMESPACE", "CONTAINER"],
+    use: "Per-job attribution, rack/cluster rollups, and OCP demo evidence"
+  }
+];
+const GPU_EXPORTER_EXECUTION_IDLE_GROUPS = ["powerEnergy", "activity", "memory", "interconnect"];
+const DASHBOARD_BLOCK_STORAGE_KEY = "turba.dashboard.blocks.v1";
+const DASHBOARD_BLOCKS = [
+  { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
+  { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
+  { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
+  { id: "unitEconomics", label: "Unit economics cards", note: "CAPEX, depreciation, OPEX, utilization, and profit/loss by host", defaultOn: true },
+  { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
+  { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
+  { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
+  { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
+  { id: "eventTimeline", label: "Event timeline", note: "Operator event stream", defaultOn: false },
+  { id: "demoLaunchpad", label: "Demo launchpad", note: "SPARK demo command shortcuts", defaultOn: false },
+  { id: "autoDiscoveryDeployment", label: "Auto Discovery and Deployment", note: "Subnet discovery with credential-gated agent rollout", defaultOn: false },
+  { id: "executionIdleEnergy", label: "Execution-idle energy", note: "Loaded-but-low-activity GPU power exposure and policy hints", defaultOn: true },
+  { id: "gpuExporterCoverage", label: "GPU exporter coverage", note: "NVIDIA/AMD exporter metric coverage and normalization", defaultOn: true },
+  { id: "backgroundTasks", label: "Background tasks", note: "Live refresh, agent, benchmark, discovery, clock, and queue work", defaultOn: true },
+  { id: "kafkaStream", label: "Kafka stream", note: "Broker smoke and stream panel", defaultOn: false },
+  { id: "dataConfidence", label: "Data confidence", note: "Source quality scoring details", defaultOn: false },
+  { id: "replayMode", label: "Replay mode", note: "Telemetry replay controls", defaultOn: false },
+  { id: "grafanaMini", label: "Grafana handoff", note: "Mini observability links", defaultOn: false },
+  { id: "sparkPair", label: "SPARK pair compare", note: "SPARK1/SPARK2 metrics and clock graph", defaultOn: false },
+  { id: "fleetComparison", label: "Fleet comparison", note: "Rank table and benchmark histograms", defaultOn: false },
+  { id: "benchmarkLadder", label: "Benchmark ladder", note: "CPU, GPU, RAM, network, and disk comparisons from host to global scope", defaultOn: true },
+  { id: "systemCharacterization", label: "System characterization", note: "System-ID fingerprints and profiles", defaultOn: false }
+];
+const DASHBOARD_BLOCK_DEFAULTS = Object.fromEntries(DASHBOARD_BLOCKS.map((block) => [block.id, Boolean(block.defaultOn)]));
 
 const DEFAULT_INGESTION = applySourceImports(SAMPLE_INGESTION, SAMPLE_SOURCE_EXPORTS, ncclTraceFixtures);
 let workspaceStore = loadWorkspaceStore(DEFAULT_INGESTION);
-let activeIngestion = applyPersistedBaselines(workspaceStore.ingestion, workspaceStore.baselines);
+let dashboardBlockPreferences = loadDashboardBlockPreferences();
+let machineInventoryArchive = normalizeMachineInventoryArchive(workspaceStore.machineInventory);
+let activeIngestion = applyPersistedBaselines(reconcileMachineInventory(workspaceStore.ingestion), workspaceStore.baselines);
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
+let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let liveTelemetryHistory = [];
+let sparkPairClockHistory = [];
+let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
+let platformVirtualSensorCache = {
+  baseUrl: "",
+  fetchedAt: 0,
+  inFlight: false,
+  matrix: null,
+  systemIdentification: null
+};
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
+let sparkPairClockRefreshTimer = null;
+let sparkPairClockLoadInFlight = false;
+let latestSparkPairComparison = null;
+let operatorLaunchpadSignature = "";
 
 const state = {
   scope: "job",
@@ -1016,16 +1219,19 @@ const state = {
   schedulerScenario: "recommended",
   operatorReplay: false,
   operatorReplayStartedAt: null,
+  dashboardBlocks: dashboardBlockPreferences,
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
-  analyzing: false,
   storageLabel: workspaceStore.storageLabel,
   storageTone: workspaceStore.storageTone,
-  ingestLabel: "Sample feed",
-  ingestTone: "good"
+  ingestLabel: shouldAutoLoadMachineDemoBundle() ? "Live feed pending" : "Sample feed",
+  ingestTone: shouldAutoLoadMachineDemoBundle() ? "watch" : "good"
 };
 
 if (snapshotHistory.length === 0) {
   captureAnalysisSnapshot("Seeded sample", state.lastAnalysis);
+  persistWorkspaceStore();
+} else if (taskHistory.length === 0) {
+  captureTaskMemorySnapshot("Task memory seed", state.lastAnalysis);
   persistWorkspaceStore();
 }
 
@@ -1033,6 +1239,13 @@ const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0
+});
+
+const hourlyCurrency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2
 });
 
 const compactNumber = new Intl.NumberFormat("en-US", {
@@ -1061,6 +1274,13 @@ const TREND_METRIC_DEFS = {
   },
   ncclTime: {
     label: "NCCL time",
+    unit: "points",
+    higherIsBetter: false,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  networkUtilization: {
+    label: "Network utilization",
     unit: "points",
     higherIsBetter: false,
     format: (value) => pct(value),
@@ -1111,11 +1331,89 @@ const TREND_METRIC_DEFS = {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
+  initThemeMode();
   bindEvents();
+  initPanelPopouts();
   prefillMachineDemoUrl();
   render();
   maybeAutoLoadMachineDemoBundle();
+  maybeStartSparkPairClockFeed();
 });
+
+function initThemeMode() {
+  applyThemeMode(resolveThemeMode());
+  const toggle = document.querySelector("#themeToggle");
+  if (!toggle) return;
+
+  toggle.addEventListener("change", (event) => {
+    applyThemeMode(event.target.checked ? "dark" : "light", { persist: true });
+  });
+
+  try {
+    const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!media) return;
+    const onSystemThemeChange = (event) => {
+      if (readThemeMode()) return;
+      applyThemeMode(event.matches ? "dark" : "light");
+    };
+    if (media.addEventListener) {
+      media.addEventListener("change", onSystemThemeChange);
+    } else if (media.addListener) {
+      media.addListener(onSystemThemeChange);
+    }
+  } catch {
+    // Theme switching remains available even if system preference listeners are blocked.
+  }
+}
+
+function resolveThemeMode() {
+  const stored = readThemeMode();
+  if (stored) return stored;
+
+  try {
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
+function readThemeMode() {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "dark" || stored === "light" ? stored : "";
+  } catch {
+    return "";
+  }
+}
+
+function writeThemeMode(theme) {
+  try {
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch {
+    // Non-persistent browser contexts still get the in-session theme.
+  }
+}
+
+function applyThemeMode(theme, { persist = false } = {}) {
+  const normalized = theme === "dark" ? "dark" : "light";
+  document.documentElement.dataset.theme = normalized;
+  document.documentElement.style.colorScheme = normalized;
+
+  const toggle = document.querySelector("#themeToggle");
+  const label = document.querySelector("#themeToggleText");
+  const switcher = document.querySelector(".theme-switch");
+  if (toggle) {
+    toggle.checked = normalized === "dark";
+    toggle.setAttribute("aria-checked", String(toggle.checked));
+  }
+  if (label) label.textContent = normalized === "dark" ? "Dark" : "Light";
+  if (switcher) {
+    switcher.dataset.theme = normalized;
+    switcher.title = normalized === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  }
+
+  if (persist) writeThemeMode(normalized);
+}
 
 function loadWorkspaceStore(defaultIngestion) {
   const persisted = readWorkspaceStore();
@@ -1123,7 +1421,9 @@ function loadWorkspaceStore(defaultIngestion) {
   if (isValidWorkspaceStore(persisted)) {
     return {
       ...persisted,
+      machineInventory: normalizeMachineInventoryArchive(persisted.machineInventory),
       snapshots: normalizeSnapshotStore(persisted.snapshots),
+      taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
       storageLabel: "Loaded locally",
       storageTone: "good"
     };
@@ -1146,7 +1446,9 @@ function persistWorkspaceStore() {
   const nextStore = createWorkspaceStore(activeIngestion, {
     savedAt: new Date(),
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const saved = writeWorkspaceStore(nextStore);
 
@@ -1160,10 +1462,13 @@ function persistWorkspaceStore() {
 }
 
 function replaceActiveIngestion(nextIngestion, label) {
-  activeIngestion = applyPersistedBaselines(nextIngestion, buildBaselineStore(nextIngestion.runs));
+  const previousKey = state.selectedKey;
+  const previousIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === previousKey)) : "";
+  const retainedIngestion = reconcileMachineInventory(nextIngestion);
+  activeIngestion = applyPersistedBaselines(retainedIngestion, buildBaselineStore(retainedIngestion.runs));
   jobs = normalizeIngestion(activeIngestion);
-  state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
+  state.selectedKey = resolveJobSelectionKey(previousKey, previousIdentity) || jobs[0]?.id || "";
   state.ingestLabel = label;
   state.ingestTone = "good";
   state.lastAnalysis = new Date();
@@ -1172,10 +1477,260 @@ function replaceActiveIngestion(nextIngestion, label) {
   render();
 }
 
+function resolveJobSelectionKey(previousKey, previousIdentity) {
+  if (previousKey === FLEET_AGGREGATE_KEY && fleetAggregateSourceItems(jobs).length >= 2) {
+    return FLEET_AGGREGATE_KEY;
+  }
+  if (previousKey && jobs.some((job) => job.id === previousKey)) return previousKey;
+  if (previousIdentity) {
+    const matched = jobs.find((job) => jobSelectionIdentity(job) === previousIdentity);
+    if (matched) return matched.id;
+  }
+  return "";
+}
+
+function jobSelectionIdentity(job) {
+  if (!job) return "";
+  if (isMachineDemoItem(job)) {
+    const key = machineInventoryKeyForItem(job);
+    if (key) return key;
+  }
+  return job.id ? `job:${job.id}` : "";
+}
+
+function normalizedSelectionToken(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function reconcileMachineInventory(feed) {
+  if (!isIngestionFeed(feed)) return feed;
+
+  const existingArchive = new Map(normalizeMachineInventoryArchive(machineInventoryArchive).map((record) => [record.key, record]));
+  const liveKeys = new Set();
+  const sourceRuns = Array.isArray(feed.runs) ? feed.runs : [];
+  const retainedRuns = [];
+
+  sourceRuns.forEach((run) => {
+    if (isMachineInventoryMissingRun(run)) return;
+
+    if (!isMachineRunLike(run)) {
+      retainedRuns.push(run);
+      return;
+    }
+
+    const key = machineInventoryKeyForRun(run);
+    if (!key) {
+      retainedRuns.push(run);
+      return;
+    }
+
+    const lastSeenAt = machineRunObservedAt(run);
+    const liveRun = machineInventoryLiveRunSnapshot(run, key, lastSeenAt);
+    liveKeys.add(key);
+    existingArchive.set(key, {
+      key,
+      lastSeenAt,
+      run: liveRun
+    });
+    retainedRuns.push(liveRun);
+  });
+
+  machineInventoryArchive = Array.from(existingArchive.values())
+    .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
+    .slice(0, MACHINE_INVENTORY_ARCHIVE_LIMIT);
+
+  const usedIds = new Set(retainedRuns.map((run) => run.id).filter(Boolean));
+  const archivedRuns = machineInventoryArchive
+    .filter((record) => !liveKeys.has(record.key))
+    .map((record) => machineInventoryArchivedRun(record, usedIds))
+    .filter(Boolean);
+
+  return {
+    ...feed,
+    runs: [...retainedRuns, ...archivedRuns]
+  };
+}
+
+function normalizeMachineInventoryArchive(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  const byKey = new Map();
+  records.forEach((record) => {
+    if (!isPlainObject(record) || !isPlainObject(record.run)) return;
+    const key = normalizeMachineInventoryKey(record.key || machineInventoryKeyForRun(record.run));
+    if (!key) return;
+    const lastSeenAt = validDateIso(record.lastSeenAt || machineRunObservedAt(record.run));
+    if (!lastSeenAt) return;
+    const normalized = {
+      key,
+      lastSeenAt,
+      run: machineInventoryLiveRunSnapshot(record.run, key, lastSeenAt)
+    };
+    const existing = byKey.get(key);
+    if (!existing || new Date(normalized.lastSeenAt).getTime() >= new Date(existing.lastSeenAt).getTime()) {
+      byKey.set(key, normalized);
+    }
+  });
+
+  return Array.from(byKey.values())
+    .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
+    .slice(0, MACHINE_INVENTORY_ARCHIVE_LIMIT);
+}
+
+function isMachineRunLike(run) {
+  const context = machineInventoryContextForRun(run);
+  const adapters = Array.isArray(run?.importedSources)
+    ? run.importedSources
+    : Array.isArray(run?.source?.adapters) ? run.source.adapters : [];
+
+  return adapters.includes("local-machine")
+    || Boolean(
+      (context.hostname || context.node || context.networkLocalAddress || context.hostAddress || context.primaryAddress)
+      && (
+        context.generatedAt
+        || context.uptimeSeconds !== undefined
+        || context.gpuUuid
+        || context.gpuName
+        || Array.isArray(context.observedServices)
+        || Array.isArray(context.ollamaModels)
+      )
+    );
+}
+
+function machineInventoryContextForRun(run) {
+  return isPlainObject(run?.sourceContext)
+    ? run.sourceContext
+    : isPlainObject(run?.source?.context) ? run.source.context : {};
+}
+
+function isMachineInventoryMissingRun(run) {
+  const context = machineInventoryContextForRun(run);
+  return Boolean(context.machineInventoryMissing);
+}
+
+function machineInventoryKeyForRun(run) {
+  const context = machineInventoryContextForRun(run);
+  return machineInventoryKeyFromContext(context, {
+    cluster: run?.refs?.cluster || run?.cluster,
+    name: run?.name,
+    id: run?.id
+  });
+}
+
+function machineInventoryKeyForItem(item) {
+  const context = item?.source?.context || {};
+  return machineInventoryKeyFromContext(context, {
+    cluster: item?.cluster,
+    name: item?.name,
+    id: item?.id
+  });
+}
+
+function machineInventoryKeyFromContext(context = {}, fallback = {}) {
+  const existingKey = normalizeMachineInventoryKey(context.machineInventoryKey);
+  if (existingKey) return existingKey;
+
+  const host = firstString([
+    context.hostname,
+    context.node,
+    context.host,
+    context.hostName,
+    context.cluster,
+    fallback.cluster,
+    fallback.name
+  ]);
+  if (host) return `machine-host:${normalizedSelectionToken(host)}`;
+
+  const address = firstString([
+    context.networkLocalAddress,
+    context.hostAddress,
+    context.primaryAddress,
+    context.ncclRuntimeHostIp,
+    context.ipAddress
+  ]);
+  if (address) return `machine-address:${normalizedSelectionToken(address)}`;
+
+  return fallback.id ? `machine-id:${normalizedSelectionToken(fallback.id)}` : "";
+}
+
+function normalizeMachineInventoryKey(value) {
+  const key = String(value || "").trim().toLowerCase();
+  return key.includes(":") ? key : "";
+}
+
+function machineRunObservedAt(run) {
+  const context = machineInventoryContextForRun(run);
+  const observed = validDateIso(
+    context.generatedAt
+      || context.machineInventoryLastSeenAt
+      || context.clockTimeUnixMs
+      || run?.metadata?.generatedAt
+  );
+  return observed || dateIso(new Date());
+}
+
+function machineInventoryLiveRunSnapshot(run, key, lastSeenAt) {
+  const snapshot = cloneJson(run);
+  const context = isPlainObject(snapshot.sourceContext) ? snapshot.sourceContext : {};
+  snapshot.sourceContext = {
+    ...context,
+    machineInventoryKey: key,
+    machineInventoryLive: true,
+    machineInventoryLastSeenAt: lastSeenAt
+  };
+  delete snapshot.sourceContext.machineInventoryMissing;
+  delete snapshot.sourceContext.machineInventoryMissingSince;
+  return snapshot;
+}
+
+function machineInventoryArchivedRun(record, usedIds) {
+  if (!isPlainObject(record) || !isPlainObject(record.run)) return null;
+
+  const run = cloneJson(record.run);
+  const key = normalizeMachineInventoryKey(record.key || machineInventoryKeyForRun(run));
+  if (!key) return null;
+
+  const lastSeenAt = validDateIso(record.lastSeenAt || machineRunObservedAt(run)) || dateIso(new Date());
+  const context = isPlainObject(run.sourceContext) ? run.sourceContext : {};
+  const host = firstString([context.hostname, context.node, run.refs?.cluster, run.name, run.id]) || "machine";
+  const archivedId = machineInventoryArchivedRunId(key, usedIds);
+
+  run.id = archivedId;
+  run.name = `${host} last-known host window`;
+  run.status = "Offline - last known telemetry";
+  run.importedSources = unique(["local-machine", "last-known-machine", ...(run.importedSources || [])]);
+  run.sourceContext = {
+    ...context,
+    hostname: context.hostname || host,
+    generatedAt: lastSeenAt,
+    machineInventoryKey: key,
+    machineInventoryLive: false,
+    machineInventoryMissing: true,
+    machineInventoryMissingSince: dateIso(new Date()),
+    machineInventoryLastSeenAt: lastSeenAt
+  };
+  usedIds.add(archivedId);
+  return run;
+}
+
+function machineInventoryArchivedRunId(key, usedIds) {
+  const base = `machine-archive-${String(key).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "host"}`;
+  if (!usedIds.has(base)) return base;
+  let index = 2;
+  while (usedIds.has(`${base}-${index}`)) index += 1;
+  return `${base}-${index}`;
+}
+
 function restoreWorkspaceStore(store, label) {
-  activeIngestion = applyPersistedBaselines(store.ingestion, store.baselines);
+  machineInventoryArchive = normalizeMachineInventoryArchive(store.machineInventory);
+  const retainedIngestion = reconcileMachineInventory(store.ingestion);
+  activeIngestion = applyPersistedBaselines(retainedIngestion, store.baselines);
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = normalizeSnapshotStore(store.snapshots);
+  taskHistory = normalizeTaskHistoryStore(store.taskHistory);
   state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
   state.ingestLabel = label;
@@ -1190,7 +1745,7 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [] }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], machineInventory = [] }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
@@ -1198,7 +1753,9 @@ function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = 
     lastAnalysisAt: dateIso(lastAnalysisAt),
     ingestion,
     baselines: buildBaselineStore(ingestion.runs),
-    snapshots: normalizeSnapshotStore(snapshots)
+    machineInventory: normalizeMachineInventoryArchive(machineInventory),
+    snapshots: normalizeSnapshotStore(snapshots),
+    taskHistory: normalizeTaskHistoryStore(taskHistory)
   };
 }
 
@@ -1220,6 +1777,59 @@ function writeWorkspaceStore(store) {
   }
 }
 
+function loadDashboardBlockPreferences() {
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_BLOCK_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return normalizeDashboardBlockPreferences(parsed);
+  } catch {
+    return normalizeDashboardBlockPreferences(null);
+  }
+}
+
+function saveDashboardBlockPreferences() {
+  try {
+    window.localStorage.setItem(DASHBOARD_BLOCK_STORAGE_KEY, JSON.stringify(state.dashboardBlocks));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeDashboardBlockPreferences(preferences) {
+  const normalized = { ...DASHBOARD_BLOCK_DEFAULTS };
+  if (!isPlainObject(preferences)) return normalized;
+  DASHBOARD_BLOCKS.forEach((block) => {
+    if (typeof preferences[block.id] === "boolean") normalized[block.id] = preferences[block.id];
+  });
+  return normalized;
+}
+
+function dashboardBlockEnabled(id) {
+  return state.dashboardBlocks?.[id] !== false;
+}
+
+function resetDashboardBlocksToDefault() {
+  state.dashboardBlocks = { ...DASHBOARD_BLOCK_DEFAULTS };
+  saveDashboardBlockPreferences();
+  render();
+}
+
+function enableAllDashboardBlocks() {
+  state.dashboardBlocks = Object.fromEntries(DASHBOARD_BLOCKS.map((block) => [block.id, true]));
+  saveDashboardBlockPreferences();
+  render();
+}
+
+function setDashboardBlockEnabled(id, enabled) {
+  state.dashboardBlocks = normalizeDashboardBlockPreferences({
+    ...state.dashboardBlocks,
+    [id]: Boolean(enabled)
+  });
+  saveDashboardBlockPreferences();
+  render();
+}
+
 function isValidWorkspaceStore(store) {
   return Boolean(
     store
@@ -1234,16 +1844,33 @@ function isValidWorkspaceStore(store) {
 function captureAnalysisSnapshot(sourceLabel, capturedAt = new Date()) {
   const capturedAtIso = dateIso(capturedAt);
   const records = [];
+  const taskRecords = [];
 
   SNAPSHOT_SCOPES.forEach((scope) => {
     buildEntries(scope).forEach((entry) => {
       const summary = summarizeEntry(entry);
       const classifier = classifyBottlenecks(summary);
       records.push(snapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso));
+
+      if (scope === "job") {
+        taskRecords.push(taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso));
+      }
     });
   });
 
   snapshotHistory = normalizeSnapshotStore([...snapshotHistory, ...records]).slice(-SNAPSHOT_LIMIT);
+  taskHistory = normalizeTaskHistoryStore([...taskHistory, ...taskRecords]).slice(-TASK_HISTORY_LIMIT);
+}
+
+function captureTaskMemorySnapshot(sourceLabel, capturedAt = new Date()) {
+  const capturedAtIso = dateIso(capturedAt);
+  const taskRecords = buildEntries("job").map((entry) => {
+    const summary = summarizeEntry(entry);
+    const classifier = classifyBottlenecks(summary);
+    return taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAtIso);
+  });
+
+  taskHistory = normalizeTaskHistoryStore([...taskHistory, ...taskRecords]).slice(-TASK_HISTORY_LIMIT);
 }
 
 function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
@@ -1276,6 +1903,7 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       grossMarginPct: provider.grossMarginPct,
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
+      networkUtilization: summary.networkUtilization,
       placementQuality: summary.placementQuality,
       crossPodTraffic: summary.crossPodTraffic,
       queueWaitMinutes: summary.queueWaitMinutes
@@ -1321,6 +1949,24 @@ function normalizeSnapshotMetrics(metrics = {}) {
       .map(([key, value]) => [key, numeric(value, Number.NaN)])
       .filter(([, value]) => Number.isFinite(value))
   );
+}
+
+function taskSnapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
+  return analytics.taskUtilizationSnapshot(summary, {
+    classifier,
+    sourceLabel,
+    capturedAt
+  });
+}
+
+function normalizeTaskHistoryStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map((record) => analytics.normalizeTaskUtilizationRecord(record))
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.capturedAt) - new Date(b.capturedAt))
+    .slice(-TASK_HISTORY_LIMIT);
 }
 
 function validDateIso(value) {
@@ -1376,6 +2022,10 @@ function applySourceImports(feed, sources = {}, ncclTraces = []) {
     mergeImportedSections(importedByRun, importEbpfSamples(sources.ebpf), "ebpf");
     adapters.push("ebpf");
   }
+  if (sources.redfish?.length) {
+    mergeImportedSections(importedByRun, importRedfishSamples(sources.redfish), "redfish");
+    adapters.push("redfish");
+  }
   if (sources.provider?.length) {
     mergeImportedSections(importedByRun, importProviderSamples(sources.provider), "provider");
     adapters.push("provider");
@@ -1418,6 +2068,7 @@ function importPrometheusSamples(samples = []) {
         communication: {
           ncclTime: ratioPercent(metrics.turba_nccl_time_ratio),
           networkWait: ratioPercent(metrics.turba_network_wait_ratio),
+          networkUtilization: optionalPercent(metrics.turba_network_utilization_ratio),
           allToAllTime: ratioPercent(metrics.turba_all_to_all_time_ratio)
         },
         inputPipeline: {
@@ -1436,7 +2087,8 @@ function importPrometheusSamples(samples = []) {
           tokensM: numeric(metrics.turba_tokens_million_total),
           steps: numeric(metrics.turba_training_steps_total),
           inferenceRequestsM: numeric(metrics.turba_inference_requests_million_total)
-        }
+        },
+        sourceContext: prometheusGpuSourceContext(metrics)
       }
     };
   });
@@ -1458,9 +2110,70 @@ function importDcgmSamples(samples = []) {
           hbmBandwidth: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
           memoryFragmentation: metric(fields, "DCGM_FI_DEV_MEM_FRAGMENTATION"),
           kvCachePressure: metric(fields, "DCGM_FI_DEV_KV_CACHE_PRESSURE")
-        }
+        },
+        sourceContext: dcgmGpuSourceContext(fields)
       }
     };
+  });
+}
+
+function prometheusGpuSourceContext(metrics = {}) {
+  const gpuUtilizationPct = firstFinite(
+    ratioPercent(metrics.turba_gpu_utilization_ratio),
+    ratioPercent(metrics.turba_gpu_activity_ratio)
+  );
+  const gpuMemoryUsedPct = firstFinite(
+    ratioPercent(metrics.turba_gpu_memory_used_ratio),
+    optionalPercent(metrics.turba_gpu_memory_used_pct)
+  );
+  const hasGpuMetrics = gpuExporterObjectHasAny(metrics, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ]));
+
+  return compactObject({
+    rawPrometheusMetrics: metrics,
+    gpuExporterMetrics: metrics,
+    gpuPresent: hasGpuMetrics || Number.isFinite(gpuUtilizationPct),
+    gpuName: metrics.turba_gpu_model || "",
+    gpuUtilizationPct,
+    gpuPowerWatts: firstFinite(metrics.turba_gpu_power_watts, metrics.turba_gpu_power_instant_watts),
+    gpuMemoryUsedPct,
+    gpuTemperatureC: firstFinite(metrics.turba_gpu_thermal_celsius, metrics.turba_gpu_temperature_celsius),
+    gpuExporterInterconnectBytesPerSecond: firstFinite(metrics.turba_gpu_interconnect_bytes_per_second),
+    gpuEccErrorsTotal: firstFinite(metrics.turba_gpu_ecc_errors_total),
+    gpuClockMHz: firstFinite(metrics.turba_gpu_clock_mhz)
+  });
+}
+
+function dcgmGpuSourceContext(fields = {}) {
+  const fbUsed = metric(fields, "DCGM_FI_DEV_FB_USED");
+  const fbTotal = metric(fields, "DCGM_FI_DEV_FB_TOTAL");
+  const fbRatio = Number.isFinite(fbUsed) && Number.isFinite(fbTotal) && fbTotal > 0
+    ? (fbUsed / fbTotal) * 100
+    : metric(fields, "DCGM_FI_DEV_FB_USED_RATIO");
+  return compactObject({
+    rawDcgmFields: fields,
+    gpuExporterMetrics: fields,
+    gpuPresent: gpuExporterObjectHasAny(fields, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => group.nvidia)),
+    gpuPowerWatts: firstFinite(metric(fields, "DCGM_FI_DEV_POWER_USAGE"), metric(fields, "DCGM_FI_DEV_POWER_USAGE_INSTANT")),
+    gpuUtilizationPct: metric(fields, "DCGM_FI_DEV_GPU_UTIL"),
+    gpuSmActivePct: metric(fields, "DCGM_FI_PROF_SM_ACTIVE"),
+    gpuSmOccupancyPct: metric(fields, "DCGM_FI_PROF_SM_OCCUPANCY"),
+    gpuTensorActivePct: metric(fields, "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"),
+    gpuDramActivePct: metric(fields, "DCGM_FI_PROF_DRAM_ACTIVE"),
+    gpuMemoryUsedPct: fbRatio,
+    gpuTemperatureC: metric(fields, "DCGM_FI_DEV_GPU_TEMP"),
+    gpuMemoryTemperatureC: metric(fields, "DCGM_FI_DEV_MEMORY_TEMP"),
+    gpuPcieTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_TX_BYTES"),
+    gpuPcieRxBytesPerSecond: metric(fields, "DCGM_FI_PROF_PCIE_RX_BYTES"),
+    gpuNvlinkTxBytesPerSecond: metric(fields, "DCGM_FI_PROF_NVLINK_TX_BYTES"),
+    gpuNvlinkRxBytesPerSecond: metric(fields, "DCGM_FI_PROF_NVLINK_RX_BYTES"),
+    gpuEccErrorsTotal: firstFinite(metric(fields, "DCGM_FI_DEV_ECC_SBE_AGG_TOTAL"), metric(fields, "DCGM_FI_DEV_ECC_DBE_AGG_TOTAL")),
+    gpuXidErrorCode: metric(fields, "DCGM_FI_DEV_XID_ERRORS"),
+    gpuClockMHz: metric(fields, "DCGM_FI_DEV_SM_CLOCK"),
+    gpuMemoryClockMHz: metric(fields, "DCGM_FI_DEV_MEM_CLOCK")
   });
 }
 
@@ -1761,6 +2474,12 @@ function importEbpfSamples(samples = []) {
       metrics.turba_tcp_retransmit_pct,
       network.tcpRetransmitPct
     ));
+    const networkUtilization = optionalPercent(firstFinite(
+      metrics.turba_network_utilization_ratio,
+      metrics.turba_network_utilization_pct,
+      signals.networkUtilization,
+      network.utilizationPct
+    ));
     const socketLatency = firstFinite(
       metrics.turba_socket_latency_ms_p95,
       network.socketLatencyMsP95
@@ -1823,7 +2542,8 @@ function importEbpfSamples(samples = []) {
       runId: sample.runId,
       sections: compactSections({
         communication: compactMetrics({
-          networkWait
+          networkWait,
+          networkUtilization
         }),
         inputPipeline: compactMetrics({
           storageWait,
@@ -1849,6 +2569,127 @@ function importEbpfSamples(samples = []) {
       })
     };
   });
+}
+
+function importRedfishSamples(samples = []) {
+  return samples.map((sample) => {
+    const metrics = sample.metrics || {};
+    const health = sample.health || {};
+    const systems = Array.isArray(sample.systems) ? sample.systems : [];
+    const chassis = Array.isArray(sample.chassis) ? sample.chassis : [];
+    const managers = Array.isArray(sample.managers) ? sample.managers : [];
+    const firmwareInventory = Array.isArray(sample.firmwareInventory) ? sample.firmwareInventory : [];
+    const unhealthyResources = Array.isArray(health.unhealthyResources) ? health.unhealthyResources : [];
+    const warnings = Array.isArray(health.warnings) ? health.warnings : [];
+    const powerWatts = firstFinite(
+      metrics.redfish_power_watts,
+      maxFinite(...chassis.map((item) => item.powerWatts))
+    );
+    const powerLimitWatts = firstFinite(
+      metrics.redfish_power_limit_watts,
+      maxFinite(...chassis.map((item) => item.powerLimitWatts))
+    );
+    const inletTempCelsius = firstFinite(
+      metrics.redfish_inlet_temp_celsius,
+      maxFinite(...chassis.map((item) => item.inletTempCelsius))
+    );
+    const exhaustTempCelsius = firstFinite(
+      metrics.redfish_exhaust_temp_celsius,
+      maxFinite(...chassis.map((item) => item.exhaustTempCelsius))
+    );
+    const maxTempCelsius = firstFinite(
+      metrics.redfish_max_temp_celsius,
+      maxFinite(...chassis.map((item) => item.maxTempCelsius))
+    );
+    const criticalLogEntries = firstFinite(
+      metrics.redfish_critical_log_entries_total,
+      systems.reduce((total, system) => total + numeric(system.criticalLogEntries), 0)
+    );
+    const unhealthyCount = firstFinite(
+      metrics.redfish_unhealthy_resources_total,
+      unhealthyResources.length
+    );
+    const healthPressure = redfishHealthPressure([
+      health.rollup,
+      sample.sourceContext?.redfishHealthRollup,
+      ...systems.map((item) => item.health),
+      ...chassis.map((item) => item.health),
+      ...managers.map((item) => item.health),
+      ...firmwareInventory.map((item) => item.health)
+    ]);
+    const thermalPressure = maxFinite(
+      pressure(maxTempCelsius, 75, 95),
+      pressure(inletTempCelsius, 28, 40),
+      pressure(exhaustTempCelsius, 45, 70)
+    );
+    const powerPressure = powerWatts && powerLimitWatts
+      ? pressure((powerWatts / powerLimitWatts) * 100, 70, 95)
+      : undefined;
+    const redfishPressure = maxFinite(
+      healthPressure,
+      pressure(unhealthyCount, 0, 4),
+      pressure(criticalLogEntries, 0, 5),
+      thermalPressure,
+      powerPressure
+    );
+    const sourceContext = compactObject({
+      ...(sample.sourceContext || {}),
+      redfishBaseUrl: sample.redfishBaseUrl || sample.sourceContext?.redfishBaseUrl,
+      redfishServiceUuid: sample.serviceRoot?.uuid || sample.serviceRoot?.UUID || sample.sourceContext?.redfishServiceUuid,
+      redfishVersion: sample.serviceRoot?.redfishVersion || sample.serviceRoot?.RedfishVersion || sample.sourceContext?.redfishVersion,
+      redfishHealthRollup: health.rollup || sample.sourceContext?.redfishHealthRollup,
+      redfishSystemCount: firstFinite(metrics.redfish_systems_total, systems.length),
+      redfishChassisCount: firstFinite(metrics.redfish_chassis_total, chassis.length),
+      redfishManagerCount: firstFinite(metrics.redfish_managers_total, managers.length),
+      redfishUnhealthyResources: unhealthyCount,
+      redfishCriticalLogEntries: criticalLogEntries,
+      redfishPowerWatts: powerWatts,
+      redfishPowerLimitWatts: powerLimitWatts,
+      redfishInletTempCelsius: inletTempCelsius,
+      redfishExhaustTempCelsius: exhaustTempCelsius,
+      redfishMaxTempCelsius: maxTempCelsius,
+      redfishPowerState: sample.sourceContext?.redfishPowerState || firstString(systems.map((system) => system.powerState)),
+      redfishBiosVersion: sample.sourceContext?.redfishBiosVersion || firstString(systems.map((system) => system.biosVersion)),
+      redfishManagerFirmwareVersion: sample.sourceContext?.redfishManagerFirmwareVersion || firstString(managers.map((manager) => manager.firmwareVersion)),
+      redfishSystems: redfishResourceLabels(systems),
+      redfishChassis: redfishResourceLabels(chassis),
+      redfishManagers: redfishResourceLabels(managers),
+      redfishFirmwareInventory: redfishResourceLabels(firmwareInventory),
+      redfishWarnings: warnings.length > 0 ? warnings.slice(0, 8) : undefined
+    });
+
+    return {
+      runId: sample.runId,
+      sections: compactSections({
+        reliability: redfishPressure > 0 ? compactMetrics({
+          noiseEvents: maxFinite(unhealthyCount, criticalLogEntries),
+          contentionPct: redfishPressure,
+          latencyTail: maxFinite(thermalPressure, powerPressure)
+        }) : {},
+        sourceContext
+      })
+    };
+  });
+}
+
+function redfishHealthPressure(values = []) {
+  const labels = values.map((value) => String(value || "").toLowerCase()).filter(Boolean);
+  if (labels.some((label) => label.includes("critical"))) return 100;
+  if (labels.some((label) => label.includes("warning"))) return 55;
+  return undefined;
+}
+
+function redfishResourceLabels(resources = []) {
+  const labels = resources
+    .map((resource) => resource.name || resource.id || resource.model || resource.version)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+
+  return labels.length > 0 ? labels.slice(0, 12) : undefined;
+}
+
+function firstString(values = []) {
+  return values.map((value) => String(value || "").trim()).find(Boolean) || undefined;
 }
 
 function importProviderSamples(samples = []) {
@@ -2201,6 +3042,7 @@ function normalizeMetrics(run) {
     tensorCoreUtil: metric(run.utilization, "tensorCoreUtil"),
     ncclTime: metric(run.communication, "ncclTime"),
     networkWait: metric(run.communication, "networkWait"),
+    networkUtilization: metric(run.communication, "networkUtilization"),
     dataloaderStall: metric(run.inputPipeline, "dataloaderStall"),
     storageWait: metric(run.inputPipeline, "storageWait"),
     cpuPrep: metric(run.inputPipeline, "cpuPrep"),
@@ -2392,7 +3234,7 @@ function validateSourceArrays(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "redfish", "provider", "opportunities"].forEach((key) => {
       if (key in root.value && !Array.isArray(root.value[key])) {
         const prefix = root.label === "root" ? key : `${root.label}.${key}`;
         throw new Error(`${prefix} must be an array.`);
@@ -2416,7 +3258,7 @@ function validateSourceSamples(payload) {
   ].filter((root) => isPlainObject(root.value));
 
   roots.forEach((root) => {
-    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "provider", "opportunities"].forEach((key) => {
+    ["prometheus", "dcgm", "kubernetes", "scheduler", "grafana", "ebpf", "redfish", "provider", "opportunities"].forEach((key) => {
       validateRunIdSamples(root, key);
     });
 
@@ -2451,6 +3293,7 @@ function extractSourceExports(payload) {
     scheduler: Array.isArray(sourceRoot.scheduler) ? sourceRoot.scheduler : [],
     grafana: Array.isArray(sourceRoot.grafana) ? sourceRoot.grafana : [],
     ebpf: Array.isArray(sourceRoot.ebpf) ? sourceRoot.ebpf : [],
+    redfish: Array.isArray(sourceRoot.redfish) ? sourceRoot.redfish : [],
     provider: Array.isArray(sourceRoot.provider) ? sourceRoot.provider : [],
     opportunities: Array.isArray(sourceRoot.opportunities) ? sourceRoot.opportunities : []
   };
@@ -2480,6 +3323,7 @@ function hasSourceExports(sources) {
     || sources.scheduler.length > 0
     || sources.grafana.length > 0
     || sources.ebpf.length > 0
+    || sources.redfish.length > 0
     || sources.provider.length > 0
     || sources.opportunities.length > 0;
 }
@@ -2552,6 +3396,12 @@ async function maybeAutoLoadMachineDemoBundle() {
   startMachineDemoRefresh();
 }
 
+function maybeStartSparkPairClockFeed() {
+  if (!shouldAutoLoadSparkPairClockFeed()) return;
+  loadSparkPairClockFeed();
+  startSparkPairClockRefresh();
+}
+
 async function loadMachineDemoBundle({ quiet = false } = {}) {
   if (machineDemoLoadInFlight) return;
   machineDemoLoadInFlight = true;
@@ -2582,6 +3432,28 @@ function startMachineDemoRefresh() {
   }, MACHINE_DEMO_REFRESH_MS);
 }
 
+function startSparkPairClockRefresh() {
+  if (sparkPairClockRefreshTimer || !shouldAutoLoadSparkPairClockFeed()) return;
+  sparkPairClockRefreshTimer = window.setInterval(() => {
+    if (document.hidden) return;
+    loadSparkPairClockFeed();
+  }, SPARK_PAIR_CLOCK_REFRESH_MS);
+}
+
+async function loadSparkPairClockFeed() {
+  if (sparkPairClockLoadInFlight) return;
+  sparkPairClockLoadInFlight = true;
+  try {
+    const response = await window.fetch(cacheBustUrl(sparkPairClockFeedUrl()));
+    if (!response.ok) return;
+    applySparkPairClockFeed(parseImportJson(await response.text(), "SPARK clock feed did not return valid JSON."));
+  } catch {
+    // The fast clock feed is optional; the full live-machine bundle remains the fallback.
+  } finally {
+    sparkPairClockLoadInFlight = false;
+  }
+}
+
 function shouldOfferMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
   return params.get("demo") === "machine" || isKnownMachineDemoHost();
@@ -2589,25 +3461,106 @@ function shouldOfferMachineDemoBundle() {
 
 function shouldAutoLoadMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("demo") === "sample") return false;
+  if (params.get("demo") === "sample" && !isKnownMachineDemoHost()) return false;
   if (params.get("demo") === "machine" || params.get("source") === "machine") return true;
   return isKnownMachineDemoHost();
 }
 
+function shouldAutoLoadSparkPairClockFeed() {
+  const params = new URLSearchParams(window.location.search);
+  if (["0", "false", "off"].includes(String(params.get("clockFeed") || "").toLowerCase())) return false;
+  return shouldAutoLoadMachineDemoBundle() && (isLakehouseDashboardHost() || params.has("clockFeed"));
+}
+
 function isKnownMachineDemoHost() {
   return [
-    "192.168.10.101",
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "192.168.10.30",
     "nuc14e",
     "192.168.10.20",
     "spark1",
+    "192.168.10.21",
+    ...PI_FLEET_HOSTNAMES,
+    "192.168.10.27",
+    "192.168.10.33",
+    "192.168.10.38",
+    "dgx-lisa",
+    "192.168.10.42",
+    "dgx-jensen",
     "100.96.89.98",
-    "dgx-pat"
+    "dgx-pat",
+    "192.168.10.103",
+    "100.95.183.13",
+    "nuc15"
   ].includes(window.location.hostname.toLowerCase());
 }
 
 function machineDemoBundleUrl() {
   const params = new URLSearchParams(window.location.search);
   return parseImportUrl(params.get("bundle") || "build/demo/live-machine-bundle.json");
+}
+
+function sparkPairClockFeedUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return parseImportUrl(params.get("clockFeed") || "build/demo/spark-clock-offset.json");
+}
+
+function platformApiBaseUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const value = params.get("platformApi");
+  if (!value && isLakehouseDashboardHost()) {
+    if (window.location.protocol === "https:") return `${window.location.origin}/api`;
+    return `${window.location.protocol}//${window.location.hostname}:8080`;
+  }
+  if (!value) return "";
+  try {
+    const url = new URL(value, window.location.href);
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function isLakehouseDashboardHost() {
+  return ["localhost", "127.0.0.1", "::1", "192.168.10.30", "nuc14e", "192.168.10.103", "100.95.183.13", "nuc15"].includes(window.location.hostname.toLowerCase());
+}
+
+function platformApiUrl(path) {
+  const base = platformApiBaseUrl();
+  return base ? `${base}${path}` : "";
+}
+
+function platformApiAuthToken() {
+  const params = new URLSearchParams(window.location.search);
+  const queryToken = String(params.get("apiToken") || "").trim();
+  if (queryToken) return queryToken;
+  try {
+    return String(window.localStorage.getItem(PLATFORM_API_TOKEN_STORAGE_KEY) || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function writePlatformApiAuthToken(token) {
+  try {
+    if (token) {
+      window.localStorage.setItem(PLATFORM_API_TOKEN_STORAGE_KEY, token);
+    } else {
+      window.localStorage.removeItem(PLATFORM_API_TOKEN_STORAGE_KEY);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function platformApiFetch(path) {
+  const url = platformApiUrl(path);
+  const token = platformApiAuthToken();
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  return window.fetch(url, { headers });
 }
 
 function cacheBustUrl(url) {
@@ -2641,7 +3594,9 @@ function exportWorkspace({ redacted = false } = {}) {
   const rawStore = createWorkspaceStore(activeIngestion, {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
   const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
@@ -2668,7 +3623,9 @@ function exportEvidencePack() {
   const store = createWorkspaceStore(activeIngestion, {
     savedAt: exportedAt,
     lastAnalysisAt: state.lastAnalysis,
-    snapshots: snapshotHistory
+    snapshots: snapshotHistory,
+    taskHistory,
+    machineInventory: machineInventoryArchive
   });
   const plan = buildRedactionPlan(store);
   const markdown = buildEvidencePackMarkdown({
@@ -2981,7 +3938,9 @@ function redactWorkspaceStore(store) {
 
   redacted.ingestion = redactIngestion(redacted.ingestion, plan);
   redacted.baselines = redactBaselineStore(redacted.baselines, plan);
+  redacted.machineInventory = redactMachineInventoryArchive(redacted.machineInventory, plan);
   redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
+  redacted.taskHistory = redactTaskHistory(redacted.taskHistory, plan);
   redacted.redaction = {
     redactedAt: dateIso(new Date()),
     strategy: "deterministic surrogate IDs",
@@ -2993,6 +3952,8 @@ function redactWorkspaceStore(store) {
     "provider and eBPF source context",
     "scheduler source context",
     "Grafana dashboard and Explore links",
+    "Redfish management-plane context",
+    "machine inventory archive",
     "imported opportunity free text"
     ]
   };
@@ -3003,54 +3964,87 @@ function redactWorkspaceStore(store) {
 function buildRedactionPlan(store) {
   const ingestion = store.ingestion || {};
   const runs = Array.isArray(ingestion.runs) ? ingestion.runs : [];
+  const machineInventoryRuns = Array.isArray(store.machineInventory)
+    ? store.machineInventory.map((record) => record?.run).filter(isPlainObject)
+    : [];
+  const sourceRuns = [...runs, ...machineInventoryRuns];
   const entities = ingestion.entities || {};
+  const taskRecords = Array.isArray(store.taskHistory) ? store.taskHistory : [];
   const plan = {
     entities: {},
-    runs: buildValueMap(runs.map((run) => run.id), "run"),
-    contracts: buildValueMap(runs.map((run) => run.commercial?.contractId), "contract"),
-    tickets: buildValueMap(runs.map((run) => run.slo?.supportTicketId), "ticket"),
-    namespaces: buildValueMap(runs.map((run) => run.sourceContext?.namespace), "namespace"),
-    podSelectors: buildValueMap(runs.map((run) => run.sourceContext?.podSelector), "pod-selector"),
-    slurmJobIds: buildValueMap(runs.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
-    ebpfExports: buildValueMap(runs.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
-    hosts: buildValueMap(runs.map((run) => run.sourceContext?.host), "host"),
-    nodes: buildValueMap(runs.map((run) => run.sourceContext?.node), "node"),
-    podNames: buildValueMap(runs.map((run) => run.sourceContext?.podName), "pod"),
-    containerNames: buildValueMap(runs.map((run) => run.sourceContext?.containerName), "container"),
-    cgroupPaths: buildValueMap(runs.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
-    providerExports: buildValueMap(runs.map((run) => run.sourceContext?.providerExportId), "provider-export"),
-    billingAccounts: buildValueMap(runs.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
-    reservationWindows: buildValueMap(runs.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
-    schedulerExports: buildValueMap(runs.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
-    grafanaBaseUrls: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaBaseUrl, run.grafanaContext?.grafanaBaseUrl]), "grafana-base"),
-    grafanaInstances: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaInstance, run.grafanaContext?.instanceName]), "grafana-instance"),
-    grafanaOrgIds: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaOrgId, run.grafanaContext?.orgId]), "grafana-org"),
-    grafanaDashboardUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardUid, run.grafanaContext?.dashboardUid]), "grafana-dashboard"),
-    grafanaDashboardSlugs: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardSlug, run.grafanaContext?.dashboardSlug]), "grafana-slug"),
-    grafanaDashboardTitles: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDashboardTitle, run.grafanaContext?.dashboardTitle]), "grafana-title"),
-    grafanaFolders: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaFolder, run.grafanaContext?.folder]), "grafana-folder"),
-    grafanaDatasourceUids: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceUid, run.grafanaContext?.datasourceUid]), "grafana-datasource"),
-    grafanaDatasourceNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.grafanaDatasourceName, run.grafanaContext?.datasourceName]), "grafana-datasource-name"),
-    grafanaUrls: buildValueMap(flattenRunValues(runs, (run) => [
+    runs: buildValueMap(sourceRuns.map((run) => run.id), "run"),
+    taskKeys: buildValueMap(taskRecords.map((record) => record.taskKey), "task"),
+    contracts: buildValueMap(sourceRuns.map((run) => run.commercial?.contractId), "contract"),
+    tickets: buildValueMap(sourceRuns.map((run) => run.slo?.supportTicketId), "ticket"),
+    namespaces: buildValueMap(sourceRuns.map((run) => run.sourceContext?.namespace), "namespace"),
+    podSelectors: buildValueMap(sourceRuns.map((run) => run.sourceContext?.podSelector), "pod-selector"),
+    slurmJobIds: buildValueMap(sourceRuns.map((run) => run.sourceContext?.slurmJobId), "slurm-job"),
+    ebpfExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
+    hosts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.host), "host"),
+    hostnames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.hostname), "host"),
+    nodes: buildValueMap(sourceRuns.map((run) => run.sourceContext?.node), "node"),
+    networkAddresses: buildValueMap(flattenRunValues(sourceRuns, (run) => [
+      run.sourceContext?.networkLocalAddress,
+      run.sourceContext?.hostAddress,
+      run.sourceContext?.primaryAddress,
+      run.sourceContext?.ncclRuntimeHostIp,
+      run.sourceContext?.ipAddress
+    ]), "net-addr"),
+    machineInventoryKeys: buildValueMap([
+      ...(Array.isArray(store.machineInventory) ? store.machineInventory.map((record) => record?.key) : []),
+      ...sourceRuns.map((run) => run.sourceContext?.machineInventoryKey)
+    ], "machine"),
+    podNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.podName), "pod"),
+    containerNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.containerName), "container"),
+    cgroupPaths: buildValueMap(sourceRuns.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
+    providerExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.providerExportId), "provider-export"),
+    billingAccounts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
+    reservationWindows: buildValueMap(sourceRuns.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),
+    schedulerExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.schedulerExportId), "scheduler-export"),
+    grafanaBaseUrls: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaBaseUrl, run.grafanaContext?.grafanaBaseUrl]), "grafana-base"),
+    grafanaInstances: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaInstance, run.grafanaContext?.instanceName]), "grafana-instance"),
+    grafanaOrgIds: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaOrgId, run.grafanaContext?.orgId]), "grafana-org"),
+    grafanaDashboardUids: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardUid, run.grafanaContext?.dashboardUid]), "grafana-dashboard"),
+    grafanaDashboardSlugs: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardSlug, run.grafanaContext?.dashboardSlug]), "grafana-slug"),
+    grafanaDashboardTitles: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDashboardTitle, run.grafanaContext?.dashboardTitle]), "grafana-title"),
+    grafanaFolders: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaFolder, run.grafanaContext?.folder]), "grafana-folder"),
+    grafanaDatasourceUids: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDatasourceUid, run.grafanaContext?.datasourceUid]), "grafana-datasource"),
+    grafanaDatasourceNames: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.grafanaDatasourceName, run.grafanaContext?.datasourceName]), "grafana-datasource-name"),
+    grafanaUrls: buildValueMap(flattenRunValues(sourceRuns, (run) => [
       run.sourceContext?.grafanaDashboardUrl,
       run.sourceContext?.grafanaExploreUrl,
       run.grafanaContext?.dashboardUrl,
       run.grafanaContext?.exploreUrl,
       ...((run.grafanaContext?.links || []).map((link) => link?.url))
     ]), "grafana-url"),
-    grafanaVariableValues: buildValueMap(flattenRunValues(runs, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
-    schedulerNames: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
-    schedulerQueues: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
-    priorityClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
-    admissionClasses: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
-    requestedGpuShapes: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
-    localityPreferences: buildValueMap(flattenRunValues(runs, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality")
+    grafanaVariableValues: buildValueMap(flattenRunValues(sourceRuns, (run) => Object.values(run.grafanaContext?.variables || {})), "grafana-var"),
+    redfishBaseUrls: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishBaseUrl), "redfish-base"),
+    redfishServiceUuids: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishServiceUuid), "redfish-service"),
+    redfishBiosVersions: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishBiosVersion), "redfish-bios"),
+    redfishManagerFirmwareVersions: buildValueMap(sourceRuns.map((run) => run.sourceContext?.redfishManagerFirmwareVersion), "redfish-manager-fw"),
+    redfishSystems: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishSystems || []), "redfish-system"),
+    redfishChassis: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishChassis || []), "redfish-chassis"),
+    redfishManagers: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishManagers || []), "redfish-manager"),
+    redfishFirmwareInventory: buildValueMap(flattenRunValues(sourceRuns, (run) => run.sourceContext?.redfishFirmwareInventory || []), "redfish-firmware"),
+    schedulerNames: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.schedulerName, run.schedulerEvidence?.schedulerName, ...(run.schedulerEvidence?.schedulerNames || [])]), "scheduler"),
+    schedulerQueues: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.queueName, run.schedulerEvidence?.queueName, ...(run.schedulerEvidence?.queueNames || [])]), "queue"),
+    priorityClasses: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.priorityClass, run.schedulerEvidence?.priorityClass, ...(run.schedulerEvidence?.priorityClasses || [])]), "priority"),
+    admissionClasses: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.admissionClass, run.schedulerEvidence?.admissionClass, ...(run.schedulerEvidence?.admissionClasses || [])]), "admission"),
+    requestedGpuShapes: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.requestedGpuShape, run.schedulerEvidence?.requestedGpuShape, ...(run.schedulerEvidence?.requestedGpuShapes || [])]), "shape"),
+    localityPreferences: buildValueMap(flattenRunValues(sourceRuns, (run) => [run.sourceContext?.localityPreference, run.schedulerEvidence?.localityPreference, ...(run.schedulerEvidence?.localityPreferences || [])]), "locality"),
+    taskGpuModels: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.gpuModels || []), "gpu-model"),
+    taskClusters: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.clusters || []), "cluster"),
+    taskNodes: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.nodes || []), "node"),
+    taskTenants: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.tenants || []), "tenant"),
+    taskAccounts: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.accounts || []), "account"),
+    taskReservations: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.reservations || []), "reservation"),
+    taskHosts: buildValueMap(flattenRunValues(taskRecords, (record) => record.resources?.hosts || []), "host")
   };
 
   Object.entries(ENTITY_REDACTION_PREFIXES).forEach(([collection, prefix]) => {
     plan.entities[collection] = buildEntityValueMap(
       entities[collection] || {},
-      runs.map((run) => run.refs?.[singularCollection(collection)]),
+      sourceRuns.map((run) => run.refs?.[singularCollection(collection)]),
       prefix
     );
   });
@@ -3064,6 +4058,23 @@ function redactIngestion(ingestion, plan) {
     entities: redactEntities(ingestion.entities || {}, plan),
     runs: (ingestion.runs || []).map((run) => redactRun(run, plan))
   };
+}
+
+function redactMachineInventoryArchive(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .filter((record) => isPlainObject(record) && isPlainObject(record.run))
+    .map((record) => ({
+      key: redactMachineInventoryKey(record.key, plan),
+      lastSeenAt: record.lastSeenAt,
+      run: redactRun(record.run, plan)
+    }));
+}
+
+function redactMachineInventoryKey(value, plan) {
+  if (!value) return undefined;
+  return `machine-id:${mappedValue(plan.machineInventoryKeys, value, "machine")}`;
 }
 
 function redactEntities(entities, plan) {
@@ -3210,7 +4221,14 @@ function redactSourceContext(context, plan) {
     slurmJobId: mappedValue(plan.slurmJobIds, context.slurmJobId, "slurm-job"),
     ebpfExportId: mappedValue(plan.ebpfExports, context.ebpfExportId, "ebpf-export"),
     host: mappedValue(plan.hosts, context.host, "host"),
+    hostname: mappedValue(plan.hostnames, context.hostname, "host"),
     node: mappedValue(plan.nodes, context.node, "node"),
+    networkLocalAddress: mappedValue(plan.networkAddresses, context.networkLocalAddress, "net-addr"),
+    hostAddress: mappedValue(plan.networkAddresses, context.hostAddress, "net-addr"),
+    primaryAddress: mappedValue(plan.networkAddresses, context.primaryAddress, "net-addr"),
+    ncclRuntimeHostIp: mappedValue(plan.networkAddresses, context.ncclRuntimeHostIp, "net-addr"),
+    ipAddress: mappedValue(plan.networkAddresses, context.ipAddress, "net-addr"),
+    machineInventoryKey: redactMachineInventoryKey(context.machineInventoryKey, plan),
     podName: mappedValue(plan.podNames, context.podName, "pod"),
     containerName: mappedValue(plan.containerNames, context.containerName, "container"),
     cgroupPath: mappedValue(plan.cgroupPaths, context.cgroupPath, "cgroup"),
@@ -3234,7 +4252,16 @@ function redactSourceContext(context, plan) {
     grafanaDatasourceUid: mappedValue(plan.grafanaDatasourceUids, context.grafanaDatasourceUid, "grafana-datasource"),
     grafanaDatasourceName: mappedValue(plan.grafanaDatasourceNames, context.grafanaDatasourceName, "grafana-datasource-name"),
     grafanaDashboardUrl: mappedValue(plan.grafanaUrls, context.grafanaDashboardUrl, "grafana-url"),
-    grafanaExploreUrl: mappedValue(plan.grafanaUrls, context.grafanaExploreUrl, "grafana-url")
+    grafanaExploreUrl: mappedValue(plan.grafanaUrls, context.grafanaExploreUrl, "grafana-url"),
+    redfishBaseUrl: mappedValue(plan.redfishBaseUrls, context.redfishBaseUrl, "redfish-base"),
+    redfishServiceUuid: mappedValue(plan.redfishServiceUuids, context.redfishServiceUuid, "redfish-service"),
+    redfishBiosVersion: mappedValue(plan.redfishBiosVersions, context.redfishBiosVersion, "redfish-bios"),
+    redfishManagerFirmwareVersion: mappedValue(plan.redfishManagerFirmwareVersions, context.redfishManagerFirmwareVersion, "redfish-manager-fw"),
+    redfishSystems: redactValueList(plan.redfishSystems, context.redfishSystems, "redfish-system"),
+    redfishChassis: redactValueList(plan.redfishChassis, context.redfishChassis, "redfish-chassis"),
+    redfishManagers: redactValueList(plan.redfishManagers, context.redfishManagers, "redfish-manager"),
+    redfishFirmwareInventory: redactValueList(plan.redfishFirmwareInventory, context.redfishFirmwareInventory, "redfish-firmware"),
+    redfishWarnings: Array.isArray(context.redfishWarnings) ? context.redfishWarnings.map((_warning, index) => `redfish-warning-${index + 1}`) : undefined
   });
 }
 
@@ -3256,6 +4283,46 @@ function redactSnapshots(snapshots = [], plan) {
       label: key === snapshot.key ? snapshot.label : redactedLabel(key)
     };
   });
+}
+
+function redactTaskHistory(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records.map((record) => {
+    const taskKey = mappedValue(plan.taskKeys, record.taskKey, "task");
+    const key = record.scope === "job" ? mappedValue(plan.runs, record.key, "run") : record.key;
+
+    return {
+      ...record,
+      key,
+      label: redactedLabel(taskKey),
+      taskKey,
+      taskLabel: redactedLabel(taskKey),
+      taskFamily: taskKey,
+      runIds: redactValueList(plan.runs, record.runIds, "run"),
+      resources: redactTaskResources(record.resources || {}, plan)
+    };
+  });
+}
+
+function redactTaskResources(resources = {}, plan) {
+  return {
+    ...resources,
+    gpuModels: redactValueList(plan.taskGpuModels, resources.gpuModels, "gpu-model"),
+    clusters: redactValueList(plan.taskClusters, resources.clusters, "cluster"),
+    nodes: redactValueList(plan.taskNodes, resources.nodes, "node"),
+    partialNodes: redactValueList(plan.taskNodes, resources.partialNodes, "node"),
+    tenants: redactValueList(plan.taskTenants, resources.tenants, "tenant"),
+    accounts: redactValueList(plan.taskAccounts, resources.accounts, "account"),
+    reservations: redactValueList(plan.taskReservations, resources.reservations, "reservation"),
+    schedulerNames: redactValueList(plan.schedulerNames, resources.schedulerNames, "scheduler"),
+    queueNames: redactValueList(plan.schedulerQueues, resources.queueNames, "queue"),
+    priorityClasses: redactValueList(plan.priorityClasses, resources.priorityClasses, "priority"),
+    admissionClasses: redactValueList(plan.admissionClasses, resources.admissionClasses, "admission"),
+    requestedGpuShapes: redactValueList(plan.requestedGpuShapes, resources.requestedGpuShapes, "shape"),
+    localityPreferences: redactValueList(plan.localityPreferences, resources.localityPreferences, "locality"),
+    hosts: redactValueList(plan.taskHosts, resources.hosts, "host")
+  };
 }
 
 function redactSnapshotKey(scope, key, plan) {
@@ -3347,6 +4414,7 @@ function resetWorkspace() {
   const confirmed = window.confirm("Reset the local turbalance workspace to the sample feed?");
   if (!confirmed) return;
 
+  machineInventoryArchive = [];
   activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = [];
@@ -3359,6 +4427,14 @@ function resetWorkspace() {
   state.lastAnalysis = new Date();
   captureAnalysisSnapshot("Reset sample", state.lastAnalysis);
   persistWorkspaceStore();
+  render();
+}
+
+function captureManualAnalysisSnapshot() {
+  state.lastAnalysis = new Date();
+  captureAnalysisSnapshot("Manual snapshot", state.lastAnalysis);
+  persistWorkspaceStore();
+  setIngestStatus("Trend snapshot captured", "good");
   render();
 }
 
@@ -3400,18 +4476,7 @@ function bindEvents() {
     });
   });
 
-  document.querySelector("#analyzeButton").addEventListener("click", () => {
-    state.analyzing = true;
-    renderAnalysisStamp();
-    window.setTimeout(() => {
-      state.analyzing = false;
-      state.lastAnalysis = new Date();
-      captureAnalysisSnapshot("Manual analysis", state.lastAnalysis);
-      persistWorkspaceStore();
-      render();
-    }, 520);
-  });
-
+  document.querySelector("#captureSnapshotButton").addEventListener("click", captureManualAnalysisSnapshot);
   document.querySelector("#copyReport").addEventListener("click", copyReport);
   document.querySelector("#ingestFile").addEventListener("change", handleFileIngest);
   document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
@@ -3421,10 +4486,104 @@ function bindEvents() {
   document.querySelector("#resetWorkspaceButton").addEventListener("click", resetWorkspace);
 }
 
+function initPanelPopouts() {
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button > 0) return;
+    const source = event.target instanceof Element ? event.target : null;
+    if (!source) return;
+
+    const target = source.closest(PANEL_POPOUT_SELECTOR);
+    if (!target || target.closest(".topbar, .scope-strip, .ingest-strip")) {
+      collapsePanelPopoutIfOutside(source);
+      return;
+    }
+
+    const interactive = source.closest(PANEL_POPOUT_INTERACTIVE_SELECTOR);
+    if (interactive && interactive !== target && !interactive.matches(PANEL_POPOUT_SELECTOR)) return;
+
+    activatePanelPopout(target);
+  }, true);
+
+  document.addEventListener("pointermove", (event) => collapsePanelPopoutIfOutside(event.target));
+  document.addEventListener("mousemove", (event) => collapsePanelPopoutIfOutside(event.target));
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") deactivatePanelPopout();
+  });
+}
+
+function collapsePanelPopoutIfOutside(source) {
+  if (!activePanelPopout || !(source instanceof Node) || activePanelPopout.contains(source)) return;
+  deactivatePanelPopout();
+}
+
+function activatePanelPopout(target) {
+  if (!(target instanceof HTMLElement) || target.hidden || target.closest("[hidden]")) return;
+  if (activePanelPopout === target) return;
+
+  deactivatePanelPopout();
+
+  activePanelPopout = target;
+  activePanelPopoutScope = target.closest(".inventory, .operator-cockpit-panel, .live-resource-panel, .operator-loop, .analysis-grid, .workspace");
+  activePanelPopoutScope?.classList.add("panel-popout-scope");
+
+  target.classList.add("panel-popout-active");
+  target.dataset.popout = "active";
+  if (!target.hasAttribute("tabindex")) {
+    target.dataset.popoutAddedTabindex = "true";
+    target.tabIndex = 0;
+  }
+
+  const collapseOnLeave = () => deactivatePanelPopout(target);
+  const collapseOnFocusOut = (event) => {
+    if (event.relatedTarget instanceof Node && target.contains(event.relatedTarget)) return;
+    deactivatePanelPopout(target);
+  };
+  const cleanup = () => {
+    target.removeEventListener("pointerleave", collapseOnLeave);
+    target.removeEventListener("mouseleave", collapseOnLeave);
+    target.removeEventListener("focusout", collapseOnFocusOut);
+  };
+  panelPopoutCleanups.set(target, cleanup);
+  target.addEventListener("pointerleave", collapseOnLeave);
+  target.addEventListener("mouseleave", collapseOnLeave);
+  target.addEventListener("focusout", collapseOnFocusOut);
+}
+
+function deactivatePanelPopout(target = activePanelPopout) {
+  if (!target || target !== activePanelPopout) return;
+
+  const cleanup = panelPopoutCleanups.get(target);
+  if (cleanup) cleanup();
+  panelPopoutCleanups.delete(target);
+
+  target.classList.remove("panel-popout-active");
+  delete target.dataset.popout;
+  if (target.dataset.popoutAddedTabindex === "true") {
+    target.removeAttribute("tabindex");
+    delete target.dataset.popoutAddedTabindex;
+  }
+
+  activePanelPopoutScope?.classList.remove("panel-popout-scope");
+  activePanelPopoutScope = null;
+  activePanelPopout = null;
+}
+
+function activateSelectedInventoryPopout(entryKey) {
+  window.setTimeout(() => {
+    window.requestAnimationFrame(() => {
+      const list = document.getElementById("entityList");
+      const selected = Array.from(list?.children || []).find((child) => child.dataset.entryKey === entryKey);
+      activatePanelPopout(selected);
+    });
+  }, 40);
+}
+
 function render() {
   renderScopeControls();
   renderAnalysisStamp();
   renderIngestState();
+  renderDashboardSettingsPanel();
 
   const entries = buildEntries(state.scope);
   if (!entries.some((entry) => entry.key === state.selectedKey)) {
@@ -3445,8 +4604,10 @@ function render() {
   renderLiveResources(summary);
   renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator);
   renderMetricRibbon(summary);
+  renderStandaloneUnitEconomics(summary);
   renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
+  renderTaskMemory(buildTaskMemory(summary, classifier));
   renderTrend(summary);
   renderTruthTable(summary);
   renderBottleneck(summary, classifier);
@@ -3458,6 +4619,7 @@ function render() {
   renderFingerprint(fingerprint);
   renderRegression(summary);
   renderReport(summary, classifier);
+  applyDashboardBlockVisibility();
 }
 
 function renderIngestState() {
@@ -3466,6 +4628,132 @@ function renderIngestState() {
 
   ingestEl.textContent = state.ingestLabel;
   ingestEl.dataset.status = state.ingestTone;
+}
+
+function renderDashboardSettingsPanel() {
+  const panel = document.querySelector("#dashboardSettingsPanel");
+  const controls = document.querySelector("#dashboardSettingsControls");
+  const badge = document.querySelector("#dashboardSettingsBadge");
+  if (!panel || !controls) return;
+
+  const enabledCount = DASHBOARD_BLOCKS.filter((block) => dashboardBlockEnabled(block.id)).length;
+  const defaultCount = DASHBOARD_BLOCKS.filter((block) => block.defaultOn).length;
+  const atDefault = DASHBOARD_BLOCKS.every((block) => dashboardBlockEnabled(block.id) === Boolean(block.defaultOn));
+
+  if (badge) {
+    badge.textContent = atDefault ? "Bare minimum" : `${enabledCount}/${DASHBOARD_BLOCKS.length} on`;
+    badge.dataset.tone = atDefault ? "good" : enabledCount <= defaultCount ? "good" : "watch";
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "dashboard-settings-actions";
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.textContent = "Bare minimum";
+  reset.addEventListener("click", resetDashboardBlocksToDefault);
+  const all = document.createElement("button");
+  all.type = "button";
+  all.textContent = "Show all";
+  all.addEventListener("click", enableAllDashboardBlocks);
+  actions.append(reset, all);
+
+  const grid = document.createElement("div");
+  grid.className = "dashboard-settings-grid";
+  DASHBOARD_BLOCKS.forEach((block) => {
+    grid.append(dashboardBlockToggle(block));
+  });
+
+  controls.replaceChildren(actions, dashboardApiTokenControl(), grid);
+  panel.hidden = false;
+}
+
+function dashboardApiTokenControl() {
+  const wrap = document.createElement("div");
+  wrap.className = "dashboard-api-token-control";
+
+  const label = document.createElement("label");
+  label.setAttribute("for", "platformApiTokenInput");
+  label.textContent = "Platform API token";
+
+  const input = document.createElement("input");
+  input.id = "platformApiTokenInput";
+  input.type = "password";
+  input.autocomplete = "off";
+  input.spellcheck = false;
+  input.placeholder = platformApiAuthToken() ? "Token saved locally" : "Paste bearer token";
+  input.value = platformApiAuthToken();
+
+  const status = document.createElement("span");
+  status.textContent = platformApiAuthToken() ? "Saved locally" : "No token";
+  status.dataset.tone = platformApiAuthToken() ? "good" : "watch";
+
+  const save = document.createElement("button");
+  save.type = "button";
+  save.textContent = "Save";
+  save.addEventListener("click", () => {
+    const ok = writePlatformApiAuthToken(input.value.trim());
+    status.textContent = ok ? (input.value.trim() ? "Saved locally" : "No token") : "Not saved";
+    status.dataset.tone = ok ? (input.value.trim() ? "good" : "watch") : "poor";
+  });
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.textContent = "Clear";
+  clear.addEventListener("click", () => {
+    input.value = "";
+    const ok = writePlatformApiAuthToken("");
+    status.textContent = ok ? "No token" : "Not cleared";
+    status.dataset.tone = ok ? "watch" : "poor";
+  });
+
+  const actions = document.createElement("div");
+  actions.append(save, clear);
+
+  wrap.append(label, input, actions, status);
+  return wrap;
+}
+
+function dashboardBlockToggle(block) {
+  const label = document.createElement("label");
+  label.className = "dashboard-block-toggle";
+  label.dataset.enabled = String(dashboardBlockEnabled(block.id));
+
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = dashboardBlockEnabled(block.id);
+  input.addEventListener("change", () => setDashboardBlockEnabled(block.id, input.checked));
+
+  const copy = document.createElement("span");
+  const title = document.createElement("strong");
+  title.textContent = block.label;
+  const note = document.createElement("small");
+  note.textContent = block.note;
+  copy.append(title, note);
+
+  label.append(input, copy);
+  return label;
+}
+
+function applyDashboardBlockVisibility() {
+  const liveResourcePanel = document.querySelector("#liveResourcePanel");
+  if (liveResourcePanel && !dashboardBlockEnabled("liveResources")) {
+    liveResourcePanel.hidden = true;
+  }
+
+  toggleDashboardElement("#sourceHeartbeatStrip", "sourceHeartbeat");
+  toggleDashboardElement("#liveTelemetryAlerts", "liveAlerts");
+  toggleDashboardElement("#liveObservationLog", "liveObservationLog");
+  toggleDashboardElement("#liveTelemetryGraphs", "liveTelemetryGraphs");
+
+  document.querySelectorAll("[data-dashboard-block]").forEach((element) => {
+    const blockId = element.dataset.dashboardBlock;
+    element.hidden = !dashboardBlockEnabled(blockId);
+  });
+}
+
+function toggleDashboardElement(selector, blockId) {
+  const element = document.querySelector(selector);
+  if (element) element.hidden = !dashboardBlockEnabled(blockId);
 }
 
 function buildEntries(scope) {
@@ -3482,11 +4770,44 @@ function buildEntries(scope) {
     groups.get(key).items.push(job);
   });
 
-  return Array.from(groups.values()).sort((a, b) => {
+  const entries = Array.from(groups.values()).sort((a, b) => {
+    if (scope === "job") {
+      const missingDelta = Number(entryMachineInventoryMissing(a)) - Number(entryMachineInventoryMissing(b));
+      if (missingDelta !== 0) return missingDelta;
+    }
     const aWaste = summarizeEntry(a).wastedGpuHours;
     const bWaste = summarizeEntry(b).wastedGpuHours;
     return bWaste - aWaste;
   });
+
+  if (scope === "job") {
+    const fleetItems = fleetAggregateSourceItems(jobs);
+    if (fleetItems.length >= 2) {
+      entries.unshift({
+        key: FLEET_AGGREGATE_KEY,
+        label: FLEET_AGGREGATE_LABEL,
+        scope,
+        items: fleetItems,
+        isFleetAggregate: true
+      });
+    }
+  }
+
+  return entries;
+}
+
+function entryMachineInventoryMissing(entry) {
+  return (entry.items || []).some((item) => Boolean(item.source?.context?.machineInventoryMissing));
+}
+
+function fleetAggregateSourceItems(items) {
+  return uniqueBy(
+    (items || []).filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node),
+    (item) => {
+      const context = item.source?.context || {};
+      return normalizeFleetHostId(context.hostname || context.node || context.networkLocalAddress || item.cluster || item.name || item.id);
+    }
+  );
 }
 
 function displaySummary(entry) {
@@ -3503,6 +4824,7 @@ function summarizeEntry(entry) {
     key: entry.key,
     label: entry.label,
     scope: entry.scope,
+    isFleetAggregate: Boolean(entry.isFleetAggregate),
     count: items.length,
     jobs: items,
     teams: unique(items.map((job) => job.team)),
@@ -3521,6 +4843,7 @@ function summarizeEntry(entry) {
     tensorCoreUtil: weighted("tensorCoreUtil"),
     ncclTime: weighted("ncclTime"),
     networkWait: weighted("networkWait"),
+    networkUtilization: weighted("networkUtilization"),
     dataloaderStall: weighted("dataloaderStall"),
     storageWait: weighted("storageWait"),
     cpuPrep: weighted("cpuPrep"),
@@ -3584,7 +4907,7 @@ function renderAnalysisStamp() {
   const storageEl = document.querySelector("#storageState");
   const timeEl = document.querySelector("#analysisTime");
 
-  stateEl.textContent = state.analyzing ? "Analyzing" : "Ready";
+  stateEl.textContent = "Ready";
   storageEl.textContent = state.storageLabel;
   storageEl.dataset.status = state.storageTone;
   timeEl.textContent = formatAnalysisTime(state.lastAnalysis);
@@ -3603,14 +4926,34 @@ function renderInventory(entries) {
   entries.forEach((entry) => {
     const summary = summarizeEntry(entry);
     const classifier = classifyBottlenecks(summary);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "entity-row";
-    button.setAttribute("aria-selected", String(entry.key === state.selectedKey));
-    button.addEventListener("click", () => {
+    const machineContext = machineDemoContext(summary);
+    const machineInventoryState = machineInventoryEntryState(summary, machineContext);
+    const row = document.createElement(machineInventoryState.missing ? "div" : "button");
+    if (row.tagName === "BUTTON") row.type = "button";
+    row.className = "entity-row";
+    row.dataset.entryKey = entry.key;
+    if (machineInventoryState.key) row.dataset.machineInventoryKey = machineInventoryState.key;
+    if (machineInventoryState.missing) {
+      row.dataset.machineMissing = "true";
+      row.setAttribute("role", "button");
+      row.tabIndex = 0;
+    }
+    if (summary.isFleetAggregate) row.dataset.aggregate = "true";
+    row.setAttribute("aria-selected", String(entry.key === state.selectedKey));
+    row.addEventListener("click", () => {
       state.selectedKey = entry.key;
       render();
+      activateSelectedInventoryPopout(entry.key);
     });
+    if (machineInventoryState.missing) {
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        state.selectedKey = entry.key;
+        render();
+        activateSelectedInventoryPopout(entry.key);
+      });
+    }
 
     const titleEl = document.createElement("strong");
     titleEl.textContent = entry.label;
@@ -3621,22 +4964,116 @@ function renderInventory(entries) {
 
     const foot = document.createElement("span");
     foot.className = "entity-foot";
-    const machineContext = machineDemoContext(summary);
+    const fleetOverview = summary.isFleetAggregate ? fleetAggregateOverview(summary) : null;
 
     const score = document.createElement("span");
-    score.textContent = machineContext?.driverUnavailable || machineContext?.noGpu
+    score.textContent = fleetOverview
+      ? `${fleetOverview.hostCount} hosts`
+      : machineInventoryState.missing
+      ? "missing"
+      : Number.isFinite(machineInventoryState.uptimeSeconds)
+      ? `up ${formatMachineUptime(machineInventoryState.uptimeSeconds)}`
+      : machineContext?.driverUnavailable || machineContext?.noGpu
       ? "host only"
       : machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
 
     const bottleneck = document.createElement("span");
-    bottleneck.textContent = machineContext?.driverUnavailable
+    bottleneck.textContent = fleetOverview
+      ? `${round(fleetOverview.similarityScore)}% similar`
+      : machineInventoryState.missing
+      ? formatMachineLastSeen(machineInventoryState.lastSeenAt)
+      : machineContext?.driverUnavailable
       ? "GPU unavailable"
       : machineContext?.noGpu ? "No GPU telemetry" : machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
 
     foot.append(score, bottleneck);
-    button.append(titleEl, meta, foot);
-    list.append(button);
+    row.append(titleEl, meta, foot);
+
+    if (machineInventoryState.missing) {
+      const actions = document.createElement("span");
+      actions.className = "entity-actions";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "entity-remove-button";
+      remove.textContent = "Remove";
+      remove.title = `Remove ${entry.label} from Inventory Machines`;
+      remove.addEventListener("click", (event) => {
+        event.stopPropagation();
+        removeMachineInventoryEntry(machineInventoryState.key);
+      });
+      actions.append(remove);
+      row.append(actions);
+    }
+
+    list.append(row);
   });
+}
+
+function machineInventoryEntryState(summary, machineContext) {
+  const item = (summary.sourceItems || []).find(isMachineDemoItem) || summary.jobs?.[0] || null;
+  const context = machineContext?.context || item?.source?.context || {};
+  const uptimeSeconds = optionalMetric(context, "uptimeSeconds");
+
+  return {
+    key: machineInventoryKeyForItem(item),
+    missing: Boolean(context.machineInventoryMissing),
+    lastSeenAt: validDateIso(context.machineInventoryLastSeenAt || context.generatedAt),
+    uptimeSeconds
+  };
+}
+
+function removeMachineInventoryEntry(key) {
+  const normalizedKey = normalizeMachineInventoryKey(key);
+  if (!normalizedKey) return;
+
+  machineInventoryArchive = machineInventoryArchive.filter((record) => record.key !== normalizedKey);
+  activeIngestion = {
+    ...activeIngestion,
+    runs: activeIngestion.runs.filter((run) => (
+      !isMachineInventoryMissingRun(run) || machineInventoryKeyForRun(run) !== normalizedKey
+    ))
+  };
+  jobs = normalizeIngestion(activeIngestion);
+
+  const entries = buildEntries(state.scope);
+  if (!entries.some((entry) => entry.key === state.selectedKey)) {
+    state.selectedKey = entries[0]?.key || "";
+  }
+
+  setIngestStatus("Machine removed from inventory", "good");
+  persistWorkspaceStore();
+  render();
+}
+
+function formatMachineUptime(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(numeric(seconds, Number.NaN)));
+  if (!Number.isFinite(totalSeconds)) return "unknown";
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+
+  if (days >= 1) return `${days}d ${hours}h`;
+  if (hours >= 1) return `${hours}h ${minutes}m`;
+  if (minutes >= 1) return `${minutes}m`;
+  return `${totalSeconds}s`;
+}
+
+function formatMachineLastSeen(value) {
+  const date = value ? safeDate(value, new Date(0)) : null;
+  if (!date || date.getTime() <= 0) return "last seen unknown";
+  const ageMs = Date.now() - date.getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 5000) return "last seen just now";
+  return `last seen ${formatMachineAge(ageMs)} ago`;
+}
+
+function formatMachineAge(milliseconds) {
+  const seconds = Math.max(0, Math.round(milliseconds / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 function renderDiagnosis(summary, classifier) {
@@ -3645,8 +5082,16 @@ function renderDiagnosis(summary, classifier) {
   const useful = round(summary.usefulCompute);
   const gpuUtil = round(summary.gpuUtil);
   const primaryLoss = primary.name.replace("-bound", "").toLowerCase();
+  const fleetOverview = summary.isFleetAggregate ? fleetAggregateOverview(summary) : null;
   const machineContext = machineDemoContext(summary);
-  const meta = machineContext
+  const meta = fleetOverview
+    ? [
+      "Fleet",
+      `${fleetOverview.hostCount} hosts`,
+      `${fleetOverview.freshCount}/${fleetOverview.hostCount} fresh`,
+      `${round(fleetOverview.similarityScore)}% similarity`
+    ].join(" | ")
+    : machineContext
     ? [
       "Machine",
       machineContext.host,
@@ -3659,13 +5104,17 @@ function renderDiagnosis(summary, classifier) {
       summary.gpuModels.join(", "),
       `${summary.count} ${summary.count === 1 ? "job" : "jobs"}`
     ].join(" | ");
-  const headline = machineContext
+  const headline = fleetOverview
+    ? fleetOverview.headline
+    : machineContext
     ? machineDemoHeadline(machineContext, gpuUtil, useful)
     : summary.whatIfActive
     ? `Same-pod what-if lifts useful compute to ${useful}% and cuts cross-pod traffic to ${round(summary.crossPodTraffic)}%.`
     : `${gpuUtil}% GPU utilization, ${useful}% useful compute. ${titleCase(primaryLoss)} is the dominant loss.`;
 
-  const narrative = machineContext
+  const narrative = fleetOverview
+    ? fleetOverview.narrative
+    : machineContext
     ? machineDemoNarrative(machineContext)
     : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
@@ -3674,7 +5123,7 @@ function renderDiagnosis(summary, classifier) {
   document.querySelector("#selectedMeta").textContent = meta;
   document.querySelector("#diagnosisHeadline").textContent = headline;
   document.querySelector("#diagnosisNarrative").textContent = narrative;
-  renderScoreDial(summary.usefulCompute);
+  renderScoreDial(fleetOverview ? fleetOverview.healthScore : summary.usefulCompute);
 }
 
 function machineDemoContext(summary) {
@@ -3685,6 +5134,9 @@ function machineDemoContext(summary) {
   const context = machineItem.source?.context || {};
   const services = machineDemoServices(context.observedServices);
   const ollamaModels = Array.isArray(context.ollamaModels) ? context.ollamaModels : [];
+  const ollamaRunningModels = Array.isArray(context.ollamaRunningModels) ? context.ollamaRunningModels : [];
+  const ollamaTokensPerSecond = numeric(context.ollamaTokensPerSecond, 0);
+  const ollamaTimeToFirstTokenMs = numeric(context.ollamaTimeToFirstTokenMs, 0);
   const idleStatus = sourceItems.some((item) => /gpu idle|idle capacity/i.test(String(item.status || "")));
   const adapters = unique(["local-machine", ...(machineItem.source?.adapters || [])]);
   const gpuModel = machineDemoGpuModel(context, summary, machineItem);
@@ -3693,6 +5145,8 @@ function machineDemoContext(summary) {
     && !/no nvidia|unavailable|none/i.test(gpuModel)
   );
   const driverUnavailable = !gpuPresent && context.gpuSource === "nvidia-smi-unavailable";
+  const gb10MonitoringList = Array.isArray(context.gb10MonitoringList) ? context.gb10MonitoringList : [];
+  const gb10Present = Boolean(context.gb10Present) || isGb10GpuModel(gpuModel);
 
   return {
     host: context.hostname || summary.clusters[0] || "this host",
@@ -3700,7 +5154,106 @@ function machineDemoContext(summary) {
     adapters: adapters.join(", "),
     services: services.length ? services.join(", ") : "local observability services",
     modelCount: ollamaModels.length,
+    ollamaRunningModels,
+    ollamaTelemetryStatus: String(context.ollamaTelemetryStatus || ""),
+    ollamaProbeModel: String(context.ollamaProbeModel || ""),
+    ollamaTokensPerSecond,
+    ollamaTimeToFirstTokenMs,
+    ollamaTelemetryAvailable: ollamaTokensPerSecond > 0 || ollamaTimeToFirstTokenMs > 0,
+    ollamaProbeCached: Boolean(context.ollamaProbeCached),
+    ollamaProbeAgeMs: numeric(context.ollamaProbeAgeMs),
+    ollamaProbeError: String(context.ollamaProbeError || ""),
+    gb10Present,
+    gb10MonitoringList,
+    linuxUmaMemoryTotalBytes: numeric(context.linuxUmaMemoryTotalBytes, context.memoryTotalBytes),
+    linuxUmaMemoryAvailableBytes: numeric(context.linuxUmaMemoryAvailableBytes, context.memoryAvailableBytes),
+    linuxUmaMemoryUsedPct: numeric(context.linuxUmaMemoryUsedPct, context.memoryUsedPct),
+    appMetricsReachable: Boolean(context.appMetricsReachable),
+    collectorGatewayReachable: Boolean(context.collectorGatewayReachable),
+    collectorAcceptedBatchesTotal: optionalMetric(context, "collectorAcceptedBatchesTotal"),
+    collectorWrittenRowsTotal: optionalMetric(context, "collectorWrittenRowsTotal"),
+    collectorIncomingReportsPerSecond: optionalMetric(context, "collectorIncomingReportsPerSecond"),
+    collectorIncomingReportsPerMinute: optionalMetric(context, "collectorIncomingReportsPerMinute"),
+    collectorIncomingReportsWindowCount: optionalMetric(context, "collectorIncomingReportsWindowCount"),
+    collectorIncomingReportsWindowSeconds: optionalMetric(context, "collectorIncomingReportsWindowSeconds"),
+    collectorAuthBearer: Boolean(context.collectorAuthBearer),
+    collectorAuthHmac: Boolean(context.collectorAuthHmac),
+    collectorAuthMtls: Boolean(context.collectorAuthMtls),
+    apiAuthRequired: Boolean(context.apiAuthRequired),
+    hardwareHealthScore: optionalMetric(context, "hardwareHealthScore"),
+    hardwareFaultScore: optionalMetric(context, "hardwareFaultScore"),
+    hardwareFaultLevel: String(context.hardwareFaultLevel || ""),
+    hardwareFaultCount: optionalMetric(context, "hardwareFaultCount"),
+    hardwareCriticalFaultCount: optionalMetric(context, "hardwareCriticalFaultCount"),
+    hardwareWarningFaultCount: optionalMetric(context, "hardwareWarningFaultCount"),
+    hardwareKernelEventCount: optionalMetric(context, "hardwareKernelEventCount"),
+    hardwareMachineCheckCount: optionalMetric(context, "hardwareMachineCheckCount"),
+    hardwareGpuXidCount: optionalMetric(context, "hardwareGpuXidCount"),
+    hardwareStorageErrorCount: optionalMetric(context, "hardwareStorageErrorCount"),
+    hardwarePcieAerCount: optionalMetric(context, "hardwarePcieAerCount"),
+    hardwareOomKillCount: optionalMetric(context, "hardwareOomKillCount"),
+    hardwareFailedUnitCount: optionalMetric(context, "hardwareFailedUnitCount"),
+    hardwareThermalThrottleActive: Boolean(context.hardwareThermalThrottleActive),
+    hardwareRepairAction: String(context.hardwareRepairAction || ""),
+    hardwareRepairConfidence: optionalMetric(context, "hardwareRepairConfidence"),
+    hardwareRepairRequiresApproval: Boolean(context.hardwareRepairRequiresApproval),
+    hardwareRcaFingerprint: String(context.hardwareRcaFingerprint || ""),
+    hardwareFaults: Array.isArray(context.hardwareFaults) ? context.hardwareFaults : [],
+    nsightCuptiProfilingStatus: String(context.nsightCuptiProfilingStatus || ""),
+    ncclRuntimePresent: Boolean(context.ncclRuntimePresent),
+    ncclRuntimeStatus: String(context.ncclRuntimeStatus || ""),
+    ncclRuntimeSource: String(context.ncclRuntimeSource || ""),
+    ncclRuntimeContainers: Array.isArray(context.ncclRuntimeContainers) ? context.ncclRuntimeContainers : [],
+    ncclRuntimeImages: Array.isArray(context.ncclRuntimeImages) ? context.ncclRuntimeImages : [],
+    ncclRuntimeSocketIfname: String(context.ncclRuntimeSocketIfname || ""),
+    ncclRuntimeHostIp: String(context.ncclRuntimeHostIp || ""),
+    ncclRuntimeDetail: String(context.ncclRuntimeDetail || ""),
+    benchmarkSuiteName: String(context.benchmarkSuiteName || ""),
+    benchmarkSuiteStatus: String(context.benchmarkSuiteStatus || ""),
+    benchmarkGeneratedAt: String(context.benchmarkGeneratedAt || ""),
+    benchmarkSampleCached: Boolean(context.benchmarkSampleCached),
+    benchmarkSampleAgeMs: optionalMetric(context, "benchmarkSampleAgeMs"),
+    benchmarkTtlMs: optionalMetric(context, "benchmarkTtlMs"),
+    benchmarkDurationMs: optionalMetric(context, "benchmarkDurationMs"),
+    benchmarkCpuOpsPerSecond: optionalMetric(context, "benchmarkCpuOpsPerSecond"),
+    benchmarkMemoryMiBps: optionalMetric(context, "benchmarkMemoryMiBps"),
+    benchmarkDiskWriteMiBps: optionalMetric(context, "benchmarkDiskWriteMiBps"),
+    benchmarkDiskReadMiBps: optionalMetric(context, "benchmarkDiskReadMiBps"),
+    benchmarkGpuScore: optionalMetric(context, "benchmarkGpuScore"),
+    benchmarkGpuMemoryMiBps: optionalMetric(context, "benchmarkGpuMemoryMiBps"),
+    benchmarkGpuTensorOpsPerSecond: optionalMetric(context, "benchmarkGpuTensorOpsPerSecond"),
+    benchmarkNetworkMbps: optionalMetric(context, "benchmarkNetworkMbps"),
+    benchmarkNetworkLatencyUs: optionalMetric(context, "benchmarkNetworkLatencyUs"),
+    benchmarkGlobalScore: optionalMetric(context, "benchmarkGlobalScore"),
+    benchmarkGlobalPercentile: optionalMetric(context, "benchmarkGlobalPercentile"),
+    benchmarkGlobalDataset: String(context.benchmarkGlobalDataset || ""),
+    benchmarkGlobalUrl: String(context.benchmarkGlobalUrl || ""),
+    benchmarkScore: optionalMetric(context, "benchmarkScore"),
+    benchmarkError: String(context.benchmarkError || ""),
+    clockSource: String(context.clockSource || ""),
+    clockSynchronized: Boolean(context.clockSynchronized),
+    clockTimeUnixMs: optionalMetric(context, "clockTimeUnixMs"),
+    clockTimeUnixNs: String(context.clockTimeUnixNs || ""),
+    clockTimezone: String(context.clockTimezone || ""),
+    clockLocalRtc: Boolean(context.clockLocalRtc),
+    clockOffsetNs: optionalMetric(context, "clockOffsetNs"),
+    clockRmsOffsetNs: optionalMetric(context, "clockRmsOffsetNs"),
+    clockPtpInstalled: Boolean(context.clockPtpInstalled),
+    clockPtpActive: Boolean(context.clockPtpActive),
+    clockPtpPortState: String(context.clockPtpPortState || ""),
+    clockPtpGrandmaster: String(context.clockPtpGrandmaster || ""),
+    clockChronyReference: String(context.clockChronyReference || ""),
+    clockChronyStratum: optionalMetric(context, "clockChronyStratum"),
+    clockSyncServices: Array.isArray(context.clockSyncServices) ? context.clockSyncServices : [],
+    clockSyncDetail: String(context.clockSyncDetail || ""),
+    machineInventoryKey: String(context.machineInventoryKey || ""),
+    machineInventoryLive: context.machineInventoryLive !== false,
+    machineInventoryMissing: Boolean(context.machineInventoryMissing),
+    machineInventoryLastSeenAt: String(context.machineInventoryLastSeenAt || context.generatedAt || ""),
     context,
+    platform: String(context.platform || ""),
+    arch: String(context.arch || ""),
+    uptimeSeconds: optionalMetric(context, "uptimeSeconds"),
     gpuUtilizationPct: numeric(context.gpuUtilizationPct, summary.gpuUtil),
     gpuMemoryUsedPct: numeric(context.gpuMemoryUsedPct, summary.hbmCapacity),
     gpuMemoryUsedMiB: numeric(context.gpuMemoryUsedMiB),
@@ -3712,8 +5265,25 @@ function machineDemoContext(summary) {
     gpuSampleCached: Boolean(context.gpuSampleCached),
     gpuSampleAgeMs: numeric(context.gpuSampleAgeMs),
     cpuUsagePct: numeric(context.cpuUsagePct),
+    cpuTemperatureC: optionalMetric(context, "cpuTemperatureC"),
     memoryUsedPct: numeric(context.memoryUsedPct),
     diskUsedPct: numeric(context.diskUsedPct),
+    networkInterface: String(context.networkInterface || ""),
+    networkLocalAddress: String(context.networkLocalAddress || ""),
+    networkPeerAddress: String(context.networkPeerAddress || ""),
+    networkLinkRole: String(context.networkLinkRole || ""),
+    networkSelectionReason: String(context.networkSelectionReason || ""),
+    networkLinkSpeedMbps: optionalMetric(context, "networkLinkSpeedMbps"),
+    networkRxBytes: optionalMetric(context, "networkRxBytes"),
+    networkTxBytes: optionalMetric(context, "networkTxBytes"),
+    networkRxBytesPerSecond: optionalMetric(context, "networkRxBytesPerSecond"),
+    networkTxBytesPerSecond: optionalMetric(context, "networkTxBytesPerSecond"),
+    networkUtilizationPct: optionalMetric(context, "networkUtilizationPct"),
+    networkThroughputBps: maxFinite(context.networkRxBytesPerSecond, context.networkTxBytesPerSecond),
+    networkRxDrops: optionalMetric(context, "networkRxDrops"),
+    networkTxDrops: optionalMetric(context, "networkTxDrops"),
+    networkRxErrors: optionalMetric(context, "networkRxErrors"),
+    networkTxErrors: optionalMetric(context, "networkTxErrors"),
     dockerContainers: Array.isArray(context.dockerContainers) ? context.dockerContainers : [],
     workloadCountersObserved: Boolean(context.workloadCountersObserved),
     unavailableExports: Array.isArray(context.unavailableExports) ? context.unavailableExports : [],
@@ -3733,6 +5303,9 @@ function machineDemoContext(summary) {
 }
 
 function machineDemoHeadline(machineContext, gpuUtil, useful) {
+  if (machineContext.machineInventoryMissing) {
+    return `${machineContext.host} is offline; showing last-known telemetry.`;
+  }
   if (machineContext.driverUnavailable) {
     return `NVIDIA telemetry is unavailable on ${machineContext.host}.`;
   }
@@ -3749,6 +5322,9 @@ function machineDemoHeadline(machineContext, gpuUtil, useful) {
 function machineDemoNarrative(machineContext) {
   const modelText = `${machineContext.modelCount} local Ollama model${machineContext.modelCount === 1 ? "" : "s"}`;
   const serviceText = machineDemoServicePhrase(machineContext);
+  if (machineContext.machineInventoryMissing) {
+    return `${machineContext.host} was ${formatMachineLastSeen(machineContext.machineInventoryLastSeenAt)}. The inventory keeps this grayed-out record until telemetry returns or it is removed from Inventory Machines.`;
+  }
   if (machineContext.driverUnavailable) {
     const error = machineContext.gpuError ? ` ${machineContext.gpuError}` : "";
     return `Observed from ${machineContext.adapters}. nvidia-smi is installed, but it cannot communicate with the NVIDIA driver.${error} ${serviceText}, and ${modelText} are installed.`;
@@ -3778,6 +5354,10 @@ function machineDemoGpuModel(context, summary, machineItem) {
   if (context.gpuName) return context.gpuName;
   if (context.gpuSource === "nvidia-smi-unavailable") return "NVIDIA telemetry unavailable";
   return machineItem.gpuModel || "No NVIDIA GPU telemetry";
+}
+
+function isGb10GpuModel(label) {
+  return /(^|[^A-Za-z0-9])GB10([^A-Za-z0-9]|$)|DGX[ -]?Spark/i.test(String(label || ""));
 }
 
 function machineDemoServices(observedServices) {
@@ -3829,16 +5409,18 @@ function renderLiveResources(summary) {
   const badge = document.querySelector("#liveResourceBadge");
   const grid = document.querySelector("#liveResourceGrid");
   const alerts = document.querySelector("#liveTelemetryAlerts");
+  const observationLog = document.querySelector("#liveObservationLog");
   const graphs = document.querySelector("#liveTelemetryGraphs");
-  if (!panel || !title || !badge || !grid || !alerts || !graphs) return;
+  if (!panel || !title || !badge || !grid || !alerts || !observationLog || !graphs) return;
 
   const machineContext = machineDemoContext(summary);
+  if (summary.isFleetAggregate) {
+    renderFleetAggregateResources(summary, { panel, title, badge, grid, alerts, observationLog, graphs });
+    return;
+  }
+
   if (!machineContext) {
-    panel.hidden = true;
-    grid.replaceChildren();
-    alerts.replaceChildren();
-    graphs.replaceChildren();
-    liveTelemetryHistory = [];
+    renderAnalysisResourceFallback(summary, { panel, title, badge, grid, alerts, observationLog, graphs });
     return;
   }
 
@@ -3859,6 +5441,38 @@ function renderLiveResources(summary) {
   const gpuSampleNote = machineContext.gpuSampleCached
     ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
     : "nvidia-smi live sample";
+  const observedServiceList = machineDemoServices(context.observedServices);
+  const ollamaReachable = observedServiceList.includes("ollama");
+  const ollamaModelLabel = machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || (Array.isArray(context.ollamaModels) ? context.ollamaModels[0] : "") || "";
+  const ollamaNote = machineContext.ollamaTelemetryAvailable
+    ? `${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT${ollamaModelLabel ? ` | ${ollamaModelLabel}` : ""}`
+    : machineContext.ollamaTelemetryStatus === "no-running-model"
+      ? `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"} | no loaded model`
+      : machineContext.ollamaProbeError || `${machineContext.modelCount} local model${machineContext.modelCount === 1 ? "" : "s"}`;
+  const gb10MonitorTotal = machineContext.gb10MonitoringList.length;
+  const gb10MonitorAvailable = machineContext.gb10MonitoringList.filter(gb10MonitoringAvailable).length;
+  const umaMemoryTotal = machineContext.linuxUmaMemoryTotalBytes || memoryTotal;
+  const umaMemoryAvailable = machineContext.linuxUmaMemoryAvailableBytes || memoryAvailable;
+  const umaMemoryUsed = Math.max(0, umaMemoryTotal - umaMemoryAvailable);
+  const umaMemoryUsedPct = machineContext.linuxUmaMemoryUsedPct || machineContext.memoryUsedPct;
+  const networkDisplay = liveNetworkDisplay(machineContext);
+  const collectorRateAvailable = machineContext.collectorGatewayReachable
+    && Number.isFinite(machineContext.collectorIncomingReportsPerMinute);
+  const collectorWindowSeconds = Number.isFinite(machineContext.collectorIncomingReportsWindowSeconds)
+    ? Math.max(1, round(machineContext.collectorIncomingReportsWindowSeconds))
+    : 60;
+  const collectorWindowCount = Number.isFinite(machineContext.collectorIncomingReportsWindowCount)
+    ? number.format(round(machineContext.collectorIncomingReportsWindowCount))
+    : "0";
+  const collectorAccepted = Number.isFinite(machineContext.collectorAcceptedBatchesTotal)
+    ? number.format(round(machineContext.collectorAcceptedBatchesTotal))
+    : "n/a";
+  const hardwareScoreAvailable = Number.isFinite(machineContext.hardwareHealthScore);
+  const hardwareFaultCount = Number.isFinite(machineContext.hardwareFaultCount) ? round(machineContext.hardwareFaultCount) : 0;
+  const hardwareTopFault = machineContext.hardwareFaults[0];
+  const hardwareNote = hardwareFaultCount > 0
+    ? `${hardwareFaultCount} fault${hardwareFaultCount === 1 ? "" : "s"} | ${machineContext.hardwareRepairAction || "inspect-host"}`
+    : "No observed hardware fault pattern";
 
   panel.hidden = false;
   title.textContent = `${machineContext.host} live resources`;
@@ -3879,6 +5493,22 @@ function renderLiveResources(summary) {
       percent: machineContext.memoryUsedPct,
       tone: inverseGrade(machineContext.memoryUsedPct, 75, 90).key
     }),
+    liveResourceCard({
+      label: "Network utilization",
+      value: networkDisplay.value,
+      note: networkDisplay.note,
+      percent: networkDisplay.percent,
+      tone: networkDisplay.tone
+    }),
+    ...(machineContext.gb10Present ? [
+      liveResourceCard({
+        label: "UMA memory",
+        value: pct(umaMemoryUsedPct),
+        note: umaMemoryTotal ? `${formatBytes(umaMemoryUsed)} / ${formatBytes(umaMemoryTotal)} Linux UMA` : "Linux UMA meminfo",
+        percent: umaMemoryUsedPct,
+        tone: inverseGrade(umaMemoryUsedPct, 75, 90).key
+      })
+    ] : []),
     liveResourceCard({
       label: "GPU",
       value: machineContext.driverUnavailable ? "unavailable" : machineContext.noGpu ? "not detected" : pct(machineContext.gpuUtilizationPct),
@@ -3907,13 +5537,6 @@ function renderLiveResources(summary) {
       tone: machineContext.gpuPresent ? inverseGrade(machineContext.gpuMemoryUsedPct, 82, 94).key : "poor"
     }),
     liveResourceCard({
-      label: "Disk",
-      value: pct(machineContext.diskUsedPct),
-      note: context.diskTotalBytes ? `${formatBytes(context.diskUsedBytes)} / ${formatBytes(context.diskTotalBytes)}` : "Root filesystem",
-      percent: machineContext.diskUsedPct,
-      tone: inverseGrade(machineContext.diskUsedPct, 75, 90).key
-    }),
-    liveResourceCard({
       label: "Docker",
       value: `${machineContext.dockerContainers.length}`,
       note: `${pct(dockerCpu)} aggregate container CPU`,
@@ -3921,20 +5544,137 @@ function renderLiveResources(summary) {
       tone: machineContext.dockerContainers.length ? "good" : "watch"
     }),
     liveResourceCard({
+      label: "Disk",
+      value: pct(machineContext.diskUsedPct),
+      note: context.diskTotalBytes ? `${formatBytes(context.diskUsedBytes)} / ${formatBytes(context.diskTotalBytes)}` : "Root filesystem",
+      percent: machineContext.diskUsedPct,
+      tone: inverseGrade(machineContext.diskUsedPct, 75, 90).key
+    }),
+    liveResourceCard({
+      label: "Ollama",
+      value: ollamaReachable
+        ? machineContext.ollamaTelemetryAvailable
+          ? `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s`
+          : "reachable"
+        : "offline",
+      note: ollamaReachable ? ollamaNote : "Local model API not observed",
+      percent: null,
+      tone: ollamaReachable ? (machineContext.ollamaTelemetryAvailable ? "good" : "watch") : "poor"
+    }),
+    liveResourceCard({
+      label: "Hardware health",
+      value: hardwareScoreAvailable ? `${round(machineContext.hardwareHealthScore)}/100` : "learning",
+      note: hardwareTopFault?.detail || hardwareNote,
+      percent: hardwareScoreAvailable ? machineContext.hardwareHealthScore : null,
+      tone: Number.isFinite(machineContext.hardwareFaultScore)
+        ? inverseGrade(machineContext.hardwareFaultScore, 35, 70).key
+        : "watch"
+    }),
+    ...(machineContext.collectorGatewayReachable ? [
+      liveResourceCard({
+        label: "Telemetry ingest",
+        value: collectorRateAvailable ? `${formatDecimal(machineContext.collectorIncomingReportsPerMinute, machineContext.collectorIncomingReportsPerMinute >= 100 ? 0 : 1)}/min` : "reachable",
+        note: `last ${collectorWindowSeconds}s: ${collectorWindowCount} reports | ${collectorAccepted} total`,
+        percent: collectorRateAvailable ? clamp((machineContext.collectorIncomingReportsPerMinute / 120) * 100) : null,
+        tone: collectorRateAvailable && machineContext.collectorIncomingReportsPerMinute > 0 ? "good" : "watch"
+      })
+    ] : []),
+    ...(machineContext.gb10Present ? [
+      liveResourceCard({
+        label: "GB10 monitor",
+        value: `${gb10MonitorAvailable}/${Math.max(1, gb10MonitorTotal)}`,
+        note: "NVML/nvidia-smi, UMA, app metrics, Nsight/CUPTI",
+        percent: null,
+        tone: gb10MonitorAvailable === gb10MonitorTotal ? "good" : gb10MonitorAvailable >= 2 ? "watch" : "poor"
+      })
+    ] : []),
+    liveResourceCard({
       label: "Signals",
-      value: `${machineDemoServices(context.observedServices).length}`,
+      value: `${observedServiceList.length}`,
       note: machineContext.adapters,
       percent: null,
       tone: "good"
     })
   );
 
-  renderLiveTelemetryAlerts(alerts, analyzeLiveTelemetryRelationships(telemetry, machineContext));
+  const analysis = analyzeLiveTelemetryRelationships(telemetry, machineContext);
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, machineContext, telemetry);
   renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
 }
 
+function renderAnalysisResourceFallback(summary, nodes) {
+  const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
+  const analysis = analyzeAnalysisResourceRelationships(summary);
+  liveTelemetryHistory = [];
+
+  panel.hidden = false;
+  title.textContent = `${summary.label} resource signals`;
+  renderAnalysisResourceBadge(badge);
+
+  grid.replaceChildren(
+    liveResourceCard({
+      label: "Network utilization",
+      value: pct(summary.networkUtilization),
+      note: `${pct(summary.networkWait)} network wait | ${pct(summary.ncclTime)} NCCL`,
+      percent: summary.networkUtilization,
+      tone: inverseGrade(summary.networkUtilization, 70, 88).key
+    }),
+    liveResourceCard({
+      label: "GPU utilization",
+      value: pct(summary.gpuUtil),
+      note: `${pct(summary.usefulCompute)} useful compute | ${number.format(summary.gpus)} GPUs`,
+      percent: summary.gpuUtil,
+      tone: grade(summary.gpuUtil, 45, 70).key
+    }),
+    liveResourceCard({
+      label: "CPU prep",
+      value: pct(summary.cpuPrep),
+      note: "Host-side CPU/preprocessing proxy",
+      percent: summary.cpuPrep,
+      tone: inverseGrade(summary.cpuPrep, 20, 35).key
+    }),
+    liveResourceCard({
+      label: "Network wait",
+      value: pct(summary.networkWait),
+      note: "Latency/loss/stall pressure, separate from utilization",
+      percent: summary.networkWait,
+      tone: inverseGrade(summary.networkWait, 10, 20).key
+    }),
+    liveResourceCard({
+      label: "NCCL time",
+      value: pct(summary.ncclTime),
+      note: "Collective communication time",
+      percent: summary.ncclTime,
+      tone: inverseGrade(summary.ncclTime, 15, 30).key
+    }),
+    liveResourceCard({
+      label: "Placement fit",
+      value: pct(summary.placementQuality),
+      note: `${pct(summary.crossPodTraffic)} cross-pod | ${pct(summary.crossRackTraffic)} cross-rack`,
+      percent: summary.placementQuality,
+      tone: grade(summary.placementQuality, 65, 82).key
+    })
+  );
+
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, null, analysis.history);
+  renderAnalysisResourceGraphs(graphs, summary, analysis.history);
+}
+
+function renderAnalysisResourceBadge(badge) {
+  const label = document.createElement("span");
+  label.className = "live-resource-badge-text";
+  label.textContent = "Analysis snapshot";
+  badge.replaceChildren(label);
+  badge.dataset.tone = "watch";
+  badge.dataset.fresh = "false";
+  badge.title = "Showing interpreted run metrics until live host counters are available";
+  badge.setAttribute("aria-label", `${label.textContent}. ${badge.title}.`);
+}
+
 function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
-  const fresh = ageSeconds === null || ageSeconds <= 12;
+  const fresh = ageSeconds === null || ageSeconds <= MACHINE_DEMO_FRESH_SECONDS;
   const text = ageSeconds === null ? "Live" : `Updated ${ageSeconds}s ago`;
   let heart = badge.querySelector(".live-resource-heart");
   let label = badge.querySelector(".live-resource-badge-text");
@@ -3963,6 +5703,628 @@ function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
   badge.setAttribute("aria-label", `${text}. ${badge.title}.`);
 }
 
+function renderFleetAggregateResources(summary, nodes) {
+  const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
+  const overview = fleetAggregateOverview(summary);
+  const ageSeconds = Number.isFinite(overview.maxAgeMs) ? Math.max(0, Math.round(overview.maxAgeMs / 1000)) : null;
+  const freshPct = overview.hostCount ? (overview.freshCount / overview.hostCount) * 100 : 0;
+  const outlierPct = overview.hostCount ? (overview.outlierCount / overview.hostCount) * 100 : 0;
+  const capacityNote = `${number.format(overview.totalCpuCores)} cores | ${formatBytes(overview.totalMemoryBytes)} RAM | ${formatBytes(overview.totalDiskBytes)} disk`;
+  const pressureNote = `${pct(overview.avgCpuUsagePct)} CPU | ${pct(overview.avgMemoryUsedPct)} RAM | ${pct(overview.avgGpuUtilizationPct)} GPU`;
+  const pairNote = overview.closestPair
+    ? `Closest ${overview.closestPair.left} / ${overview.closestPair.right}; widest ${overview.divergentPair?.left || "--"} / ${overview.divergentPair?.right || "--"}`
+    : "Need at least two live hosts";
+  const widestNote = overview.widestSpread
+    ? `${overview.widestSpread.label}: ${overview.widestSpread.bestHost || "--"} vs ${overview.widestSpread.worstHost || "--"}`
+    : "Spread learning";
+
+  liveTelemetryHistory = [];
+  panel.hidden = false;
+  title.textContent = "Fleet aggregate live resources";
+  renderLiveResourceHeartbeatBadge(badge, ageSeconds);
+
+  grid.replaceChildren(
+    liveResourceCard({
+      label: "Fleet similarity",
+      value: pct(overview.similarityScore),
+      note: pairNote,
+      percent: overview.similarityScore,
+      tone: grade(overview.similarityScore, 62, 82).key
+    }),
+    liveResourceCard({
+      label: "Fleet health",
+      value: `${round(overview.healthScore)}/100`,
+      note: `${round(overview.averageHostScore)} avg host rank | ${round(outlierPct)}% outlier hosts`,
+      percent: overview.healthScore,
+      tone: grade(overview.healthScore, 58, 78).key
+    }),
+    liveResourceCard({
+      label: "Fresh hosts",
+      value: `${overview.freshCount}/${overview.hostCount}`,
+      note: Number.isFinite(overview.maxAgeMs) ? `Oldest sample ${sparkPairAgeLabel(overview.maxAgeMs)}` : "No heartbeat timestamps",
+      percent: freshPct,
+      tone: grade(freshPct, 75, 100).key
+    }),
+    liveResourceCard({
+      label: "Outliers",
+      value: `${overview.outlierCount}`,
+      note: widestNote,
+      percent: outlierPct,
+      tone: inverseGrade(outlierPct, 18, 38).key
+    }),
+    liveResourceCard({
+      label: "Resource pressure",
+      value: pct(overview.maxPressurePct),
+      note: pressureNote,
+      percent: overview.maxPressurePct,
+      tone: inverseGrade(overview.maxPressurePct, 72, 88).key
+    }),
+    liveResourceCard({
+      label: "Capacity",
+      value: `${overview.gpuHostCount}/${overview.hostCount} GPU`,
+      note: capacityNote,
+      percent: overview.hostCount ? (overview.gpuHostCount / overview.hostCount) * 100 : null,
+      tone: overview.gpuHostCount ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Network activity",
+      value: formatBytesPerSecond(overview.totalNetworkThroughputBps),
+      note: `${fleetMbpsLabel(overview.fastestLinkMbps)} fastest link | ${overview.networkIssueCount} interface issues`,
+      percent: overview.avgNetworkUtilizationPct,
+      tone: overview.networkIssueCount ? "watch" : inverseGrade(overview.avgNetworkUtilizationPct, 70, 88).key
+    }),
+    liveResourceCard({
+      label: "Fingerprints",
+      value: `${overview.fingerprintCount}/${overview.hostCount}`,
+      note: overview.signatureSpreadLabel,
+      percent: overview.hostCount ? (overview.fingerprintCount / overview.hostCount) * 100 : null,
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor"
+    }),
+    liveResourceCard({
+      label: "Top rank",
+      value: overview.topRow?.host || "--",
+      note: overview.topRow ? `${round(overview.topRow.score)} score | ${overview.topRow.outlierLabels.join(", ") || "no outliers"}` : "No ranked hosts",
+      percent: overview.topRow?.score ?? null,
+      tone: overview.topRow?.tone || "watch"
+    }),
+    liveResourceCard({
+      label: "Watch host",
+      value: overview.watchRow?.host || "--",
+      note: overview.watchRow ? `${round(overview.watchRow.score)} score | ${overview.watchRow.outlierLabels.join(", ") || "lowest rank"}` : "No watch host",
+      percent: overview.watchRow?.score ?? null,
+      tone: overview.watchRow?.tone || "watch"
+    })
+  );
+
+  const analysis = fleetAggregateAnalysis(overview);
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, null, fleetAggregateGraphRows(overview));
+  renderFleetAggregateGraphs(graphs, overview);
+}
+
+function fleetAggregateOverview(summary) {
+  const comparison = buildFleetComparison(summary, null, platformVirtualSensorCache.systemIdentification);
+  let rows = comparison.available ? comparison.rows.slice() : [];
+  let spreadRows = comparison.available ? comparison.spreadRows.slice() : [];
+  if (!rows.length) {
+    rows = buildFleetMachineContexts(summary, null)
+      .slice(0, FLEET_COMPARISON_HOST_LIMIT)
+      .map((context) => fleetHostSnapshot(context, null));
+    assignFleetSignatureDistances(rows);
+    const metricConfigs = fleetMetricConfigs();
+    spreadRows = metricConfigs.map((config) => fleetMetricSpread(config, rows)).filter(Boolean);
+    assignFleetScores(rows, metricConfigs);
+    rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+    rows.forEach((row, index) => {
+      row.rank = index + 1;
+    });
+  }
+
+  const hostCount = rows.length;
+  const ages = rows.map((row) => numeric(row.sampleAgeMs, Number.NaN)).filter(Number.isFinite);
+  const freshCount = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs <= MACHINE_DEMO_FRESH_MS).length;
+  const staleCount = Math.max(0, hostCount - freshCount);
+  const outlierCount = rows.filter((row) => row.outlierCount > 0 || row.tone === "poor").length;
+  const fingerprintCount = rows.filter((row) => row.signatureMetricCount > 0).length;
+  const benchmarkCount = rows.filter(fleetBenchmarkAvailable).length;
+  const averageHostScore = fleetAverage(rows, (row) => row.score, 0);
+  const avgCpuUsagePct = fleetAverage(rows, (row) => row.cpuUsagePct, 0);
+  const avgMemoryUsedPct = fleetAverage(rows, (row) => row.memoryUsedPct, 0);
+  const avgDiskUsedPct = fleetAverage(rows, (row) => row.diskUsedPct, 0);
+  const avgGpuUtilizationPct = fleetAverage(rows.filter((row) => row.gpuPresent), (row) => row.gpuUtilizationPct, 0);
+  const avgNetworkUtilizationPct = fleetAverage(rows, (row) => row.networkUtilizationPct, 0);
+  const totalCpuCores = rows.reduce((total, row) => total + numeric(row.cpuCount, 0), 0);
+  const totalMemoryBytes = rows.reduce((total, row) => total + numeric(row.memoryTotalBytes, 0), 0);
+  const totalDiskBytes = rows.reduce((total, row) => total + numeric(row.diskTotalBytes, 0), 0);
+  const gpuHostCount = rows.filter((row) => row.gpuPresent).length;
+  const totalNetworkThroughputBps = rows.reduce((total, row) => total + numeric(row.networkThroughputBps, 0), 0);
+  const fastestLinkMbps = rows.reduce((best, row) => Math.max(best, numeric(row.networkLinkSpeedMbps, 0)), 0);
+  const networkIssueCount = rows.reduce((total, row) => total + numeric(row.networkIssueCount, 0), 0);
+  const maxAgeMs = ages.length ? Math.max(...ages) : null;
+  const widestSpread = fleetAggregateWidestSpread(spreadRows);
+  const closestPair = fleetAggregatePair(rows, true);
+  const divergentPair = fleetAggregatePair(rows, false);
+  const similarityScore = fleetAggregateSimilarity(rows, spreadRows, { closestPair, divergentPair });
+  const maxPressurePct = Math.max(avgCpuUsagePct, avgMemoryUsedPct, avgDiskUsedPct, avgGpuUtilizationPct, avgNetworkUtilizationPct);
+  const freshnessScore = hostCount ? (freshCount / hostCount) * 100 : 0;
+  const outlierScore = hostCount ? 100 - (outlierCount / hostCount) * 100 : 100;
+  const pressureScore = clamp(100 - Math.max(0, maxPressurePct - 72) * 1.7);
+  const healthScore = clamp(
+    averageHostScore * 0.34
+    + freshnessScore * 0.24
+    + similarityScore * 0.22
+    + outlierScore * 0.12
+    + pressureScore * 0.08
+  );
+  const signatureValues = rows.map((row) => row.signatureDelta).filter(Number.isFinite);
+  const signatureMedian = fleetMedian(signatureValues);
+  const topRow = rows[0] || null;
+  const watchRow = rows.slice().sort((left, right) => left.score - right.score || right.outlierCount - left.outlierCount)[0] || null;
+  const similarityLabel = `${round(similarityScore)}% similarity`;
+  const headline = hostCount
+    ? `${hostCount}-host fleet aggregate: ${freshCount}/${hostCount} fresh, ${similarityLabel}, ${outlierCount} ${outlierCount === 1 ? "host" : "hosts"} to watch.`
+    : "Fleet aggregate is waiting for live hosts.";
+  const pairSentence = closestPair && divergentPair
+    ? `Closest pair is ${closestPair.left}/${closestPair.right} at ${round(closestPair.similarity)}%; widest separation is ${divergentPair.left}/${divergentPair.right} at ${round(divergentPair.similarity)}%.`
+    : "Pairwise comparison needs at least two hosts.";
+  const spreadSentence = widestSpread
+    ? `${widestSpread.label} has the broadest spread (${formatDecimal(widestSpread.cv, 2)} CV, ${widestSpread.bestHost || "--"} vs ${widestSpread.worstHost || "--"}).`
+    : "Metric spread is still learning.";
+  const narrative = `${pairSentence} ${spreadSentence} Top rank is ${topRow?.host || "--"}; fingerprints cover ${fingerprintCount}/${hostCount || 0} hosts.`;
+
+  return {
+    comparison,
+    rows,
+    spreadRows,
+    hostCount,
+    freshCount,
+    staleCount,
+    outlierCount,
+    fingerprintCount,
+    benchmarkCount,
+    averageHostScore,
+    avgCpuUsagePct,
+    avgMemoryUsedPct,
+    avgDiskUsedPct,
+    avgGpuUtilizationPct,
+    avgNetworkUtilizationPct,
+    totalCpuCores,
+    totalMemoryBytes,
+    totalDiskBytes,
+    gpuHostCount,
+    totalNetworkThroughputBps,
+    fastestLinkMbps,
+    networkIssueCount,
+    maxAgeMs,
+    widestSpread,
+    closestPair,
+    divergentPair,
+    similarityScore,
+    maxPressurePct,
+    healthScore,
+    signatureMedian,
+    signatureSpreadLabel: Number.isFinite(signatureMedian) ? `Median system-ID delta ${formatDecimal(signatureMedian, 2)}` : "System-ID signatures learning",
+    topRow,
+    watchRow,
+    headline,
+    narrative
+  };
+}
+
+function fleetAggregateAnalysis(overview) {
+  const relationships = [
+    analysisRelationship(
+      "Closest pair",
+      overview.closestPair ? `${round(overview.closestPair.similarity)}%` : "learning",
+      overview.closestPair ? `${overview.closestPair.left} and ${overview.closestPair.right} align across ${overview.closestPair.sharedMetrics} shared metrics` : "Need two or more hosts",
+      overview.closestPair ? grade(overview.closestPair.similarity, 62, 82).key : "watch"
+    ),
+    analysisRelationship(
+      "Widest pair",
+      overview.divergentPair ? `${round(overview.divergentPair.similarity)}%` : "learning",
+      overview.divergentPair?.reason || "Pairwise separation learning",
+      overview.divergentPair ? grade(overview.divergentPair.similarity, 54, 72).key : "watch"
+    ),
+    analysisRelationship(
+      "Freshness",
+      `${overview.freshCount}/${overview.hostCount}`,
+      Number.isFinite(overview.maxAgeMs) ? `Oldest live sample is ${sparkPairAgeLabel(overview.maxAgeMs)}` : "No heartbeat timestamps in this bundle",
+      overview.staleCount ? (overview.staleCount > overview.hostCount * 0.25 ? "poor" : "watch") : "good"
+    ),
+    analysisRelationship(
+      "Pressure",
+      pct(overview.maxPressurePct),
+      `${pct(overview.avgCpuUsagePct)} CPU, ${pct(overview.avgMemoryUsedPct)} RAM, ${pct(overview.avgGpuUtilizationPct)} GPU average`,
+      inverseGrade(overview.maxPressurePct, 72, 88).key
+    ),
+    analysisRelationship(
+      "Spread",
+      overview.widestSpread ? overview.widestSpread.label : "learning",
+      overview.widestSpread ? `${overview.widestSpread.bestHost || "--"} to ${overview.widestSpread.worstHost || "--"}; CV ${formatDecimal(overview.widestSpread.cv, 2)}` : "No comparable spread yet",
+      overview.widestSpread?.tone || "watch"
+    )
+  ];
+
+  return {
+    contextKey: `fleet:${overview.rows.map((row) => row.key || row.host).join(":")}`,
+    sampleCount: overview.hostCount,
+    windowSeconds: Number.isFinite(overview.maxAgeMs) ? Math.round(overview.maxAgeMs / 1000) : 0,
+    badgeText: `${overview.hostCount} hosts | ${round(overview.similarityScore)}% similar`,
+    covarianceBadgeText: "Fleet cross-section",
+    covarianceFootText: "Covariance is computed across hosts in the current fleet bundle, not a per-host time window.",
+    emptyAlertText: "No fleet-level divergence, staleness, or resource pressure detected.",
+    alerts: fleetAggregateAlerts(overview),
+    relationships,
+    covarianceMatrix: buildLiveCovarianceMatrix(fleetAggregateGraphRows(overview)),
+    observations: fleetAggregateObservations(overview),
+    history: fleetAggregateGraphRows(overview),
+    status: overview.outlierCount || overview.staleCount
+      ? `${overview.outlierCount + overview.staleCount} fleet signals`
+      : "Fleet balanced"
+  };
+}
+
+function fleetAggregateAlerts(overview) {
+  const alerts = [];
+  if (overview.staleCount > 0) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.staleCount > overview.hostCount * 0.35 ? "high" : "medium",
+      title: "Fleet bundle contains stale host samples",
+      evidence: `${overview.staleCount} of ${overview.hostCount} hosts are older than ${MACHINE_DEMO_FRESH_SECONDS}s; oldest sample is ${sparkPairAgeLabel(overview.maxAgeMs)}.`,
+      recommendation: "Check the push timers and receiver allow-list on the stale hosts before trusting cross-host comparisons.",
+      confidence: 0.86
+    }));
+  }
+
+  if (overview.outlierCount > 0) {
+    const row = overview.watchRow;
+    alerts.push(liveTelemetryAlert({
+      severity: overview.outlierCount > overview.hostCount * 0.35 ? "high" : "medium",
+      title: "Cross-host outliers detected",
+      evidence: `${overview.outlierCount} hosts diverge from the fleet median${row ? `; ${row.host} is currently the lowest-ranked host` : ""}.`,
+      recommendation: "Compare the watch host against the top-ranked host for freshness, CPU/RAM pressure, link speed, disk fullness, benchmark score, and system-ID signature delta.",
+      confidence: 0.8
+    }));
+  }
+
+  if (overview.divergentPair && overview.divergentPair.similarity < 55) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.divergentPair.similarity < 40 ? "high" : "medium",
+      title: "Fleet has a low-similarity pair",
+      evidence: `${overview.divergentPair.left} and ${overview.divergentPair.right} are only ${round(overview.divergentPair.similarity)}% similar. ${overview.divergentPair.reason}`,
+      recommendation: "Treat this pair as the first cross-check: compare host inventory, GPU visibility, NIC/link role, benchmark freshness, and resource pressure.",
+      confidence: 0.78
+    }));
+  }
+
+  if (overview.maxPressurePct >= 88) {
+    alerts.push(liveTelemetryAlert({
+      severity: "high",
+      title: "Fleet resource pressure is elevated",
+      evidence: `The highest average pressure across CPU, RAM, GPU, disk, and network is ${pct(overview.maxPressurePct)}.`,
+      recommendation: "Inspect the watch host and any host with sustained RAM/disk/network pressure before scheduling additional work.",
+      confidence: 0.74
+    }));
+  }
+
+  if (overview.networkIssueCount > 0) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.networkIssueCount > overview.hostCount ? "high" : "medium",
+      title: "Network counters report interface issues",
+      evidence: `${overview.networkIssueCount} drops/errors were observed across the fleet aggregate.`,
+      recommendation: "Prioritize interface error/drop checks on hosts with high network throughput or low fleet rank.",
+      confidence: 0.82
+    }));
+  }
+
+  return alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT);
+}
+
+function fleetAggregateObservations(overview) {
+  const now = Date.now();
+  const rows = [
+    {
+      tone: grade(overview.similarityScore, 62, 82).key,
+      label: "Aggregate",
+      title: "Fleet similarity",
+      detail: `${overview.hostCount} hosts compare at ${pct(overview.similarityScore)} similarity with ${overview.outlierCount} outlier hosts.`,
+      timestampMs: now
+    },
+    {
+      tone: overview.closestPair ? grade(overview.closestPair.similarity, 62, 82).key : "watch",
+      label: "Pair",
+      title: "Closest pair",
+      detail: overview.closestPair
+        ? `${overview.closestPair.left}/${overview.closestPair.right} are ${round(overview.closestPair.similarity)}% similar across ${overview.closestPair.sharedMetrics} shared metrics.`
+        : "Need two or more hosts for pairwise similarity.",
+      timestampMs: now
+    },
+    {
+      tone: overview.divergentPair ? grade(overview.divergentPair.similarity, 54, 72).key : "watch",
+      label: "Pair",
+      title: "Widest separation",
+      detail: overview.divergentPair
+        ? `${overview.divergentPair.left}/${overview.divergentPair.right} are ${round(overview.divergentPair.similarity)}% similar. ${overview.divergentPair.reason}`
+        : "Pairwise separation is still learning.",
+      timestampMs: now
+    },
+    {
+      tone: overview.widestSpread?.tone || "watch",
+      label: "Spread",
+      title: overview.widestSpread ? `${overview.widestSpread.label} spread` : "Metric spread",
+      detail: overview.widestSpread
+        ? `${overview.widestSpread.bestHost || "--"} to ${overview.widestSpread.worstHost || "--"} with CV ${formatDecimal(overview.widestSpread.cv, 2)}.`
+        : "No comparable spread rows yet.",
+      timestampMs: now
+    },
+    {
+      tone: grade(overview.healthScore, 58, 78).key,
+      label: "Rank",
+      title: "Top and watch hosts",
+      detail: `Top rank ${overview.topRow?.host || "--"}; watch host ${overview.watchRow?.host || "--"}; average host score ${round(overview.averageHostScore)}.`,
+      timestampMs: now
+    },
+    {
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor",
+      label: "Fingerprint",
+      title: "System-ID coverage",
+      detail: `${overview.fingerprintCount}/${overview.hostCount} hosts have system-identification signatures. ${overview.signatureSpreadLabel}.`,
+      timestampMs: now
+    }
+  ];
+
+  return rows.slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function renderFleetAggregateGraphs(container, overview) {
+  const history = fleetAggregateGraphRows(overview);
+  if (!history.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = "Waiting for live fleet rows.";
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const latestLabel = `${overview.hostCount} host cross-section`;
+  container.replaceChildren(
+    liveTelemetryGraphCard({
+      label: "Rank score",
+      valueKey: "score",
+      history,
+      latestLabel,
+      valueText: `${round(overview.averageHostScore)} avg`,
+      note: "Composite host rank",
+      max: 100,
+      tone: grade(overview.averageHostScore, 58, 78).key
+    }),
+    liveTelemetryGraphCard({
+      label: "CPU",
+      valueKey: "cpu",
+      history,
+      latestLabel,
+      valueText: pct(overview.avgCpuUsagePct),
+      note: "Host CPU cross-section",
+      max: 100,
+      tone: inverseGrade(overview.avgCpuUsagePct, 70, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "RAM",
+      valueKey: "ram",
+      history,
+      latestLabel,
+      valueText: pct(overview.avgMemoryUsedPct),
+      note: "Host memory cross-section",
+      max: 100,
+      tone: inverseGrade(overview.avgMemoryUsedPct, 75, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU util",
+      valueKey: "gpu",
+      history,
+      latestLabel,
+      valueText: overview.gpuHostCount ? pct(overview.avgGpuUtilizationPct) : "unavailable",
+      note: `${overview.gpuHostCount}/${overview.hostCount} hosts report GPU counters`,
+      max: 100,
+      tone: overview.gpuHostCount ? grade(overview.avgGpuUtilizationPct, 30, 70).key : "poor"
+    }),
+    liveTelemetryGraphCard({
+      label: "Network",
+      valueKey: "networkThroughputBps",
+      history,
+      latestLabel,
+      valueText: formatBytesPerSecond(overview.totalNetworkThroughputBps),
+      note: "Per-host throughput cross-section",
+      max: adaptiveGraphMax(history, "networkThroughputBps", 1),
+      tone: overview.networkIssueCount ? "watch" : "good"
+    }),
+    liveTelemetryGraphCard({
+      label: "Signature delta",
+      valueKey: "signatureDelta",
+      history,
+      latestLabel,
+      valueText: Number.isFinite(overview.signatureMedian) ? formatDecimal(overview.signatureMedian, 2) : "learning",
+      note: "System-ID distance from fleet median",
+      max: adaptiveGraphMax(history, "signatureDelta", 4),
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor"
+    })
+  );
+}
+
+function fleetAggregateGraphRows(overview) {
+  return overview.rows
+    .slice()
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }))
+    .map((row, index) => ({
+      host: row.host,
+      timestampMs: Date.now() + index,
+      label: row.host,
+      score: row.score,
+      cpu: row.cpuUsagePct,
+      ram: row.memoryUsedPct,
+      gpu: row.gpuPresent ? row.gpuUtilizationPct : null,
+      disk: row.diskUsedPct,
+      networkUtilization: row.networkUtilizationPct,
+      networkThroughputBps: row.networkThroughputBps,
+      signatureDelta: row.signatureDelta
+    }));
+}
+
+function fleetAggregateSimilarity(rows, spreadRows, pairs = {}) {
+  if (rows.length < 2) return rows.length ? 100 : 0;
+  const pairScores = fleetAggregatePairComparisons(rows)
+    .map((pair) => pair.similarity)
+    .filter(Number.isFinite);
+  const pairSimilarity = pairScores.length
+    ? pairScores.reduce((total, value) => total + value, 0) / pairScores.length
+    : pairs.closestPair?.similarity ?? 100;
+  const spreadSamples = spreadRows
+    .map((row) => numeric(row.cv, Number.NaN))
+    .filter(Number.isFinite);
+  const spreadPenalty = spreadSamples.length
+    ? spreadSamples.reduce((total, value) => total + Math.min(1.25, value), 0) / spreadSamples.length
+    : 0;
+  const spreadSimilarity = clamp(100 - spreadPenalty * 55);
+  const outlierRatio = rows.reduce((total, row) => total + (row.outlierCount > 0 || row.tone === "poor" ? 1 : 0), 0) / rows.length;
+  const signaturePenalty = fleetAverage(rows, (row) => row.signatureDelta, 0);
+  const signatureSimilarity = Number.isFinite(signaturePenalty) && signaturePenalty > 0
+    ? clamp(100 - Math.min(4, signaturePenalty) * 18)
+    : 82;
+
+  return clamp(
+    pairSimilarity * 0.44
+    + spreadSimilarity * 0.30
+    + (100 - outlierRatio * 100) * 0.16
+    + signatureSimilarity * 0.10
+  );
+}
+
+function fleetAggregatePair(rows, closest) {
+  const pairs = fleetAggregatePairComparisons(rows);
+  if (!pairs.length) return null;
+  return pairs.sort((left, right) => closest ? right.similarity - left.similarity : left.similarity - right.similarity)[0];
+}
+
+function fleetAggregatePairComparisons(rows) {
+  const pairs = [];
+  for (let leftIndex = 0; leftIndex < rows.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < rows.length; rightIndex += 1) {
+      const pair = fleetAggregateComparePair(rows[leftIndex], rows[rightIndex]);
+      if (pair) pairs.push(pair);
+    }
+  }
+  return pairs;
+}
+
+function fleetAggregateComparePair(left, right) {
+  const metrics = [
+    { key: "cpuUsagePct", label: "CPU", percent: true },
+    { key: "loadPressurePct", label: "load/core", percent: true },
+    { key: "memoryUsedPct", label: "RAM", percent: true },
+    { key: "diskUsedPct", label: "disk", percent: true },
+    { key: "networkUtilizationPct", label: "network util", percent: true },
+    { key: "gpuUtilizationPct", label: "GPU util", percent: true, requireGpu: true },
+    { key: "gpuMemoryUsedPct", label: "GPU memory", percent: true, requireGpu: true },
+    { key: "cpuCount", label: "CPU cores", relative: true },
+    { key: "memoryTotalBytes", label: "RAM total", relative: true },
+    { key: "diskTotalBytes", label: "disk total", relative: true },
+    { key: "networkLinkSpeedMbps", label: "link speed", relative: true },
+    { key: "networkThroughputBps", label: "network activity", relative: true },
+    { key: "benchmarkScore", label: "benchmark", percent: true },
+    { key: "signatureDelta", label: "system-ID", domain: 4 }
+  ];
+  const deltas = [];
+
+  metrics.forEach((metric) => {
+    if (metric.requireGpu && (!left.gpuPresent || !right.gpuPresent)) return;
+    const leftValue = numeric(left[metric.key], Number.NaN);
+    const rightValue = numeric(right[metric.key], Number.NaN);
+    if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return;
+    let distance = 0;
+    if (metric.percent) {
+      distance = Math.abs(leftValue - rightValue) / 100;
+    } else if (metric.domain) {
+      distance = Math.abs(leftValue - rightValue) / metric.domain;
+    } else {
+      distance = Math.abs(leftValue - rightValue) / Math.max(Math.abs(leftValue), Math.abs(rightValue), 1);
+    }
+    deltas.push({
+      label: metric.label,
+      distance: clamp(distance, 0, 2)
+    });
+  });
+
+  if (!deltas.length) return null;
+  const averageDistance = deltas.reduce((total, delta) => total + delta.distance, 0) / deltas.length;
+  const largest = deltas.slice().sort((leftDelta, rightDelta) => rightDelta.distance - leftDelta.distance)[0];
+  return {
+    left: left.host,
+    right: right.host,
+    similarity: clamp(100 - averageDistance * 100),
+    distance: averageDistance,
+    sharedMetrics: deltas.length,
+    reason: largest ? `Largest gap is ${largest.label}.` : "No dominant gap."
+  };
+}
+
+function fleetAggregateWidestSpread(spreadRows) {
+  return spreadRows
+    .slice()
+    .sort((left, right) => {
+      const leftWeight = numeric(left.cv, 0) + numeric(left.outlierCount, 0) * 0.2;
+      const rightWeight = numeric(right.cv, 0) + numeric(right.outlierCount, 0) * 0.2;
+      return rightWeight - leftWeight;
+    })[0] || null;
+}
+
+function fleetAverage(rows, getter, fallback = Number.NaN) {
+  const values = rows
+    .map(getter)
+    .map((value) => numeric(value, Number.NaN))
+    .filter(Number.isFinite);
+  return values.length ? values.reduce((total, value) => total + value, 0) / values.length : fallback;
+}
+
+function liveNetworkDisplay(machineContext) {
+  const hasPercent = Number.isFinite(machineContext.networkUtilizationPct);
+  const throughput = Number.isFinite(machineContext.networkThroughputBps) ? machineContext.networkThroughputBps : 0;
+  const interfaceLabel = machineContext.networkInterface || "primary interface";
+  const roleLabel = machineContext.networkLinkRole || (interfaceLabel === "enp1s0f1np1" ? "DGX interconnect" : "Network link");
+  const peerText = machineContext.networkLocalAddress && machineContext.networkPeerAddress
+    ? ` ${machineContext.networkLocalAddress}->${machineContext.networkPeerAddress}`
+    : "";
+  const scopeText = `${roleLabel}: ${interfaceLabel}${peerText}`;
+  const linkText = Number.isFinite(machineContext.networkLinkSpeedMbps) && machineContext.networkLinkSpeedMbps > 0
+    ? `${compactNumber.format(machineContext.networkLinkSpeedMbps)} Mbps link`
+    : "link speed unavailable";
+  const issueCount = numeric(machineContext.networkRxDrops)
+    + numeric(machineContext.networkTxDrops)
+    + numeric(machineContext.networkRxErrors)
+    + numeric(machineContext.networkTxErrors);
+
+  return {
+    value: hasPercent ? pct(machineContext.networkUtilizationPct) : throughput > 0 ? formatBytesPerSecond(throughput) : "learning",
+    note: hasPercent
+      ? `${scopeText} | ${formatBytesPerSecond(throughput)} | ${linkText}`
+      : `${scopeText} | ${linkText}`,
+    percent: hasPercent ? machineContext.networkUtilizationPct : null,
+    tone: issueCount > 0 ? "watch" : hasPercent ? inverseGrade(machineContext.networkUtilizationPct, 70, 88).key : "watch"
+  };
+}
+
+function renderStandaloneUnitEconomics(summary) {
+  const panel = document.querySelector("#unitEconomicsStandalonePanel");
+  const badge = document.querySelector("#unitEconomicsStandaloneBadge");
+  if (!panel) return;
+
+  const economics = buildUnitEconomicsState(summary, machineDemoContext(summary));
+  if (badge) {
+    badge.textContent = economics.badge;
+    badge.dataset.tone = economics.tone;
+  }
+  renderUnitEconomicsPanel(panel, economics);
+}
+
 function renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator) {
   const panel = document.querySelector("#operatorCockpitPanel");
   const title = document.querySelector("#operatorCockpitTitle");
@@ -3971,6 +6333,14 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const timeline = document.querySelector("#eventTimeline");
   const timelineBadge = document.querySelector("#eventTimelineBadge");
   const launchpad = document.querySelector("#demoLaunchpad");
+  const autoDiscoveryDeploymentPanel = document.querySelector("#autoDiscoveryDeploymentPanel");
+  const autoDiscoveryDeploymentBadge = document.querySelector("#autoDiscoveryDeploymentBadge");
+  const executionIdleEnergyPanel = document.querySelector("#executionIdleEnergyPanel");
+  const executionIdleEnergyBadge = document.querySelector("#executionIdleEnergyBadge");
+  const gpuExporterCoveragePanel = document.querySelector("#gpuExporterCoveragePanel");
+  const gpuExporterCoverageBadge = document.querySelector("#gpuExporterCoverageBadge");
+  const backgroundTasksPanel = document.querySelector("#backgroundTasksPanel");
+  const backgroundTasksBadge = document.querySelector("#backgroundTasksBadge");
   const kafkaPanel = document.querySelector("#kafkaStreamPanel");
   const kafkaBadge = document.querySelector("#kafkaStreamBadge");
   const confidencePanel = document.querySelector("#confidencePanel");
@@ -3979,9 +6349,21 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const replayBadge = document.querySelector("#replayModeBadge");
   const grafanaPanel = document.querySelector("#grafanaMiniPanel");
   const grafanaBadge = document.querySelector("#grafanaMiniBadge");
+  const productReadinessPanel = document.querySelector("#productReadinessPanel");
+  const productReadinessBadge = document.querySelector("#productReadinessBadge");
   const fleetTiles = document.querySelector("#fleetTiles");
   const fleetBadge = document.querySelector("#fleetTilesBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !fleetTiles) return;
+  const unitEconomicsPanel = document.querySelector("#unitEconomicsPanel");
+  const unitEconomicsBadge = document.querySelector("#unitEconomicsBadge");
+  const sparkPairComparePanel = document.querySelector("#sparkPairComparePanel");
+  const sparkPairCompareBadge = document.querySelector("#sparkPairCompareBadge");
+  const fleetComparisonPanel = document.querySelector("#fleetComparisonPanel");
+  const fleetComparisonBadge = document.querySelector("#fleetComparisonBadge");
+  const benchmarkLadderPanel = document.querySelector("#benchmarkLadderPanel");
+  const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
+  const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
+  const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -3989,11 +6371,22 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     heartbeatStrip.replaceChildren();
     timeline.replaceChildren();
     launchpad.replaceChildren();
+    autoDiscoveryDeploymentPanel.replaceChildren();
+    executionIdleEnergyPanel.replaceChildren();
+    gpuExporterCoveragePanel.replaceChildren();
+    backgroundTasksPanel.replaceChildren();
+    operatorLaunchpadSignature = "";
     kafkaPanel.replaceChildren();
     confidencePanel.replaceChildren();
     replayPanel.replaceChildren();
     grafanaPanel.replaceChildren();
+    productReadinessPanel.replaceChildren();
     fleetTiles.replaceChildren();
+    unitEconomicsPanel.replaceChildren();
+    sparkPairComparePanel.replaceChildren();
+    fleetComparisonPanel.replaceChildren();
+    benchmarkLadderPanel.replaceChildren();
+    characterizationPanel.replaceChildren();
     return;
   }
 
@@ -4002,20 +6395,68 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   confidenceBadge.textContent = `Confidence ${pct(cockpit.confidence.score)}`;
   confidenceBadge.dataset.tone = cockpit.confidence.score >= 80 ? "good" : cockpit.confidence.score >= 55 ? "watch" : "poor";
   if (timelineBadge) timelineBadge.textContent = `${cockpit.timeline.length} events`;
+  if (autoDiscoveryDeploymentBadge) {
+    autoDiscoveryDeploymentBadge.textContent = cockpit.autoDiscovery.badge;
+    autoDiscoveryDeploymentBadge.dataset.tone = cockpit.autoDiscovery.tone;
+  }
+  if (executionIdleEnergyBadge) {
+    executionIdleEnergyBadge.textContent = cockpit.executionIdle.badge;
+    executionIdleEnergyBadge.dataset.tone = cockpit.executionIdle.tone;
+  }
+  if (gpuExporterCoverageBadge) {
+    gpuExporterCoverageBadge.textContent = cockpit.gpuExporterCoverage.badge;
+    gpuExporterCoverageBadge.dataset.tone = cockpit.gpuExporterCoverage.tone;
+  }
+  if (backgroundTasksBadge) {
+    backgroundTasksBadge.textContent = cockpit.backgroundTasks.badge;
+    backgroundTasksBadge.dataset.tone = cockpit.backgroundTasks.tone;
+  }
   if (kafkaBadge) kafkaBadge.textContent = cockpit.kafka.reachable ? "Reachable" : "Missing";
   if (confidenceDetailBadge) confidenceDetailBadge.textContent = cockpit.confidence.label;
   if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : `${liveTelemetryHistory.length} samples`;
   if (grafanaBadge) grafanaBadge.textContent = cockpit.grafana.links.length ? `${cockpit.grafana.links.length} links` : "No link";
+  if (productReadinessBadge) {
+    productReadinessBadge.textContent = cockpit.productReadiness.badge;
+    productReadinessBadge.dataset.tone = cockpit.productReadiness.tone;
+  }
   if (fleetBadge) fleetBadge.textContent = `${cockpit.fleet.length} ${cockpit.fleet.length === 1 ? "host" : "hosts"}`;
+  if (unitEconomicsBadge) {
+    unitEconomicsBadge.textContent = cockpit.unitEconomics.badge;
+    unitEconomicsBadge.dataset.tone = cockpit.unitEconomics.tone;
+  }
+  if (sparkPairCompareBadge) {
+    sparkPairCompareBadge.textContent = cockpit.sparkComparison.badge;
+    sparkPairCompareBadge.dataset.tone = cockpit.sparkComparison.tone;
+  }
+  if (fleetComparisonBadge) {
+    fleetComparisonBadge.textContent = cockpit.fleetComparison.badge;
+    fleetComparisonBadge.dataset.tone = cockpit.fleetComparison.tone;
+  }
+  if (benchmarkLadderBadge) {
+    benchmarkLadderBadge.textContent = cockpit.benchmarkLadder.badge;
+    benchmarkLadderBadge.dataset.tone = cockpit.benchmarkLadder.tone;
+  }
+  updateSystemCharacterizationBadge(characterizationBadge, platformVirtualSensorCache.systemIdentification);
 
   heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
   timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
-  launchpad.replaceChildren(...cockpit.commands.map(operatorCommandButton));
+  renderOperatorLaunchpad(launchpad, cockpit.commands);
+  autoDiscoveryDeploymentPanel.replaceChildren(...operatorAutoDiscoveryDeploymentNodes(cockpit.autoDiscovery));
+  executionIdleEnergyPanel.replaceChildren(...operatorExecutionIdleNodes(cockpit.executionIdle));
+  gpuExporterCoveragePanel.replaceChildren(...operatorGpuExporterCoverageNodes(cockpit.gpuExporterCoverage));
+  backgroundTasksPanel.replaceChildren(...operatorBackgroundTasksNodes(cockpit.backgroundTasks));
   kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
   confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
   grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
+  productReadinessPanel.replaceChildren(...operatorProductReadinessNodes(cockpit.productReadiness));
   fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
+  renderUnitEconomicsPanel(unitEconomicsPanel, cockpit.unitEconomics);
+  latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
+  renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
+  renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
+  renderBenchmarkLadderPanel(benchmarkLadderPanel, cockpit.benchmarkLadder);
+  renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
 }
 
 function buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator) {
@@ -4031,14 +6472,37 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     ...contexts.map((context) => context.generatedAt),
     ...contexts.map((context) => context.kafkaSmokeTimestamp)
   ]);
-  const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
+  const ageMilliseconds = generatedAt ? Math.max(0, Date.now() - generatedAt.getTime()) : null;
+  const ageSeconds = ageMilliseconds === null ? null : Math.round(ageMilliseconds / 1000);
   const visible = sourceItems.length > 0 || Boolean(machineContext);
   const kafka = buildOperatorKafkaState(contexts, observedServices, adapters);
-  const heartbeats = buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, kafka });
+  const heartbeats = buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, ageMilliseconds, kafka });
   const confidence = buildOperatorConfidence(heartbeats, summary, machineContext);
-  const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageSeconds, kafka, confidence });
+  const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence });
   const grafana = buildOperatorGrafanaState(summary);
   const fleet = buildOperatorFleetTiles(summary, machineContext);
+  const unitEconomics = buildUnitEconomicsState(summary, machineContext);
+  const sparkComparison = buildSparkPairComparison(summary, machineContext);
+  const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
+  const benchmarkLadder = buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison);
+  const productReadiness = buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence });
+  const autoDiscovery = buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, confidence });
+  const executionIdle = buildExecutionIdleEnergyState(summary, machineContext);
+  const gpuExporterCoverage = buildGpuExporterCoverageState(summary, machineContext);
+  const backgroundTasks = buildBackgroundTasksState({
+    summary,
+    machineContext,
+    generatedAt,
+    ageMilliseconds,
+    kafka,
+    confidence,
+    autoDiscovery,
+    executionIdle,
+    gpuExporterCoverage,
+    fleetComparison,
+    benchmarkLadder,
+    productReadiness
+  });
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
   const hostLabel = machineContext?.host || clusters[0] || summary.label || "current selection";
 
@@ -4052,25 +6516,38 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     observedServices,
     generatedAt,
     ageSeconds,
+    ageMilliseconds,
     kafka,
     heartbeats,
     confidence,
     timeline,
     grafana,
+    autoDiscovery,
+    executionIdle,
+    gpuExporterCoverage,
+    backgroundTasks,
+    productReadiness,
     fleet,
+    unitEconomics,
+    sparkComparison,
+    fleetComparison,
+    benchmarkLadder,
     commands: buildOperatorCommands({ summary, machineContext, grafana, kafka })
   };
 }
 
-function buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, kafka }) {
+function buildOperatorHeartbeats({ summary, machineContext, adapters, observedServices, ageSeconds, ageMilliseconds, kafka }) {
   const contextItems = summary.sourceItems || [];
   const hasContextField = (field) => contextItems.some((item) => Boolean(item.source?.context?.[field]));
-  const generatedFresh = ageSeconds === null || ageSeconds <= 12;
+  const generatedFresh = ageMilliseconds === null || ageMilliseconds <= MACHINE_DEMO_FRESH_MS;
+  const gb10Monitors = machineContext?.gb10Present ? machineContext.gb10MonitoringList : [];
   const sourceFlags = {
     host: Boolean(machineContext) || adapters.includes("local-machine") || adapters.includes("procfs") || adapters.includes("os-counters"),
     kubernetes: adapters.includes("kubernetes") || hasContextField("namespace") || hasContextField("podSelector"),
     prometheus: adapters.includes("prometheus"),
     dcgm: adapters.includes("dcgm"),
+    "amd-dme": adapters.some((adapter) => /amd-dme|device-metrics|rocm/i.test(adapter))
+      || contextItems.some((item) => gpuExporterContextHasAny(item.source?.context || {}, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => group.amd))),
     kafka: kafka.reachable,
     grafana: adapters.includes("grafana") || observedServices.includes("grafana") || numeric(summary.grafana?.sourceCount) > 0,
     docker: adapters.includes("docker") || observedServices.includes("docker"),
@@ -4078,16 +6555,39 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
     "node-exporter": observedServices.includes("node-exporter"),
     ebpf: adapters.includes("ebpf"),
     provider: adapters.includes("provider"),
-    "nccl-trace": adapters.includes("nccl-trace")
+    "nccl-trace": adapters.includes("nccl-trace") || adapters.includes("nccl-runtime") || Boolean(machineContext?.ncclRuntimePresent)
   };
 
-  return OPERATOR_SOURCE_ORDER.map((id) => {
+  const sourceOrder = machineContext?.gb10Present
+    ? [...OPERATOR_SOURCE_ORDER, ...GB10_OPERATOR_SOURCE_ORDER]
+    : OPERATOR_SOURCE_ORDER;
+
+  return sourceOrder.map((id) => {
+    const gb10Monitor = gb10Monitors.find((item) => item.id === id);
+    if (gb10Monitor) {
+      const present = gb10MonitoringAvailable(gb10Monitor);
+      const monitorStatus = gb10Monitor.status === "ready" ? "live" : gb10Monitor.status === "hooks-present" ? "attached" : gb10Monitor.status;
+      const status = !present ? "missing" : monitorStatus === "live" ? "live" : monitorStatus === "attached" ? "attached" : "watch";
+      return {
+        id,
+        label: operatorSourceLabel(id),
+        status,
+        present,
+        fresh: present,
+        ageSeconds,
+        ageMilliseconds,
+        note: gb10Monitor.detail || gb10Monitor.label,
+        tone: status === "live" || status === "attached" ? "good" : status === "watch" ? "watch" : "poor"
+      };
+    }
+
     const present = Boolean(sourceFlags[id]);
-    const liveTimed = ["host", "kafka", "docker", "ollama", "node-exporter"].includes(id);
+    const ncclRuntimePresent = id === "nccl-trace" && Boolean(machineContext?.ncclRuntimePresent);
+    const liveTimed = ["host", "kafka", "docker", "ollama", "node-exporter"].includes(id) || ncclRuntimePresent;
     const fresh = present && (!liveTimed || generatedFresh);
     const attached = present && !liveTimed;
     const status = !present ? "missing" : fresh ? "live" : attached ? "attached" : "stale";
-    const note = operatorSourceNote({ id, present, status, ageSeconds, summary, machineContext, kafka, observedServices });
+    const note = operatorSourceNote({ id, present, status, ageMilliseconds, summary, machineContext, kafka, observedServices });
 
     return {
       id,
@@ -4096,6 +6596,7 @@ function buildOperatorHeartbeats({ summary, machineContext, adapters, observedSe
       present,
       fresh,
       ageSeconds,
+      ageMilliseconds,
       note,
       tone: status === "live" || status === "attached" ? "good" : status === "stale" ? "watch" : "poor"
     };
@@ -4108,6 +6609,7 @@ function operatorSourceLabel(id) {
     kubernetes: "Kubernetes",
     prometheus: "Prometheus",
     dcgm: "DCGM",
+    "amd-dme": "AMD DME",
     kafka: "Kafka",
     grafana: "Grafana",
     docker: "Docker",
@@ -4115,20 +6617,50 @@ function operatorSourceLabel(id) {
     "node-exporter": "Node Exporter",
     ebpf: "eBPF",
     provider: "Provider",
-    "nccl-trace": "NCCL"
+    "nccl-trace": "NCCL",
+    "gb10-nvml-nvidia-smi": "GB10 NVML",
+    "linux-uma-memory": "Linux UMA",
+    "app-metrics": "App Metrics",
+    "nsight-cupti-profiling": "Nsight/CUPTI"
   }[id] || titleCase(id);
 }
 
-function operatorSourceNote({ id, present, status, ageSeconds, summary, machineContext, kafka, observedServices }) {
+function gb10MonitoringAvailable(item) {
+  return Boolean(item && item.status && item.status !== "missing");
+}
+
+function formatHostSampleAgeMilliseconds(ageMilliseconds) {
+  const parsed = Number(ageMilliseconds);
+  const rounded = Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : 0;
+  return `${number.format(rounded)}ms`;
+}
+
+function operatorSourceNote({ id, present, status, ageMilliseconds, summary, machineContext, kafka, observedServices }) {
   if (!present) return "No signal attached";
-  if (id === "host") return ageSeconds === null ? "Host sample attached" : `${ageSeconds}s since host sample`;
+  if (id === "host") return ageMilliseconds === null ? "Host sample attached" : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} since host sample`;
   if (id === "kafka") return kafka.messageId ? `Smoke message ${kafka.messageId}` : kafka.nodePortBootstrap || "Broker reachable";
   if (id === "grafana") return summary.grafana?.links?.[0]?.label || summary.grafana?.dashboards?.[0] || (observedServices.includes("grafana") ? "Service reachable" : "Dashboard handoff");
   if (id === "kubernetes") return summary.schedulerEvidence?.schedulerNames?.[0] || machineContext?.context?.namespace || "Pod/job evidence";
   if (id === "prometheus") return "Prometheus source metrics";
   if (id === "dcgm") return "GPU counter source";
+  if (id === "amd-dme") return "AMD Device Metrics Exporter source";
   if (id === "docker") return `${machineContext?.dockerContainers?.length || 0} containers observed`;
-  if (id === "ollama") return `${machineContext?.modelCount || 0} local models`;
+  if (id === "nccl-trace") {
+    if (machineContext?.ncclRuntimePresent) {
+      return machineContext.ncclRuntimeDetail
+        || `${machineContext.ncclRuntimeContainers.join(", ") || machineContext.ncclRuntimeSource || "NCCL runtime"} observed`;
+    }
+    return "NCCL trace export attached";
+  }
+  if (id === "ollama") {
+    if (machineContext?.ollamaTelemetryAvailable) {
+      return `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`;
+    }
+    if (machineContext?.ollamaTelemetryStatus === "no-running-model") {
+      return `${machineContext.modelCount || 0} local models | no loaded model`;
+    }
+    return `${machineContext?.modelCount || 0} local models`;
+  }
   if (status === "attached") return "Source export attached";
   return "Live service reachable";
 }
@@ -4164,7 +6696,1319 @@ function buildOperatorConfidence(heartbeats, summary, machineContext) {
   };
 }
 
-function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageSeconds, kafka, confidence }) {
+function buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence }) {
+  const baselineFleetHosts = 15;
+  const observedHosts = unique([
+    ...fleet.map((host) => host.host).filter(Boolean),
+    ...(summary.sourceItems || []).map((item) => item.source?.context?.hostname).filter(Boolean)
+  ]).length;
+  const expectedFleetHosts = Math.max(baselineFleetHosts, observedHosts);
+  const hostCoveragePct = clamp((observedHosts / expectedFleetHosts) * 100);
+  const collectorRate = Number.isFinite(machineContext?.collectorIncomingReportsPerMinute)
+    ? machineContext.collectorIncomingReportsPerMinute
+    : null;
+  const freshnessGood = ageMilliseconds === null || ageMilliseconds <= 120000;
+  const freshnessWatch = ageMilliseconds === null || ageMilliseconds <= 300000;
+  const grafanaReady = Boolean(grafana.links.length || machineContext?.context?.grafanaDashboardUrl);
+  const apiAuthReady = Boolean(machineContext?.apiAuthRequired);
+  const collectorAuthReady = Boolean(machineContext?.collectorAuthBearer || machineContext?.collectorAuthHmac || machineContext?.collectorAuthMtls);
+  const mtlsReady = Boolean(machineContext?.collectorAuthMtls);
+  const securityValue = apiAuthReady && collectorAuthReady
+    ? mtlsReady ? "mTLS enabled" : "auth enabled"
+    : apiAuthReady || collectorAuthReady ? "partial auth" : "lab defaults";
+  const securityNote = apiAuthReady && collectorAuthReady
+    ? mtlsReady
+      ? "API auth and collector mTLS/HMAC controls are live"
+      : "API and collector auth are live; add HTTPS/mTLS before broader customer access"
+    : "Enable API auth, collector auth, and HTTPS/mTLS before customer access";
+  const securityTone = apiAuthReady && collectorAuthReady && mtlsReady
+    ? "good"
+    : apiAuthReady || collectorAuthReady ? "watch" : "watch";
+  const operationalRows = [
+    {
+      label: "Fleet visibility",
+      value: `${observedHosts}/${expectedFleetHosts} hosts`,
+      note: observedHosts >= expectedFleetHosts ? "Controller, SPARK, and Pi hosts are represented" : "Some expected hosts are missing from the live bundle",
+      tone: observedHosts >= expectedFleetHosts ? "good" : observedHosts >= Math.ceil(expectedFleetHosts * 0.7) ? "watch" : "poor"
+    },
+    {
+      label: "Telemetry freshness",
+      value: ageMilliseconds === null ? "attached" : formatHostSampleAgeMilliseconds(ageMilliseconds),
+      note: freshnessGood ? "Live sample is within the full-fleet collection window" : "Live sample is delayed; run doctor or check the fleet loop",
+      tone: freshnessGood ? "good" : freshnessWatch ? "watch" : "poor"
+    },
+    {
+      label: "Collector ingest",
+      value: collectorRate === null ? "learning" : `${formatDecimal(collectorRate, collectorRate >= 100 ? 0 : 1)}/min`,
+      note: machineContext?.collectorGatewayReachable ? "Collector gateway is reachable from the controller sample" : "Collector gateway reachability is not proven in the latest sample",
+      tone: collectorRate !== null && collectorRate > 0 ? "good" : machineContext?.collectorGatewayReachable ? "watch" : "poor"
+    },
+    {
+      label: "Observability handoff",
+      value: grafanaReady ? "linked" : "missing",
+      note: grafanaReady ? "Grafana/Prometheus handoff is discoverable from the dashboard" : "Provision Grafana runtime or attach dashboard URLs",
+      tone: grafanaReady ? "good" : "watch"
+    }
+  ];
+  const hardeningRows = [
+    {
+      label: "Support workflow",
+      value: "available",
+      note: "Use render-product-runtime, turbalance-doctor, and turbalance-support-bundle for pilot operations",
+      tone: "good"
+    },
+    {
+      label: "Security gate",
+      value: securityValue,
+      note: securityNote,
+      tone: securityTone
+    },
+    {
+      label: "Upgrade path",
+      value: "rendered",
+      note: "Use the product config plus rollout command for repeatable agent updates",
+      tone: "good"
+    }
+  ];
+  const rows = [...operationalRows, ...hardeningRows];
+  const score = Math.round(rows.reduce((total, row) => total + (row.tone === "good" ? 100 : row.tone === "watch" ? 55 : 15), 0) / rows.length);
+  const hardBlockers = rows.filter((row) => row.tone === "poor").length;
+  const badge = hardBlockers ? "Needs repair" : score >= 82 ? "Pilot-ready" : "Hardening";
+  return {
+    score,
+    badge,
+    tone: hardBlockers ? "poor" : score >= 82 ? "good" : "watch",
+    hostCoveragePct,
+    rows
+  };
+}
+
+function buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, confidence }) {
+  const contexts = buildFleetMachineContexts(summary, machineContext);
+  const observedHosts = uniqueBy(
+    contexts.map((context) => {
+      const raw = context.context || {};
+      return {
+        host: context.host || raw.hostname || raw.node || "host",
+        address: raw.networkLocalAddress || raw.hostAddress || raw.primaryAddress || "",
+        gpu: context.gpuModel || raw.gpuName || "unknown GPU",
+        status: context.driverUnavailable ? "GPU telemetry blocked" : context.noGpu ? "host only" : context.idle ? "idle" : "live",
+        tone: context.driverUnavailable ? "watch" : context.noGpu ? "watch" : "good"
+      };
+    }),
+    (host) => normalizeFleetHostId(host.address || host.host)
+  );
+  const fallbackFleet = (fleet || []).map((host) => ({
+    host: host.host,
+    address: "",
+    gpu: host.gpu,
+    status: host.status,
+    tone: host.tone
+  }));
+  const hosts = observedHosts.length ? observedHosts : fallbackFleet;
+  const subnet = autoDiscoverySubnet(hosts);
+  const controller = autoDiscoveryControllerAddress();
+  const collectorUrl = `http://${controller}:8801/v1/source-bundles`;
+  const hostUrl = `http://${controller}:8000`;
+  const credentialsFile = "build/auto-discovery/credentials.local.json";
+  const remoteRoot = "/home/user/turbalance-analytics";
+  const baseCommand = [
+    "python3",
+    "scripts/auto-discover-deploy.py",
+    "--subnet", subnet,
+    "--user", "user",
+    "--credentials-file", credentialsFile,
+    "--collector-url", collectorUrl,
+    "--host-url", hostUrl,
+    "--remote-root", remoteRoot,
+    "--systemd-mode", "user",
+    "--benchmarks",
+    "--out", "build/auto-discovery/latest-report.json"
+  ];
+  const dryRunCommand = baseCommand.map(shellCommandPart).join(" ");
+  const applyCommand = [...baseCommand, "--apply"].map(shellCommandPart).join(" ");
+  const confidenceScore = numeric(confidence?.score, 0);
+  const tone = hosts.length && confidenceScore >= 55 ? "good" : hosts.length ? "watch" : "poor";
+  const rows = [
+    {
+      label: "Subnet",
+      value: subnet,
+      note: `${hosts.length} live ${hosts.length === 1 ? "host" : "hosts"} currently in the bundle`,
+      tone: hosts.length ? "good" : "watch"
+    },
+    {
+      label: "Credential gate",
+      value: credentialsFile,
+      note: "SSH BatchMode must pass before deployment is eligible",
+      tone: "watch"
+    },
+    {
+      label: "Deployment",
+      value: "dry-run first",
+      note: "Apply command only targets credentialed, unmonitored hosts",
+      tone: "good"
+    },
+    {
+      label: "Collector",
+      value: collectorUrl.replace(/^https?:\/\//, ""),
+      note: "Live-machine agent posts source bundles to the controller",
+      tone: "good"
+    }
+  ];
+
+  return {
+    badge: hosts.length ? `${hosts.length} observed` : "Waiting",
+    tone,
+    subnet,
+    controller,
+    collectorUrl,
+    hostUrl,
+    credentialsFile,
+    remoteRoot,
+    dryRunCommand,
+    applyCommand,
+    rows,
+    hosts
+  };
+}
+
+function buildExecutionIdleEnergyState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const rows = contexts.map((context) => executionIdleHostRow(context)).filter(Boolean);
+  const gpuRows = rows.filter((row) => row.gpuPresent);
+
+  if (!gpuRows.length) {
+    return {
+      available: false,
+      badge: "No GPU rows",
+      tone: "watch",
+      candidateCount: 0,
+      estimatedWasteWatts: 0,
+      estimatedWasteWattsLabel: "0 W",
+      emptyText: contexts.length
+        ? "Current fleet rows do not include usable GPU exporter power counters."
+        : "Waiting for live machine rows before estimating execution-idle exposure.",
+      summaries: [],
+      rows: [],
+      policyRows: []
+    };
+  }
+
+  const candidateRows = gpuRows.filter((row) => row.isCandidate);
+  const confirmedRows = candidateRows.filter((row) => row.confirmed);
+  const possibleRows = candidateRows.filter((row) => row.state === "possible");
+  const estimatedWasteWatts = candidateRows.reduce((total, row) => total + row.weightedWasteWatts, 0);
+  const maxStreakSeconds = candidateRows
+    .map((row) => row.streakSeconds)
+    .filter(Number.isFinite)
+    .reduce((best, value) => Math.max(best, value), 0);
+  const topCause = executionIdleTopCause(candidateRows);
+  const tone = confirmedRows.length || estimatedWasteWatts >= 120
+    ? "poor"
+    : candidateRows.length || estimatedWasteWatts >= 40 ? "watch" : "good";
+  const badge = confirmedRows.length
+    ? `${confirmedRows.length} confirmed`
+    : candidateRows.length ? `${candidateRows.length} candidates` : `${gpuRows.length} watched`;
+
+  const summaries = [
+    {
+      label: "Exposure",
+      value: executionIdleWattsLabel(estimatedWasteWatts),
+      note: `${executionIdleEnergyLabel((estimatedWasteWatts / 1000) * 24)} projected/day if sustained`,
+      tone
+    },
+    {
+      label: "Candidates",
+      value: `${candidateRows.length}/${gpuRows.length}`,
+      note: possibleRows.length ? `${possibleRows.length} process-state uncertain` : `${EXECUTION_IDLE_LOW_ACTIVITY_PCT}% activity gate`,
+      tone: candidateRows.length ? tone : "good"
+    },
+    {
+      label: "Duration gate",
+      value: maxStreakSeconds ? `${round(maxStreakSeconds)}s` : `${EXECUTION_IDLE_SUSTAINED_SECONDS}s`,
+      note: maxStreakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS ? "sustained interval observed" : "waiting for sustained proof",
+      tone: maxStreakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS ? "poor" : candidateRows.length ? "watch" : "good"
+    },
+    {
+      label: "Likely precursor",
+      value: topCause.label,
+      note: topCause.note,
+      tone: topCause.tone
+    }
+  ];
+
+  return {
+    available: true,
+    badge,
+    tone,
+    candidateCount: candidateRows.length,
+    confirmedCount: confirmedRows.length,
+    estimatedWasteWatts,
+    estimatedWasteWattsLabel: executionIdleWattsLabel(estimatedWasteWatts),
+    summaries,
+    rows: gpuRows.sort(executionIdleRowSort).slice(0, 8),
+    policyRows: executionIdlePolicyRows({ rows: gpuRows, candidateRows, estimatedWasteWatts, topCause })
+  };
+}
+
+function executionIdleHostRow(machineContext) {
+  const context = machineContext?.context || {};
+  const host = machineContext?.host || context.hostname || "host";
+  const gpuPresent = Boolean(machineContext?.gpuPresent || gpuExporterContextHasAny(context, GPU_EXPORTER_METRIC_GROUPS.flatMap((group) => [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ])));
+  const gpuModel = machineContext?.gpuModel || context.gpuName || "GPU";
+  const powerWatts = firstFinite(
+    context.gpuPowerWatts,
+    machineContext?.gpuPowerWatts,
+    gpuExporterFirstFinite(context, [
+      "gpu_power_watts",
+      "gpu_power_instant_watts",
+      "turba_gpu_power_watts",
+      "DCGM_FI_DEV_POWER_USAGE",
+      "DCGM_FI_DEV_POWER_USAGE_INSTANT",
+      "GPU_POWER_USAGE",
+      "GPU_PACKAGE_POWER",
+      "GPU_AVERAGE_PACKAGE_POWER",
+      "nvidia_smi_power_draw_watts",
+      "amd_gpu_power_usage",
+      "amd_gpu_package_power"
+    ])
+  );
+  const gpuUtil = executionIdlePercent(firstFinite(
+    context.gpuUtilizationPct,
+    machineContext?.gpuUtilizationPct,
+    ratioPercent(gpuExporterFirstFinite(context, ["turba_gpu_utilization_ratio", "turba_gpu_activity_ratio"])),
+    gpuExporterFirstFinite(context, ["DCGM_FI_DEV_GPU_UTIL", "GPU_GFX_ACTIVITY", "GPU_GFX_BUSY_INSTANTANEOUS", "amd_gpu_gfx_activity"])
+  ));
+  const smActive = executionIdlePercent(firstFinite(
+    context.gpuSmActivePct,
+    context.gpuSmOccupancyPct,
+    context.smOccupancy,
+    context.DCGM_FI_PROF_SM_ACTIVE,
+    context.DCGM_FI_PROF_SM_OCCUPANCY,
+    gpuExporterFirstFinite(context, ["gpu_sm_active_ratio", "gpu_sm_occupancy_ratio", "DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_PROF_SM_OCCUPANCY", "GPU_PROCESS_CU_OCCUPANCY"])
+  ));
+  const tensorActive = executionIdlePercent(firstFinite(
+    context.gpuTensorActivePct,
+    context.gpuTensorPipeActivePct,
+    context.tensorCoreUtil,
+    context.DCGM_FI_PROF_PIPE_TENSOR_ACTIVE,
+    gpuExporterFirstFinite(context, ["gpu_tensor_pipe_active_ratio", "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE"])
+  ));
+  const dramActive = executionIdlePercent(firstFinite(
+    context.gpuDramActivePct,
+    context.gpuMemoryActivityPct,
+    context.hbmBandwidthPct,
+    context.DCGM_FI_PROF_DRAM_ACTIVE,
+    gpuExporterFirstFinite(context, ["gpu_dram_active_ratio", "DCGM_FI_PROF_DRAM_ACTIVE", "GPU_UMC_ACTIVITY", "GPU_MEM_ACTIVITY"])
+  ));
+  const activityPct = maxFinite(gpuUtil, smActive, tensorActive, dramActive) ?? 0;
+  const pcieBps = maxFinite(
+    context.gpuPcieTxBytesPerSecond,
+    context.gpuPcieRxBytesPerSecond,
+    context.DCGM_FI_PROF_PCIE_TX_BYTES,
+    context.DCGM_FI_PROF_PCIE_RX_BYTES,
+    executionIdleMegabytesPerSecond(context.gpuPcieTxMBps),
+    executionIdleMegabytesPerSecond(context.gpuPcieRxMBps),
+    executionIdleMegabitsPerSecond(gpuExporterFirstFinite(context, ["PCIE_BANDWIDTH", "amd_gpu_pcie_bandwidth"])),
+    executionIdleGigabytesPerSecond(gpuExporterFirstFinite(context, ["PCIE_BIDIRECTIONAL_BANDWIDTH", "amd_gpu_pcie_bidirectional_bandwidth"])),
+    gpuExporterFirstFinite(context, ["turba_gpu_interconnect_bytes_per_second"])
+  );
+  const nvlinkBps = maxFinite(
+    context.gpuNvlinkTxBytesPerSecond,
+    context.gpuNvlinkRxBytesPerSecond,
+    context.DCGM_FI_PROF_NVLINK_TX_BYTES,
+    context.DCGM_FI_PROF_NVLINK_RX_BYTES,
+    executionIdleMegabytesPerSecond(context.gpuNvlinkTxMBps),
+    executionIdleMegabytesPerSecond(context.gpuNvlinkRxMBps),
+    executionIdleGigabytesPerSecond(gpuExporterFirstFinite(context, ["XGMI_LINK_RX", "XGMI_LINK_TX", "amd_gpu_xgmi_link_rx", "amd_gpu_xgmi_link_tx"]))
+  );
+  const deviceCommBps = maxFinite(pcieBps, nvlinkBps) ?? 0;
+  const networkBps = maxFinite(machineContext?.networkRxBytesPerSecond, machineContext?.networkTxBytesPerSecond) ?? 0;
+  const resident = executionIdleResident(machineContext);
+  const deepIdleWatts = executionIdleDeepIdleWatts(gpuModel, powerWatts);
+  const wasteWatts = Number.isFinite(powerWatts) ? Math.max(0, powerWatts - deepIdleWatts) : 0;
+  const elevatedPower = Number.isFinite(powerWatts) && wasteWatts >= EXECUTION_IDLE_MIN_POWER_GAP_WATTS;
+  const lowActivity = activityPct <= EXECUTION_IDLE_LOW_ACTIVITY_PCT && deviceCommBps < EXECUTION_IDLE_COMMUNICATION_BPS;
+  const maybeResident = resident.present || resident.uncertain;
+  const isCandidate = gpuPresent && lowActivity && elevatedPower && maybeResident;
+  const streakSeconds = isCandidate ? executionIdleStreakSeconds(machineContext, { deepIdleWatts }) : 0;
+  const confirmed = Number.isFinite(streakSeconds) && streakSeconds >= EXECUTION_IDLE_SUSTAINED_SECONDS;
+  const state = !gpuPresent
+    ? "unavailable"
+    : isCandidate
+      ? resident.present ? "candidate" : "possible"
+      : lowActivity ? "deep-idle" : "active";
+  const tone = confirmed || state === "candidate"
+    ? "poor"
+    : state === "possible" ? "watch" : state === "active" ? "good" : "watch";
+  const confidence = !gpuPresent
+    ? 0
+    : confirmed ? 92 : state === "candidate" ? 78 : state === "possible" ? 58 : state === "active" ? 70 : 64;
+  const cause = executionIdleCause({ pcieBps, nvlinkBps, networkBps, machineContext, activityPct });
+  const weightedWasteWatts = isCandidate ? wasteWatts * (state === "possible" ? 0.55 : 1) : 0;
+
+  return {
+    host,
+    gpuModel,
+    gpuPresent,
+    state,
+    stateLabel: executionIdleStateLabel(state, confirmed),
+    tone,
+    confidence,
+    isCandidate,
+    confirmed,
+    powerWatts,
+    deepIdleWatts,
+    wasteWatts,
+    weightedWasteWatts,
+    activityPct,
+    gpuUtil,
+    smActive,
+    tensorActive,
+    dramActive,
+    deviceCommBps,
+    pcieBps,
+    nvlinkBps,
+    networkBps,
+    resident,
+    streakSeconds,
+    cause,
+    sampleAgeMs: sparkPairSampleAgeMilliseconds(machineContext),
+    evidence: executionIdleEvidence({ activityPct, powerWatts, deepIdleWatts, resident, deviceCommBps }),
+    action: executionIdleRowAction({ state, confirmed, resident, cause })
+  };
+}
+
+function executionIdlePercent(value) {
+  if (!Number.isFinite(value)) return undefined;
+  return value >= 0 && value <= 1 ? value * 100 : value;
+}
+
+function executionIdleMegabytesPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 1_000_000 : undefined;
+}
+
+function executionIdleMegabitsPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 125_000 : undefined;
+}
+
+function executionIdleGigabytesPerSecond(value) {
+  return Number.isFinite(Number(value)) ? Number(value) * 1_000_000_000 : undefined;
+}
+
+function executionIdleDeepIdleWatts(gpuModel, powerWatts) {
+  const label = String(gpuModel || "");
+  if (/GB10|DGX[ -]?Spark/i.test(label)) return 8;
+  if (/MI3\d{2}|MI300|MI325|MI350|Instinct/i.test(label)) return 75;
+  if (/MI2\d{2}|MI200|MI250/i.test(label)) return 55;
+  if (/B200|H200/i.test(label)) return 80;
+  if (/H100/i.test(label)) return 70;
+  if (/A100/i.test(label)) return 45;
+  if (/L40|RTX|A6000|6000 Ada/i.test(label)) return 35;
+  if (Number.isFinite(powerWatts) && powerWatts > 0) return clamp(powerWatts * 0.28, 8, 80);
+  return 35;
+}
+
+function executionIdleResident(machineContext) {
+  const context = machineContext?.context || {};
+  const processes = Array.isArray(machineContext?.gpuProcesses) ? machineContext.gpuProcesses : [];
+  const services = machineDemoServices(context.observedServices);
+  const containers = Array.isArray(machineContext?.dockerContainers) ? machineContext.dockerContainers : [];
+  const containerText = containers.map((container) => `${container.name || ""} ${container.image || ""}`).join(" ").toLowerCase();
+  const servingRuntime = /vllm|triton|tensorrt|trt-llm|nim|ray|nccl|ollama/.test(containerText)
+    || services.some((service) => /ollama|vllm|triton|ray|kafka|prometheus/i.test(service));
+  const memoryResident = numeric(machineContext?.gpuMemoryUsedMiB, 0) >= 512 || numeric(context.gpuMemoryUsedMiB, 0) >= 512;
+  const runningModels = Array.isArray(machineContext?.ollamaRunningModels) && machineContext.ollamaRunningModels.length > 0;
+  const processSkipped = Boolean(machineContext?.gpuProcessQuerySkipped);
+  const present = processes.length > 0 || memoryResident || runningModels || servingRuntime || Boolean(machineContext?.ncclRuntimePresent);
+  return {
+    present,
+    uncertain: !present && processSkipped,
+    label: present
+      ? processes.length ? `${processes.length} GPU process${processes.length === 1 ? "" : "es"}` : "resident workload signal"
+      : processSkipped ? "process lookup skipped" : "no resident program seen"
+  };
+}
+
+function executionIdleStreakSeconds(machineContext, row) {
+  const context = machineContext?.context || {};
+  const explicit = firstFinite(context.executionIdleStreakSeconds, context.gpuExecutionIdleStreakSeconds);
+  if (Number.isFinite(explicit)) return explicit;
+  const hostKey = normalizeFleetHostId(machineContext?.host || context.hostname);
+  if (!hostKey || !liveTelemetryHistory.length) return 0;
+  const samples = liveTelemetryHistory.filter((sample) => normalizeFleetHostId(sample.host) === hostKey);
+  const last = samples[samples.length - 1];
+  if (!last) return 0;
+  let first = last;
+  for (let index = samples.length - 1; index >= 0; index -= 1) {
+    const sample = samples[index];
+    const lowActivity = Number.isFinite(sample.gpu) && sample.gpu <= EXECUTION_IDLE_LOW_ACTIVITY_PCT;
+    const elevatedPower = Number.isFinite(sample.gpuPower)
+      && sample.gpuPower - row.deepIdleWatts >= EXECUTION_IDLE_MIN_POWER_GAP_WATTS;
+    if (!lowActivity || !elevatedPower) break;
+    first = sample;
+  }
+  return Math.max(0, (last.timestampMs - first.timestampMs) / 1000);
+}
+
+function executionIdleCause({ pcieBps, nvlinkBps, networkBps, machineContext, activityPct }) {
+  if (Number.isFinite(pcieBps) && pcieBps >= 250_000_000) {
+    return { key: "pcie", label: "PCIe-heavy", note: "paper prior 48%", tone: "watch" };
+  }
+  if (numeric(machineContext?.hardwarePcieAerCount, 0) > 0) {
+    return { key: "pcie", label: "PCIe watch", note: "PCIe AER seen", tone: "poor" };
+  }
+  if (Number.isFinite(networkBps) && networkBps >= 50_000_000) {
+    return { key: "nic", label: "NIC-heavy", note: "paper prior 17%", tone: "watch" };
+  }
+  if (Number.isFinite(nvlinkBps) && nvlinkBps >= 250_000_000) {
+    return { key: "nvlink", label: "NVLink-heavy", note: "paper prior 2%", tone: "watch" };
+  }
+  if (activityPct <= EXECUTION_IDLE_LOW_ACTIVITY_PCT) {
+    return { key: "compute", label: "Compute-to-idle", note: "paper prior 33%", tone: "good" };
+  }
+  return { key: "active", label: "Active", note: "no idle onset", tone: "good" };
+}
+
+function executionIdleStateLabel(state, confirmed) {
+  if (confirmed) return "execution-idle";
+  if (state === "candidate") return "candidate";
+  if (state === "possible") return "possible";
+  if (state === "deep-idle") return "deep idle";
+  if (state === "active") return "active";
+  return "unavailable";
+}
+
+function executionIdleEvidence({ activityPct, powerWatts, deepIdleWatts, resident, deviceCommBps }) {
+  const power = Number.isFinite(powerWatts)
+    ? `${round(powerWatts)} W now, ${round(deepIdleWatts)} W deep-idle estimate`
+    : "power counter missing";
+  const comm = deviceCommBps ? `${formatBytesPerSecond(deviceCommBps)} device comm` : "device comm below threshold or missing";
+  return `${pct(activityPct)} activity | ${power} | ${comm} | ${resident.label}`;
+}
+
+function executionIdleRowAction({ state, confirmed, resident, cause }) {
+  if (confirmed) return "Run SLO-gated downscale dry-run before touching clocks.";
+  if (state === "candidate") return "Hold for sustained proof, then compare SM-only vs SM+HBM policy.";
+  if (state === "possible") return resident.uncertain ? "Enable process/DCGM residency check to separate deep idle from loaded idle." : "Collect one more sample before policy action.";
+  if (state === "deep-idle") return "Keep as spare capacity or pack work here deliberately.";
+  if (cause.key === "active") return "No execution-idle action.";
+  return "Track precursor signature.";
+}
+
+function executionIdleTopCause(candidateRows) {
+  if (!candidateRows.length) {
+    return { label: "None", note: "no current candidates", tone: "good" };
+  }
+  const counts = new Map();
+  candidateRows.forEach((row) => {
+    const key = row.cause.key;
+    counts.set(key, { ...row.cause, count: (counts.get(key)?.count || 0) + 1 });
+  });
+  return Array.from(counts.values()).sort((left, right) => right.count - left.count)[0];
+}
+
+function executionIdleRowSort(left, right) {
+  return right.weightedWasteWatts - left.weightedWasteWatts
+    || right.confidence - left.confidence
+    || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true });
+}
+
+function executionIdlePolicyRows({ rows, candidateRows, estimatedWasteWatts, topCause }) {
+  const watched = rows.filter((row) => row.gpuPresent).length;
+  const candidatePct = watched ? (candidateRows.length / watched) * 100 : 0;
+  return [
+    {
+      label: "Detection rule",
+      value: `${EXECUTION_IDLE_LOW_ACTIVITY_PCT}% / ${formatBytesPerSecond(EXECUTION_IDLE_COMMUNICATION_BPS)}`,
+      note: `${EXECUTION_IDLE_SUSTAINED_SECONDS}s sustained gate with process residency`,
+      tone: "good"
+    },
+    {
+      label: "Policy dry-run",
+      value: estimatedWasteWatts ? executionIdleWattsLabel(estimatedWasteWatts) : "armed",
+      note: "Paper reports 22-34% power reduction with 29-160% p95 latency cost",
+      tone: estimatedWasteWatts ? "watch" : "good"
+    },
+    {
+      label: "Consolidation",
+      value: `${round(candidatePct)}% exposed`,
+      note: "For serving, compare pack-work vs spread-work before adding GPUs",
+      tone: candidatePct >= 30 ? "watch" : "good"
+    },
+    {
+      label: "Precursor model",
+      value: topCause.label,
+      note: "Classify PCIe/NIC/NVLink/compute-to-idle onsets as data arrives",
+      tone: topCause.tone
+    }
+  ];
+}
+
+function executionIdleWattsLabel(value) {
+  const parsed = numeric(value, 0);
+  if (Math.abs(parsed) >= 1000) return `${formatDecimal(parsed / 1000, 1)} kW`;
+  return `${round(parsed)} W`;
+}
+
+function executionIdleEnergyLabel(kwh) {
+  const parsed = numeric(kwh, 0);
+  if (parsed >= 1000) return `${formatDecimal(parsed / 1000, 1)} MWh`;
+  if (parsed >= 10) return `${formatDecimal(parsed, 0)} kWh`;
+  return `${formatDecimal(parsed, 1)} kWh`;
+}
+
+function buildGpuExporterCoverageState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const hostCount = contexts.length;
+  const adapters = unique([
+    ...(summary.sourceAdapters || []),
+    ...(summary.sourceItems || []).flatMap((item) => item.source?.adapters || []),
+    ...contexts.flatMap((context) => String(context.adapters || "").split(",").map((entry) => entry.trim()).filter(Boolean))
+  ]);
+
+  if (!hostCount) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      hostCount: 0,
+      totalFamilies: GPU_EXPORTER_METRIC_GROUPS.length,
+      coveredFamilies: 0,
+      emptyText: "Waiting for source rows with GPU exporter metrics.",
+      summaries: [],
+      rows: [],
+      policyRows: []
+    };
+  }
+
+  const rows = GPU_EXPORTER_METRIC_GROUPS.map((group) => gpuExporterCoverageRow(group, contexts));
+  const coveredFamilies = rows.filter((row) => row.coveredHosts > 0).length;
+  const fullFamilies = rows.filter((row) => row.coveredHosts >= hostCount).length;
+  const nvidiaFamilies = rows.filter((row) => row.nvidiaHosts > 0).length;
+  const amdFamilies = rows.filter((row) => row.amdHosts > 0).length;
+  const proofFamilies = rows.filter((row) => GPU_EXPORTER_EXECUTION_IDLE_GROUPS.includes(row.key) && row.coveredHosts > 0).length;
+  const proofReady = proofFamilies >= 3;
+  const hasPrometheus = adapters.some((adapter) => /prometheus|dcgm|grafana|amd|dme|device-metrics/i.test(adapter));
+  const tone = proofReady && coveredFamilies >= 6
+    ? "good"
+    : proofReady || coveredFamilies >= 4 ? "watch" : "poor";
+  const badge = amdFamilies && nvidiaFamilies
+    ? "Cross-vendor"
+    : amdFamilies ? "AMD map" : nvidiaFamilies ? "NVIDIA map" : `${coveredFamilies}/${GPU_EXPORTER_METRIC_GROUPS.length}`;
+
+  const summaries = [
+    {
+      label: "Families",
+      value: `${coveredFamilies}/${GPU_EXPORTER_METRIC_GROUPS.length}`,
+      note: `${fullFamilies} complete across ${hostCount} ${hostCount === 1 ? "host" : "hosts"}`,
+      tone: coveredFamilies >= 6 ? "good" : coveredFamilies >= 4 ? "watch" : "poor"
+    },
+    {
+      label: "Vendor map",
+      value: amdFamilies && nvidiaFamilies ? "NVIDIA + AMD" : amdFamilies ? "AMD DME" : nvidiaFamilies ? "NVIDIA" : "normalized",
+      note: `${nvidiaFamilies} NVIDIA/DCGM | ${amdFamilies} AMD DME families visible`,
+      tone: amdFamilies && nvidiaFamilies ? "good" : amdFamilies || nvidiaFamilies ? "watch" : "poor"
+    },
+    {
+      label: "Idle proof",
+      value: proofReady ? "ready" : `${proofFamilies}/4`,
+      note: "power, activity, memory, and interconnect evidence for the paper detector",
+      tone: proofReady ? "good" : proofFamilies >= 2 ? "watch" : "poor"
+    },
+    {
+      label: "Handoff",
+      value: hasPrometheus ? "attached" : "local only",
+      note: hasPrometheus ? "Prometheus/Grafana exporter path observed" : "Use source export queries to attach raw exporter families",
+      tone: hasPrometheus ? "good" : "watch"
+    }
+  ];
+
+  const policyRows = [
+    {
+      label: "Normalize first",
+      value: "one ontology",
+      note: "Map DCGM, nvidia-smi exporter, and AMD DME into shared GPU fields before ranking hosts.",
+      tone: "good"
+    },
+    {
+      label: "Compare fairly",
+      value: "family gates",
+      note: "Only compare hosts at a benchmark level when the same metric families are present.",
+      tone: coveredFamilies >= 6 ? "good" : "watch"
+    },
+    {
+      label: "Energy research",
+      value: proofReady ? "usable" : "partial",
+      note: "Execution-idle analysis needs power plus low-activity proof and residency context.",
+      tone: proofReady ? "good" : "watch"
+    },
+    {
+      label: "Fleet rollout",
+      value: "Prometheus",
+      note: "AMD DME exposes :5000/metrics; NVIDIA DCGM defaults to :9400/metrics.",
+      tone: hasPrometheus ? "good" : "watch"
+    }
+  ];
+
+  return {
+    available: true,
+    badge,
+    tone,
+    hostCount,
+    totalFamilies: GPU_EXPORTER_METRIC_GROUPS.length,
+    coveredFamilies,
+    nvidiaFamilies,
+    amdFamilies,
+    summaries,
+    rows,
+    policyRows
+  };
+}
+
+function gpuExporterCoverageRow(group, contexts) {
+  const hostCount = contexts.length;
+  const normalizedHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.normalized)).length;
+  const nvidiaHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.nvidia)).length;
+  const amdHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, group.amd)).length;
+  const coveredHosts = contexts.filter((machineContext) => gpuExporterContextHasAny(machineContext.context || {}, [
+    ...group.normalized,
+    ...group.nvidia,
+    ...group.amd
+  ])).length;
+  const examples = gpuExporterCoverageExamples(group, contexts);
+  const coveragePct = hostCount ? (coveredHosts / hostCount) * 100 : 0;
+  const tone = coveredHosts >= hostCount ? "good" : coveredHosts > 0 ? "watch" : "poor";
+
+  return {
+    key: group.key,
+    label: group.label,
+    use: group.use,
+    normalizedHosts,
+    nvidiaHosts,
+    amdHosts,
+    coveredHosts,
+    hostCount,
+    coveragePct,
+    examples,
+    tone
+  };
+}
+
+function gpuExporterCoverageExamples(group, contexts) {
+  const candidates = [...group.normalized, ...group.nvidia, ...group.amd];
+  const examples = [];
+  contexts.forEach((machineContext) => {
+    const match = gpuExporterContextMatchedName(machineContext.context || {}, candidates);
+    if (match && !examples.includes(match)) examples.push(match);
+  });
+  return examples.slice(0, 3);
+}
+
+function gpuExporterContextHasAny(context, names) {
+  return Boolean(gpuExporterContextMatchedName(context, names));
+}
+
+function gpuExporterObjectHasAny(object, names) {
+  if (!isPlainObject(object)) return false;
+  return Boolean(gpuExporterObjectMatchedName(object, names));
+}
+
+function gpuExporterContextMatchedName(context, names) {
+  for (const object of gpuExporterMetricObjects(context)) {
+    const match = gpuExporterObjectMatchedName(object, names);
+    if (match) return match;
+  }
+  return "";
+}
+
+function gpuExporterObjectMatchedName(object, names) {
+  const keyMap = new Map(Object.keys(object || {}).map((key) => [gpuExporterMetricKey(key), key]));
+  for (const name of names || []) {
+    for (const alias of gpuExporterMetricAliases(name)) {
+      const key = keyMap.get(gpuExporterMetricKey(alias));
+      if (key && gpuExporterMetricMeaningful(object[key])) return key;
+    }
+  }
+  return "";
+}
+
+function gpuExporterFirstFinite(context, names) {
+  for (const object of gpuExporterMetricObjects(context)) {
+    const keyMap = new Map(Object.keys(object || {}).map((key) => [gpuExporterMetricKey(key), key]));
+    for (const name of names || []) {
+      for (const alias of gpuExporterMetricAliases(name)) {
+        const key = keyMap.get(gpuExporterMetricKey(alias));
+        if (!key) continue;
+        const value = Number(object[key]);
+        if (Number.isFinite(value)) return value;
+      }
+    }
+  }
+  return undefined;
+}
+
+function gpuExporterMetricObjects(context) {
+  return [
+    context,
+    context?.rawPrometheusMetrics,
+    context?.rawDcgmFields,
+    context?.gpuExporterMetrics,
+    context?.amdDeviceMetrics,
+    context?.nvidiaGpuMetrics
+  ].filter(isPlainObject);
+}
+
+function gpuExporterMetricAliases(name) {
+  const value = String(name || "").trim();
+  if (!value) return [];
+  const snake = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase();
+  return unique([
+    value,
+    value.toLowerCase(),
+    snake,
+    `amd_${snake}`,
+    `nvidia_${snake}`,
+    `nvidia_smi_${snake}`,
+    snake.startsWith("gpu_") ? `amd_${snake}` : "",
+    snake.startsWith("dcgm_fi_") ? snake.toUpperCase() : ""
+  ].filter(Boolean));
+}
+
+function gpuExporterMetricKey(name) {
+  return String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function gpuExporterMetricMeaningful(value) {
+  if (Number.isFinite(value)) return true;
+  if (typeof value === "boolean") return value;
+  if (Array.isArray(value)) return value.length > 0;
+  if (isPlainObject(value)) return Object.keys(value).length > 0;
+  const text = String(value ?? "").trim();
+  return Boolean(text) && !/^(nan|n\/a|null|undefined|unknown)$/i.test(text);
+}
+
+function buildBackgroundTasksState({ summary, machineContext, generatedAt, ageMilliseconds, kafka, confidence, autoDiscovery, executionIdle, gpuExporterCoverage, fleetComparison, benchmarkLadder, productReadiness }) {
+  const benchmarkMetrics = machineContext
+    ? [
+      machineContext.benchmarkCpuOpsPerSecond,
+      machineContext.benchmarkGpuScore,
+      machineContext.benchmarkMemoryMiBps,
+      machineContext.benchmarkNetworkMbps,
+      machineContext.benchmarkDiskReadMiBps,
+      machineContext.benchmarkDiskWriteMiBps
+    ].filter(Number.isFinite).length
+    : 0;
+  const liveFresh = ageMilliseconds === null || ageMilliseconds <= MACHINE_DEMO_FRESH_MS;
+  const benchmarkAge = Number.isFinite(machineContext?.benchmarkSampleAgeMs)
+    ? machineContext.benchmarkSampleAgeMs
+    : machineContext?.benchmarkGeneratedAt ? Math.max(0, Date.now() - safeDate(machineContext.benchmarkGeneratedAt, new Date()).getTime()) : null;
+  const benchmarkTtl = Number.isFinite(machineContext?.benchmarkTtlMs) ? machineContext.benchmarkTtlMs : null;
+  const benchmarkFresh = benchmarkAge === null || benchmarkTtl === null || benchmarkAge <= benchmarkTtl;
+  const systemIdStatus = platformVirtualSensorCache.inFlight
+    ? "running"
+    : platformVirtualSensorCache.systemIdentification?.status === "ready" ? "ready" : "waiting";
+  const systemIdAge = platformVirtualSensorCache.fetchedAt ? Math.max(0, Date.now() - platformVirtualSensorCache.fetchedAt) : null;
+  const collectorRate = Number.isFinite(machineContext?.collectorIncomingReportsPerMinute)
+    ? machineContext.collectorIncomingReportsPerMinute
+    : null;
+  const collectorWindow = Number.isFinite(machineContext?.collectorIncomingReportsWindowSeconds)
+    ? `${number.format(machineContext.collectorIncomingReportsWindowSeconds)}s window`
+    : "metrics window learning";
+
+  const tasks = [
+    {
+      id: "browser-live-refresh",
+      label: "Browser live refresh",
+      value: machineDemoLoadInFlight ? "fetching" : machineDemoRefreshTimer ? "running" : "manual",
+      detail: machineContext
+        ? liveFresh
+          ? `${machineContext.host} sample ${ageMilliseconds === null ? "attached" : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} old`}`
+          : `${machineContext.host} sample is stale`
+        : "Waiting for a live machine bundle",
+      cadence: machineDemoRefreshTimer ? `${MACHINE_DEMO_REFRESH_MS / 1000}s poll` : "on demand",
+      tone: machineContext ? liveFresh ? "good" : "watch" : "poor"
+    },
+    {
+      id: "agent-ingest",
+      label: "Agent ingest",
+      value: collectorRate === null
+        ? machineContext?.collectorGatewayReachable ? "reachable" : "waiting"
+        : `${formatDecimal(collectorRate, collectorRate >= 100 ? 0 : 1)}/min`,
+      detail: machineContext?.collectorGatewayReachable
+        ? `${number.format(numeric(machineContext.collectorAcceptedBatchesTotal, 0))} accepted batches | ${collectorWindow}`
+        : "Collector gateway has not been proven from the current bundle",
+      cadence: "continuous push",
+      tone: collectorRate !== null && collectorRate > 0 ? "good" : machineContext?.collectorGatewayReachable ? "watch" : "poor"
+    },
+    {
+      id: "benchmark-suite",
+      label: "Benchmark suite",
+      value: machineContext?.benchmarkError
+        ? "error"
+        : benchmarkMetrics ? `${benchmarkMetrics} metrics` : machineContext?.benchmarkSuiteStatus || "waiting",
+      detail: machineContext?.benchmarkError
+        || (benchmarkAge === null ? "No benchmark sample attached yet" : `${sparkPairAgeLabel(benchmarkAge)} old | ${benchmarkLadder.available ? benchmarkLadder.badge : "ladder learning"}`),
+      cadence: benchmarkTtl ? `${Math.max(1, Math.round(benchmarkTtl / 60000))}m TTL` : "timer/agent",
+      tone: machineContext?.benchmarkError ? "poor" : benchmarkMetrics && benchmarkFresh ? "good" : benchmarkMetrics ? "watch" : "poor"
+    },
+    {
+      id: "auto-discovery",
+      label: "Auto discovery",
+      value: autoDiscovery.badge,
+      detail: `${autoDiscovery.subnet} | ${autoDiscovery.credentialsFile}`,
+      cadence: "credential gated",
+      tone: autoDiscovery.tone
+    },
+    {
+      id: "execution-idle-watchdog",
+      label: "Execution-idle watchdog",
+      value: executionIdle.available ? executionIdle.badge : "learning",
+      detail: executionIdle.available
+        ? `${executionIdle.candidateCount} candidates | ${executionIdle.estimatedWasteWattsLabel} exposed`
+        : executionIdle.emptyText,
+      cadence: `${EXECUTION_IDLE_SUSTAINED_SECONDS}s sustained rule`,
+      tone: executionIdle.available ? executionIdle.tone : "watch"
+    },
+    {
+      id: "gpu-exporter-normalizer",
+      label: "GPU exporter normalizer",
+      value: gpuExporterCoverage.available ? gpuExporterCoverage.badge : "learning",
+      detail: gpuExporterCoverage.available
+        ? `${gpuExporterCoverage.coveredFamilies}/${gpuExporterCoverage.totalFamilies} metric families | ${gpuExporterCoverage.hostCount} hosts`
+        : gpuExporterCoverage.emptyText,
+      cadence: "on source import",
+      tone: gpuExporterCoverage.available ? gpuExporterCoverage.tone : "watch"
+    },
+    {
+      id: "clock-sync",
+      label: "Clock discipline",
+      value: machineContext?.clockPtpActive
+        ? machineContext.clockPtpPortState || "PTP active"
+        : machineContext?.clockSynchronized ? machineContext.clockSource || "synced" : "unsynced",
+      detail: machineContext?.clockSyncDetail || machineContext?.clockPtpGrandmaster || "Clock status not observed",
+      cadence: "continuous",
+      tone: machineContext?.clockPtpActive || machineContext?.clockSynchronized ? "good" : machineContext?.clockPtpInstalled ? "watch" : "poor"
+    },
+    {
+      id: "queue-smoke",
+      label: "Queue smoke",
+      value: kafka.messageId ? "round trip" : kafka.reachable ? "broker" : "waiting",
+      detail: kafka.messageId || kafka.topic || kafka.nodePortBootstrap || kafka.status,
+      cadence: "on demand",
+      tone: kafka.messageId || kafka.reachable ? "good" : "watch"
+    },
+    {
+      id: "system-id",
+      label: "System-ID worker",
+      value: systemIdStatus,
+      detail: systemIdAge === null
+        ? "Waiting for impulse/step/ramp/sine characterization"
+        : `${sparkPairAgeLabel(systemIdAge)} since virtual sensor fetch`,
+      cadence: "virtual sensor",
+      tone: systemIdStatus === "ready" ? "good" : systemIdStatus === "running" ? "watch" : "watch"
+    },
+    {
+      id: "comparison-engine",
+      label: "Comparison engine",
+      value: fleetComparison.available ? fleetComparison.badge : "learning",
+      detail: productReadiness.badge === "Needs repair"
+        ? "Product readiness is blocking confident comparison"
+        : `${summary.sourceItems?.length || 0} source items | confidence ${pct(confidence.score)}`,
+      cadence: "on render",
+      tone: fleetComparison.available && confidence.score >= 55 ? "good" : confidence.score >= 55 ? "watch" : "poor"
+    },
+    {
+      id: "replay-buffer",
+      label: "Replay buffer",
+      value: state.operatorReplay ? "playing" : `${liveTelemetryHistory.length} samples`,
+      detail: liveTelemetryHistory.length
+        ? `Keeps up to ${LIVE_TELEMETRY_LIMIT} in-browser telemetry samples`
+        : "Waiting for live samples before replay is useful",
+      cadence: "session local",
+      tone: liveTelemetryHistory.length >= 2 ? "good" : "watch"
+    }
+  ];
+
+  const counts = {
+    running: tasks.filter((task) => task.tone === "good").length,
+    watch: tasks.filter((task) => task.tone === "watch").length,
+    blocked: tasks.filter((task) => task.tone === "poor").length
+  };
+  const tone = counts.blocked ? "poor" : counts.watch ? "watch" : "good";
+  const badge = counts.blocked
+    ? `${counts.blocked} blocked`
+    : counts.watch ? `${counts.running} running` : "All running";
+  const generatedLabel = generatedAt ? `${sparkPairAgeLabel(Math.max(0, Date.now() - generatedAt.getTime()))} data age` : "no live timestamp";
+
+  return {
+    badge,
+    tone,
+    generatedLabel,
+    counts,
+    tasks
+  };
+}
+
+function autoDiscoverySubnet(hosts) {
+  const address = (hosts || [])
+    .map((host) => host.address)
+    .find((value) => /^192\.168\.10\.\d+$/.test(String(value || "")));
+  if (address) return `${address.split(".").slice(0, 3).join(".")}.0/24`;
+  const hostname = window.location.hostname;
+  if (/^192\.168\.10\.\d+$/.test(hostname)) return `${hostname.split(".").slice(0, 3).join(".")}.0/24`;
+  return "192.168.10.0/24";
+}
+
+function autoDiscoveryControllerAddress() {
+  const host = window.location.hostname.toLowerCase();
+  if (host === "100.95.183.13" || host === "nuc15") return "192.168.10.103";
+  if (/^192\.168\.10\.\d+$/.test(host)) return host;
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return "192.168.10.103";
+  return host || "192.168.10.103";
+}
+
+function operatorAutoDiscoveryDeploymentNodes(discovery) {
+  const summary = document.createElement("div");
+  summary.className = "auto-discovery-summary";
+  summary.dataset.tone = discovery.tone;
+  const score = document.createElement("strong");
+  score.textContent = discovery.badge;
+  const copy = document.createElement("span");
+  copy.textContent = `${discovery.subnet} | ${discovery.controller} | SSH credential gate`;
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "auto-discovery-grid";
+  discovery.rows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "auto-discovery-item";
+    item.dataset.tone = row.tone;
+    const label = document.createElement("span");
+    label.textContent = row.label;
+    const value = document.createElement("strong");
+    value.textContent = row.value;
+    const note = document.createElement("small");
+    note.textContent = row.note;
+    item.append(label, value, note);
+    grid.append(item);
+  });
+
+  const commands = document.createElement("div");
+  commands.className = "auto-discovery-commands";
+  commands.append(
+    operatorCommandButton({
+      label: "Discovery dry-run",
+      detail: "Copy controller scan and plan command",
+      command: discovery.dryRunCommand
+    }),
+    operatorCommandButton({
+      label: "Apply credentialed hosts",
+      detail: "Copy controlled deployment command",
+      command: discovery.applyCommand
+    })
+  );
+
+  const hosts = document.createElement("div");
+  hosts.className = "auto-discovery-hosts";
+  const hostRows = discovery.hosts.slice(0, 8);
+  if (!hostRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = "Waiting for live fleet hosts.";
+    hosts.append(empty);
+  } else {
+    hostRows.forEach((host) => {
+      const row = document.createElement("div");
+      row.className = "auto-discovery-host";
+      row.dataset.tone = host.tone || "watch";
+      const label = document.createElement("strong");
+      label.textContent = host.host || "host";
+      const meta = document.createElement("span");
+      meta.textContent = [host.address, host.gpu].filter(Boolean).join(" | ") || "address learning";
+      const status = document.createElement("small");
+      status.textContent = host.status || "observed";
+      row.append(label, meta, status);
+      hosts.append(row);
+    });
+  }
+
+  return [summary, grid, commands, hosts];
+}
+
+function operatorExecutionIdleNodes(executionIdle) {
+  if (!executionIdle.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = executionIdle.emptyText;
+    return [empty];
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "execution-idle-summary";
+  summary.append(...executionIdle.summaries.map(executionIdleSummaryItem));
+
+  const rows = document.createElement("div");
+  rows.className = "execution-idle-grid";
+  rows.append(executionIdleHeader(), ...executionIdle.rows.map(executionIdleRowNode));
+
+  const policies = document.createElement("div");
+  policies.className = "execution-idle-policy-grid";
+  policies.append(...executionIdle.policyRows.map(executionIdlePolicyItem));
+
+  return [summary, rows, policies];
+}
+
+function executionIdleSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "execution-idle-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function executionIdleHeader() {
+  const row = document.createElement("div");
+  row.className = "execution-idle-row execution-idle-head";
+  ["Host", "State", "Power gap", "Activity", "Precursor", "Action"].forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function executionIdleRowNode(rowData) {
+  const row = document.createElement("div");
+  row.className = "execution-idle-row";
+  row.dataset.tone = rowData.tone;
+  row.append(
+    executionIdleCell(rowData.host, rowData.gpuModel),
+    executionIdleCell(rowData.stateLabel, `${round(rowData.confidence)}% confidence`),
+    executionIdleCell(executionIdleWattsLabel(rowData.wasteWatts), Number.isFinite(rowData.powerWatts) ? `${round(rowData.powerWatts)} W board` : "power missing"),
+    executionIdleCell(pct(rowData.activityPct), `${formatBytesPerSecond(rowData.deviceCommBps)} device comm`),
+    executionIdleCell(rowData.cause.label, rowData.cause.note),
+    executionIdleCell(rowData.action, rowData.evidence)
+  );
+  return row;
+}
+
+function executionIdleCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function executionIdlePolicyItem(item) {
+  const node = document.createElement("div");
+  node.className = "execution-idle-policy-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function operatorGpuExporterCoverageNodes(coverage) {
+  if (!coverage.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = coverage.emptyText;
+    return [empty];
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "gpu-exporter-summary";
+  summary.append(...coverage.summaries.map(gpuExporterSummaryItem));
+
+  const rows = document.createElement("div");
+  rows.className = "gpu-exporter-grid";
+  rows.append(gpuExporterHeader(), ...coverage.rows.map(gpuExporterRowNode));
+
+  const policies = document.createElement("div");
+  policies.className = "gpu-exporter-policy-grid";
+  policies.append(...coverage.policyRows.map(gpuExporterPolicyItem));
+
+  return [summary, rows, policies];
+}
+
+function gpuExporterSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "gpu-exporter-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function gpuExporterHeader() {
+  const row = document.createElement("div");
+  row.className = "gpu-exporter-row gpu-exporter-head";
+  ["Family", "NVIDIA/DCGM", "AMD DME", "Normalized", "Use"].forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function gpuExporterRowNode(rowData) {
+  const row = document.createElement("div");
+  row.className = "gpu-exporter-row";
+  row.dataset.tone = rowData.tone;
+  const examples = rowData.examples.length ? rowData.examples.join(", ") : "waiting for raw metric";
+  row.append(
+    gpuExporterCell(rowData.label, `${round(rowData.coveragePct)}% host coverage`),
+    gpuExporterCell(`${rowData.nvidiaHosts}/${rowData.hostCount}`, rowData.nvidiaHosts ? examples : "DCGM/nvidia-smi aliases"),
+    gpuExporterCell(`${rowData.amdHosts}/${rowData.hostCount}`, rowData.amdHosts ? examples : "AMD DME aliases"),
+    gpuExporterCell(`${rowData.normalizedHosts}/${rowData.hostCount}`, rowData.normalizedHosts ? "shared turbalance fields" : "normalizer pending"),
+    gpuExporterCell(rowData.use, examples)
+  );
+  return row;
+}
+
+function gpuExporterCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function gpuExporterPolicyItem(item) {
+  const node = document.createElement("div");
+  node.className = "gpu-exporter-policy-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function operatorBackgroundTasksNodes(backgroundTasks) {
+  const summary = document.createElement("div");
+  summary.className = "background-tasks-summary";
+  summary.dataset.tone = backgroundTasks.tone;
+
+  const score = document.createElement("strong");
+  score.textContent = `${backgroundTasks.counts.running}/${backgroundTasks.tasks.length}`;
+  const copy = document.createElement("span");
+  copy.textContent = `${backgroundTasks.counts.running} running | ${backgroundTasks.counts.watch} watch | ${backgroundTasks.counts.blocked} blocked | ${backgroundTasks.generatedLabel}`;
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "background-task-grid";
+  backgroundTasks.tasks.forEach((task) => {
+    const row = document.createElement("article");
+    row.className = "background-task-row";
+    row.dataset.tone = task.tone;
+    row.dataset.task = task.id;
+
+    const marker = document.createElement("span");
+    marker.className = "background-task-dot";
+    marker.setAttribute("aria-hidden", "true");
+
+    const body = document.createElement("div");
+    const head = document.createElement("div");
+    head.className = "background-task-head";
+    const label = document.createElement("strong");
+    label.textContent = task.label;
+    const value = document.createElement("span");
+    value.textContent = task.value;
+    head.append(label, value);
+
+    const detail = document.createElement("small");
+    detail.textContent = task.detail;
+    const cadence = document.createElement("em");
+    cadence.textContent = task.cadence;
+    body.append(head, detail, cadence);
+    row.append(marker, body);
+    grid.append(row);
+  });
+
+  return [summary, grid];
+}
+
+function shellCommandPart(value) {
+  const text = String(value ?? "");
+  if (/^[A-Za-z0-9_./:@,%+=-]+$/.test(text)) return text;
+  return `'${text.replace(/'/g, "'\\''")}'`;
+}
+
+function operatorProductReadinessNodes(readiness) {
+  const summary = document.createElement("div");
+  summary.className = "product-readiness-summary";
+  summary.dataset.tone = readiness.tone;
+
+  const score = document.createElement("strong");
+  score.textContent = `${readiness.score}/100`;
+  const copy = document.createElement("span");
+  copy.textContent = readiness.badge === "Pilot-ready"
+    ? "Operationally ready for a friendly pilot; customer security gates still need explicit sign-off."
+    : readiness.badge === "Needs repair"
+      ? "Repair failing runtime checks before putting this in front of a customer."
+      : "Core runtime is taking shape; finish customer hardening gates before external access.";
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "product-readiness-grid";
+  readiness.rows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "product-readiness-item";
+    item.dataset.tone = row.tone;
+    const label = document.createElement("span");
+    label.textContent = row.label;
+    const value = document.createElement("strong");
+    value.textContent = row.value;
+    const note = document.createElement("small");
+    note.textContent = row.note;
+    item.append(label, value, note);
+    grid.append(item);
+  });
+
+  return [summary, grid];
+}
+
+function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence }) {
   const events = [];
   const add = (event) => events.push({
     time: event.time instanceof Date ? event.time : (event.time ? safeDate(event.time, generatedAt || new Date()) : null),
@@ -4183,7 +8027,13 @@ function buildOperatorTimeline({ summary, classifier, opportunityEngine, schedul
   if (adapters.includes("prometheus")) add({ time: generatedAt, source: "prometheus", label: "Prometheus sample imported", note: `${pct(summary.gpuUtil)} GPU utilization`, tone: "good" });
   if (adapters.includes("dcgm")) add({ time: generatedAt, source: "dcgm", label: "DCGM GPU counters imported", note: `${pct(summary.smOccupancy)} SM occupancy`, tone: "good" });
   if (summary.grafana?.links?.length) add({ time: generatedAt, source: "grafana", label: "Grafana handoff attached", note: summary.grafana.links[0].label || "Dashboard link", tone: "good" });
-  if (machineContext) add({ time: generatedAt, source: "host", label: "Host sample refreshed", note: ageSeconds === null ? machineContext.adapters : `${ageSeconds}s old | ${machineContext.adapters}`, tone: ageSeconds !== null && ageSeconds > 12 ? "watch" : "good" });
+  if (machineContext) add({ time: generatedAt, source: "host", label: "Host sample refreshed", note: ageMilliseconds === null ? machineContext.adapters : `${formatHostSampleAgeMilliseconds(ageMilliseconds)} old | ${machineContext.adapters}`, tone: ageMilliseconds !== null && ageMilliseconds > 12000 ? "watch" : "good" });
+  if (machineContext?.gb10Present) {
+    const available = machineContext.gb10MonitoringList.filter(gb10MonitoringAvailable).length;
+    const total = machineContext.gb10MonitoringList.length;
+    add({ time: generatedAt, source: "gb10", label: "GB10 monitoring list refreshed", note: `${available}/${Math.max(1, total)} monitors available`, tone: available === total ? "good" : "watch" });
+  }
+  if (machineContext?.ollamaTelemetryAvailable) add({ time: generatedAt, source: "ollama", label: "Ollama generation probe", note: `${formatDecimal(machineContext.ollamaTokensPerSecond, 1)} tok/s | ${round(machineContext.ollamaTimeToFirstTokenMs)}ms TTFT`, tone: "good" });
   if (observedServices.length) add({ time: generatedAt, source: "services", label: "Local services checked", note: observedServices.join(", "), tone: "good" });
   if (classifier?.primary?.name) add({ time: generatedAt, source: "analyzer", label: "Analyzer classified bottleneck", note: classifier.primary.name, tone: summary.usefulCompute >= 60 ? "good" : "watch" });
   if (opportunityEngine?.opportunities?.[0]) add({ time: generatedAt, source: "opportunity", label: "Top action ranked", note: opportunityEngine.opportunities[0].title, tone: "watch" });
@@ -4228,31 +8078,2895 @@ function buildOperatorGrafanaState(summary) {
 }
 
 function buildOperatorFleetTiles(summary, machineContext) {
-  const items = (summary.sourceItems || []).filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  const selectedIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === state.selectedKey)) : "";
+  const items = operatorFleetSourceItems(summary);
   if (!items.length && machineContext) {
     return [{
+      key: state.scope === "job" ? state.selectedKey : "",
       host: machineContext.host,
       gpu: machineContext.gpuModel,
       services: machineDemoServices(machineContext.context.observedServices),
       status: machineContext.driverUnavailable ? "GPU telemetry blocked" : machineContext.noGpu ? "Host only" : machineContext.idle ? "GPU idle" : "Active",
       age: machineContext.context.generatedAt ? Math.max(0, Math.round((Date.now() - safeDate(machineContext.context.generatedAt, new Date()).getTime()) / 1000)) : null,
-      tone: machineContext.driverUnavailable || machineContext.noGpu ? "watch" : "good"
+      tone: machineContext.driverUnavailable || machineContext.noGpu ? "watch" : "good",
+      selected: true
     }];
   }
 
-  return items.slice(0, 8).map((item) => {
+  return items.slice(0, FLEET_COMPARISON_HOST_LIMIT).map((item) => {
     const context = item.source?.context || {};
     const age = context.generatedAt ? Math.max(0, Math.round((Date.now() - safeDate(context.generatedAt, new Date()).getTime()) / 1000)) : null;
     const services = machineDemoServices(context.observedServices);
+    const identity = jobSelectionIdentity(item);
     return {
+      key: item.id || "",
       host: context.hostname || context.node || item.cluster || item.name,
       gpu: context.gpuName || item.gpuModel || "unknown GPU",
       services,
       status: item.status || "Observed",
       age,
-      tone: age !== null && age > 12 ? "watch" : "good"
+      tone: age !== null && age > 12 ? "watch" : "good",
+      selected: state.scope === "job" && (
+        item.id === state.selectedKey
+        || (identity && identity === selectedIdentity)
+      )
     };
   });
+}
+
+function operatorFleetSourceItems(summary) {
+  const summaryItems = (summary.sourceItems || [])
+    .filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  const machineJobs = jobs
+    .filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node);
+  return machineJobs.length > 1 ? machineJobs : summaryItems;
+}
+
+function buildFleetComparison(summary, machineContext, characterization) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  if (contexts.length < 2) {
+    return {
+      available: false,
+      badge: contexts.length ? "Need peers" : "Waiting",
+      tone: "watch",
+      emptyText: contexts.length
+        ? `Observed ${contexts[0].host}. Waiting for peer hosts in the live machine bundle.`
+        : "Waiting for a live machine fleet bundle."
+    };
+  }
+
+  const characterizations = fleetCharacterizationMap(characterization);
+  const rows = contexts.map((context) => fleetHostSnapshot(context, characterizations.get(fleetHostKey(context))));
+  assignFleetSignatureDistances(rows);
+  const metricConfigs = fleetMetricConfigs();
+  const spreadRows = metricConfigs
+    .map((config) => fleetMetricSpread(config, rows))
+    .filter(Boolean);
+  assignFleetScores(rows, metricConfigs);
+  rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  rows.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  const benchmarkHistograms = buildPiBenchmarkHistograms(rows);
+
+  const outlierCount = rows.filter((row) => row.outlierCount > 0 || row.tone === "poor").length;
+  const staleCount = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs > MACHINE_DEMO_FRESH_MS).length;
+  const fingerprintCount = rows.filter((row) => row.signatureMetricCount > 0).length;
+  const benchmarkCount = rows.filter(fleetBenchmarkAvailable).length;
+  const tone = staleCount > Math.max(1, rows.length * 0.25) || outlierCount > Math.max(2, rows.length * 0.35)
+    ? "poor"
+    : outlierCount || staleCount ? "watch" : "good";
+
+  return {
+    available: true,
+    badge: outlierCount ? `${outlierCount} outliers` : `${rows.length} hosts`,
+    tone,
+    rows,
+    spreadRows,
+    benchmarkHistograms,
+    summaries: fleetComparisonSummaries(rows, spreadRows, { outlierCount, staleCount, fingerprintCount, benchmarkCount })
+  };
+}
+
+function buildUnitEconomicsState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  if (!contexts.length) {
+    const fallbackContext = unitEconomicsFallbackContext(summary);
+    if (fallbackContext) contexts.push(fallbackContext);
+  }
+  const rows = contexts
+    .map((context, index) => unitEconomicsHostRow(context, index))
+    .filter(Boolean);
+
+  if (!rows.length) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      rows: [],
+      summaries: [],
+      emptyText: "Waiting for live machine rows before calculating per-device economics."
+    };
+  }
+
+  const totals = rows.reduce((accumulator, row) => {
+    accumulator.profitPerHour += row.profitPerHour;
+    accumulator.revenuePerHour += row.revenuePerHour;
+    accumulator.opexPerHour += row.opexPerHour;
+    accumulator.depreciationPerHour += row.depreciationPerHour;
+    accumulator.costPerHour += row.costPerHour;
+    accumulator.capexUsd += row.capexUsd;
+    accumulator.bookValueUsd += row.bookValueUsd;
+    return accumulator;
+  }, {
+    profitPerHour: 0,
+    revenuePerHour: 0,
+    opexPerHour: 0,
+    depreciationPerHour: 0,
+    costPerHour: 0,
+    capexUsd: 0,
+    bookValueUsd: 0
+  });
+  const estimatedRows = rows.filter((row) => row.estimated).length;
+  const tone = totals.profitPerHour >= 0
+    ? "good"
+    : totals.profitPerHour > -Math.max(1, totals.costPerHour * 0.25) ? "watch" : "poor";
+
+  return {
+    available: true,
+    badge: unitEconomicsSignedMoneyPerHour(totals.profitPerHour),
+    tone,
+    rows,
+    totals,
+    summaries: [
+      {
+        label: "Net P/L",
+        value: unitEconomicsSignedMoneyPerHour(totals.profitPerHour),
+        note: `${rows.length} ${rows.length === 1 ? "unit" : "units"} observed`,
+        tone
+      },
+      {
+        label: "Revenue",
+        value: unitEconomicsMoneyPerHour(totals.revenuePerHour),
+        note: `Rate input ${unitEconomicsMoneyPerHour(numeric(state.rate, 0)).replace("/hr", "/GPU-hr")}`,
+        tone: totals.revenuePerHour >= totals.costPerHour ? "good" : "watch"
+      },
+      {
+        label: "Loaded Cost",
+        value: unitEconomicsMoneyPerHour(totals.costPerHour),
+        note: `${unitEconomicsMoneyPerHour(totals.depreciationPerHour)} depreciation + ${unitEconomicsMoneyPerHour(totals.opexPerHour)} OPEX`,
+        tone: "watch"
+      },
+      {
+        label: "Input Quality",
+        value: estimatedRows ? `${estimatedRows} estimated` : "reported",
+        note: estimatedRows ? "CAPEX or OPEX defaults are visible per unit" : "Using reported finance fields",
+        tone: estimatedRows ? "watch" : "good"
+      }
+    ]
+  };
+}
+
+function unitEconomicsFallbackContext(summary) {
+  if (!summary) return null;
+  const gpus = Math.max(0, numeric(summary.gpus, 0));
+  const gpuModel = listLabel(summary.gpuModels || [], 1) || (gpus > 0 ? "GPU accelerator" : "host-only unit");
+  const gpuUtilizationPct = Number.isFinite(numeric(summary.gpuUtil, Number.NaN))
+    ? numeric(summary.gpuUtil, 0)
+    : numeric(summary.usefulCompute, 0);
+  const host = summary.label || summary.clusters?.[0] || "current unit";
+  const context = {
+    hostname: host,
+    gpuName: gpuModel,
+    gpuCount: gpus,
+    gpuPresent: gpus > 0 || gpuUtilizationPct > 0,
+    gpuUtilizationPct,
+    cpuUsagePct: numeric(summary.cpuUsagePct, numeric(summary.cpuPrep, 0)),
+    generatedAt: dateIso(state.lastAnalysis)
+  };
+
+  return {
+    host,
+    gpuModel,
+    gpuPresent: context.gpuPresent,
+    noGpu: !context.gpuPresent,
+    gpuUtilizationPct,
+    gpuPowerWatts: Number.NaN,
+    cpuUsagePct: context.cpuUsagePct,
+    context
+  };
+}
+
+function unitEconomicsHostRow(machineContext, index) {
+  if (!machineContext) return null;
+  const context = machineContext.context || {};
+  const host = machineContext.host || context.hostname || context.node || `host ${index + 1}`;
+  const hostKey = normalizeFleetHostId(host);
+  const gpuModel = machineContext.gpuModel || context.gpuName || "";
+  const gpuCount = unitEconomicsGpuCount(machineContext, context);
+  const gpuPresent = Boolean(machineContext.gpuPresent || gpuCount > 0) && !/no nvidia|unavailable|none/i.test(gpuModel);
+  const capacityUnits = gpuPresent ? Math.max(1, gpuCount || 1) : 1;
+  const utilizationPct = unitEconomicsUtilizationPct(machineContext, context, gpuPresent);
+  const explicitRevenue = firstFinite(
+    context.revenueUsdPerHour,
+    context.revenuePerHourUsd,
+    context.currentRevenueUsdPerHour,
+    context.unitRevenueUsdPerHour
+  );
+  const explicitRate = firstFinite(
+    context.gpuHourRateUsd,
+    context.pricePerGpuHourUsd,
+    context.billingRateUsdPerGpuHour,
+    context.revenueRateUsdPerGpuHour,
+    context.billableRateUsdPerHour,
+    context.hourlyRateUsd
+  );
+  const unitRateUsdPerHour = Number.isFinite(explicitRate)
+    ? explicitRate
+    : numeric(state.rate, 0) * (gpuPresent ? 1 : UNIT_ECONOMICS_DEFAULTS.cpuEquivalentRateFactor);
+  const currentUtilizationRatio = clamp(utilizationPct, 0, 100) / 100;
+  const fullCapacityRevenuePerHour = Number.isFinite(explicitRevenue)
+    ? explicitRevenue / Math.max(currentUtilizationRatio, 0.01)
+    : unitRateUsdPerHour * capacityUnits;
+  const capexExplicit = firstFinite(
+    context.initialCapexUsd,
+    context.capexUsd,
+    context.deviceCapexUsd,
+    context.serverCapexUsd,
+    context.hardwareCapexUsd,
+    context.assetCostUsd,
+    context.purchasePriceUsd,
+    context.initialCostUsd
+  );
+  const capexUsd = Number.isFinite(capexExplicit)
+    ? Math.max(0, capexExplicit)
+    : unitEconomicsEstimatedCapexUsd({ host, gpuModel, gpuCount, gpuPresent });
+  const usefulLifeYears = Math.max(0.5, firstFinite(
+    context.usefulLifeYears,
+    context.depreciationYears,
+    context.assetUsefulLifeYears,
+    gpuPresent ? UNIT_ECONOMICS_DEFAULTS.gpuUsefulLifeYears : UNIT_ECONOMICS_DEFAULTS.hostUsefulLifeYears
+  ));
+  const usefulLifeHours = usefulLifeYears * UNIT_ECONOMICS_HOURS_PER_YEAR;
+  const salvageValueUsd = Math.max(0, Math.min(capexUsd, firstFinite(
+    context.salvageValueUsd,
+    context.residualValueUsd,
+    capexUsd * UNIT_ECONOMICS_DEFAULTS.salvagePct
+  )));
+  const age = unitEconomicsAssetAge(context, usefulLifeHours, index);
+  const depreciationPerHour = usefulLifeHours > 0 ? Math.max(0, capexUsd - salvageValueUsd) / usefulLifeHours : 0;
+  const accumulatedDepreciationUsd = Math.min(capexUsd - salvageValueUsd, age.hours * depreciationPerHour);
+  const bookValueUsd = Math.max(salvageValueUsd, capexUsd - accumulatedDepreciationUsd);
+  const explicitOpex = firstFinite(
+    context.opexUsdPerHour,
+    context.opexPerHourUsd,
+    context.operatingCostUsdPerHour,
+    context.deviceOpexUsdPerHour
+  );
+  const power = unitEconomicsPowerEstimate(machineContext, context, { host, gpuModel, gpuCount, gpuPresent });
+  const maintenancePct = firstFinite(context.maintenancePctPerYear, context.annualMaintenancePct, UNIT_ECONOMICS_DEFAULTS.maintenancePctPerYear);
+  const facilityPct = firstFinite(context.facilityPctPerYear, context.annualFacilityPct, UNIT_ECONOMICS_DEFAULTS.facilityPctPerYear);
+  const fixedOpexPerHour = capexUsd * (maintenancePct + facilityPct) / UNIT_ECONOMICS_HOURS_PER_YEAR;
+  const model = {
+    host,
+    hostKey,
+    gpuModel,
+    gpuPresent,
+    gpuCount,
+    capacityUnits,
+    utilizationPct,
+    unitRateUsdPerHour,
+    fullCapacityRevenuePerHour,
+    capexUsd,
+    capexSource: Number.isFinite(capexExplicit) ? "reported CAPEX" : "estimated CAPEX",
+    usefulLifeYears,
+    salvageValueUsd,
+    depreciationPerHour,
+    accumulatedDepreciationUsd,
+    bookValueUsd,
+    ageHours: age.hours,
+    ageSource: age.source,
+    powerWatts: power.watts,
+    powerSource: power.source,
+    electricityUsdPerKwh: firstFinite(context.electricityUsdPerKwh, context.energyUsdPerKwh, UNIT_ECONOMICS_DEFAULTS.electricityUsdPerKwh),
+    pue: firstFinite(context.pue, context.powerUsageEffectiveness, UNIT_ECONOMICS_DEFAULTS.pue),
+    fixedOpexPerHour,
+    explicitOpexPerHour: Number.isFinite(explicitOpex) ? Math.max(0, explicitOpex) : Number.NaN,
+    opexSource: Number.isFinite(explicitOpex) ? "reported OPEX" : "power + support allocation",
+    revenueSource: Number.isFinite(explicitRevenue) ? "reported revenue" : "rate input x utilization",
+    estimated: !Number.isFinite(capexExplicit) || !Number.isFinite(explicitOpex),
+    timestampMs: Date.now()
+  };
+  const current = unitEconomicsFinancialPoint(model, {
+    utilizationPct,
+    powerWatts: power.watts,
+    timestampMs: Date.now(),
+    label: "now"
+  });
+  const history = unitEconomicsHistory(model);
+  const breakEvenUtilizationPct = model.fullCapacityRevenuePerHour > 0
+    ? (current.costPerHour / model.fullCapacityRevenuePerHour) * 100
+    : Number.NaN;
+  const marginPct = current.revenuePerHour > 0 ? (current.profitPerHour / current.revenuePerHour) * 100 : -100;
+  const tone = current.profitPerHour >= 0
+    ? "good"
+    : current.profitPerHour > -Math.max(0.5, current.costPerHour * 0.25) ? "watch" : "poor";
+
+  return {
+    ...model,
+    ...current,
+    history,
+    breakEvenUtilizationPct,
+    marginPct,
+    tone
+  };
+}
+
+function unitEconomicsGpuCount(machineContext, context) {
+  const explicit = firstFinite(
+    context.gpuCount,
+    context.gpuDeviceCount,
+    context.acceleratorCount,
+    context.accelerators,
+    context.gpus,
+    context.gpuTotal
+  );
+  if (Number.isFinite(explicit) && explicit > 0) return Math.round(explicit);
+  const uuidCount = [
+    context.gpuUuids,
+    context.gpuUUIDs,
+    context.gpuDevices
+  ]
+    .map((value) => Array.isArray(value) ? value.length : 0)
+    .find((count) => count > 0);
+  if (uuidCount) return uuidCount;
+  return machineContext?.gpuPresent ? 1 : 0;
+}
+
+function unitEconomicsUtilizationPct(machineContext, context, gpuPresent) {
+  const value = gpuPresent
+    ? firstFinite(
+      context.gpuBillableUtilizationPct,
+      context.gpuUtilizationPct,
+      context.gpuUtil,
+      machineContext?.gpuUtilizationPct
+    )
+    : firstFinite(
+      context.billableUtilizationPct,
+      context.cpuUsagePct,
+      machineContext?.cpuUsagePct
+    );
+  if (!Number.isFinite(value)) return 0;
+  return clamp(value >= 0 && value <= 1 ? value * 100 : value);
+}
+
+function unitEconomicsAssetAge(context, usefulLifeHours, index) {
+  const reportedDate = firstString([
+    context.commissionedAt,
+    context.acquiredAt,
+    context.purchaseDate,
+    context.installedAt,
+    context.assetStartDate,
+    context.depreciationStartDate
+  ]);
+  const parsed = reportedDate ? safeDate(reportedDate, null) : null;
+  if (parsed) {
+    return {
+      hours: Math.max(0, (Date.now() - parsed.getTime()) / 3600000),
+      source: "reported age"
+    };
+  }
+  const estimatedRatio = clamp(0.18 + (index % 5) * 0.04, 0.08, 0.42);
+  return {
+    hours: usefulLifeHours * estimatedRatio,
+    source: "estimated age"
+  };
+}
+
+function unitEconomicsEstimatedCapexUsd({ host, gpuModel, gpuCount, gpuPresent }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 120;
+  if (/nuc|mini pc|minipc/.test(label)) return 900;
+  if (/gb10|dgx spark/.test(label)) return 3000;
+  if (!gpuPresent) return 2500;
+  const baseServerUsd = /workstation|desktop|rtx/i.test(label) ? 2500 : 8000;
+  return baseServerUsd + unitEconomicsGpuCapexUsd(gpuModel) * Math.max(1, gpuCount || 1);
+}
+
+function unitEconomicsGpuCapexUsd(gpuModel) {
+  const label = String(gpuModel || "").toLowerCase();
+  if (/gb200|b200/.test(label)) return 40000;
+  if (/h200/.test(label)) return 32000;
+  if (/h100/.test(label)) return 30000;
+  if (/a100/.test(label)) return 12000;
+  if (/l40|a6000|rtx 6000|6000 ada/.test(label)) return 7000;
+  if (/4090/.test(label)) return 1800;
+  if (/gb10|dgx spark/.test(label)) return 3000;
+  return 15000;
+}
+
+function unitEconomicsPowerEstimate(machineContext, context, hardware) {
+  const reportedTotal = firstFinite(
+    context.powerWatts,
+    context.serverPowerWatts,
+    context.totalPowerWatts,
+    context.redfishPowerWatts,
+    context.chassisPowerWatts,
+    context.devicePowerWatts
+  );
+  if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+    return { watts: reportedTotal, source: "reported power" };
+  }
+
+  const gpuPower = firstFinite(context.gpuPowerWatts, machineContext?.gpuPowerWatts);
+  if (hardware.gpuPresent && Number.isFinite(gpuPower) && gpuPower > 0) {
+    return {
+      watts: gpuPower + unitEconomicsBaseHostWatts(hardware),
+      source: "GPU power + host estimate"
+    };
+  }
+
+  return {
+    watts: unitEconomicsEstimatedPowerWatts(hardware),
+    source: "estimated power"
+  };
+}
+
+function unitEconomicsBaseHostWatts({ host, gpuModel }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 8;
+  if (/nuc|mini pc|minipc/.test(label)) return 45;
+  if (/gb10|dgx spark/.test(label)) return 60;
+  return 220;
+}
+
+function unitEconomicsEstimatedPowerWatts({ host, gpuModel, gpuCount, gpuPresent }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 8;
+  if (/nuc|mini pc|minipc/.test(label)) return 45;
+  if (/gb10|dgx spark/.test(label)) return 120;
+  if (!gpuPresent) return 180;
+  const perGpuWatts = /b200|h200|h100/.test(label) ? 700 : /a100/.test(label) ? 500 : /4090|rtx|l40|a6000/.test(label) ? 350 : 450;
+  return unitEconomicsBaseHostWatts({ host, gpuModel }) + perGpuWatts * Math.max(1, gpuCount || 1);
+}
+
+function unitEconomicsFinancialPoint(model, sample) {
+  const utilizationPct = clamp(numeric(sample.utilizationPct, model.utilizationPct));
+  const utilizationRatio = utilizationPct / 100;
+  const powerWatts = Number.isFinite(sample.powerWatts) ? sample.powerWatts : model.powerWatts;
+  const revenuePerHour = Math.max(0, model.fullCapacityRevenuePerHour * utilizationRatio);
+  const powerOpexPerHour = Math.max(0, powerWatts) * model.pue / 1000 * model.electricityUsdPerKwh;
+  const opexPerHour = Number.isFinite(model.explicitOpexPerHour)
+    ? model.explicitOpexPerHour
+    : powerOpexPerHour + model.fixedOpexPerHour;
+  const costPerHour = model.depreciationPerHour + opexPerHour;
+
+  return {
+    timestampMs: sample.timestampMs || Date.now(),
+    label: sample.label || "",
+    utilizationPct,
+    powerWatts,
+    revenuePerHour,
+    powerOpexPerHour,
+    opexPerHour,
+    depreciationPerHour: model.depreciationPerHour,
+    costPerHour,
+    profitPerHour: revenuePerHour - costPerHour
+  };
+}
+
+function unitEconomicsHistory(model) {
+  const hostSamples = liveTelemetryHistory
+    .filter((sample) => normalizeFleetHostId(sample.host) === model.hostKey)
+    .slice(-24)
+    .map((sample) => ({
+      timestampMs: sample.timestampMs,
+      label: sample.label,
+      utilizationPct: model.gpuPresent && Number.isFinite(sample.gpu) ? sample.gpu : sample.cpu,
+      powerWatts: unitEconomicsSamplePowerWatts(model, sample)
+    }));
+  const sourceSamples = hostSamples.length >= 2 ? hostSamples : unitEconomicsSyntheticSamples(model);
+  return sourceSamples.map((sample) => unitEconomicsFinancialPoint(model, sample));
+}
+
+function unitEconomicsSamplePowerWatts(model, sample) {
+  if (!model.gpuPresent) return model.powerWatts;
+  if (!Number.isFinite(sample.gpuPower) || sample.gpuPower <= 0) return model.powerWatts;
+  return sample.gpuPower + unitEconomicsBaseHostWatts({ host: model.host, gpuModel: model.gpuModel });
+}
+
+function unitEconomicsSyntheticSamples(model) {
+  const count = 16;
+  const now = Date.now();
+  return Array.from({ length: count }, (_unused, index) => {
+    const phase = (index + 1) * (model.host.length + 3);
+    const drift = Math.sin(phase * 0.55) * 5 + Math.cos(phase * 0.23) * 2;
+    const utilizationPct = model.utilizationPct <= 0 ? 0 : clamp(model.utilizationPct + drift);
+    const loadRatio = model.utilizationPct > 0 ? utilizationPct / Math.max(1, model.utilizationPct) : 1;
+    return {
+      timestampMs: now - (count - index - 1) * 60000,
+      label: `${count - index - 1}m ago`,
+      utilizationPct,
+      powerWatts: Math.max(unitEconomicsBaseHostWatts({ host: model.host, gpuModel: model.gpuModel }), model.powerWatts * (0.78 + loadRatio * 0.22))
+    };
+  });
+}
+
+function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison) {
+  const rows = benchmarkComparisonRows(summary, machineContext, fleetComparison);
+  if (!rows.length) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      emptyText: "Waiting for live machine benchmark samples."
+    };
+  }
+
+  const target = benchmarkTargetRow(rows, machineContext);
+  const metrics = benchmarkMetricConfigs().map((config) => benchmarkMetricState(target, rows, config));
+  const availableMetricCount = metrics.filter((metric) => metric.available).length;
+  const measuredMetricCount = metrics.filter((metric) => metric.status === "measured").length;
+  const levels = [
+    benchmarkSelfLevel(target, rows, metrics),
+    benchmarkPeerLevel(target, rows, metrics),
+    benchmarkGroupLevel("rack", "Rack", target, rows.filter((row) => row.rackKey && row.rackKey === target.rackKey), metrics, target.rackConfidence),
+    benchmarkGroupLevel("cluster", "Cluster", target, rows.filter((row) => row.clusterKey && row.clusterKey === target.clusterKey), metrics, target.clusterConfidence),
+    benchmarkGroupLevel("fleet", "Fleet", target, rows, metrics, "observed"),
+    benchmarkGlobalLevel(target, metrics)
+  ];
+  const blockedLevels = levels.filter((level) => level.status !== "ready").length;
+  const comparisonScore = benchmarkLevelScore(levels);
+  const tone = availableMetricCount < 2 || blockedLevels >= 3
+    ? "poor"
+    : comparisonScore >= 92 ? "good" : comparisonScore >= 72 ? "watch" : "poor";
+
+  return {
+    available: true,
+    badge: `${availableMetricCount}/5 metrics`,
+    tone,
+    target,
+    rows,
+    metrics,
+    levels,
+    measuredMetricCount,
+    availableMetricCount,
+    comparisonScore,
+    sourceLinks: benchmarkGlobalReferenceLinks()
+  };
+}
+
+function benchmarkComparisonRows(summary, machineContext, fleetComparison) {
+  if (fleetComparison?.available && Array.isArray(fleetComparison.rows) && fleetComparison.rows.length) {
+    return fleetComparison.rows;
+  }
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const rows = contexts.map((context) => fleetHostSnapshot(context, null));
+  assignFleetSignatureDistances(rows);
+  const metricConfigs = fleetMetricConfigs();
+  metricConfigs.map((config) => fleetMetricSpread(config, rows)).filter(Boolean);
+  assignFleetScores(rows, metricConfigs);
+  rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  rows.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  return rows;
+}
+
+function benchmarkTargetRow(rows, machineContext) {
+  if (machineContext) {
+    const key = fleetHostKey(machineContext);
+    const match = rows.find((row) => row.key === key);
+    if (match) return match;
+  }
+  const selected = selectedMachineContextFromInventory();
+  if (selected) {
+    const key = fleetHostKey(selected);
+    const match = rows.find((row) => row.key === key);
+    if (match) return match;
+  }
+  return rows.slice().sort((left, right) => {
+    const leftAvailable = benchmarkMetricConfigs().filter((config) => benchmarkMetricState(left, rows, config).available).length;
+    const rightAvailable = benchmarkMetricConfigs().filter((config) => benchmarkMetricState(right, rows, config).available).length;
+    return rightAvailable - leftAvailable || numeric(right.score, 0) - numeric(left.score, 0);
+  })[0] || rows[0];
+}
+
+function selectedMachineContextFromInventory() {
+  const selected = jobs.find((item) => item.id === state.selectedKey);
+  if (!selected) return null;
+  const summary = displaySummary({
+    key: selected.id,
+    label: selected.name || selected.id,
+    scope: "job",
+    items: [selected]
+  });
+  return machineContextFromSourceItem(summary, selected);
+}
+
+function benchmarkMetricConfigs() {
+  return [
+    {
+      id: "cpu",
+      label: "CPU",
+      key: "benchmarkCpuOpsPerSecond",
+      formatter: fleetOpsLabel,
+      source: "periodic benchmark",
+      globalKey: "cpuOpsPerSecond"
+    },
+    {
+      id: "gpu",
+      label: "GPU",
+      key: "benchmarkGpuScore",
+      formatter: fleetBenchmarkScoreLabel,
+      source: "GPU benchmark",
+      missing: "waiting for GPU run",
+      globalKey: "gpuScore"
+    },
+    {
+      id: "ram",
+      label: "RAM",
+      key: "benchmarkMemoryMiBps",
+      formatter: fleetMibPerSecondLabel,
+      source: "memory fill benchmark",
+      globalKey: "memoryMiBps"
+    },
+    {
+      id: "network",
+      label: "Network",
+      key: "benchmarkNetworkMbps",
+      formatter: fleetMbpsLabel,
+      source: "network benchmark",
+      fallbackKey: "networkLinkSpeedMbps",
+      fallbackSource: "link capacity proxy",
+      globalKey: "networkMbps"
+    },
+    {
+      id: "disk",
+      label: "Disk",
+      key: "benchmarkDiskReadMiBps",
+      secondaryKey: "benchmarkDiskWriteMiBps",
+      formatter: fleetMibPerSecondLabel,
+      source: "disk read/write benchmark",
+      globalKey: "diskReadMiBps"
+    }
+  ];
+}
+
+function benchmarkMetricState(row, rows, config) {
+  const rawValue = numeric(row?.[config.key], Number.NaN);
+  const fallbackValue = config.fallbackKey ? numeric(row?.[config.fallbackKey], Number.NaN) : Number.NaN;
+  const hasRaw = Number.isFinite(rawValue) && rawValue > 0;
+  const hasFallback = !hasRaw && Number.isFinite(fallbackValue) && fallbackValue > 0;
+  const value = hasRaw ? rawValue : hasFallback ? fallbackValue : Number.NaN;
+  const peers = rows
+    .filter((candidate) => candidate !== row)
+    .map((candidate) => benchmarkMetricNumeric(candidate, config))
+    .filter(Number.isFinite);
+  const median = peers.length ? fleetMedian(peers) : Number.NaN;
+  const secondary = config.secondaryKey ? numeric(row?.[config.secondaryKey], Number.NaN) : Number.NaN;
+  const detail = config.secondaryKey && Number.isFinite(secondary) && secondary > 0
+    ? `write ${config.formatter(secondary)}`
+    : hasFallback ? config.fallbackSource : config.source;
+
+  return {
+    id: config.id,
+    label: config.label,
+    value,
+    valueLabel: Number.isFinite(value) ? config.formatter(value) : config.missing || "waiting",
+    secondary,
+    detail,
+    available: Number.isFinite(value),
+    status: hasRaw ? "measured" : hasFallback ? "proxy" : "missing",
+    median,
+    ratio: Number.isFinite(value) && Number.isFinite(median) && median > 0 ? value / median : Number.NaN,
+    formatter: config.formatter,
+    source: hasFallback ? config.fallbackSource : config.source
+  };
+}
+
+function benchmarkMetricNumeric(row, config) {
+  const value = numeric(row?.[config.key], Number.NaN);
+  if (Number.isFinite(value) && value > 0) return value;
+  const fallback = config.fallbackKey ? numeric(row?.[config.fallbackKey], Number.NaN) : Number.NaN;
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : Number.NaN;
+}
+
+function benchmarkSelfLevel(target, rows, metrics) {
+  const available = metrics.filter((metric) => metric.available);
+  const measured = metrics.filter((metric) => metric.status === "measured");
+  const score = Number.isFinite(target.benchmarkScore)
+    ? target.benchmarkScore
+    : clamp((available.length / Math.max(1, metrics.length)) * 100);
+  return {
+    id: "absolute",
+    level: "1",
+    label: "Metric",
+    scope: target.host,
+    value: Number.isFinite(score) ? `${formatDecimal(score, 1)}` : `${available.length}/${metrics.length}`,
+    detail: `${measured.length} measured | ${available.length} available`,
+    status: available.length ? "ready" : "waiting",
+    tone: available.length >= 4 ? "good" : available.length >= 2 ? "watch" : "poor",
+    score: Number.isFinite(score) ? score : 0
+  };
+}
+
+function benchmarkPeerLevel(target, rows, metrics) {
+  const peer = benchmarkPeerRow(target, rows);
+  if (!peer) {
+    return benchmarkWaitingLevel("peer", "2", "1:1", "Need another machine");
+  }
+  return benchmarkComparisonLevel({
+    id: "peer",
+    level: "2",
+    label: "1:1",
+    scope: peer.host,
+    target,
+    baselineRows: [peer],
+    metrics,
+    confidence: "observed"
+  });
+}
+
+function benchmarkPeerRow(target, rows) {
+  const peers = rows.filter((row) => row !== target);
+  if (!peers.length) return null;
+  return peers.slice().sort((left, right) => {
+    const leftSameGpu = left.gpuPresent === target.gpuPresent ? 1 : 0;
+    const rightSameGpu = right.gpuPresent === target.gpuPresent ? 1 : 0;
+    return rightSameGpu - leftSameGpu || numeric(right.score, 0) - numeric(left.score, 0);
+  })[0];
+}
+
+function benchmarkGroupLevel(id, label, target, groupRows, metrics, confidence) {
+  const peers = groupRows.filter((row) => row !== target);
+  if (!peers.length) {
+    return benchmarkWaitingLevel(id, id === "rack" ? "3" : id === "cluster" ? "4" : "5", label, "Need peers in scope");
+  }
+  return benchmarkComparisonLevel({
+    id,
+    level: id === "rack" ? "3" : id === "cluster" ? "4" : "5",
+    label,
+    scope: id === "rack" ? target.rackLabel : id === "cluster" ? target.clusterLabel : `${groupRows.length} hosts`,
+    target,
+    baselineRows: peers,
+    metrics,
+    confidence
+  });
+}
+
+function benchmarkGlobalLevel(target, metrics) {
+  const context = target.machineContext?.context || {};
+  const percentile = numeric(target.benchmarkGlobalPercentile, Number.NaN);
+  const globalScore = numeric(target.benchmarkGlobalScore, Number.NaN);
+  const dataset = target.benchmarkGlobalDataset || context.benchmarkGlobalDataset || "";
+  if (Number.isFinite(percentile) || Number.isFinite(globalScore)) {
+    const score = Number.isFinite(percentile) ? percentile : globalScore;
+    return {
+      id: "global",
+      level: "6",
+      label: "Global",
+      scope: dataset || "imported reference",
+      value: Number.isFinite(percentile) ? `p${round(percentile)}` : `${formatDecimal(globalScore, 1)}`,
+      detail: target.benchmarkGlobalUrl ? "external result linked" : "global reference imported",
+      status: "ready",
+      tone: score >= 75 ? "good" : score >= 50 ? "watch" : "poor",
+      score
+    };
+  }
+
+  const measured = metrics.filter((metric) => metric.status === "measured").length;
+  return {
+    id: "global",
+    level: "6",
+    label: "Global",
+    scope: "OpenBenchmarking / MLPerf / SPEC",
+    value: "ready",
+    detail: measured ? `${measured} local metrics ready for external matching` : "waiting for measured benchmark samples",
+    status: measured ? "connector-ready" : "waiting",
+    tone: measured ? "watch" : "poor",
+    score: measured ? 58 : 20
+  };
+}
+
+function benchmarkComparisonLevel({ id, level, label, scope, target, baselineRows, metrics, confidence }) {
+  const comparisons = metrics
+    .map((metric) => {
+      if (!metric.available) return null;
+      const config = benchmarkMetricConfigs().find((item) => item.id === metric.id);
+      const baselineValues = baselineRows.map((row) => benchmarkMetricNumeric(row, config)).filter(Number.isFinite);
+      const baseline = baselineValues.length ? fleetMedian(baselineValues) : Number.NaN;
+      if (!Number.isFinite(baseline) || baseline <= 0) return null;
+      return {
+        metric,
+        baseline,
+        ratio: metric.value / baseline
+      };
+    })
+    .filter(Boolean);
+
+  if (!comparisons.length) {
+    return benchmarkWaitingLevel(id, level, label, "No shared benchmark metrics");
+  }
+
+  const index = benchmarkComparisonIndex(comparisons);
+  const leaderCount = comparisons.filter((item) => item.ratio >= 1.02).length;
+  const lagCount = comparisons.filter((item) => item.ratio <= 0.98).length;
+  const topGap = comparisons.slice().sort((left, right) => Math.abs(right.ratio - 1) - Math.abs(left.ratio - 1))[0];
+  const confidenceText = confidence === "explicit"
+    ? "explicit topology"
+    : confidence === "observed" ? "observed samples" : "inferred topology";
+
+  return {
+    id,
+    level,
+    label,
+    scope,
+    value: `${round(index)} index`,
+    detail: `${leaderCount} ahead | ${lagCount} behind | ${topGap.metric.label} ${signedPercent((topGap.ratio - 1) * 100)}`,
+    status: "ready",
+    tone: index >= 105 ? "good" : index >= 90 ? "watch" : "poor",
+    score: clamp(index, 0, 140),
+    confidence: confidenceText
+  };
+}
+
+function benchmarkComparisonIndex(comparisons) {
+  const scores = comparisons.map((item) => clamp(item.ratio * 100, 0, 200));
+  return scores.reduce((total, score) => total + score, 0) / Math.max(1, scores.length);
+}
+
+function benchmarkWaitingLevel(id, level, label, detail) {
+  return {
+    id,
+    level,
+    label,
+    scope: "learning",
+    value: "waiting",
+    detail,
+    status: "waiting",
+    tone: "watch",
+    score: 45
+  };
+}
+
+function benchmarkLevelScore(levels) {
+  const ready = levels.filter((level) => level.status === "ready" || level.status === "connector-ready");
+  return ready.length
+    ? ready.reduce((total, level) => total + numeric(level.score, 0), 0) / ready.length
+    : 0;
+}
+
+function benchmarkGlobalReferenceLinks() {
+  return [
+    { label: "OpenBenchmarking", note: "global public results", url: "https://openbenchmarking.org/features" },
+    { label: "MLPerf", note: "AI/storage benchmark suites", url: "https://mlcommons.org/benchmarks/" },
+    { label: "SPEC", note: "standardized CPU/workstation suites", url: "https://www.spec.org/products/" },
+    { label: "PerfKit", note: "cloud and local benchmark runner", url: "https://googlecloudplatform.github.io/PerfKitBenchmarker/" }
+  ];
+}
+
+function benchmarkRackKey(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([
+    context.rack,
+    context.rackId,
+    context.rackName,
+    context.topologyRack,
+    context.redfishRack,
+    context.chassisRack
+  ]);
+  if (explicit) return normalizeFleetHostId(explicit);
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  if (subnet) return `subnet-${subnet}`;
+  return `host-family-${normalizeFleetHostId(String(machineContext?.host || "").split(/[-._]/)[0] || "local")}`;
+}
+
+function benchmarkRackLabel(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([context.rack, context.rackId, context.rackName, context.topologyRack]);
+  if (explicit) return explicit;
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  if (subnet) return `${subnet}.0/24`;
+  return "inferred rack";
+}
+
+function benchmarkRackConfidence(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.rack, context.rackId, context.rackName, context.topologyRack]) ? "explicit" : "inferred";
+}
+
+function benchmarkClusterKey(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([
+    context.cluster,
+    context.clusterId,
+    context.clusterName,
+    context.kubernetesCluster,
+    context.fleetCluster
+  ]);
+  if (explicit) return normalizeFleetHostId(explicit);
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  return subnet ? `cluster-${subnet}` : "cluster-local";
+}
+
+function benchmarkClusterLabel(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.cluster, context.clusterId, context.clusterName, context.kubernetesCluster, context.fleetCluster])
+    || benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress)
+    || "local cluster";
+}
+
+function benchmarkClusterConfidence(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.cluster, context.clusterId, context.clusterName, context.kubernetesCluster, context.fleetCluster]) ? "explicit" : "inferred";
+}
+
+function benchmarkSubnetKey(address) {
+  const match = String(address || "").match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+  if (!match) return "";
+  return `${match[1]}.${match[2]}.${match[3]}`;
+}
+
+function signedPercent(value) {
+  const parsed = numeric(value, 0);
+  const prefix = parsed > 0 ? "+" : "";
+  return `${prefix}${formatDecimal(parsed, Math.abs(parsed) >= 10 ? 0 : 1)}%`;
+}
+
+function buildFleetMachineContexts(summary, machineContext) {
+  const items = operatorFleetSourceItems(summary);
+  const contexts = items
+    .map((item) => machineContextFromSourceItem(summary, item))
+    .filter(Boolean);
+
+  if (!contexts.length && machineContext) contexts.push(machineContext);
+
+  return uniqueBy(contexts, fleetHostKey)
+    .sort(fleetHostContextSort);
+}
+
+function fleetHostContextSort(left, right) {
+  const leftRank = fleetHostSortRank(left);
+  const rightRank = fleetHostSortRank(right);
+  return leftRank - rightRank || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true });
+}
+
+function fleetHostSortRank(machineContext) {
+  const role = sparkPairHostRole(machineContext);
+  if (role === "SPARK1") return 10;
+  if (role === "SPARK2") return 11;
+  const label = fleetNaturalLabel(machineContext.host);
+  const piMatch = label.match(/^pi(\d+)$/i) || label.match(/^PI(\d+)$/);
+  if (piMatch) return 100 + numeric(piMatch[1], 0);
+  if (/nuc/i.test(label)) return 50;
+  return 200;
+}
+
+function fleetHostKey(machineContext) {
+  const context = machineContext?.context || {};
+  return normalizeFleetHostId(
+    sparkPairHostRole(machineContext)
+    || machineContext?.host
+    || context.hostname
+    || context.node
+    || context.networkLocalAddress
+  );
+}
+
+function normalizeFleetHostId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^pi@/, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function fleetNaturalLabel(value) {
+  return String(value || "").trim() || "host";
+}
+
+function fleetCharacterizationMap(characterization) {
+  const map = new Map();
+  if (!characterization || characterization.status !== "ready") return map;
+  (characterization.hosts || []).forEach((host) => {
+    map.set(normalizeFleetHostId(host.hostId), host);
+  });
+  return map;
+}
+
+function fleetHostSnapshot(machineContext, characterizationHost) {
+  const context = machineContext.context || {};
+  const sampleAgeMs = sparkPairSampleAgeMilliseconds(machineContext);
+  const networkIssueCount = numeric(machineContext.networkRxDrops)
+    + numeric(machineContext.networkTxDrops)
+    + numeric(machineContext.networkRxErrors)
+    + numeric(machineContext.networkTxErrors);
+  const networkThroughputBps = Math.max(
+    numeric(machineContext.networkRxBytesPerSecond, 0),
+    numeric(machineContext.networkTxBytesPerSecond, 0)
+  );
+  const loadPressurePct = clamp((numeric(context.load1) / Math.max(1, numeric(context.cpuCount, machineContext.context?.cpuCount || 1))) * 100);
+  const memoryTotalBytes = numeric(context.memoryTotalBytes, 0);
+  const diskTotalBytes = numeric(context.diskTotalBytes, 0);
+  const signature = fleetSystemSignature(characterizationHost);
+  const host = machineContext.host || context.hostname || "host";
+  const services = machineDemoServices(context.observedServices);
+
+  return {
+    host,
+    key: fleetHostKey(machineContext),
+    machineContext,
+    characterizationHost,
+    services,
+    platform: [machineContext.platform, machineContext.arch].filter(Boolean).join("/") || context.os || "",
+    cpuModel: String(context.cpuModel || ""),
+    cpuCount: numeric(context.cpuCount, 0),
+    sampleAgeMs,
+    cpuUsagePct: machineContext.cpuUsagePct,
+    cpuTemperatureC: machineContext.cpuTemperatureC,
+    loadPressurePct,
+    memoryUsedPct: machineContext.memoryUsedPct,
+    memoryTotalBytes,
+    diskUsedPct: machineContext.diskUsedPct,
+    diskTotalBytes,
+    networkUtilizationPct: machineContext.networkUtilizationPct,
+    networkLinkSpeedMbps: machineContext.networkLinkSpeedMbps,
+    networkThroughputBps,
+    networkIssueCount,
+    dockerCpuPct: sparkPairDockerCpuPct(machineContext),
+    ollamaTokensPerSecond: machineContext.ollamaTokensPerSecond,
+    modelCount: machineContext.modelCount,
+    benchmarkSuiteName: machineContext.benchmarkSuiteName,
+    benchmarkSuiteStatus: machineContext.benchmarkSuiteStatus,
+    benchmarkGeneratedAt: machineContext.benchmarkGeneratedAt,
+    benchmarkSampleCached: machineContext.benchmarkSampleCached,
+    benchmarkSampleAgeMs: machineContext.benchmarkSampleAgeMs,
+    benchmarkTtlMs: machineContext.benchmarkTtlMs,
+    benchmarkDurationMs: machineContext.benchmarkDurationMs,
+    benchmarkCpuOpsPerSecond: machineContext.benchmarkCpuOpsPerSecond,
+    benchmarkMemoryMiBps: machineContext.benchmarkMemoryMiBps,
+    benchmarkDiskWriteMiBps: machineContext.benchmarkDiskWriteMiBps,
+    benchmarkDiskReadMiBps: machineContext.benchmarkDiskReadMiBps,
+    benchmarkGpuScore: machineContext.benchmarkGpuScore,
+    benchmarkGpuMemoryMiBps: machineContext.benchmarkGpuMemoryMiBps,
+    benchmarkGpuTensorOpsPerSecond: machineContext.benchmarkGpuTensorOpsPerSecond,
+    benchmarkNetworkMbps: machineContext.benchmarkNetworkMbps,
+    benchmarkNetworkLatencyUs: machineContext.benchmarkNetworkLatencyUs,
+    benchmarkGlobalScore: machineContext.benchmarkGlobalScore,
+    benchmarkGlobalPercentile: machineContext.benchmarkGlobalPercentile,
+    benchmarkGlobalDataset: machineContext.benchmarkGlobalDataset,
+    benchmarkGlobalUrl: machineContext.benchmarkGlobalUrl,
+    benchmarkScore: fleetBenchmarkCompositeScore(machineContext),
+    benchmarkError: machineContext.benchmarkError,
+    gpuPresent: machineContext.gpuPresent,
+    gpuUtilizationPct: machineContext.gpuUtilizationPct,
+    gpuMemoryUsedPct: machineContext.gpuMemoryUsedPct,
+    gpuMemoryTotalMiB: machineContext.gpuMemoryTotalMiB,
+    gpuPowerWatts: machineContext.gpuPowerWatts,
+    rackKey: benchmarkRackKey(machineContext),
+    rackLabel: benchmarkRackLabel(machineContext),
+    rackConfidence: benchmarkRackConfidence(machineContext),
+    clusterKey: benchmarkClusterKey(machineContext),
+    clusterLabel: benchmarkClusterLabel(machineContext),
+    clusterConfidence: benchmarkClusterConfidence(machineContext),
+    signature,
+    signatureDelta: Number.NaN,
+    signatureMetricCount: Object.keys(signature).length,
+    outlierCount: 0,
+    outlierLabels: [],
+    score: 0,
+    tone: "watch"
+  };
+}
+
+function fleetSystemSignature(host) {
+  if (!host) return {};
+  const signature = {};
+  (host.subsystems || []).forEach((subsystem) => {
+    [
+      ["stepPeak", subsystem.stepPeak],
+      ["stepGain", subsystem.stepGain],
+      ["impulsePeak", subsystem.impulsePeak],
+      ["impulseGain", subsystem.impulseGain],
+      ["rampPeak", subsystem.rampPeak]
+    ].forEach(([feature, value]) => {
+      if (Number.isFinite(value)) signature[`${subsystem.key}:${feature}`] = value;
+    });
+    Object.entries(subsystem.profilePeaks || {}).forEach(([profile, value]) => {
+      if (Number.isFinite(value)) signature[`${subsystem.key}:${profile}:peak`] = value;
+    });
+  });
+  return signature;
+}
+
+function assignFleetSignatureDistances(rows) {
+  const keys = unique(rows.flatMap((row) => Object.keys(row.signature)));
+  if (!keys.length) return;
+  const medians = new Map();
+  const scales = new Map();
+  keys.forEach((key) => {
+    const values = rows.map((row) => row.signature[key]).filter(Number.isFinite);
+    if (values.length < 2) return;
+    const median = fleetMedian(values);
+    const mad = fleetMedian(values.map((value) => Math.abs(value - median)));
+    medians.set(key, median);
+    scales.set(key, Math.max(mad * 1.4826, Math.abs(median) * 0.08, 0.5));
+  });
+
+  rows.forEach((row) => {
+    const distances = Object.entries(row.signature)
+      .filter(([key, value]) => medians.has(key) && Number.isFinite(value))
+      .map(([key, value]) => Math.abs(value - medians.get(key)) / scales.get(key));
+    row.signatureDelta = distances.length
+      ? distances.reduce((total, value) => total + value, 0) / distances.length
+      : Number.NaN;
+  });
+}
+
+function fleetMetricConfigs() {
+  return [
+    { key: "sampleAgeMs", label: "Freshness", formatter: sparkPairAgeLabel, lowerBetter: true, weight: 1.1, domain: [0, MACHINE_DEMO_FRESH_MS * 2], outlierLabel: "stale" },
+    { key: "cpuUsagePct", label: "CPU", formatter: pct, lowerBetter: true, weight: 1.1, domain: [0, 95], outlierLabel: "cpu" },
+    { key: "loadPressurePct", label: "Load/core", formatter: pct, lowerBetter: true, weight: 0.8, domain: [0, 120], outlierLabel: "load" },
+    { key: "cpuTemperatureC", label: "CPU temp", formatter: fleetTemperatureLabel, lowerBetter: true, weight: 0.8, domain: [35, 85], outlierLabel: "thermal" },
+    { key: "memoryUsedPct", label: "RAM used", formatter: pct, lowerBetter: true, weight: 1, domain: [0, 95], outlierLabel: "ram" },
+    { key: "diskUsedPct", label: "Disk used", formatter: pct, lowerBetter: true, weight: 0.8, domain: [0, 95], outlierLabel: "disk" },
+    { key: "networkIssueCount", label: "Net issues", formatter: (value) => number.format(value), lowerBetter: true, weight: 0.9, domain: [0, 10], outlierLabel: "net" },
+    { key: "cpuCount", label: "CPU cores", formatter: (value) => number.format(value), higherBetter: true, weight: 0.7, relative: true },
+    { key: "memoryTotalBytes", label: "RAM total", formatter: formatBytes, higherBetter: true, weight: 0.75, relative: true },
+    { key: "diskTotalBytes", label: "Disk total", formatter: formatBytes, higherBetter: true, weight: 0.55, relative: true },
+    { key: "networkLinkSpeedMbps", label: "Link speed", formatter: fleetMbpsLabel, higherBetter: true, weight: 0.6, relative: true },
+    { key: "networkThroughputBps", label: "Net activity", formatter: formatBytesPerSecond, higherBetter: true, weight: 0.25, relative: true },
+    { key: "benchmarkScore", label: "Bench score", formatter: fleetBenchmarkScoreLabel, higherBetter: true, weight: 0.9, relative: true, outlierLabel: "bench" },
+    { key: "benchmarkCpuOpsPerSecond", label: "CPU bench", formatter: fleetOpsLabel, higherBetter: true, weight: 0.7, relative: true, outlierLabel: "cpu-bench" },
+    { key: "benchmarkMemoryMiBps", label: "Memory bench", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.65, relative: true, outlierLabel: "mem-bench" },
+    { key: "benchmarkDiskWriteMiBps", label: "Disk write", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.45, relative: true, outlierLabel: "disk-bench" },
+    { key: "benchmarkDiskReadMiBps", label: "Disk read", formatter: fleetMibPerSecondLabel, higherBetter: true, weight: 0.45, relative: true, outlierLabel: "disk-bench" },
+    { key: "signatureDelta", label: "ID signature", formatter: fleetSignatureLabel, lowerBetter: true, weight: 0.8, domain: [0, 4], outlierLabel: "signature" }
+  ];
+}
+
+function fleetMetricSpread(config, rows) {
+  const samples = rows
+    .map((row) => ({ row, value: numeric(row[config.key], Number.NaN) }))
+    .filter((item) => Number.isFinite(item.value));
+  if (!samples.length) return null;
+
+  const values = samples.map((item) => item.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const median = fleetMedian(values);
+  const mad = fleetMedian(values.map((value) => Math.abs(value - median)));
+  const mean = values.reduce((total, value) => total + value, 0) / values.length;
+  const stdev = Math.sqrt(values.reduce((total, value) => total + ((value - mean) ** 2), 0) / values.length);
+  const cv = Math.abs(mean) > 0.0001 ? stdev / Math.abs(mean) : 0;
+  const outlierFloor = Math.max(mad * 3.5, Math.abs(median) * 0.25, fleetMetricDomainWidth(config) * 0.12);
+  const outliers = samples.filter((item) => Math.abs(item.value - median) > outlierFloor);
+  outliers.forEach((item) => {
+    item.row.outlierCount += 1;
+    if (config.outlierLabel) item.row.outlierLabels.push(config.outlierLabel);
+  });
+  const best = samples.slice().sort((left, right) => fleetMetricPreferenceSort(config, left.value, right.value))[0];
+  const worst = samples.slice().sort((left, right) => fleetMetricPreferenceSort(config, right.value, left.value))[0];
+
+  return {
+    key: config.key,
+    label: config.label,
+    min,
+    median,
+    max,
+    cv,
+    outlierCount: outliers.length,
+    formatter: config.formatter,
+    bestHost: best?.row?.host || "",
+    worstHost: worst?.row?.host || "",
+    tone: outliers.length > Math.max(1, rows.length * 0.25) || cv > 0.65 ? "poor" : outliers.length || cv > 0.28 ? "watch" : "good"
+  };
+}
+
+function assignFleetScores(rows, metricConfigs) {
+  const relativeRanges = new Map();
+  metricConfigs.filter((config) => config.relative).forEach((config) => {
+    const values = rows.map((row) => numeric(row[config.key], Number.NaN)).filter(Number.isFinite);
+    relativeRanges.set(config.key, {
+      min: values.length ? Math.min(...values) : Number.NaN,
+      max: values.length ? Math.max(...values) : Number.NaN
+    });
+  });
+
+  rows.forEach((row) => {
+    const scores = [];
+    metricConfigs.forEach((config) => {
+      const value = numeric(row[config.key], Number.NaN);
+      if (!Number.isFinite(value)) return;
+      let score = null;
+      if (config.relative) {
+        const range = relativeRanges.get(config.key) || {};
+        score = fleetRelativeScore(value, range.min, range.max, config.higherBetter);
+      } else if (config.lowerBetter) {
+        const [best, worst] = config.domain || [0, 100];
+        score = clamp(100 - ((value - best) / Math.max(1, worst - best)) * 100);
+      } else if (config.higherBetter) {
+        const [worst, best] = config.domain || [0, 100];
+        score = clamp(((value - worst) / Math.max(1, best - worst)) * 100);
+      }
+      if (Number.isFinite(score)) scores.push({ score, weight: config.weight || 1 });
+    });
+    const totalWeight = scores.reduce((total, item) => total + item.weight, 0);
+    row.score = totalWeight ? scores.reduce((total, item) => total + item.score * item.weight, 0) / totalWeight : 0;
+    row.outlierLabels = unique(row.outlierLabels).slice(0, 4);
+    row.tone = row.score >= 74 && row.outlierCount === 0 ? "good" : row.score >= 50 && row.outlierCount <= 2 ? "watch" : "poor";
+  });
+}
+
+function fleetComparisonSummaries(rows, spreadRows, counts) {
+  const fresh = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs <= MACHINE_DEMO_FRESH_MS).length;
+  const top = rows[0];
+  const widest = spreadRows.slice().sort((left, right) => right.cv - left.cv)[0];
+  const piCount = rows.filter((row) => /^pi\d+$/i.test(row.host)).length;
+  const benchmarkRows = rows.filter(fleetBenchmarkAvailable);
+  const freshBenchmarks = benchmarkRows.filter((row) => {
+    if (!Number.isFinite(row.benchmarkSampleAgeMs)) return true;
+    const ttl = Number.isFinite(row.benchmarkTtlMs) && row.benchmarkTtlMs > 0 ? row.benchmarkTtlMs : 15 * 60 * 1000;
+    return row.benchmarkSampleAgeMs <= ttl;
+  }).length;
+  return [
+    {
+      label: "Hosts",
+      value: `${rows.length}`,
+      note: piCount ? `${piCount} Raspberry Pi hosts` : `${fresh} fresh samples`,
+      tone: fresh === rows.length ? "good" : fresh >= rows.length * 0.75 ? "watch" : "poor"
+    },
+    {
+      label: "Fresh",
+      value: `${fresh}/${rows.length}`,
+      note: counts.staleCount ? `${counts.staleCount} stale` : "live bundle current",
+      tone: counts.staleCount ? counts.staleCount > rows.length * 0.25 ? "poor" : "watch" : "good"
+    },
+    {
+      label: "Top rank",
+      value: top ? top.host : "--",
+      note: top ? `${round(top.score)} composite` : "no rank",
+      tone: top?.tone || "watch"
+    },
+    {
+      label: "Outliers",
+      value: `${counts.outlierCount}`,
+      note: widest ? `${widest.label} CV ${formatDecimal(widest.cv, 2)}` : "spread learning",
+      tone: counts.outlierCount ? counts.outlierCount > rows.length * 0.25 ? "poor" : "watch" : "good"
+    },
+    {
+      label: "Benchmarks",
+      value: `${counts.benchmarkCount}/${piCount || rows.length}`,
+      note: benchmarkRows.length ? `${freshBenchmarks} fresh periodic suites` : "waiting for Pi benchmark suites",
+      tone: benchmarkRows.length >= Math.max(1, piCount) ? "good" : benchmarkRows.length ? "watch" : "poor"
+    },
+    {
+      label: "Fingerprints",
+      value: `${counts.fingerprintCount}/${rows.length}`,
+      note: "system-ID signature rows",
+      tone: counts.fingerprintCount >= rows.length ? "good" : counts.fingerprintCount ? "watch" : "poor"
+    }
+  ];
+}
+
+function buildPiBenchmarkHistograms(rows) {
+  const piRows = rows
+    .filter(isPiFleetRow)
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  if (piRows.length < 2) return [];
+
+  return fleetBenchmarkMetricConfigs()
+    .map((config) => fleetBenchmarkHistogram(config, piRows));
+}
+
+function fleetBenchmarkMetricConfigs() {
+  return [
+    { key: "benchmarkCpuOpsPerSecond", label: "CPU scalar", formatter: fleetOpsLabel },
+    { key: "benchmarkMemoryMiBps", label: "Memory fill", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkDiskWriteMiBps", label: "Disk write", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkDiskReadMiBps", label: "Disk read", formatter: fleetMibPerSecondLabel },
+    { key: "benchmarkScore", label: "Composite", formatter: fleetBenchmarkScoreLabel }
+  ];
+}
+
+function fleetBenchmarkHistogram(config, rows) {
+  const samples = rows
+    .map((row) => ({ row, value: numeric(row[config.key], Number.NaN) }))
+    .filter((sample) => Number.isFinite(sample.value) && sample.value >= 0);
+
+  const values = samples.map((sample) => sample.value);
+  const min = values.length ? Math.min(...values) : Number.NaN;
+  const max = values.length ? Math.max(...values) : Number.NaN;
+  const median = values.length ? fleetMedian(values) : Number.NaN;
+  const sortedByValue = samples.slice().sort((left, right) => right.value - left.value || fleetNaturalLabel(left.row.host).localeCompare(fleetNaturalLabel(right.row.host), undefined, { numeric: true }));
+  const best = sortedByValue[0];
+  const denominator = Math.max(Number.isFinite(max) ? max : 0, 1);
+
+  return {
+    key: config.key,
+    label: config.label,
+    min,
+    max,
+    median,
+    bestHost: best?.row?.host || "",
+    sampleCount: samples.length,
+    pendingCount: Math.max(0, rows.length - samples.length),
+    formatter: config.formatter,
+    bars: rows.map((row) => {
+      const value = numeric(row[config.key], Number.NaN);
+      const hasValue = Number.isFinite(value) && value >= 0;
+      return {
+        host: row.host,
+        value,
+        label: hasValue ? config.formatter(value) : "--",
+        percent: hasValue ? clamp((value / denominator) * 100, 4, 100) : 0,
+        status: row.benchmarkSuiteStatus || "waiting",
+        age: fleetBenchmarkAgeLabel(row),
+        available: hasValue
+      };
+    })
+  };
+}
+
+function fleetBenchmarkAvailable(row) {
+  return ["fresh", "cached", "stale"].includes(String(row.benchmarkSuiteStatus || ""))
+    && [
+      row.benchmarkCpuOpsPerSecond,
+      row.benchmarkMemoryMiBps,
+      row.benchmarkDiskWriteMiBps,
+      row.benchmarkDiskReadMiBps,
+      row.benchmarkScore
+    ].some((value) => Number.isFinite(value));
+}
+
+function fleetBenchmarkCompositeScore(machineContext) {
+  const cpu = numeric(machineContext.benchmarkCpuOpsPerSecond, 0);
+  const memory = numeric(machineContext.benchmarkMemoryMiBps, 0);
+  const write = numeric(machineContext.benchmarkDiskWriteMiBps, 0);
+  const read = numeric(machineContext.benchmarkDiskReadMiBps, 0);
+  if (![cpu, memory, write, read].some((value) => value > 0)) {
+    return numeric(machineContext.benchmarkScore, Number.NaN);
+  }
+  return clamp(
+    (cpu / 500_000_000) * 35
+    + (memory / 8000) * 25
+    + (write / 180) * 18
+    + (read / 1800) * 22,
+    0,
+    100
+  );
+}
+
+function fleetBenchmarkAgeLabel(row) {
+  if (Number.isFinite(row.benchmarkSampleAgeMs)) return sparkPairAgeLabel(row.benchmarkSampleAgeMs);
+  const generatedAt = row.benchmarkGeneratedAt ? safeDate(row.benchmarkGeneratedAt, null) : null;
+  return generatedAt ? sparkPairAgeLabel(Math.max(0, Date.now() - generatedAt.getTime())) : "waiting";
+}
+
+function fleetMetricPreferenceSort(config, leftValue, rightValue) {
+  return config.lowerBetter ? leftValue - rightValue : rightValue - leftValue;
+}
+
+function fleetMetricDomainWidth(config) {
+  if (!config.domain) return 1;
+  return Math.max(1, Math.abs(config.domain[1] - config.domain[0]));
+}
+
+function fleetRelativeScore(value, min, max, higherBetter) {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (max === min) return 82;
+  const ratio = (value - min) / (max - min);
+  return clamp((higherBetter ? ratio : 1 - ratio) * 100);
+}
+
+function fleetMedian(values) {
+  const sorted = values.filter(Number.isFinite).sort((left, right) => left - right);
+  if (!sorted.length) return Number.NaN;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function fleetTemperatureLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${formatDecimal(value, 1)} C` : "--";
+}
+
+function fleetMbpsLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${compactNumber.format(value)} Mbps` : "--";
+}
+
+function fleetOpsLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${compactNumber.format(value)} ops/s` : "--";
+}
+
+function fleetMibPerSecondLabel(value) {
+  return Number.isFinite(value) && value > 0 ? `${formatDecimal(value, value >= 100 ? 0 : 1)} MiB/s` : "--";
+}
+
+function fleetBenchmarkScoreLabel(value) {
+  return Number.isFinite(value) ? `${formatDecimal(value, 1)}` : "--";
+}
+
+function fleetSignatureLabel(value) {
+  return Number.isFinite(value) ? formatDecimal(value, 2) : "--";
+}
+
+function buildSparkPairComparison(summary, machineContext) {
+  const contexts = buildSparkPairMachineContexts(summary, machineContext);
+  const pair = selectSparkPairContexts(contexts);
+
+  if (pair.length < 2) {
+    const observed = contexts.map((context) => context.host).filter(Boolean);
+    return {
+      available: false,
+      badge: observed.length ? "Need peer" : "Waiting",
+      tone: "watch",
+      hosts: contexts,
+      rows: [],
+      summaries: [],
+      emptyText: observed.length
+        ? `Observed ${observed.join(", ")}. Waiting for the other SPARK host in the live machine bundle.`
+        : "Waiting for SPARK1 and SPARK2 live machine samples."
+    };
+  }
+
+  const [left, right] = pair;
+  const leftLabel = sparkPairHostLabel(left, "SPARK1");
+  const rightLabel = sparkPairHostLabel(right, "SPARK2");
+  const rows = buildSparkPairMetricRows(left, right);
+  const clockHistory = recordSparkPairClockSample(left, right);
+  const poorCount = rows.filter((row) => row.tone === "poor").length;
+  const watchCount = rows.filter((row) => row.tone === "watch").length;
+  const tone = poorCount > 0 ? "poor" : watchCount > 0 ? "watch" : "good";
+  const badge = tone === "good" ? "Balanced" : tone === "poor" ? "Skewed" : "Watch skew";
+
+  return {
+    available: true,
+    badge,
+    tone,
+    hosts: pair,
+    leftLabel,
+    rightLabel,
+    rows,
+    clockHistory,
+    summaries: buildSparkPairSummaries(left, right, rows)
+  };
+}
+
+function buildSparkPairMachineContexts(summary, machineContext) {
+  return buildFleetMachineContexts(summary, machineContext)
+    .sort((left, right) => sparkPairContextRank(left) - sparkPairContextRank(right));
+}
+
+function machineContextFromSourceItem(summary, item) {
+  const rawContext = item.source?.context || {};
+  if (!isPlainObject(rawContext)) return null;
+
+  const host = rawContext.hostname || rawContext.node || item.cluster || item.name || item.id || "this host";
+  const gpuModel = rawContext.gpuName || item.gpuModel || "";
+  const hasGpu = rawContext.gpuPresent === true || Boolean(rawContext.gpuName) || numeric(item.gpus, 0) > 0;
+  const source = item.source || {};
+  const context = {
+    ...rawContext,
+    hostname: host
+  };
+  const singleItem = {
+    ...item,
+    source: {
+      ...source,
+      adapters: unique(["local-machine", ...(source.adapters || [])]),
+      context
+    }
+  };
+  const singleSummary = {
+    ...summary,
+    sourceItems: [singleItem],
+    clusters: [host],
+    gpuModels: gpuModel ? [gpuModel] : [],
+    gpus: hasGpu ? Math.max(1, numeric(item.gpus, 1)) : 0,
+    gpuUtil: numeric(rawContext.gpuUtilizationPct, numeric(item.gpuUtil, summary.gpuUtil)),
+    usefulCompute: numeric(rawContext.gpuUtilizationPct, numeric(item.usefulCompute, summary.usefulCompute)),
+    hbmCapacity: numeric(rawContext.gpuMemoryUsedPct, summary.hbmCapacity),
+    steps: numeric(item.steps, summary.steps),
+    inferenceRequestsM: numeric(item.inferenceRequestsM, summary.inferenceRequestsM)
+  };
+
+  return machineDemoContext(singleSummary);
+}
+
+function selectSparkPairContexts(contexts) {
+  const spark1 = contexts.find((context) => sparkPairHostRole(context) === "SPARK1");
+  const spark2 = contexts.find((context) => sparkPairHostRole(context) === "SPARK2");
+  if (spark1 && spark2) return [spark1, spark2];
+  if (spark1) return [spark1, contexts.find((context) => context !== spark1)].filter(Boolean);
+  if (spark2) return [contexts.find((context) => context !== spark2), spark2].filter(Boolean);
+  return contexts.slice(0, 2);
+}
+
+function sparkPairContextRank(context) {
+  const role = sparkPairHostRole(context);
+  if (role === "SPARK1") return 1;
+  if (role === "SPARK2") return 2;
+  return 10;
+}
+
+function sparkPairHostRole(machineContext) {
+  const context = machineContext?.context || {};
+  const text = [
+    machineContext?.host,
+    context.hostname,
+    context.node,
+    context.hostUrl,
+    context.networkLocalAddress,
+    context.ncclRuntimeHostIp
+  ].filter(Boolean).join(" ").toLowerCase();
+
+  if (/(^|[^a-z0-9])spark[ -]?1([^a-z0-9]|$)|192\.168\.10\.20|192\.168\.100\.10/.test(text)) return "SPARK1";
+  if (/(^|[^a-z0-9])spark[ -]?2([^a-z0-9]|$)|192\.168\.10\.21|192\.168\.100\.11/.test(text)) return "SPARK2";
+  return "";
+}
+
+function sparkPairHostLabel(machineContext, fallback) {
+  return sparkPairHostRole(machineContext) || machineContext?.host || fallback;
+}
+
+function buildSparkPairMetricRows(left, right) {
+  const rows = [];
+  const leftAge = sparkPairSampleAgeMilliseconds(left);
+  const rightAge = sparkPairSampleAgeMilliseconds(right);
+  const leftContainerCpu = sparkPairDockerCpuPct(left);
+  const rightContainerCpu = sparkPairDockerCpuPct(right);
+
+  rows.push(sparkPairNumericMetric({
+    id: "sample-age",
+    label: "Sample age",
+    leftValue: leftAge,
+    rightValue: rightAge,
+    formatter: sparkPairAgeLabel,
+    deltaFormatter: (_delta, absDelta) => sparkPairAgeLabel(absDelta),
+    note: "Live bundle freshness",
+    watchDelta: 5000,
+    poorDelta: 15000,
+    maxValue: MACHINE_DEMO_FRESH_MS,
+    toneFn: (leftValue, rightValue, absDelta) => {
+      if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return "watch";
+      if (leftValue > MACHINE_DEMO_FRESH_MS || rightValue > MACHINE_DEMO_FRESH_MS) return "poor";
+      return sparkPairDeltaTone(absDelta, 5000, 15000);
+    }
+  }));
+  rows.push(sparkPairClockSyncMetric(left, right));
+  rows.push(sparkPairSampleSkewMetric(left, right));
+  rows.push(sparkPairClockOffsetMetric(left, right));
+  rows.push(sparkPairPercentMetric("cpu", "CPU", left.cpuUsagePct, right.cpuUsagePct, "Host CPU pressure", 10, 25));
+  rows.push(sparkPairPercentMetric("ram", "RAM", left.memoryUsedPct, right.memoryUsedPct, "Host memory pressure", 8, 18));
+  rows.push(sparkPairPercentMetric("uma-memory", "UMA memory", left.linuxUmaMemoryUsedPct, right.linuxUmaMemoryUsedPct, "Linux UMA memory", 8, 18, left.gb10Present || right.gb10Present));
+  rows.push(sparkPairPercentMetric("gpu", "GPU util", left.gpuUtilizationPct, right.gpuUtilizationPct, "Accelerator utilization", 12, 28));
+  rows.push(sparkPairPercentMetric("gpu-memory", "GPU memory", left.gpuMemoryUsedPct, right.gpuMemoryUsedPct, "HBM allocation", 6, 15));
+  rows.push(sparkPairNumericMetric({
+    id: "gpu-power",
+    label: "GPU power",
+    leftValue: left.gpuPowerWatts,
+    rightValue: right.gpuPowerWatts,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)} W` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " W"),
+    note: "Board power draw",
+    watchDelta: 35,
+    poorDelta: 80,
+    maxValue: Math.max(450, left.gpuPowerWatts, right.gpuPowerWatts)
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "gpu-temp",
+    label: "GPU temp",
+    leftValue: left.gpuTemperatureC,
+    rightValue: right.gpuTemperatureC,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)} C` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " C"),
+    note: "Thermal spread",
+    watchDelta: 5,
+    poorDelta: 12,
+    maxValue: 100
+  }));
+  rows.push(sparkPairPercentMetric(
+    "network-util",
+    "Network util",
+    left.networkUtilizationPct,
+    right.networkUtilizationPct,
+    sparkPairNetworkNote(left, right),
+    10,
+    25,
+    Number.isFinite(left.networkUtilizationPct) || Number.isFinite(right.networkUtilizationPct)
+  ));
+  rows.push(sparkPairThroughputMetric("network-rx", "Network RX", left.networkRxBytesPerSecond, right.networkRxBytesPerSecond, sparkPairNetworkNote(left, right)));
+  rows.push(sparkPairThroughputMetric("network-tx", "Network TX", left.networkTxBytesPerSecond, right.networkTxBytesPerSecond, sparkPairNetworkNote(left, right)));
+  rows.push(sparkPairNumericMetric({
+    id: "container-cpu",
+    label: "Docker CPU",
+    leftValue: leftContainerCpu,
+    rightValue: rightContainerCpu,
+    formatter: pct,
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "pp"),
+    note: "Aggregate container CPU",
+    watchDelta: 10,
+    poorDelta: 25,
+    maxValue: 100,
+    includeWhen: left.dockerContainers.length || right.dockerContainers.length
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "ollama-tokens",
+    label: "Ollama tok/s",
+    leftValue: left.ollamaTokensPerSecond,
+    rightValue: right.ollamaTokensPerSecond,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${formatDecimal(value, 1)} tok/s` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, " tok/s", 1),
+    note: "Generation probe throughput",
+    watchDelta: 4,
+    poorDelta: 12,
+    maxValue: Math.max(1, left.ollamaTokensPerSecond, right.ollamaTokensPerSecond),
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: left.ollamaTelemetryAvailable || right.ollamaTelemetryAvailable
+  }));
+  rows.push(sparkPairNumericMetric({
+    id: "ollama-ttft",
+    label: "Ollama TTFT",
+    leftValue: left.ollamaTimeToFirstTokenMs,
+    rightValue: right.ollamaTimeToFirstTokenMs,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? `${round(value)}ms` : "--",
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "ms"),
+    note: "Generation probe latency",
+    watchDelta: 300,
+    poorDelta: 900,
+    maxValue: Math.max(1000, left.ollamaTimeToFirstTokenMs, right.ollamaTimeToFirstTokenMs),
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: left.ollamaTelemetryAvailable || right.ollamaTelemetryAvailable
+  }));
+  rows.push(sparkPairCategoryMetric({
+    id: "model-count",
+    label: "Local models",
+    leftValue: `${left.modelCount}`,
+    rightValue: `${right.modelCount}`,
+    leftDetail: sparkPairOllamaModelLabel(left),
+    rightDetail: sparkPairOllamaModelLabel(right),
+    note: "Ollama model inventory",
+    tone: left.modelCount === right.modelCount ? "good" : "watch",
+    includeWhen: left.modelCount > 0 || right.modelCount > 0
+  }));
+  rows.push(sparkPairCategoryMetric({
+    id: "nccl-runtime",
+    label: "NCCL runtime",
+    leftValue: left.ncclRuntimePresent ? "present" : "missing",
+    rightValue: right.ncclRuntimePresent ? "present" : "missing",
+    leftDetail: left.ncclRuntimeSocketIfname || left.ncclRuntimeSource || "no runtime",
+    rightDetail: right.ncclRuntimeSocketIfname || right.ncclRuntimeSource || "no runtime",
+    note: "vLLM/Ray capable container signal",
+    tone: left.ncclRuntimePresent && right.ncclRuntimePresent ? "good" : left.ncclRuntimePresent || right.ncclRuntimePresent ? "watch" : "poor",
+    includeWhen: true
+  }));
+
+  return rows.filter(Boolean);
+}
+
+function buildSparkPairSummaries(left, right, rows) {
+  const rowTone = (id) => rows.find((row) => row.id === id)?.tone || "watch";
+  const leftAge = sparkPairSampleAgeMilliseconds(left);
+  const rightAge = sparkPairSampleAgeMilliseconds(right);
+  const gpuDelta = sparkPairAbsDelta(left.gpuUtilizationPct, right.gpuUtilizationPct);
+  const ramDelta = sparkPairAbsDelta(left.memoryUsedPct, right.memoryUsedPct);
+  const networkDelta = sparkPairAbsDelta(left.networkUtilizationPct, right.networkUtilizationPct);
+  const rxDelta = sparkPairAbsDelta(left.networkRxBytesPerSecond, right.networkRxBytesPerSecond);
+  const tokenDelta = sparkPairAbsDelta(left.ollamaTokensPerSecond, right.ollamaTokensPerSecond);
+  const poorCount = rows.filter((row) => row.tone === "poor").length;
+  const watchCount = rows.filter((row) => row.tone === "watch").length;
+  const clockRow = rows.find((row) => row.id === "clock-sync");
+  const sampleSkewRow = rows.find((row) => row.id === "clock-sample-skew");
+
+  return [
+    {
+      label: "Pair status",
+      value: poorCount ? "Skewed" : watchCount ? "Watch" : "Balanced",
+      note: `${poorCount} critical, ${watchCount} watch rows`,
+      tone: poorCount ? "poor" : watchCount ? "watch" : "good"
+    },
+    {
+      label: "Freshness",
+      value: `${sparkPairAgeLabel(Math.max(numeric(leftAge), numeric(rightAge)))} max`,
+      note: `${sparkPairHostLabel(left, "SPARK1")} ${sparkPairAgeLabel(leftAge)} | ${sparkPairHostLabel(right, "SPARK2")} ${sparkPairAgeLabel(rightAge)}`,
+      tone: rowTone("sample-age")
+    },
+    {
+      label: "Clock sync",
+      value: clockRow?.deltaLabel || "waiting",
+      note: sampleSkewRow ? `sample skew ${sampleSkewRow.deltaLabel}` : sparkPairClockPairNote(left, right),
+      tone: rowTone("clock-sync")
+    },
+    {
+      label: "Resource skew",
+      value: `${formatDecimal(Math.max(numeric(gpuDelta), numeric(ramDelta)), 1)}pp`,
+      note: `GPU ${sparkPairDeltaLabel(gpuDelta, "pp")} | RAM ${sparkPairDeltaLabel(ramDelta, "pp")}`,
+      tone: ["gpu", "ram", "gpu-memory"].some((id) => rowTone(id) === "poor") ? "poor" : ["gpu", "ram", "gpu-memory"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    },
+    {
+      label: "Network skew",
+      value: Number.isFinite(networkDelta) ? `${formatDecimal(networkDelta, 1)}pp` : sparkPairThroughputDeltaLabel(rxDelta),
+      note: sparkPairNetworkNote(left, right),
+      tone: ["network-util", "network-rx", "network-tx"].some((id) => rowTone(id) === "poor") ? "poor" : ["network-util", "network-rx", "network-tx"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    },
+    {
+      label: "Inference skew",
+      value: Number.isFinite(tokenDelta) ? `${formatDecimal(tokenDelta, 1)} tok/s` : "probe wait",
+      note: `${left.ncclRuntimePresent && right.ncclRuntimePresent ? "NCCL runtime on both" : "NCCL runtime parity incomplete"}`,
+      tone: ["ollama-tokens", "ollama-ttft", "nccl-runtime"].some((id) => rowTone(id) === "poor") ? "poor" : ["ollama-tokens", "ollama-ttft", "nccl-runtime"].some((id) => rowTone(id) === "watch") ? "watch" : "good"
+    }
+  ];
+}
+
+function sparkPairClockSyncMetric(left, right) {
+  const leftText = sparkPairClockStateLabel(left);
+  const rightText = sparkPairClockStateLabel(right);
+  const bothPtp = left.clockPtpActive && right.clockPtpActive;
+  const bothSynced = left.clockSynchronized && right.clockSynchronized;
+  const oneSynced = left.clockSynchronized || right.clockSynchronized;
+  const tone = bothPtp && bothSynced ? "good" : bothSynced ? "watch" : oneSynced ? "poor" : "poor";
+  return {
+    id: "clock-sync",
+    label: "Clock sync",
+    leftText,
+    rightText,
+    leftDetail: sparkPairClockDetail(left),
+    rightDetail: sparkPairClockDetail(right),
+    deltaLabel: bothPtp && bothSynced ? "PTP" : bothSynced ? "synced" : oneSynced ? "partial" : "unsynced",
+    deltaTitle: "Clock discipline source",
+    note: "PTP/chrony/timesync discipline",
+    tone,
+    leftPercent: left.clockSynchronized ? 100 : 0,
+    rightPercent: right.clockSynchronized ? 100 : 0
+  };
+}
+
+function recordSparkPairClockSample(left, right) {
+  const leftTime = sparkPairGeneratedAtMs(left);
+  const rightTime = sparkPairGeneratedAtMs(right);
+  const leftOffsetNs = numeric(left.clockOffsetNs, Number.NaN);
+  const rightOffsetNs = numeric(right.clockOffsetNs, Number.NaN);
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return sparkPairClockHistory;
+  const timestampMs = Math.max(leftTime, rightTime);
+  const last = sparkPairClockHistory[sparkPairClockHistory.length - 1];
+  if (last && last.timestampMs === timestampMs && last.leftGeneratedAtMs === leftTime && last.rightGeneratedAtMs === rightTime) {
+    return sparkPairClockHistory;
+  }
+
+  sparkPairClockHistory.push({
+    timestampMs,
+    leftGeneratedAtMs: leftTime,
+    rightGeneratedAtMs: rightTime,
+    label: new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    leftOffsetNs,
+    rightOffsetNs,
+    offsetDeltaNs: Number.isFinite(leftOffsetNs) && Number.isFinite(rightOffsetNs)
+      ? leftOffsetNs - rightOffsetNs
+      : Number.NaN,
+    sampleSkewMs: Math.abs(leftTime - rightTime),
+    leftSource: left.clockSource || "",
+    rightSource: right.clockSource || "",
+    leftPtp: Boolean(left.clockPtpActive),
+    rightPtp: Boolean(right.clockPtpActive)
+  });
+
+  if (sparkPairClockHistory.length > SPARK_PAIR_CLOCK_HISTORY_LIMIT) {
+    sparkPairClockHistory = sparkPairClockHistory.slice(-SPARK_PAIR_CLOCK_HISTORY_LIMIT);
+  }
+  return sparkPairClockHistory;
+}
+
+function applySparkPairClockFeed(feed) {
+  const samples = Array.isArray(feed?.samples) ? feed.samples : [];
+  const contexts = samples
+    .filter((sample) => sample && sample.status !== "unreachable")
+    .map(sparkPairClockContextFromFeedSample);
+  const pair = selectSparkPairContexts(contexts);
+  if (pair.length < 2) return;
+
+  const [left, right] = pair;
+  recordSparkPairClockSample(left, right);
+  if (latestSparkPairComparison) {
+    latestSparkPairComparison.clockHistory = sparkPairClockHistory;
+  }
+  refreshSparkPairClockPanel();
+  refreshSparkPairClockMetricRows(left, right);
+}
+
+function sparkPairClockContextFromFeedSample(sample) {
+  const context = {
+    generatedAt: sample.generatedAt || "",
+    hostname: sample.hostname || sample.role || "",
+    clockSource: sample.clockSource || "",
+    clockSynchronized: Boolean(sample.clockSynchronized),
+    clockOffsetNs: sample.clockOffsetNs,
+    clockPtpActive: Boolean(sample.clockPtpActive),
+    clockPtpPortState: sample.clockPtpPortState || "",
+    clockPtpGrandmaster: sample.clockPtpGrandmaster || "",
+    clockChronyReference: sample.clockChronyReference || "",
+    clockTimezone: sample.clockTimezone || "",
+    clockSyncDetail: sample.clockSyncDetail || ""
+  };
+  return {
+    host: sample.role || sample.hostname || "",
+    context,
+    clockSource: String(sample.clockSource || ""),
+    clockSynchronized: Boolean(sample.clockSynchronized),
+    clockTimeUnixMs: numeric(sample.clockTimeUnixMs, Number.NaN),
+    clockTimeUnixNs: String(sample.clockTimeUnixNs || ""),
+    clockTimezone: String(sample.clockTimezone || ""),
+    clockOffsetNs: numeric(sample.clockOffsetNs, Number.NaN),
+    clockPtpInstalled: Boolean(sample.clockPtpInstalled),
+    clockPtpActive: Boolean(sample.clockPtpActive),
+    clockPtpPortState: String(sample.clockPtpPortState || ""),
+    clockPtpGrandmaster: String(sample.clockPtpGrandmaster || ""),
+    clockChronyReference: String(sample.clockChronyReference || ""),
+    clockSyncDetail: String(sample.clockSyncDetail || "")
+  };
+}
+
+function refreshSparkPairClockPanel() {
+  const current = document.querySelector("#sparkPairComparePanel .spark-pair-clock-panel");
+  if (!current) return;
+  current.replaceWith(sparkPairClockGraphPanel(sparkPairClockHistory));
+}
+
+function refreshSparkPairClockMetricRows(left, right) {
+  const panel = document.querySelector("#sparkPairComparePanel");
+  if (!panel) return;
+  [
+    sparkPairClockSyncMetric(left, right),
+    sparkPairSampleSkewMetric(left, right),
+    sparkPairClockOffsetMetric(left, right)
+  ].filter(Boolean).forEach((rowData) => {
+    const current = panel.querySelector(`.spark-pair-row[data-metric="${rowData.id}"]`);
+    if (current) current.replaceWith(sparkPairMetricRow(rowData));
+  });
+}
+
+function sparkPairClockOffsetMetric(left, right) {
+  return sparkPairNumericMetric({
+    id: "clock-offset",
+    label: "Clock offset",
+    leftValue: left.clockOffsetNs,
+    rightValue: right.clockOffsetNs,
+    formatter: sparkPairClockOffsetLabel,
+    deltaFormatter: (_delta, absDelta) => sparkPairClockOffsetLabel(absDelta),
+    note: "Clock-source offset; PTP/chrony when available",
+    watchDelta: 100_000,
+    poorDelta: 1_000_000,
+    maxValue: Math.max(1_000_000, Math.abs(numeric(left.clockOffsetNs, 0)), Math.abs(numeric(right.clockOffsetNs, 0))),
+    includeWhen: Number.isFinite(left.clockOffsetNs) || Number.isFinite(right.clockOffsetNs)
+  });
+}
+
+function sparkPairSampleSkewMetric(left, right) {
+  const leftTime = sparkPairGeneratedAtMs(left);
+  const rightTime = sparkPairGeneratedAtMs(right);
+  if (!Number.isFinite(leftTime) || !Number.isFinite(rightTime)) return null;
+  const skewMs = Math.abs(leftTime - rightTime);
+  return {
+    id: "clock-sample-skew",
+    label: "Sample skew",
+    leftText: sparkPairClockTimeLabel(leftTime),
+    rightText: sparkPairClockTimeLabel(rightTime),
+    leftDetail: sparkPairClockDetail(left),
+    rightDetail: sparkPairClockDetail(right),
+    deltaLabel: sparkPairAgeLabel(skewMs),
+    deltaTitle: "SPARK1/SPARK2 host sample timestamp difference",
+    note: "PTP makes sub-second comparisons safer",
+    tone: skewMs <= 1000 ? "good" : skewMs <= 5000 ? "watch" : "poor",
+    leftPercent: null,
+    rightPercent: null
+  };
+}
+
+function sparkPairGeneratedAtMs(machineContext) {
+  const generatedAt = machineContext?.context?.generatedAt ? safeDate(machineContext.context.generatedAt, null) : null;
+  return generatedAt ? generatedAt.getTime() : Number.NaN;
+}
+
+function sparkPairClockStateLabel(machineContext) {
+  if (machineContext.clockPtpActive) return machineContext.clockSynchronized ? "PTP synced" : "PTP active";
+  if (machineContext.clockSynchronized) return machineContext.clockSource ? `${machineContext.clockSource} synced` : "synced";
+  if (machineContext.clockPtpInstalled) return "PTP inactive";
+  return machineContext.clockSource === "unsynchronized" ? "unsynced" : "not observed";
+}
+
+function sparkPairClockDetail(machineContext) {
+  const bits = [];
+  if (machineContext.clockPtpGrandmaster) bits.push(`GM ${machineContext.clockPtpGrandmaster}`);
+  if (machineContext.clockPtpPortState) bits.push(machineContext.clockPtpPortState);
+  if (machineContext.clockChronyReference) bits.push(machineContext.clockChronyReference);
+  if (Number.isFinite(machineContext.clockOffsetNs)) bits.push(sparkPairClockOffsetLabel(machineContext.clockOffsetNs));
+  if (machineContext.clockTimezone) bits.push(machineContext.clockTimezone);
+  return bits.join(" | ") || machineContext.clockSyncDetail || "clock telemetry";
+}
+
+function sparkPairClockPairNote(left, right) {
+  return `${sparkPairClockStateLabel(left)} | ${sparkPairClockStateLabel(right)}`;
+}
+
+function sparkPairClockOffsetLabel(value) {
+  if (!Number.isFinite(value)) return "--";
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000) return `${sign}${formatDecimal(abs / 1_000_000, 2)}ms`;
+  if (abs >= 1000) return `${sign}${formatDecimal(abs / 1000, 1)}us`;
+  return `${sign}${round(abs)}ns`;
+}
+
+function sparkPairClockTimeLabel(valueMs) {
+  if (!Number.isFinite(valueMs)) return "--";
+  return new Date(valueMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function sparkPairPercentMetric(id, label, leftValue, rightValue, note, watchDelta, poorDelta, includeWhen = true) {
+  return sparkPairNumericMetric({
+    id,
+    label,
+    leftValue,
+    rightValue,
+    formatter: pct,
+    deltaFormatter: (delta) => sparkPairSignedDelta(delta, "pp"),
+    note,
+    watchDelta,
+    poorDelta,
+    maxValue: 100,
+    includeWhen
+  });
+}
+
+function sparkPairThroughputMetric(id, label, leftValue, rightValue, note) {
+  const maxValue = Math.max(1, numeric(leftValue), numeric(rightValue));
+  return sparkPairNumericMetric({
+    id,
+    label,
+    leftValue,
+    rightValue,
+    formatter: (value) => Number.isFinite(value) && value > 0 ? formatBytesPerSecond(value) : "--",
+    deltaFormatter: (delta, absDelta) => `${delta >= 0 ? "+" : "-"}${formatBytesPerSecond(absDelta)}`,
+    note,
+    maxValue,
+    toneFn: sparkPairRelativeSkewTone,
+    includeWhen: Number.isFinite(leftValue) || Number.isFinite(rightValue)
+  });
+}
+
+function sparkPairNumericMetric(options) {
+  if (options.includeWhen === false) return null;
+
+  const leftValue = numeric(options.leftValue, Number.NaN);
+  const rightValue = numeric(options.rightValue, Number.NaN);
+  const leftFinite = Number.isFinite(leftValue);
+  const rightFinite = Number.isFinite(rightValue);
+  const bothFinite = leftFinite && rightFinite;
+  const delta = bothFinite ? leftValue - rightValue : Number.NaN;
+  const absDelta = bothFinite ? Math.abs(delta) : Number.NaN;
+  const maxValue = Number.isFinite(options.maxValue) && options.maxValue > 0
+    ? options.maxValue
+    : Math.max(1, leftFinite ? Math.abs(leftValue) : 0, rightFinite ? Math.abs(rightValue) : 0);
+  const formatter = options.formatter || ((value) => String(value));
+  const deltaFormatter = options.deltaFormatter || ((value) => sparkPairSignedDelta(value, ""));
+  const tone = typeof options.toneFn === "function"
+    ? options.toneFn(leftValue, rightValue, absDelta)
+    : bothFinite
+      ? sparkPairDeltaTone(absDelta, options.watchDelta, options.poorDelta)
+      : leftFinite || rightFinite ? "poor" : "watch";
+
+  return {
+    id: options.id,
+    label: options.label,
+    leftText: leftFinite ? formatter(leftValue) : "--",
+    rightText: rightFinite ? formatter(rightValue) : "--",
+    leftDetail: options.leftDetail || "",
+    rightDetail: options.rightDetail || "",
+    deltaLabel: bothFinite ? deltaFormatter(delta, absDelta) : "missing",
+    deltaTitle: bothFinite ? "SPARK1 - SPARK2" : "One side is missing",
+    note: options.note,
+    tone,
+    leftPercent: leftFinite ? clamp((leftValue / maxValue) * 100) : null,
+    rightPercent: rightFinite ? clamp((rightValue / maxValue) * 100) : null
+  };
+}
+
+function sparkPairCategoryMetric(options) {
+  if (options.includeWhen === false) return null;
+  const leftText = String(options.leftValue || "--");
+  const rightText = String(options.rightValue || "--");
+  return {
+    id: options.id,
+    label: options.label,
+    leftText,
+    rightText,
+    leftDetail: options.leftDetail || "",
+    rightDetail: options.rightDetail || "",
+    deltaLabel: leftText === rightText ? "match" : "diff",
+    deltaTitle: "Categorical parity",
+    note: options.note,
+    tone: options.tone || (leftText === rightText ? "good" : "watch"),
+    leftPercent: null,
+    rightPercent: null
+  };
+}
+
+function sparkPairDeltaTone(absDelta, watchDelta = 10, poorDelta = 25) {
+  if (!Number.isFinite(absDelta)) return "watch";
+  if (absDelta >= poorDelta) return "poor";
+  if (absDelta >= watchDelta) return "watch";
+  return "good";
+}
+
+function sparkPairRelativeSkewTone(leftValue, rightValue, absDelta) {
+  if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return Number.isFinite(leftValue) || Number.isFinite(rightValue) ? "poor" : "watch";
+  const maxValue = Math.max(Math.abs(leftValue), Math.abs(rightValue), 1);
+  const ratio = absDelta / maxValue;
+  if (ratio >= 0.5) return "poor";
+  if (ratio >= 0.2) return "watch";
+  return "good";
+}
+
+function sparkPairSignedDelta(delta, suffix, digits = 1) {
+  if (!Number.isFinite(delta)) return "--";
+  return `${delta >= 0 ? "+" : ""}${formatDecimal(delta, digits)}${suffix}`;
+}
+
+function sparkPairAbsDelta(leftValue, rightValue) {
+  const leftNumber = numeric(leftValue, Number.NaN);
+  const rightNumber = numeric(rightValue, Number.NaN);
+  return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) ? Math.abs(leftNumber - rightNumber) : Number.NaN;
+}
+
+function sparkPairDeltaLabel(value, suffix) {
+  return Number.isFinite(value) ? `${formatDecimal(value, 1)}${suffix}` : "--";
+}
+
+function sparkPairThroughputDeltaLabel(value) {
+  return Number.isFinite(value) ? formatBytesPerSecond(value) : "--";
+}
+
+function sparkPairSampleAgeMilliseconds(machineContext) {
+  const generatedAt = machineContext?.context?.generatedAt ? safeDate(machineContext.context.generatedAt, null) : null;
+  return generatedAt ? Math.max(0, Date.now() - generatedAt.getTime()) : Number.NaN;
+}
+
+function sparkPairAgeLabel(milliseconds) {
+  if (!Number.isFinite(milliseconds)) return "--";
+  if (milliseconds < 1000) return `${round(milliseconds)}ms`;
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  return `${Math.round(seconds / 60)}m`;
+}
+
+function sparkPairDockerCpuPct(machineContext) {
+  return (machineContext?.dockerContainers || []).reduce((total, container) => total + numeric(container.cpuPct), 0);
+}
+
+function sparkPairNetworkNote(left, right) {
+  const leftIface = left.networkInterface || "iface n/a";
+  const rightIface = right.networkInterface || "iface n/a";
+  const leftLink = Number.isFinite(left.networkLinkSpeedMbps) && left.networkLinkSpeedMbps > 0 ? `${compactNumber.format(left.networkLinkSpeedMbps)} Mbps` : "speed n/a";
+  const rightLink = Number.isFinite(right.networkLinkSpeedMbps) && right.networkLinkSpeedMbps > 0 ? `${compactNumber.format(right.networkLinkSpeedMbps)} Mbps` : "speed n/a";
+  return `${leftIface} ${leftLink} | ${rightIface} ${rightLink}`;
+}
+
+function sparkPairOllamaModelLabel(machineContext) {
+  return machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || `${machineContext.modelCount} local`;
+}
+
+function renderUnitEconomicsPanel(container, economics) {
+  if (!economics.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = economics.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "unit-economics-summary";
+  summary.append(...economics.summaries.map(unitEconomicsSummaryItem));
+
+  const grid = document.createElement("div");
+  grid.className = "unit-economics-grid";
+  grid.append(...economics.rows.map(unitEconomicsCard));
+
+  container.replaceChildren(summary, grid);
+}
+
+function unitEconomicsSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "unit-economics-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function unitEconomicsCard(row) {
+  const card = document.createElement("article");
+  card.className = "unit-economics-card";
+  card.dataset.tone = row.tone;
+
+  const head = document.createElement("div");
+  head.className = "unit-economics-card-head";
+  const title = document.createElement("div");
+  const host = document.createElement("strong");
+  host.textContent = row.host;
+  const model = document.createElement("small");
+  model.textContent = row.gpuPresent
+    ? `${row.gpuCount || 1}x ${row.gpuModel || "GPU"}`
+    : row.gpuModel || "host-only unit";
+  title.append(host, model);
+  const profit = document.createElement("span");
+  profit.className = "unit-economics-profit";
+  profit.textContent = unitEconomicsSignedMoneyPerHour(row.profitPerHour);
+  head.append(title, profit);
+
+  const graph = buildUnitEconomicsGraph(row);
+  const legend = document.createElement("div");
+  legend.className = "unit-economics-legend";
+  [
+    ["revenue", "Revenue"],
+    ["cost", "OPEX + depreciation"],
+    ["profit", "Profit/loss"]
+  ].forEach(([series, label]) => {
+    const item = document.createElement("span");
+    item.dataset.series = series;
+    item.textContent = label;
+    legend.append(item);
+  });
+
+  const metrics = document.createElement("div");
+  metrics.className = "unit-economics-metrics";
+  [
+    ["Utilization", pct(row.utilizationPct), Number.isFinite(row.breakEvenUtilizationPct) ? `break-even ${pct(row.breakEvenUtilizationPct)}` : "break-even n/a"],
+    ["CAPEX", currency.format(row.capexUsd), row.capexSource],
+    ["Book value", currency.format(row.bookValueUsd), `${formatDecimal(row.ageHours / UNIT_ECONOMICS_HOURS_PER_YEAR, 1)} of ${formatDecimal(row.usefulLifeYears, 1)} yr`],
+    ["Depreciation", unitEconomicsMoneyPerHour(row.depreciationPerHour), "straight-line"],
+    ["OPEX", unitEconomicsMoneyPerHour(row.opexPerHour), row.opexSource],
+    ["Revenue", unitEconomicsMoneyPerHour(row.revenuePerHour), row.revenueSource]
+  ].forEach(([label, value, note]) => {
+    metrics.append(unitEconomicsMetricCell(label, value, note));
+  });
+
+  const note = document.createElement("small");
+  note.className = "unit-economics-note";
+  note.textContent = `${row.powerSource}; ${row.ageSource}; ${unitEconomicsMoneyPerHour(row.unitRateUsdPerHour).replace("/hr", row.gpuPresent ? "/GPU-hr" : "/host-hr")}`;
+
+  card.append(head, graph, legend, metrics, note);
+  return card;
+}
+
+function unitEconomicsMetricCell(label, value, note) {
+  const cell = document.createElement("span");
+  const small = document.createElement("small");
+  small.textContent = label;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  const em = document.createElement("em");
+  em.textContent = note;
+  cell.append(small, strong, em);
+  return cell;
+}
+
+function buildUnitEconomicsGraph(row) {
+  const width = 420;
+  const height = 128;
+  const padX = 16;
+  const padY = 14;
+  const innerWidth = width - padX * 2;
+  const innerHeight = height - padY * 2;
+  const svg = svgNode("svg", {
+    class: "unit-economics-chart",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `${row.host} unit economics graph`
+  });
+  const history = row.history || [];
+  const values = history.flatMap((point) => [point.revenuePerHour, point.costPerHour, point.profitPerHour]).filter(Number.isFinite);
+
+  [0.25, 0.5, 0.75].forEach((ratio) => {
+    const y = padY + innerHeight * ratio;
+    svg.append(svgNode("line", {
+      x1: padX,
+      x2: width - padX,
+      y1: y,
+      y2: y,
+      class: "unit-economics-grid-line"
+    }));
+  });
+
+  if (history.length < 2 || values.length < 2) {
+    const empty = textNode("waiting for economics samples", width / 2, height / 2 + 4, "unit-economics-empty");
+    empty.setAttribute("text-anchor", "middle");
+    svg.append(empty);
+    return svg;
+  }
+
+  let min = Math.min(...values, 0);
+  let max = Math.max(...values, 0);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+  const yFor = (value) => padY + innerHeight - ((value - min) / range) * innerHeight;
+  svg.append(svgNode("line", {
+    x1: padX,
+    x2: width - padX,
+    y1: yFor(0),
+    y2: yFor(0),
+    class: "unit-economics-zero-line"
+  }));
+
+  [
+    ["revenue", "revenuePerHour"],
+    ["cost", "costPerHour"],
+    ["profit", "profitPerHour"]
+  ].forEach(([series, key]) => {
+    const points = history
+      .map((point, index) => {
+        const value = numeric(point[key], Number.NaN);
+        if (!Number.isFinite(value)) return null;
+        const x = padX + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
+        return `${formatDecimal(x, 1)},${formatDecimal(yFor(value), 1)}`;
+      })
+      .filter(Boolean);
+    if (points.length < 2) return;
+    svg.append(svgNode("polyline", {
+      points: points.join(" "),
+      class: `unit-economics-line unit-economics-line-${series}`
+    }));
+  });
+
+  return svg;
+}
+
+function unitEconomicsMoneyPerHour(value) {
+  return `${hourlyCurrency.format(Math.max(0, numeric(value, 0)))}/hr`;
+}
+
+function unitEconomicsSignedMoneyPerHour(value) {
+  const amount = numeric(value, 0);
+  const prefix = amount > 0 ? "+" : amount < 0 ? "-" : "";
+  return `${prefix}${hourlyCurrency.format(Math.abs(amount))}/hr`;
+}
+
+function renderFleetComparisonPanel(container, comparison) {
+  if (!comparison.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = comparison.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "fleet-comparison-summary";
+  summary.append(...comparison.summaries.map(fleetComparisonSummaryItem));
+
+  const benchmarkGrid = document.createElement("div");
+  benchmarkGrid.className = "fleet-benchmark-histograms";
+  if (comparison.benchmarkHistograms?.length) {
+    benchmarkGrid.append(...comparison.benchmarkHistograms.map(fleetBenchmarkHistogramNode));
+  }
+  const benchmarkSection = fleetBenchmarkHistogramSection(comparison, benchmarkGrid);
+
+  const rankGrid = document.createElement("div");
+  rankGrid.className = "fleet-comparison-rank-grid";
+  rankGrid.append(fleetComparisonHeader(["Rank", "Host", "Score", "Pressure", "Capacity", "Network", "Signature"], "fleet-comparison-rank-row"));
+  comparison.rows.forEach((row) => {
+    rankGrid.append(fleetComparisonRankRow(row));
+  });
+
+  const spreadGrid = document.createElement("div");
+  spreadGrid.className = "fleet-comparison-spread-grid";
+  spreadGrid.append(fleetComparisonHeader(["Metric", "Median", "Range", "Spread", "Outliers"], "fleet-comparison-spread-row"));
+  comparison.spreadRows.slice(0, 10).forEach((row) => {
+    spreadGrid.append(fleetComparisonSpreadRow(row));
+  });
+
+  container.replaceChildren(
+    summary,
+    ...(benchmarkSection ? [benchmarkSection] : []),
+    rankGrid,
+    spreadGrid
+  );
+}
+
+function fleetBenchmarkHistogramSection(comparison, benchmarkGrid) {
+  const piRows = comparison.rows.filter(isPiFleetRow);
+  if (piRows.length < 2 && !comparison.benchmarkHistograms?.length) return null;
+
+  const section = document.createElement("div");
+  section.className = "fleet-benchmark-section";
+
+  const head = document.createElement("div");
+  head.className = "fleet-benchmark-section-head";
+  const title = document.createElement("strong");
+  title.textContent = "Pi Benchmark Histograms";
+  const meta = document.createElement("small");
+  const benchmarkRows = piRows.filter(fleetBenchmarkAvailable);
+  const pending = Math.max(0, piRows.length - benchmarkRows.length);
+  meta.textContent = piRows.length
+    ? `${benchmarkRows.length}/${piRows.length} suites${pending ? ` | ${pending} pending` : ""}`
+    : "waiting for Pi hosts";
+  head.append(title, meta);
+
+  if (!benchmarkGrid.children.length) {
+    const empty = document.createElement("div");
+    empty.className = "fleet-benchmark-empty";
+    empty.textContent = piRows.length ? "Waiting for periodic benchmark samples." : "Waiting for Pi fleet samples.";
+    benchmarkGrid.append(empty);
+  }
+
+  section.append(head, benchmarkGrid);
+  return section;
+}
+
+function isPiFleetRow(row) {
+  return /^pi(?:[1-9]|1[0-2])$/i.test(String(row?.host || ""));
+}
+
+function fleetComparisonHeader(labels, rowClass) {
+  const row = document.createElement("div");
+  row.className = `${rowClass} fleet-comparison-head`;
+  labels.forEach((label) => {
+    const cell = document.createElement("span");
+    cell.textContent = label;
+    row.append(cell);
+  });
+  return row;
+}
+
+function fleetComparisonSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "fleet-comparison-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function fleetBenchmarkHistogramNode(histogram) {
+  const node = document.createElement("div");
+  node.className = "fleet-benchmark-histogram";
+
+  const head = document.createElement("div");
+  head.className = "fleet-benchmark-head";
+  const title = document.createElement("strong");
+  title.textContent = histogram.label;
+  const meta = document.createElement("small");
+  meta.textContent = histogram.sampleCount
+    ? `${histogram.bestHost || "--"} best | median ${histogram.formatter(histogram.median)}`
+    : `${histogram.pendingCount} pending`;
+  head.append(title, meta);
+
+  const bars = document.createElement("div");
+  bars.className = "fleet-benchmark-bars";
+  histogram.bars.forEach((bar) => {
+    bars.append(fleetBenchmarkBarNode(bar));
+  });
+
+  node.append(head, bars);
+  return node;
+}
+
+function fleetBenchmarkBarNode(bar) {
+  const row = document.createElement("div");
+  row.className = "fleet-benchmark-bar-row";
+  row.dataset.status = bar.status;
+  if (!bar.available) row.dataset.available = "false";
+
+  const host = document.createElement("span");
+  host.textContent = bar.host;
+  const track = document.createElement("span");
+  track.className = "fleet-benchmark-track";
+  const fill = document.createElement("i");
+  fill.style.width = `${bar.percent}%`;
+  track.append(fill);
+  const value = document.createElement("strong");
+  value.textContent = bar.label;
+  const age = document.createElement("small");
+  age.textContent = bar.age;
+  row.append(host, track, value, age);
+  return row;
+}
+
+function renderBenchmarkLadderPanel(container, ladder) {
+  if (!ladder.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = ladder.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "benchmark-ladder-summary";
+  summary.append(
+    benchmarkLadderSummaryItem({
+      label: "Focus",
+      value: ladder.target.host,
+      note: `${ladder.target.rackLabel} | ${ladder.target.clusterLabel}`,
+      tone: "good"
+    }),
+    benchmarkLadderSummaryItem({
+      label: "Coverage",
+      value: `${ladder.availableMetricCount}/5`,
+      note: `${ladder.measuredMetricCount} measured samples`,
+      tone: ladder.availableMetricCount >= 4 ? "good" : ladder.availableMetricCount >= 2 ? "watch" : "poor"
+    }),
+    benchmarkLadderSummaryItem({
+      label: "Index",
+      value: `${round(ladder.comparisonScore)}`,
+      note: "ready levels average",
+      tone: ladder.tone
+    })
+  );
+
+  const metrics = document.createElement("div");
+  metrics.className = "benchmark-metric-grid";
+  metrics.append(...ladder.metrics.map(benchmarkMetricCard));
+
+  const levels = document.createElement("div");
+  levels.className = "benchmark-ladder-grid";
+  levels.append(benchmarkLadderHeader(), ...ladder.levels.map(benchmarkLadderRow));
+
+  const sources = document.createElement("div");
+  sources.className = "benchmark-source-strip";
+  sources.append(...ladder.sourceLinks.map(benchmarkSourceLink));
+
+  container.replaceChildren(summary, metrics, levels, sources);
+}
+
+function benchmarkLadderSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "benchmark-ladder-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function benchmarkMetricCard(metric) {
+  const node = document.createElement("div");
+  node.className = "benchmark-metric-card";
+  node.dataset.status = metric.status;
+  const head = document.createElement("div");
+  head.className = "benchmark-metric-head";
+  const label = document.createElement("span");
+  label.textContent = metric.label;
+  const status = document.createElement("small");
+  status.textContent = metric.status;
+  head.append(label, status);
+
+  const value = document.createElement("strong");
+  value.textContent = metric.valueLabel;
+  const detail = document.createElement("small");
+  detail.textContent = Number.isFinite(metric.ratio)
+    ? `${signedPercent((metric.ratio - 1) * 100)} vs peer median`
+    : metric.detail;
+
+  const bar = document.createElement("span");
+  bar.className = "benchmark-metric-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${Number.isFinite(metric.ratio) ? clamp(metric.ratio * 50, 4, 100) : metric.available ? 58 : 6}%`;
+  bar.append(fill);
+
+  node.append(head, value, detail, bar);
+  return node;
+}
+
+function benchmarkLadderHeader() {
+  const row = document.createElement("div");
+  row.className = "benchmark-ladder-row benchmark-ladder-head";
+  ["Level", "Scope", "Result", "Signal"].forEach((text) => {
+    const cell = document.createElement("span");
+    cell.textContent = text;
+    row.append(cell);
+  });
+  return row;
+}
+
+function benchmarkLadderRow(level) {
+  const row = document.createElement("div");
+  row.className = "benchmark-ladder-row";
+  row.dataset.tone = level.tone;
+  row.dataset.status = level.status;
+  row.append(
+    benchmarkLadderCell(`L${level.level}`, level.label),
+    benchmarkLadderCell(level.scope, level.confidence || level.status),
+    benchmarkLadderScoreCell(level.value, level.score),
+    benchmarkLadderCell(level.detail, level.status)
+  );
+  return row;
+}
+
+function benchmarkLadderCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function benchmarkLadderScoreCell(value, score) {
+  const cell = benchmarkLadderCell(value, "comparison index");
+  const bar = document.createElement("span");
+  bar.className = "benchmark-ladder-score-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${clamp(score)}%`;
+  bar.append(fill);
+  cell.append(bar);
+  return cell;
+}
+
+function benchmarkSourceLink(source) {
+  const link = document.createElement("a");
+  link.href = source.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  const strong = document.createElement("strong");
+  strong.textContent = source.label;
+  const small = document.createElement("small");
+  small.textContent = source.note;
+  link.append(strong, small);
+  return link;
+}
+
+function fleetComparisonRankRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "fleet-comparison-rank-row";
+  row.dataset.tone = rowData.tone;
+
+  row.append(
+    fleetComparisonCell(`#${rowData.rank}`, rowData.outlierLabels.length ? rowData.outlierLabels.join(", ") : "in range"),
+    fleetComparisonCell(rowData.host, fleetComparisonHostNote(rowData)),
+    fleetComparisonScoreCell(rowData.score),
+    fleetComparisonCell(
+      `${pct(rowData.cpuUsagePct)} CPU`,
+      `${pct(rowData.memoryUsedPct)} RAM | ${fleetTemperatureLabel(rowData.cpuTemperatureC)}`
+    ),
+    fleetComparisonCell(
+      `${number.format(rowData.cpuCount)} cores`,
+      `${formatBytes(rowData.memoryTotalBytes)} RAM | ${formatBytes(rowData.diskTotalBytes)} disk`
+    ),
+    fleetComparisonCell(
+      fleetMbpsLabel(rowData.networkLinkSpeedMbps),
+      `${formatBytesPerSecond(rowData.networkThroughputBps)} | ${number.format(rowData.networkIssueCount)} issues`
+    ),
+    fleetComparisonCell(
+      fleetSignatureLabel(rowData.signatureDelta),
+      rowData.signatureMetricCount ? `${rowData.signatureMetricCount} features` : "waiting"
+    )
+  );
+
+  return row;
+}
+
+function fleetComparisonSpreadRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "fleet-comparison-spread-row";
+  row.dataset.tone = rowData.tone;
+  const format = rowData.formatter || String;
+  row.append(
+    fleetComparisonCell(rowData.label, rowData.bestHost ? `best ${rowData.bestHost}` : ""),
+    fleetComparisonCell(format(rowData.median), "median"),
+    fleetComparisonCell(`${format(rowData.min)} - ${format(rowData.max)}`, rowData.worstHost ? `watch ${rowData.worstHost}` : ""),
+    fleetComparisonCell(`CV ${formatDecimal(rowData.cv, 2)}`, "coefficient"),
+    fleetComparisonCell(`${rowData.outlierCount}`, rowData.outlierCount ? "robust MAD" : "none")
+  );
+  return row;
+}
+
+function fleetComparisonCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function fleetComparisonScoreCell(score) {
+  const cell = fleetComparisonCell(`${round(score)}`, "composite");
+  const bar = document.createElement("span");
+  bar.className = "fleet-comparison-score-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${clamp(score)}%`;
+  bar.append(fill);
+  cell.append(bar);
+  return cell;
+}
+
+function fleetComparisonHostNote(rowData) {
+  const bits = [];
+  if (rowData.platform) bits.push(rowData.platform);
+  if (rowData.cpuModel) bits.push(rowData.cpuModel.replace(/\s+/g, " ").slice(0, 42));
+  if (Number.isFinite(rowData.sampleAgeMs)) bits.push(`${sparkPairAgeLabel(rowData.sampleAgeMs)} old`);
+  return bits.join(" | ") || "live host";
+}
+
+function renderSparkPairComparisonPanel(container, comparison) {
+  if (!comparison.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = comparison.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "spark-pair-summary";
+  summary.append(...comparison.summaries.map(sparkPairSummaryItem));
+
+  const clockPanel = sparkPairClockGraphPanel(comparison.clockHistory || []);
+
+  const grid = document.createElement("div");
+  grid.className = "spark-pair-grid";
+  const header = document.createElement("div");
+  header.className = "spark-pair-row spark-pair-row-head";
+  ["Metric", comparison.leftLabel, comparison.rightLabel, "Delta"].forEach((text) => {
+    const cell = document.createElement("span");
+    cell.textContent = text;
+    header.append(cell);
+  });
+  grid.append(header, ...comparison.rows.map(sparkPairMetricRow));
+
+  container.replaceChildren(summary, clockPanel, grid);
+}
+
+function sparkPairSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "spark-pair-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function sparkPairClockGraphPanel(history) {
+  const panel = document.createElement("div");
+  panel.className = "spark-pair-clock-panel";
+  const latest = history[history.length - 1] || {};
+  const offsetValues = history.flatMap((sample) => [sample.leftOffsetNs, sample.rightOffsetNs, sample.offsetDeltaNs]).filter(Number.isFinite);
+  const skewValues = history.map((sample) => sample.sampleSkewMs).filter(Number.isFinite);
+
+  const head = document.createElement("div");
+  head.className = "spark-pair-clock-head";
+  const title = document.createElement("strong");
+  title.textContent = "Clock offset";
+  const meta = document.createElement("small");
+  meta.textContent = history.length
+    ? `${history.length} samples | delta ${sparkPairClockOffsetLabel(latest.offsetDeltaNs)} | skew ${sparkPairAgeLabel(latest.sampleSkewMs)}`
+    : "waiting for SPARK clock samples";
+  head.append(title, meta);
+
+  const body = document.createElement("div");
+  body.className = "spark-pair-clock-body";
+  body.append(
+    sparkPairClockGraphCard({
+      label: "Offset",
+      history,
+      series: [
+        { key: "leftOffsetNs", label: "SPARK1" },
+        { key: "rightOffsetNs", label: "SPARK2" },
+        { key: "offsetDeltaNs", label: "Delta" }
+      ],
+      formatter: sparkPairClockOffsetLabel,
+      values: offsetValues,
+      empty: "offset unavailable"
+    }),
+    sparkPairClockGraphCard({
+      label: "Sample skew",
+      history,
+      series: [
+        { key: "sampleSkewMs", label: "Skew" }
+      ],
+      formatter: sparkPairAgeLabel,
+      values: skewValues,
+      empty: "skew unavailable"
+    })
+  );
+
+  const legend = document.createElement("div");
+  legend.className = "spark-pair-clock-legend";
+  [
+    ["SPARK1", "spark1"],
+    ["SPARK2", "spark2"],
+    ["Delta", "delta"],
+    ["Skew", "skew"]
+  ].forEach(([label, key]) => {
+    const item = document.createElement("span");
+    item.dataset.series = key;
+    item.textContent = label;
+    legend.append(item);
+  });
+
+  panel.append(head, body, legend);
+  return panel;
+}
+
+function sparkPairClockGraphCard({ label, history, series, formatter, values, empty }) {
+  const card = document.createElement("div");
+  card.className = "spark-pair-clock-card";
+  const head = document.createElement("div");
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const latestText = document.createElement("strong");
+  const latest = history[history.length - 1] || {};
+  const firstSeries = series[0] || {};
+  latestText.textContent = Number.isFinite(latest[firstSeries.key]) ? formatter(latest[firstSeries.key]) : "--";
+  head.append(labelEl, latestText);
+
+  const graph = buildSparkPairClockGraph(history, series, values, { empty });
+  const note = document.createElement("small");
+  const finiteValues = values.filter(Number.isFinite);
+  note.textContent = finiteValues.length
+    ? `range ${formatter(Math.min(...finiteValues))} to ${formatter(Math.max(...finiteValues))}`
+    : empty;
+
+  card.append(head, graph, note);
+  return card;
+}
+
+function buildSparkPairClockGraph(history, series, values, options = {}) {
+  const width = 420;
+  const height = 116;
+  const padX = 14;
+  const padY = 12;
+  const innerWidth = width - padX * 2;
+  const innerHeight = height - padY * 2;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "spark-pair-clock-graph");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Rolling SPARK clock offset graph");
+
+  [0.25, 0.5, 0.75].forEach((ratio) => {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = padY + innerHeight * ratio;
+    line.setAttribute("x1", padX);
+    line.setAttribute("x2", width - padX);
+    line.setAttribute("y1", y);
+    line.setAttribute("y2", y);
+    line.setAttribute("class", "spark-pair-clock-grid-line");
+    svg.append(line);
+  });
+
+  const finiteValues = values.filter(Number.isFinite);
+  if (history.length < 2 || finiteValues.length < 2) {
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", width / 2);
+    text.setAttribute("y", height / 2 + 4);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("class", "spark-pair-clock-empty");
+    text.textContent = options.empty || "waiting";
+    svg.append(text);
+    return svg;
+  }
+
+  let min = Math.min(...finiteValues, 0);
+  let max = Math.max(...finiteValues, 0);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+  const zeroY = padY + innerHeight - ((0 - min) / range) * innerHeight;
+  const zero = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  zero.setAttribute("x1", padX);
+  zero.setAttribute("x2", width - padX);
+  zero.setAttribute("y1", zeroY);
+  zero.setAttribute("y2", zeroY);
+  zero.setAttribute("class", "spark-pair-clock-zero-line");
+  svg.append(zero);
+
+  series.forEach((entry) => {
+    const points = history
+      .map((sample, index) => {
+        const value = numeric(sample[entry.key], Number.NaN);
+        if (!Number.isFinite(value)) return null;
+        const x = padX + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
+        const y = padY + innerHeight - ((value - min) / range) * innerHeight;
+        return `${formatDecimal(x, 1)},${formatDecimal(y, 1)}`;
+      })
+      .filter(Boolean);
+    if (points.length < 2) return;
+    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    polyline.setAttribute("points", points.join(" "));
+    polyline.setAttribute("class", `spark-pair-clock-line spark-pair-clock-line-${entry.key}`);
+    svg.append(polyline);
+  });
+
+  return svg;
+}
+
+function sparkPairMetricRow(rowData) {
+  const row = document.createElement("div");
+  row.className = "spark-pair-row";
+  row.dataset.metric = rowData.id;
+  row.dataset.tone = rowData.tone;
+
+  const label = document.createElement("div");
+  label.className = "spark-pair-label";
+  const title = document.createElement("strong");
+  title.textContent = rowData.label;
+  const note = document.createElement("small");
+  note.textContent = rowData.note || "";
+  label.append(title, note);
+
+  const left = sparkPairHostCell(rowData.leftText, rowData.leftPercent, rowData.leftDetail);
+  const right = sparkPairHostCell(rowData.rightText, rowData.rightPercent, rowData.rightDetail);
+  const delta = document.createElement("div");
+  delta.className = "spark-pair-delta";
+  delta.title = rowData.deltaTitle || "";
+  const deltaValue = document.createElement("strong");
+  deltaValue.textContent = rowData.deltaLabel;
+  const deltaNote = document.createElement("small");
+  deltaNote.textContent = rowData.deltaTitle || "Delta";
+  delta.append(deltaValue, deltaNote);
+
+  row.append(label, left, right, delta);
+  return row;
+}
+
+function sparkPairHostCell(value, percent, detail) {
+  const cell = document.createElement("div");
+  cell.className = "spark-pair-host-cell";
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+
+  if (Number.isFinite(percent)) {
+    const bar = document.createElement("span");
+    bar.className = "spark-pair-bar";
+    const fill = document.createElement("i");
+    fill.style.width = `${clamp(percent)}%`;
+    bar.append(fill);
+    cell.append(bar);
+  }
+
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+
+  return cell;
 }
 
 function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
@@ -4296,6 +11010,26 @@ function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
   ];
 
   return commands;
+}
+
+function renderOperatorLaunchpad(launchpad, commands) {
+  const signature = operatorLaunchpadCommandSignature(commands);
+  if (operatorLaunchpadSignature === signature && launchpad.children.length === commands.length) {
+    return;
+  }
+
+  operatorLaunchpadSignature = signature;
+  launchpad.replaceChildren(...commands.map(operatorCommandButton));
+}
+
+function operatorLaunchpadCommandSignature(commands) {
+  return JSON.stringify(commands.map((command) => ({
+    label: command.label,
+    detail: command.detail,
+    command: command.command || "",
+    url: command.url || "",
+    action: Boolean(command.action)
+  })));
 }
 
 function operatorHeartbeatCard(source) {
@@ -4354,6 +11088,7 @@ function operatorTimelineIcon(source) {
     dcgm: "GPU",
     kafka: "K",
     grafana: "G",
+    gb10: "G10",
     analyzer: "A",
     opportunity: "$",
     simulator: "S",
@@ -4371,19 +11106,54 @@ function operatorCommandButton(command) {
   detail.textContent = command.detail;
   button.append(label, detail);
   button.addEventListener("click", async () => {
-    if (command.action) {
-      command.action();
-      return;
+    button.disabled = true;
+    button.dataset.state = "working";
+    try {
+      if (command.action) {
+        command.action();
+        setLaunchpadButtonFeedback(button, detail, "Started");
+        return;
+      }
+      if (command.url) {
+        const opened = window.open(command.url, "_blank");
+        if (opened) {
+          opened.opener = null;
+          setIngestStatus(`${command.label} opened`, "good");
+          setLaunchpadButtonFeedback(button, detail, "Opened");
+          return;
+        }
+        const copied = await copyTextToClipboard(command.url);
+        setIngestStatus(copied ? `${command.label} link copied` : `${command.label} link ready to copy`, copied ? "good" : "watch");
+        setLaunchpadButtonFeedback(button, detail, copied ? "Link copied" : "Link ready");
+        if (!copied) showManualCopyPrompt(command.label, command.url);
+        return;
+      }
+      const copied = await copyTextToClipboard(command.command);
+      setIngestStatus(copied ? `${command.label} command copied` : `${command.label} command ready to copy`, copied ? "good" : "watch");
+      setLaunchpadButtonFeedback(button, detail, copied ? "Command copied" : "Command ready");
+      if (!copied) showManualCopyPrompt(command.label, command.command);
+    } catch (error) {
+      setIngestStatus(`${command.label} failed`, "poor");
+      setLaunchpadButtonFeedback(button, detail, "Try again");
+    } finally {
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.dataset.state = "";
+        detail.textContent = command.detail;
+      }, 1400);
     }
-    if (command.url) {
-      window.open(command.url, "_blank", "noopener,noreferrer");
-      setIngestStatus(`${command.label} opened`, "good");
-      return;
-    }
-    await copyTextToClipboard(command.command);
-    setIngestStatus(`${command.label} command copied`, "good");
   });
   return button;
+}
+
+function setLaunchpadButtonFeedback(button, detail, message) {
+  button.dataset.state = "done";
+  detail.textContent = message;
+}
+
+function showManualCopyPrompt(label, text) {
+  if (!text || typeof window.prompt !== "function") return;
+  window.prompt(`${label}: copy this`, text);
 }
 
 function operatorKafkaNodes(kafka) {
@@ -4476,7 +11246,7 @@ function operatorReplayNodes(cockpit) {
 
   const note = document.createElement("small");
   note.textContent = cockpit.generatedAt
-    ? `Latest live sample ${cockpit.ageSeconds}s old. Replay is browser-local and uses the current session history.`
+    ? `Latest live sample ${formatHostSampleAgeMilliseconds(cockpit.ageMilliseconds)} old. Replay is browser-local and uses the current session history.`
     : "Replay will activate once live samples are collected.";
   return [status, controls, note];
 }
@@ -4519,9 +11289,19 @@ function operatorGrafanaNodes(grafana) {
 }
 
 function operatorFleetTile(tile) {
-  const item = document.createElement("article");
+  const item = document.createElement(tile.key ? "button" : "article");
   item.className = "fleet-tile";
   item.dataset.tone = tile.tone;
+  if (tile.key) {
+    item.type = "button";
+    item.setAttribute("aria-selected", String(tile.selected));
+    item.setAttribute("aria-label", `Show ${tile.host} telemetry`);
+    item.addEventListener("click", () => {
+      state.scope = "job";
+      state.selectedKey = tile.key;
+      render();
+    });
+  }
   const title = document.createElement("strong");
   title.textContent = tile.host;
   const gpu = document.createElement("span");
@@ -4589,7 +11369,9 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
     gpuMemory: machineContext.gpuPresent ? clamp(machineContext.gpuMemoryUsedPct) : null,
     gpuPower: machineContext.gpuPresent && machineContext.gpuPowerWatts > 0 ? numeric(machineContext.gpuPowerWatts) : null,
     gpuTemperature: machineContext.gpuPresent && machineContext.gpuTemperatureC > 0 ? numeric(machineContext.gpuTemperatureC) : null,
-    memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes))
+    memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes)),
+    networkUtilization: Number.isFinite(machineContext.networkUtilizationPct) ? clamp(machineContext.networkUtilizationPct) : null,
+    networkThroughputBps: Number.isFinite(machineContext.networkThroughputBps) ? Math.max(0, machineContext.networkThroughputBps) : null
   });
 
   if (liveTelemetryHistory.length > LIVE_TELEMETRY_LIMIT) {
@@ -4611,40 +11393,67 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
     cpu: telemetryTrend(window, "cpu"),
     ram: telemetryTrend(window, "ram"),
     disk: telemetryTrend(window, "disk"),
+    networkUtilization: telemetryTrend(window, "networkUtilization"),
+    networkThroughputBps: telemetryTrend(window, "networkThroughputBps"),
     gpu: telemetryTrend(window, "gpu"),
     gpuPower: telemetryTrend(window, "gpuPower"),
     gpuMemory: telemetryTrend(window, "gpuMemory"),
     gpuTemperature: telemetryTrend(window, "gpuTemperature")
   };
+  const networkRelationshipKey = telemetryRelationshipKey(window, ["networkUtilization", "networkThroughputBps"]);
   const relationships = [
+    telemetryRelationship("Network/GPU", telemetryCorrelation(window, networkRelationshipKey, "gpu"), networkRelationshipKey === "networkUtilization" ? "Link utilization vs accelerator work" : "Network throughput vs accelerator work"),
+    telemetryRelationship("Network/CPU", telemetryCorrelation(window, networkRelationshipKey, "cpu"), networkRelationshipKey === "networkUtilization" ? "Link utilization vs host activity" : "Network throughput vs host activity"),
     telemetryRelationship("CPU/GPU", telemetryCorrelation(window, "cpu", "gpu"), "Host pressure vs accelerator work"),
     telemetryRelationship("Power/GPU", telemetryCorrelation(window, "gpuPower", "gpu"), "Power draw vs useful accelerator motion"),
     telemetryRelationship("RAM/CPU", telemetryCorrelation(window, "ram", "cpu"), "Memory pressure vs host activity")
   ];
+  const covarianceMatrix = buildLiveCovarianceMatrix(window);
   const alerts = [];
+
+  if (Number.isFinite(machineContext.hardwareFaultScore) && machineContext.hardwareFaultScore >= 18) {
+    const topFault = machineContext.hardwareFaults[0];
+    alerts.push(liveTelemetryAlert({
+      severity: machineContext.hardwareFaultScore >= 80 || machineContext.hardwareCriticalFaultCount > 0 ? "critical" : machineContext.hardwareFaultScore >= 45 ? "high" : "medium",
+      title: "Hardware health needs attention",
+      evidence: topFault?.detail || `Hardware fault score is ${round(machineContext.hardwareFaultScore)} with ${round(numeric(machineContext.hardwareFaultCount))} observed fault signals.`,
+      recommendation: machineContext.hardwareRepairRequiresApproval
+        ? `${machineContext.hardwareRepairAction || "Inspect host"} requires operator approval.`
+        : machineContext.hardwareRepairAction || "Inspect host and keep remediation in dry-run until confirmed.",
+      confidence: Number.isFinite(machineContext.hardwareRepairConfidence) ? machineContext.hardwareRepairConfidence : 0.72
+    }));
+  }
 
   if (sampleCount < 6) {
     return {
+      contextKey: liveObservationContextKey(null, machineContext, window),
       sampleCount,
       windowSeconds,
       alerts,
       relationships,
+      covarianceMatrix,
       status: "Learning baseline"
     };
   }
 
   const avgGpu = telemetryAverage(window, "gpu");
   const avgCpu = telemetryAverage(window, "cpu");
+  const avgDockerCpu = telemetryAverage(window, "dockerCpu");
+  const avgNetworkThroughput = telemetryAverage(window, "networkThroughputBps");
+  const hostWorkObserved = (avgCpu !== null && avgCpu >= 15)
+    || (avgDockerCpu !== null && avgDockerCpu >= 8)
+    || (avgNetworkThroughput !== null && avgNetworkThroughput >= 1024 * 1024);
   const latestGpu = numeric(latest.gpu, 0);
   const latestCpu = numeric(latest.cpu, 0);
   const latestRam = numeric(latest.ram, 0);
   const latestDisk = numeric(latest.disk, 0);
+  const latestNetworkUtilization = telemetryValue(latest, "networkUtilization");
   const latestPower = numeric(latest.gpuPower, 0);
   const latestTemp = numeric(latest.gpuTemperature, 0);
   const cpuGpuCorrelation = telemetryCorrelation(window, "cpu", "gpu");
   const powerGpuCorrelation = telemetryCorrelation(window, "gpuPower", "gpu");
 
-  if (machineContext.gpuPresent && avgGpu !== null && avgGpu <= 5 && sampleCount >= 10) {
+  if (machineContext.gpuPresent && hostWorkObserved && avgGpu !== null && avgGpu <= 5 && sampleCount >= 10) {
     alerts.push(liveTelemetryAlert({
       severity: avgCpu !== null && avgCpu > 35 ? "high" : "medium",
       title: "Accelerator is trending idle",
@@ -4713,6 +11522,36 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
 
   if (
     machineContext.gpuPresent
+    && Number.isFinite(latestNetworkUtilization)
+    && latestNetworkUtilization >= 70
+    && (trends.gpu.slopePerMinute < 1 || latestGpu < 20)
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestNetworkUtilization >= 88 ? "high" : "medium",
+      title: "Network utilization is high while GPU is flat",
+      evidence: `Network utilization is ${pct(latestNetworkUtilization)} while GPU is moving ${signedRate(trends.gpu.slopePerMinute, "pts/min")}.`,
+      recommendation: "Inspect data ingress, model shard traffic, all-reduce placement, and host NIC saturation before adding accelerator capacity.",
+      confidence: 0.78
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
+    && Number.isFinite(latestNetworkUtilization)
+    && trends.networkUtilization.slopePerMinute > 8
+    && trends.gpu.slopePerMinute < 1
+  ) {
+    alerts.push(liveTelemetryAlert({
+      severity: latestNetworkUtilization >= 60 ? "high" : "medium",
+      title: "Network pressure is rising ahead of GPU work",
+      evidence: `Network utilization is moving ${signedRate(trends.networkUtilization.slopePerMinute, "pts/min")} while GPU is moving ${signedRate(trends.gpu.slopePerMinute, "pts/min")}.`,
+      recommendation: "Check input streaming, collective fan-out, and cross-node placement while the window is still short.",
+      confidence: 0.74
+    }));
+  }
+
+  if (
+    machineContext.gpuPresent
     && cpuGpuCorrelation !== null
     && cpuGpuCorrelation < -0.35
     && trends.cpu.slopePerMinute > 2
@@ -4741,15 +11580,187 @@ function analyzeLiveTelemetryRelationships(history, machineContext) {
   alerts.sort((left, right) => severityRank[right.severity] - severityRank[left.severity] || right.confidence - left.confidence);
 
   return {
+    contextKey: liveObservationContextKey(null, machineContext, window),
     sampleCount,
     windowSeconds,
     alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
     relationships,
+    covarianceMatrix,
     status: alerts.length ? `${alerts.length} active` : "Stable"
   };
 }
 
+function analyzeAnalysisResourceRelationships(summary) {
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  const cpuPrep = numeric(summary.cpuPrep);
+  const networkWait = numeric(summary.networkWait);
+  const nccl = numeric(summary.ncclTime);
+  const placement = numeric(summary.placementQuality);
+  const crossPod = numeric(summary.crossPodTraffic);
+  const alerts = [];
+  const relationships = [
+    analysisRelationship(
+      "Network/GPU",
+      `${pct(network)} / ${pct(gpu)}`,
+      networkGpuSnapshotNote(summary),
+      network >= 70 && gpu < 45 ? "poor" : network >= 70 || gpu < 35 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Network/CPU",
+      `${pct(network)} / ${pct(cpuPrep)}`,
+      networkCpuSnapshotNote(summary),
+      network >= 70 && cpuPrep >= 20 ? "poor" : network >= 70 || cpuPrep >= 20 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Network wait/GPU",
+      `${pct(networkWait)} / ${pct(gpu)}`,
+      "Network wait tracks stall/latency pressure against accelerator utilization",
+      networkWait >= 18 && gpu < 55 ? "poor" : networkWait >= 10 ? "watch" : "good"
+    ),
+    analysisRelationship(
+      "Placement/Network",
+      `${pct(placement)} / ${pct(crossPod)}`,
+      "Placement fit compared with cross-pod traffic pressure",
+      placement < 60 && crossPod >= 30 ? "poor" : crossPod >= 20 || placement < 75 ? "watch" : "good"
+    )
+  ];
+
+  if (network >= 70 && gpu < 45) {
+    alerts.push(liveTelemetryAlert({
+      severity: network >= 88 ? "high" : "medium",
+      title: "Network utilization may be limiting GPU work",
+      evidence: `Network utilization is ${pct(network)} while GPU utilization is ${pct(gpu)} in this run snapshot.`,
+      recommendation: "Check input streaming, collective traffic, placement, and NIC capacity before adding accelerator capacity.",
+      confidence: 0.74
+    }));
+  }
+
+  if (network >= 70 && cpuPrep >= 20) {
+    alerts.push(liveTelemetryAlert({
+      severity: network >= 88 || cpuPrep >= 35 ? "high" : "medium",
+      title: "Network and CPU prep are both elevated",
+      evidence: `Network utilization is ${pct(network)} and CPU prep is ${pct(cpuPrep)} in the interpreted metrics.`,
+      recommendation: "Inspect host data loading, tokenization, serialization, and ingress fan-in for CPU-side network pressure.",
+      confidence: 0.7
+    }));
+  }
+
+  if (network >= 60 && networkWait >= 10) {
+    alerts.push(liveTelemetryAlert({
+      severity: networkWait >= 20 ? "high" : "medium",
+      title: "Throughput pressure and network wait coexist",
+      evidence: `Network utilization is ${pct(network)} while network wait is ${pct(networkWait)} and NCCL time is ${pct(nccl)}.`,
+      recommendation: "Separate capacity saturation from latency/loss stalls by checking interface errors, drops, and collective topology.",
+      confidence: 0.76
+    }));
+  }
+
+  return {
+    contextKey: `snapshot:${summary.scope}:${summary.key}`,
+    sampleCount: 1,
+    windowSeconds: 0,
+    badgeText: "Analysis snapshot",
+    covarianceBadgeText: "Waiting for live counters",
+    covarianceFootText: "Live host CPU, GPU, RAM, and network samples are required for covariance; current view is a static run snapshot.",
+    emptyAlertText: "No adverse snapshot relationship detected in the selected run.",
+    alerts: alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT),
+    relationships,
+    covarianceMatrix: buildLiveCovarianceMatrix([]),
+    observations: analysisResourceObservations(summary, alerts),
+    history: analysisResourceHistory(summary),
+    status: alerts.length ? `${alerts.length} snapshot ${alerts.length === 1 ? "signal" : "signals"}` : "Snapshot stable"
+  };
+}
+
+function analysisRelationship(label, value, note, tone = "watch") {
+  return { label, value, note, tone };
+}
+
+function networkGpuSnapshotNote(summary) {
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  if (network >= 70 && gpu < 45) return "High link pressure with low GPU use points to data-motion bottlenecks";
+  if (network >= 70) return "Link utilization is material; compare against network wait and NCCL";
+  if (gpu >= 70 && network <= 40) return "GPU is busy without heavy link pressure";
+  return "Snapshot comparison of link pressure against accelerator work";
+}
+
+function networkCpuSnapshotNote(summary) {
+  const network = numeric(summary.networkUtilization);
+  const cpuPrep = numeric(summary.cpuPrep);
+  if (network >= 70 && cpuPrep >= 20) return "CPU prep is the host-side proxy for Network/CPU in this snapshot";
+  if (network >= 70) return "Network pressure is elevated; CPU prep is not elevated in this run";
+  if (cpuPrep >= 20) return "CPU prep is elevated without matching link utilization";
+  return "Uses CPU prep as the host-side CPU proxy until live CPU counters arrive";
+}
+
+function analysisResourceObservations(summary, alerts) {
+  const alertRows = alerts.map((alert) => ({
+    tone: alert.severity === "critical" || alert.severity === "high" ? "poor" : alert.severity === "medium" ? "watch" : "good",
+    label: titleCase(alert.severity),
+    title: alert.title,
+    detail: alert.evidence
+  }));
+  const network = numeric(summary.networkUtilization);
+  const gpu = numeric(summary.gpuUtil);
+  const cpuPrep = numeric(summary.cpuPrep);
+  const rows = [
+    {
+      tone: inverseGrade(network, 70, 88).key,
+      label: "Snapshot",
+      title: "Network utilization",
+      detail: `${pct(network)} link utilization | ${pct(summary.networkWait)} network wait | ${pct(summary.ncclTime)} NCCL`
+    },
+    {
+      tone: network >= 70 && gpu < 45 ? "poor" : network >= 70 || gpu < 35 ? "watch" : "good",
+      label: "Relationship",
+      title: "Network/GPU",
+      detail: `${pct(network)} network utilization compared with ${pct(gpu)} GPU utilization. ${networkGpuSnapshotNote(summary)}.`
+    },
+    {
+      tone: network >= 70 && cpuPrep >= 20 ? "poor" : network >= 70 || cpuPrep >= 20 ? "watch" : "good",
+      label: "Relationship",
+      title: "Network/CPU",
+      detail: `${pct(network)} network utilization compared with ${pct(cpuPrep)} CPU prep. ${networkCpuSnapshotNote(summary)}.`
+    },
+    {
+      tone: inverseGrade(summary.networkWait, 10, 20).key,
+      label: "Snapshot",
+      title: "Network wait",
+      detail: `${pct(summary.networkWait)} stall/latency pressure, kept separate from ${pct(network)} utilization.`
+    }
+  ];
+
+  return [...alertRows, ...rows].slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function analysisResourceHistory(summary) {
+  return [{
+    host: summary.label,
+    timestampMs: Date.now(),
+    label: "Snapshot",
+    networkUtilization: clamp(summary.networkUtilization),
+    gpu: clamp(summary.gpuUtil),
+    cpuPrep: clamp(summary.cpuPrep),
+    networkWait: clamp(summary.networkWait),
+    ncclTime: clamp(summary.ncclTime),
+    placementQuality: clamp(summary.placementQuality)
+  }];
+}
+
 function renderLiveTelemetryAlerts(container, analysis) {
+  const platformMatrix = platformVirtualSensorCache.baseUrl === platformApiBaseUrl()
+    ? platformVirtualSensorCache.matrix
+    : null;
+  const effectiveAnalysis = platformMatrix
+    ? {
+        ...analysis,
+        covarianceMatrix: platformMatrix,
+        covarianceBadgeText: "API virtual sensors",
+        covarianceFootText: "Covariance and principal mode loaded from the platform API virtual sensor tables."
+      }
+    : analysis;
   const wrapper = document.createElement("section");
   wrapper.className = "live-relationship-panel";
 
@@ -4758,36 +11769,1175 @@ function renderLiveTelemetryAlerts(container, analysis) {
   const label = document.createElement("p");
   label.textContent = "Relationship Watch";
   const title = document.createElement("h3");
-  title.textContent = analysis.status;
+  title.textContent = effectiveAnalysis.status;
   const badge = document.createElement("span");
-  badge.textContent = analysis.sampleCount
-    ? `${analysis.sampleCount} samples | ${analysis.windowSeconds}s`
-    : "No samples";
+  badge.textContent = effectiveAnalysis.badgeText || (effectiveAnalysis.sampleCount
+    ? `${effectiveAnalysis.sampleCount} samples | ${effectiveAnalysis.windowSeconds}s`
+    : "No samples");
   head.append(label, title, badge);
 
   const relationshipGrid = document.createElement("div");
   relationshipGrid.className = "live-relationship-grid";
-  analysis.relationships.forEach((relationship) => {
+  effectiveAnalysis.relationships.forEach((relationship) => {
     relationshipGrid.append(liveRelationshipCard(relationship));
   });
 
+  const covariancePanel = effectiveAnalysis.covarianceMatrix
+    ? liveCovarianceMatrixPanel(effectiveAnalysis.covarianceMatrix, effectiveAnalysis)
+    : null;
+
   const alertList = document.createElement("div");
   alertList.className = "live-alert-list";
-  if (!analysis.alerts.length) {
+  if (!effectiveAnalysis.alerts.length) {
     const empty = document.createElement("div");
     empty.className = "live-alert-empty";
-    empty.textContent = analysis.sampleCount < 6
+    empty.textContent = effectiveAnalysis.emptyAlertText || (effectiveAnalysis.sampleCount < 6
       ? "Learning enough signal history to score adverse trends."
-      : "No adverse relationship trend detected in the current window.";
+      : "No adverse relationship trend detected in the current window.");
     alertList.append(empty);
   } else {
-    analysis.alerts.forEach((alert) => {
+    effectiveAnalysis.alerts.forEach((alert) => {
       alertList.append(liveAlertCard(alert));
     });
   }
 
-  wrapper.append(head, relationshipGrid, alertList);
+  wrapper.append(head);
+  if (covariancePanel) wrapper.append(covariancePanel);
+  wrapper.append(relationshipGrid, alertList);
   container.replaceChildren(wrapper);
+  refreshPlatformVirtualSensors(container, analysis);
+}
+
+async function refreshPlatformVirtualSensors(container, analysis) {
+  const baseUrl = platformApiBaseUrl();
+  if (!baseUrl || platformVirtualSensorCache.inFlight) return;
+  if (platformVirtualSensorCache.baseUrl === baseUrl && Date.now() - platformVirtualSensorCache.fetchedAt < 5000) return;
+  platformVirtualSensorCache.inFlight = true;
+  try {
+    const [covariance, principalMode, systemIdentification] = await Promise.all([
+      platformApiFetch("/v1/virtual-sensors/covariance").then((response) => response.ok ? response.json() : null),
+      platformApiFetch("/v1/virtual-sensors/principal-resource-mode").then((response) => response.ok ? response.json() : null),
+      platformApiFetch("/v1/virtual-sensors/system-identification").then((response) => response.ok ? response.json() : null)
+    ]);
+    const matrix = platformCovarianceMatrix(covariance, principalMode);
+    const characterization = platformSystemIdentification(systemIdentification);
+    if (matrix || characterization) {
+      platformVirtualSensorCache = {
+        baseUrl,
+        fetchedAt: Date.now(),
+        inFlight: false,
+        matrix: matrix || platformVirtualSensorCache.matrix,
+        systemIdentification: characterization || platformVirtualSensorCache.systemIdentification
+      };
+      refreshSystemCharacterizationPanelFromCache();
+      if (matrix) renderLiveTelemetryAlerts(container, analysis);
+      return;
+    }
+  } catch {
+    // Keep local live telemetry fallback when the platform API is unavailable.
+  }
+  platformVirtualSensorCache = {
+    ...platformVirtualSensorCache,
+    baseUrl,
+    fetchedAt: Date.now(),
+    inFlight: false
+  };
+  refreshSystemCharacterizationPanelFromCache();
+}
+
+function platformCovarianceMatrix(covariance, principalMode) {
+  if (!covariance || !Array.isArray(covariance.metrics) || !Array.isArray(covariance.rows)) return null;
+  const metricByApiKey = new Map([
+    ["cpu", LIVE_COVARIANCE_METRICS[0]],
+    ["gpu", LIVE_COVARIANCE_METRICS[1]],
+    ["ram", LIVE_COVARIANCE_METRICS[2]],
+    ["network", LIVE_COVARIANCE_METRICS[3]]
+  ]);
+  const rows = covariance.rows
+    .map((row) => {
+      const metric = metricByApiKey.get(row.metric);
+      if (!metric || !Array.isArray(row.cells)) return null;
+      return {
+        metric,
+        cells: row.cells.map((cell) => {
+          const rightMetric = metricByApiKey.get(cell.rightMetric || cell.right_metric);
+          return {
+            rowKey: metric.key,
+            columnKey: rightMetric?.key || "",
+            rowLabel: metric.label,
+            columnLabel: rightMetric?.label || "",
+            stats: {
+              sampleCount: numeric(cell.sampleCount ?? cell.sample_count, 0),
+              covariance: numeric(cell.covariance, null),
+              correlation: numeric(cell.correlation, null)
+            },
+            trend: []
+          };
+        })
+      };
+    })
+    .filter(Boolean);
+  if (!rows.length) return null;
+  return {
+    metrics: LIVE_COVARIANCE_METRICS,
+    rows,
+    principalMode: platformPrincipalMode(principalMode)
+  };
+}
+
+function platformPrincipalMode(mode) {
+  if (!mode || mode.status !== "ready") {
+    return {
+      status: "learning",
+      title: "Learning resource mode",
+      badge: "API virtual sensors",
+      explainedPct: null,
+      note: "Waiting for platform virtual sensor tables to produce a principal resource mode.",
+      loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null, trend: [] })),
+      eigenvalues: []
+    };
+  }
+  const keyMap = new Map([
+    ["cpu", LIVE_COVARIANCE_METRICS[0]],
+    ["gpu", LIVE_COVARIANCE_METRICS[1]],
+    ["ram", LIVE_COVARIANCE_METRICS[2]],
+    ["network", LIVE_COVARIANCE_METRICS[3]]
+  ]);
+  const loadingByKey = new Map((mode.loadings || []).map((loading) => [loading.metric, loading.value]));
+  return {
+    status: "ready",
+    title: mode.title || "Principal resource mode",
+    badge: "API virtual sensors",
+    explainedPct: numeric(mode.explainedPct, null),
+    note: "Computed by the platform virtual sensor API from the Parquet/DuckDB lakehouse path.",
+    loadings: LIVE_COVARIANCE_METRICS.map((metric) => {
+      const apiKey = [...keyMap.entries()].find(([, mapped]) => mapped.key === metric.key)?.[0];
+      return { ...metric, value: numeric(loadingByKey.get(apiKey), null), trend: [] };
+    }),
+    eigenvalues: (mode.eigenvalues || []).map((entry) => ({
+      value: numeric(entry.value, 0),
+      sharePct: numeric(entry.sharePct, 0),
+      trend: []
+    }))
+  };
+}
+
+function platformSystemIdentification(payload) {
+  if (!payload || !Array.isArray(payload.rows)) return null;
+  const rows = payload.rows
+    .map((row) => ({
+      hostId: String(row.host_id || row.hostId || ""),
+      eventTs: String(row.event_ts || row.eventTs || ""),
+      timestampMs: systemIdTimestampMs(row.event_ts || row.eventTs),
+      runId: String(row.run_id || row.runId || row.experiment_id || row.experimentId || ""),
+      experimentId: String(row.experiment_id || row.experimentId || row.run_id || row.runId || ""),
+      phaseId: String(row.phase_id || row.phaseId || ""),
+      target: String(row.target || ""),
+      profile: String(row.profile || ""),
+      outputMetric: String(row.output_metric || row.outputMetric || ""),
+      feature: String(row.feature || ""),
+      value: numeric(row.value, Number.NaN)
+    }))
+    .filter((row) => row.hostId && row.runId && Number.isFinite(row.value));
+  if (!rows.length) {
+    return {
+      status: "empty",
+      rows: [],
+      hosts: [],
+      count: numeric(payload.count, 0),
+      fetchedAt: Date.now()
+    };
+  }
+
+  const runsByHost = new Map();
+  rows.forEach((row) => {
+    if (!runsByHost.has(row.hostId)) runsByHost.set(row.hostId, new Map());
+    const hostRuns = runsByHost.get(row.hostId);
+    if (!hostRuns.has(row.runId)) {
+      hostRuns.set(row.runId, {
+        hostId: row.hostId,
+        runId: row.runId,
+        experimentId: row.experimentId,
+        eventTs: row.eventTs,
+        timestampMs: row.timestampMs,
+        rows: []
+      });
+    }
+    const run = hostRuns.get(row.runId);
+    run.rows.push(row);
+    if (row.timestampMs >= run.timestampMs) {
+      run.timestampMs = row.timestampMs;
+      run.eventTs = row.eventTs;
+    }
+  });
+
+  const hosts = Array.from(runsByHost.entries())
+    .map(([hostId, hostRuns]) => {
+      const runs = Array.from(hostRuns.values()).sort((left, right) => right.timestampMs - left.timestampMs);
+      const latest = runs[0];
+      return systemIdentificationHostSummary(hostId, latest, rows, runs);
+    })
+    .sort(systemIdentificationHostSort);
+
+  return {
+    status: "ready",
+    rows,
+    hosts,
+    count: numeric(payload.count, rows.length),
+    fetchedAt: Date.now()
+  };
+}
+
+function systemIdentificationHostSummary(hostId, latest, allRows, runs) {
+  const featureMap = new Map(latest.rows.map((row) => [systemIdFeatureKey(row), row.value]));
+  const feature = (target, profile, outputMetric, name) => numeric(featureMap.get(`${target}:${profile}:${outputMetric}:${name}`), null);
+  const profiles = unique(latest.rows.map((row) => row.profile).filter(Boolean))
+    .sort((left, right) => systemIdProfileRank(left) - systemIdProfileRank(right));
+  const targets = unique(latest.rows.map((row) => row.target).filter(Boolean)).sort();
+  const subsystems = systemIdentificationSubsystemSummaries(hostId, latest.rows, allRows, feature);
+  const cpu = subsystems.find((subsystem) => subsystem.key === "cpu") || {};
+  return {
+    hostId,
+    runId: latest.runId,
+    eventTs: latest.eventTs,
+    timestampMs: latest.timestampMs,
+    ageLabel: formatSystemIdRunAge(latest.timestampMs),
+    runCount: runs.length,
+    profiles,
+    targets,
+    subsystems,
+    cpuStepGain: cpu.stepGain,
+    cpuStepPeak: cpu.stepPeak,
+    cpuStepCorrelation: cpu.stepCorrelation,
+    cpuImpulseGain: cpu.impulseGain,
+    cpuImpulsePeak: cpu.impulsePeak,
+    cpuRampPeak: cpu.rampPeak,
+    profilePeaks: cpu.profilePeaks || {},
+    profileGains: cpu.profileGains || {},
+    stepGainTrend: cpu.stepGainTrend || [],
+    stepPeakTrend: cpu.stepPeakTrend || [],
+    impulseGainTrend: cpu.impulseGainTrend || []
+  };
+}
+
+function systemIdentificationSubsystemSummaries(hostId, rows, allRows, feature) {
+  return SYSTEM_ID_SUBSYSTEMS
+    .map((config) => {
+      const target = systemIdentificationTargetForOutput(rows, config);
+      if (!target) return null;
+      const profilePeaks = Object.fromEntries(SYSTEM_ID_PROFILE_ORDER.map((profile) => [profile, feature(target, profile, config.outputMetric, "peak_delta_pct")]));
+      const profileGains = Object.fromEntries(SYSTEM_ID_PROFILE_ORDER.map((profile) => [profile, feature(target, profile, config.outputMetric, "gain")]));
+      const stepGain = feature(target, "step", config.outputMetric, "gain");
+      const stepPeak = feature(target, "step", config.outputMetric, "peak_delta_pct");
+      const impulseGain = feature(target, "impulse", config.outputMetric, "gain");
+      const impulsePeak = feature(target, "impulse", config.outputMetric, "peak_delta_pct");
+      const rampPeak = feature(target, "ramp", config.outputMetric, "peak_delta_pct");
+      const hasSignal = [
+        stepGain,
+        stepPeak,
+        impulseGain,
+        impulsePeak,
+        rampPeak,
+        ...Object.values(profilePeaks),
+        ...Object.values(profileGains)
+      ].some(Number.isFinite);
+      if (!hasSignal) return null;
+      return {
+        ...config,
+        target,
+        targetLabel: systemIdentificationTargetLabel(target),
+        stepGain,
+        stepPeak,
+        stepCorrelation: feature(target, "step", config.outputMetric, "cross_correlation"),
+        impulseGain,
+        impulsePeak,
+        rampPeak,
+        profilePeaks,
+        profileGains,
+        stepGainTrend: systemIdentificationTrend(allRows, hostId, target, "step", config.outputMetric, "gain"),
+        stepPeakTrend: systemIdentificationTrend(allRows, hostId, target, "step", config.outputMetric, "peak_delta_pct"),
+        impulseGainTrend: systemIdentificationTrend(allRows, hostId, target, "impulse", config.outputMetric, "gain")
+      };
+    })
+    .filter(Boolean);
+}
+
+function systemIdentificationTargetForOutput(rows, config) {
+  const candidates = unique(rows
+    .filter((row) => row.outputMetric === config.outputMetric)
+    .map((row) => row.target)
+    .filter(Boolean));
+  if (!candidates.length) return "";
+  return candidates.sort((left, right) => {
+    const leftRank = systemIdentificationTargetRank(left, config.target);
+    const rightRank = systemIdentificationTargetRank(right, config.target);
+    return leftRank - rightRank || left.localeCompare(right);
+  })[0];
+}
+
+function systemIdentificationTargetRank(target, preferred) {
+  if (target === preferred) return 0;
+  const index = SYSTEM_ID_SUBSYSTEMS.findIndex((subsystem) => subsystem.target === target || subsystem.key === target);
+  return index === -1 ? SYSTEM_ID_SUBSYSTEMS.length + 1 : index + 1;
+}
+
+function systemIdentificationTargetLabel(target) {
+  return SYSTEM_ID_SUBSYSTEMS.find((subsystem) => subsystem.target === target || subsystem.key === target)?.shortLabel || titleCase(target);
+}
+
+function systemIdentificationHostSort(left, right) {
+  const rank = (host) => {
+    const id = host.hostId.toUpperCase();
+    if (id === "SPARK1") return 1;
+    if (id === "SPARK2") return 2;
+    const piMatch = id.match(/^PI(\d+)$/);
+    if (piMatch) return 100 + numeric(piMatch[1], 0);
+    if (id.includes("NUC")) return 9;
+    return 5;
+  };
+  return rank(left) - rank(right) || left.hostId.localeCompare(right.hostId, undefined, { numeric: true });
+}
+
+function systemIdFeatureKey(row) {
+  return `${row.target}:${row.profile}:${row.outputMetric}:${row.feature}`;
+}
+
+function systemIdentificationTrend(rows, hostId, target, profile, outputMetric, feature) {
+  const byRun = new Map();
+  rows.forEach((row) => {
+    if (row.hostId !== hostId || row.target !== target || row.profile !== profile || row.outputMetric !== outputMetric || row.feature !== feature) return;
+    const existing = byRun.get(row.runId);
+    if (!existing || row.timestampMs >= existing.timestampMs) {
+      byRun.set(row.runId, {
+        value: row.value,
+        timestampMs: row.timestampMs,
+        label: row.eventTs
+      });
+    }
+  });
+  return Array.from(byRun.values()).sort((left, right) => left.timestampMs - right.timestampMs).slice(-24);
+}
+
+function systemIdTimestampMs(value) {
+  const normalized = String(value || "")
+    .trim()
+    .replace(" ", "T")
+    .replace(/(\.\d{3})\d+/, "$1");
+  const parsed = Date.parse(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function systemIdProfileRank(profile) {
+  const index = SYSTEM_ID_PROFILE_ORDER.indexOf(profile);
+  return index === -1 ? SYSTEM_ID_PROFILE_ORDER.length : index;
+}
+
+function formatSystemIdRunAge(timestampMs) {
+  if (!Number.isFinite(timestampMs) || timestampMs <= 0) return "time unknown";
+  const seconds = Math.max(0, Math.round((Date.now() - timestampMs) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+
+function refreshSystemCharacterizationPanelFromCache() {
+  const panel = document.querySelector("#systemCharacterizationPanel");
+  const badge = document.querySelector("#systemCharacterizationBadge");
+  if (!panel) return;
+  updateSystemCharacterizationBadge(badge, platformVirtualSensorCache.systemIdentification);
+  renderSystemCharacterizationPanel(panel, platformVirtualSensorCache.systemIdentification);
+}
+
+function updateSystemCharacterizationBadge(badge, characterization) {
+  if (!badge) return;
+  if (!characterization || characterization.status !== "ready") {
+    badge.textContent = platformApiBaseUrl() ? "Waiting" : "No API";
+    badge.dataset.tone = platformApiBaseUrl() ? "watch" : "poor";
+    return;
+  }
+  badge.textContent = `${characterization.hosts.length} ${characterization.hosts.length === 1 ? "host" : "hosts"}`;
+  badge.dataset.tone = characterization.hosts.length >= 2 ? "good" : "watch";
+}
+
+function renderSystemCharacterizationPanel(container, characterization) {
+  if (!characterization || characterization.status !== "ready" || !characterization.hosts.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = platformApiBaseUrl()
+      ? "Waiting for system-identification virtual sensor rows."
+      : "Platform API is not configured for this dashboard host.";
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "system-characterization-summary";
+  characterization.hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    summary.append(systemCharacterizationHostCard(host));
+  });
+
+  const chart = systemCharacterizationProfileChart(characterization.hosts);
+  const trends = systemCharacterizationTrendGrid(characterization.hosts);
+  container.replaceChildren(summary, chart, trends);
+}
+
+function systemCharacterizationHostCard(host) {
+  const card = document.createElement("article");
+  card.className = "system-characterization-host";
+  const head = document.createElement("div");
+  head.className = "system-characterization-host-head";
+  const title = document.createElement("strong");
+  title.textContent = host.hostId;
+  const badge = document.createElement("span");
+  badge.textContent = host.ageLabel;
+  head.append(title, badge);
+
+  const stats = document.createElement("div");
+  stats.className = "system-characterization-stats";
+  const subsystemStats = (host.subsystems || []).slice(0, 4);
+  if (subsystemStats.length) {
+    stats.append(...subsystemStats.map((subsystem) => systemCharacterizationStat(
+      `${subsystem.shortLabel} step`,
+      systemIdDelta(subsystem.stepPeak),
+      subsystem.stepPeakTrend,
+      true
+    )));
+  } else {
+    stats.append(systemCharacterizationStat("Step peak", systemIdDelta(host.cpuStepPeak), host.stepPeakTrend, true));
+  }
+
+  const meta = document.createElement("small");
+  const profileText = host.profiles.map((profile) => SYSTEM_ID_PROFILE_LABELS[profile] || titleCase(profile)).join(", ");
+  const subsystemText = (host.subsystems || []).map((subsystem) => subsystem.shortLabel).join(", ");
+  meta.textContent = `${subsystemText || "Subsystems"} | ${profileText} | ${host.runCount} ${host.runCount === 1 ? "run" : "runs"}`;
+  card.append(head, stats, meta);
+  return card;
+}
+
+function systemCharacterizationStat(label, value, trend, signed) {
+  const item = document.createElement("div");
+  item.className = "system-characterization-stat";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = label;
+  const valueEl = document.createElement("strong");
+  valueEl.textContent = value;
+  const spark = buildTrendSparkline(trend || [], {
+    className: "system-characterization-sparkline",
+    emptyClassName: "system-characterization-sparkline-empty",
+    lineClassName: "system-characterization-sparkline-line",
+    zeroClassName: "system-characterization-sparkline-zero",
+    signed
+  });
+  item.append(labelEl, valueEl, spark);
+  return item;
+}
+
+function systemCharacterizationProfileChart(hosts) {
+  const chart = document.createElement("section");
+  chart.className = "system-characterization-chart";
+  const title = document.createElement("div");
+  title.className = "system-characterization-chart-title";
+  title.append(systemCharacterizationChartLabel("Subsystem profile response"), systemCharacterizationChartLabel("peak delta"));
+
+  const series = systemCharacterizationProfileSeries(hosts);
+  const values = hosts.flatMap((host) => (host.subsystems || []).flatMap((subsystem) => Object.values(subsystem.profilePeaks || {}).filter(Number.isFinite)));
+  const maxAbs = Math.max(1, ...values.map((value) => Math.abs(value)));
+  const rows = series.map((item) => systemCharacterizationProfileRow(item, hosts, maxAbs));
+
+  chart.append(title, ...rows);
+  return chart;
+}
+
+function systemCharacterizationProfileSeries(hosts) {
+  const items = [];
+  SYSTEM_ID_SUBSYSTEMS.forEach((config) => {
+    SYSTEM_ID_PROFILE_ORDER.forEach((profile) => {
+      const hasValue = hosts.some((host) => {
+        const subsystem = systemCharacterizationHostSubsystem(host, config.key);
+        return Number.isFinite(subsystem?.profilePeaks?.[profile]);
+      });
+      if (hasValue) items.push({ config, profile });
+    });
+  });
+  return items;
+}
+
+function systemCharacterizationProfileRow(item, hosts, maxAbs) {
+  const row = document.createElement("div");
+  row.className = "system-characterization-profile-row";
+  const label = document.createElement("span");
+  label.textContent = `${item.config.shortLabel} ${SYSTEM_ID_PROFILE_LABELS[item.profile] || titleCase(item.profile)}`;
+  const bars = document.createElement("div");
+  bars.className = "system-characterization-bars";
+  hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    const subsystem = systemCharacterizationHostSubsystem(host, item.config.key);
+    const value = subsystem?.profilePeaks?.[item.profile];
+    const bar = document.createElement("div");
+    bar.className = "system-characterization-bar";
+    bar.dataset.host = host.hostId.toLowerCase();
+    bar.dataset.polarity = numeric(value, 0) < 0 ? "negative" : "positive";
+    bar.title = `${host.hostId} ${item.config.label} ${SYSTEM_ID_PROFILE_LABELS[item.profile] || item.profile}: ${systemIdDelta(value)}`;
+    const fill = document.createElement("i");
+    fill.style.width = Number.isFinite(value) ? `${Math.max(2, Math.min(100, (Math.abs(value) / maxAbs) * 100))}%` : "2%";
+    const text = document.createElement("span");
+    text.textContent = `${host.hostId} ${systemIdDelta(value)}`;
+    bar.append(fill, text);
+    bars.append(bar);
+  });
+  row.append(label, bars);
+  return row;
+}
+
+function systemCharacterizationHostSubsystem(host, key) {
+  return (host.subsystems || []).find((subsystem) => subsystem.key === key) || null;
+}
+
+function systemCharacterizationTrendGrid(hosts) {
+  const grid = document.createElement("div");
+  grid.className = "system-characterization-trends";
+  hosts.slice(0, SYSTEM_CHARACTERIZATION_HOST_LIMIT).forEach((host) => {
+    const subsystems = (host.subsystems || []).filter((subsystem) => Number.isFinite(subsystem.stepPeak) || (subsystem.stepPeakTrend || []).length).slice(0, 4);
+    subsystems.forEach((subsystem) => {
+      grid.append(systemCharacterizationTrendCell(host, `${subsystem.shortLabel} step`, subsystem.stepPeakTrend, true, systemIdDelta));
+    });
+  });
+  return grid;
+}
+
+function systemCharacterizationTrendCell(host, label, trend, signed, formatter = systemIdRatio) {
+  const item = document.createElement("div");
+  item.className = "system-characterization-trend-cell";
+  const labelEl = document.createElement("span");
+  labelEl.textContent = `${host.hostId} ${label}`;
+  const points = trend || [];
+  const latest = points.length ? points[points.length - 1].value : null;
+  const value = document.createElement("strong");
+  value.textContent = formatter(latest);
+  const spark = buildTrendSparkline(trend || [], {
+    className: "system-characterization-trend",
+    emptyClassName: "system-characterization-sparkline-empty",
+    lineClassName: "system-characterization-sparkline-line",
+    zeroClassName: "system-characterization-sparkline-zero",
+    signed
+  });
+  item.append(labelEl, value, spark);
+  return item;
+}
+
+function systemCharacterizationChartLabel(text) {
+  const label = document.createElement("span");
+  label.textContent = text;
+  return label;
+}
+
+function systemIdRatio(value) {
+  return Number.isFinite(value) ? formatDecimal(value, 3) : "--";
+}
+
+function systemIdDelta(value) {
+  return Number.isFinite(value) ? `${value >= 0 ? "+" : ""}${formatDecimal(value, 2)}%` : "--";
+}
+
+function renderLiveObservationLog(container, analysis, machineContext, history) {
+  const sampleHistory = Array.isArray(history) ? history : [];
+  const contextKey = liveObservationContextKey(analysis, machineContext, sampleHistory);
+  const rawObservations = Array.isArray(analysis.observations)
+    ? analysis.observations.slice(0, LIVE_OBSERVATION_LIMIT)
+    : liveObservations(analysis, machineContext, sampleHistory);
+  const observations = filterLiveObservationRows(rawObservations, contextKey);
+  const latest = sampleHistory[sampleHistory.length - 1] || {};
+  const wrapper = document.createElement("section");
+  wrapper.className = "live-observation-panel";
+
+  const head = document.createElement("div");
+  head.className = "live-observation-head";
+  const label = document.createElement("p");
+  label.textContent = "Observation Log";
+  const title = document.createElement("h3");
+  title.textContent = `${observations.length} ${observations.length === 1 ? "entry" : "entries"}`;
+  const meta = document.createElement("div");
+  meta.className = "live-observation-meta";
+  const badge = document.createElement("span");
+  badge.textContent = latest.label ? `Latest ${latest.label}` : analysis.badgeText || "Waiting";
+  meta.append(
+    badge,
+    liveObservationActions({
+      observations,
+      contextKey,
+      clearTimestampMs: liveObservationClearTimestamp(rawObservations, sampleHistory),
+      onClear: () => renderLiveObservationLog(container, analysis, machineContext, sampleHistory)
+    })
+  );
+  head.append(label, title, meta);
+
+  if (!observations.length) {
+    const empty = document.createElement("div");
+    empty.className = "live-observation-empty";
+    empty.textContent = liveObservationWasCleared(contextKey) && rawObservations.length
+      ? "Observation log cleared. Waiting for a newer sample."
+      : analysis.emptyObservationText || (sampleHistory.length ? "No meaningful observation events in the current window." : "Waiting for live samples.");
+    wrapper.append(head, empty);
+    container.replaceChildren(wrapper);
+    return;
+  }
+
+  const list = document.createElement("ol");
+  list.className = "live-observation-list";
+  observations.forEach((observation) => {
+    list.append(liveObservationItem(observation));
+  });
+
+  wrapper.append(head, list);
+  container.replaceChildren(wrapper);
+}
+
+function liveObservationActions({ observations, contextKey, clearTimestampMs, onClear }) {
+  const actions = document.createElement("div");
+  actions.className = "live-observation-actions";
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "live-observation-action";
+  copy.textContent = "Copy";
+  copy.disabled = observations.length === 0;
+  copy.setAttribute("aria-label", "Copy observation log");
+  copy.addEventListener("click", async () => {
+    const text = formatLiveObservationLog(observations);
+    copy.disabled = true;
+    const copied = await copyTextToClipboard(text);
+    copy.dataset.state = copied ? "done" : "failed";
+    copy.textContent = copied ? "Copied" : "Copy failed";
+    setIngestStatus(copied ? "Observation log copied" : "Observation log ready to copy", copied ? "good" : "watch");
+    if (!copied) showManualCopyPrompt("Observation log", text);
+    window.setTimeout(() => {
+      copy.dataset.state = "";
+      copy.textContent = "Copy";
+      copy.disabled = observations.length === 0;
+    }, 1200);
+  });
+
+  const clear = document.createElement("button");
+  clear.type = "button";
+  clear.className = "live-observation-action";
+  clear.textContent = "Clear";
+  clear.disabled = observations.length === 0;
+  clear.setAttribute("aria-label", "Clear observation log");
+  clear.addEventListener("click", () => {
+    liveObservationClearState = { contextKey, clearedAtMs: clearTimestampMs };
+    setIngestStatus("Observation log cleared", "watch");
+    onClear();
+  });
+
+  actions.append(copy, clear);
+  return actions;
+}
+
+function liveObservationContextKey(analysis, machineContext, history) {
+  if (analysis?.contextKey) return analysis.contextKey;
+  const host = machineContext?.host || history.find((sample) => sample?.host)?.host || "host";
+  return `live:${host}`;
+}
+
+function filterLiveObservationRows(observations, contextKey) {
+  if (!liveObservationWasCleared(contextKey)) return observations;
+  return observations.filter((observation) => Number.isFinite(observation.timestampMs) && observation.timestampMs > liveObservationClearState.clearedAtMs);
+}
+
+function liveObservationWasCleared(contextKey) {
+  return liveObservationClearState.contextKey === contextKey && Number.isFinite(liveObservationClearState.clearedAtMs);
+}
+
+function liveObservationClearTimestamp(observations, history) {
+  const latestSample = history[history.length - 1];
+  if (Number.isFinite(latestSample?.timestampMs)) return latestSample.timestampMs;
+  const stamps = observations.map((observation) => observation.timestampMs).filter(Number.isFinite);
+  return stamps.length ? Math.max(...stamps) : Date.now();
+}
+
+function formatLiveObservationLog(observations) {
+  return observations
+    .map((observation) => {
+      const stamp = observation.dateTime || observation.label || "Observation";
+      return `[${stamp}] ${observation.title}: ${observation.detail}`;
+    })
+    .join("\n");
+}
+
+function liveObservations(analysis, machineContext, history) {
+  const alerts = Array.isArray(analysis.alerts) ? analysis.alerts : [];
+  const sampleHistory = Array.isArray(history) ? history : [];
+  const latest = sampleHistory[sampleHistory.length - 1] || {};
+  const alertRows = alerts.map((alert) => ({
+    tone: alert.severity === "critical" || alert.severity === "high" ? "poor" : alert.severity === "medium" ? "watch" : "good",
+    label: titleCase(alert.severity),
+    title: alert.title,
+    detail: alert.evidence,
+    timestampMs: Number.isFinite(latest.timestampMs) ? latest.timestampMs : Date.now()
+  }));
+  const sampleRows = liveSignificantSampleObservations(sampleHistory, machineContext);
+
+  return [...alertRows, ...sampleRows].slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function liveSignificantSampleObservations(history, machineContext) {
+  const rows = [];
+  const seen = new Set();
+  const window = history.slice(-LIVE_TELEMETRY_RELATIONSHIP_WINDOW);
+
+  for (let index = window.length - 1; index >= 0 && rows.length < LIVE_OBSERVATION_LIMIT; index -= 1) {
+    const sample = window[index];
+    const previous = window[index - 1] || null;
+    const candidates = liveSampleObservationEvents(sample, previous, machineContext);
+
+    candidates.forEach((observation) => {
+      if (rows.length >= LIVE_OBSERVATION_LIMIT) return;
+      const signature = `${observation.eventKey}:${observation.title}`;
+      if (seen.has(signature)) return;
+      seen.add(signature);
+      rows.push(observation);
+    });
+  }
+
+  return rows;
+}
+
+function liveSampleObservationEvents(sample, previous, machineContext) {
+  const timestampMs = Number.isFinite(sample.timestampMs) ? sample.timestampMs : undefined;
+  const dateTime = Number.isFinite(timestampMs) ? new Date(timestampMs).toISOString() : "";
+  const label = sample.label || "sample";
+  const host = sample.host || machineContext?.host || "host";
+  const rows = [];
+  const add = ({ eventKey, tone = "watch", title, detail }) => {
+    rows.push({ eventKey, tone, label, timestampMs, dateTime, title, detail });
+  };
+  const metricConfigs = [
+    { key: "cpu", label: "CPU", warn: 70, poor: 90, delta: 15, floor: 20 },
+    { key: "ram", label: "RAM", warn: 75, poor: 90, delta: 8, floor: 50 },
+    { key: "disk", label: "Disk", warn: 75, poor: 92, delta: 2, floor: 70 },
+    { key: "gpu", label: "GPU", warn: 85, poor: 96, delta: 18, floor: 15 },
+    { key: "networkUtilization", label: "Network", warn: 70, poor: 88, delta: 15, floor: 20 }
+  ];
+
+  metricConfigs.forEach((config) => {
+    const value = telemetryValue(sample, config.key);
+    if (!Number.isFinite(value)) return;
+    const previousValue = previous ? telemetryValue(previous, config.key) : Number.NaN;
+    if (value >= config.poor) {
+      add({
+        eventKey: `${config.key}:poor`,
+        tone: "poor",
+        title: `${config.label} pressure is high`,
+        detail: `${config.label} reached ${pct(value)} on ${host}.`
+      });
+      return;
+    }
+    if (value >= config.warn) {
+      add({
+        eventKey: `${config.key}:watch`,
+        tone: "watch",
+        title: `${config.label} pressure is elevated`,
+        detail: `${config.label} is at ${pct(value)} on ${host}.`
+      });
+      return;
+    }
+    if (Number.isFinite(previousValue) && value >= config.floor && Math.abs(value - previousValue) >= config.delta) {
+      add({
+        eventKey: `${config.key}:delta`,
+        tone: "watch",
+        title: `${config.label} activity changed`,
+        detail: `${config.label} moved ${signedRate(value - previousValue, "pts")} to ${pct(value)} on ${host}.`
+      });
+    }
+  });
+
+  const gpu = telemetryValue(sample, "gpu");
+  const previousGpu = previous ? telemetryValue(previous, "gpu") : Number.NaN;
+  if (machineContext?.gpuPresent && !Number.isFinite(gpu) && Number.isFinite(previousGpu)) {
+    add({
+      eventKey: "gpu:missing",
+      tone: "watch",
+      title: "GPU counter disappeared",
+      detail: "The latest live sample did not include GPU utilization after it was previously present."
+    });
+  }
+
+  const throughput = telemetryValue(sample, "networkThroughputBps");
+  const previousThroughput = previous ? telemetryValue(previous, "networkThroughputBps") : Number.NaN;
+  const throughputDelta = Number.isFinite(previousThroughput) ? throughput - previousThroughput : 0;
+  const materialThroughput = 1024 * 1024;
+  if (Number.isFinite(throughput) && throughput >= materialThroughput && Math.abs(throughputDelta) >= materialThroughput) {
+    add({
+      eventKey: "networkThroughput:delta",
+      tone: "watch",
+      title: "Network throughput changed",
+      detail: `Network throughput moved ${formatBytesPerSecond(Math.abs(throughputDelta))} to ${formatBytesPerSecond(throughput)} on ${host}.`
+    });
+  }
+
+  return rows;
+}
+
+function liveSampleObservation(sample, machineContext) {
+  const parts = [
+    `CPU ${pct(telemetryValue(sample, "cpu"))}`,
+    `RAM ${pct(telemetryValue(sample, "ram"))}`,
+    `Disk ${pct(telemetryValue(sample, "disk"))}`
+  ];
+  const gpu = telemetryValue(sample, "gpu");
+  const networkUtilization = telemetryValue(sample, "networkUtilization");
+  const networkThroughput = telemetryValue(sample, "networkThroughputBps");
+
+  if (Number.isFinite(gpu)) {
+    parts.push(`GPU ${pct(gpu)}`);
+  } else if (machineContext?.gpuPresent) {
+    parts.push("GPU unavailable");
+  }
+
+  if (Number.isFinite(networkUtilization)) {
+    parts.push(`Network ${pct(networkUtilization)}`);
+  } else if (Number.isFinite(networkThroughput)) {
+    parts.push(`Network ${formatBytesPerSecond(networkThroughput)}`);
+  }
+
+  return {
+    tone: liveSampleObservationTone(sample),
+    label: sample.label || "sample",
+    timestampMs: Number.isFinite(sample.timestampMs) ? sample.timestampMs : undefined,
+    dateTime: Number.isFinite(sample.timestampMs) ? new Date(sample.timestampMs).toISOString() : "",
+    title: sample.host || machineContext?.host || "host",
+    detail: parts.join(" | ")
+  };
+}
+
+function liveSampleObservationTone(sample) {
+  const cpu = telemetryValue(sample, "cpu");
+  const ram = telemetryValue(sample, "ram");
+  const disk = telemetryValue(sample, "disk");
+  const network = telemetryValue(sample, "networkUtilization");
+  if (cpu >= 90 || ram >= 90 || disk >= 92 || network >= 88) return "poor";
+  if (cpu >= 70 || ram >= 75 || disk >= 75 || network >= 70) return "watch";
+  return "good";
+}
+
+function liveObservationItem(observation) {
+  const item = document.createElement("li");
+  item.className = "live-observation-item";
+  item.dataset.tone = observation.tone;
+
+  const marker = document.createElement("span");
+  marker.className = "live-observation-marker";
+  marker.setAttribute("aria-hidden", "true");
+
+  const body = document.createElement("div");
+  const head = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = observation.title;
+  const label = observation.dateTime ? document.createElement("time") : document.createElement("span");
+  label.textContent = observation.label;
+  if (observation.dateTime) label.setAttribute("datetime", observation.dateTime);
+  head.append(title, label);
+
+  const detail = document.createElement("small");
+  detail.textContent = observation.detail;
+  body.append(head, detail);
+
+  item.append(marker, body);
+  return item;
+}
+
+function liveCovarianceMatrixPanel(matrix, analysis) {
+  const panel = document.createElement("section");
+  panel.className = "live-covariance-panel";
+
+  const head = document.createElement("div");
+  head.className = "live-covariance-head";
+  const label = document.createElement("p");
+  label.textContent = "Covariance Matrix";
+  const title = document.createElement("h3");
+  title.textContent = "CPU, GPU, RAM, network";
+  const badge = document.createElement("span");
+  badge.textContent = analysis.covarianceBadgeText || (analysis.sampleCount >= 4
+    ? `Rolling ${Math.min(analysis.sampleCount, LIVE_TELEMETRY_RELATIONSHIP_WINDOW)} samples`
+    : "Learning");
+  head.append(label, title, badge);
+
+  const scroller = document.createElement("div");
+  scroller.className = "live-covariance-scroll";
+  const grid = document.createElement("div");
+  grid.className = "live-covariance-grid";
+  grid.setAttribute("role", "table");
+  grid.setAttribute("aria-label", "Rolling live covariance matrix for CPU load, GPU utilization, RAM usage, and network utilization");
+
+  const corner = document.createElement("div");
+  corner.className = "live-covariance-corner";
+  corner.setAttribute("aria-hidden", "true");
+  grid.append(corner);
+
+  matrix.metrics.forEach((metric) => {
+    const columnHeader = document.createElement("div");
+    columnHeader.className = "live-covariance-axis live-covariance-axis-column";
+    columnHeader.setAttribute("role", "columnheader");
+    columnHeader.textContent = metric.shortLabel;
+    columnHeader.title = metric.label;
+    grid.append(columnHeader);
+  });
+
+  matrix.rows.forEach((row) => {
+    const rowHeader = document.createElement("div");
+    rowHeader.className = "live-covariance-axis live-covariance-axis-row";
+    rowHeader.setAttribute("role", "rowheader");
+    rowHeader.textContent = row.metric.shortLabel;
+    rowHeader.title = row.metric.label;
+    grid.append(rowHeader);
+
+    row.cells.forEach((cell) => {
+      grid.append(liveCovarianceMatrixCell(cell));
+    });
+  });
+
+  scroller.append(grid);
+  const principalMode = livePrincipalResourceModePanel(matrix.principalMode);
+  const foot = document.createElement("div");
+  foot.className = "live-covariance-foot";
+  foot.textContent = analysis.covarianceFootText || "Covariance in percentage-point^2; color follows correlation. Mini-lines show each cell's rolling trend.";
+  panel.append(head, scroller, principalMode, foot);
+  return panel;
+}
+
+function liveCovarianceMatrixCell(cell) {
+  const item = document.createElement("div");
+  item.className = "live-covariance-cell";
+  const { stats } = cell;
+  const isDiagonal = cell.rowKey === cell.columnKey;
+  const covariance = Number.isFinite(stats.covariance) ? stats.covariance : null;
+  const correlation = Number.isFinite(stats.correlation) ? stats.correlation : null;
+  const tone = covarianceCellTone(correlation, isDiagonal, stats.sampleCount);
+  item.dataset.tone = tone;
+  item.style.backgroundColor = covarianceCellBackground(correlation, isDiagonal, stats.sampleCount);
+
+  const value = document.createElement("strong");
+  value.textContent = covariance === null ? "learning" : formatCovariance(covariance, isDiagonal);
+  const note = document.createElement("small");
+  note.textContent = covariance === null
+    ? `${stats.sampleCount}/4 pairs`
+    : isDiagonal ? "variance" : formatCorrelation(correlation);
+  const trend = buildCovarianceSparkline(cell.trend || [], isDiagonal);
+
+  item.title = covariance === null
+    ? `${cell.rowLabel} and ${cell.columnLabel}: waiting for at least 4 paired live samples.`
+    : `${cell.rowLabel} vs ${cell.columnLabel}: covariance ${formatCovariance(covariance, isDiagonal)} pct-pt^2, ${isDiagonal ? "variance" : formatCorrelation(correlation)}, ${stats.sampleCount} paired samples.`;
+  item.setAttribute("role", "cell");
+  item.setAttribute("aria-label", item.title);
+
+  item.append(value, trend, note);
+  return item;
+}
+
+function livePrincipalResourceModePanel(mode) {
+  const panel = document.createElement("section");
+  panel.className = "live-eigen-panel";
+  panel.dataset.status = mode?.status || "learning";
+
+  const head = document.createElement("div");
+  head.className = "live-eigen-head";
+  const label = document.createElement("p");
+  label.textContent = "Principal Resource Mode";
+  const title = document.createElement("h3");
+  title.textContent = mode?.title || "Learning resource mode";
+  const badge = document.createElement("span");
+  badge.textContent = Number.isFinite(mode?.explainedPct)
+    ? `${pct(mode.explainedPct)} explained`
+    : mode?.badge || "Learning";
+  head.append(label, title, badge);
+
+  const loadings = document.createElement("div");
+  loadings.className = "live-eigen-loadings";
+  (mode?.loadings || LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null }))).forEach((loading) => {
+    loadings.append(liveEigenLoadingItem(loading));
+  });
+
+  const values = document.createElement("div");
+  values.className = "live-eigen-values";
+  if (mode?.eigenvalues?.length) {
+    mode.eigenvalues.forEach((entry, index) => {
+      values.append(liveEigenValueItem(entry, index));
+    });
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "live-eigen-empty";
+    empty.textContent = mode?.note || "Waiting for enough live covariance history to compute eigenvalues.";
+    values.append(empty);
+  }
+
+  const note = document.createElement("small");
+  note.className = "live-eigen-note";
+  note.textContent = mode?.note || "Computed from the rolling correlation matrix so each resource contributes on the same scale.";
+
+  panel.append(head, loadings, values, note);
+  return panel;
+}
+
+function liveEigenLoadingItem(loading) {
+  const item = document.createElement("div");
+  item.className = "live-eigen-loading";
+  item.dataset.tone = Number.isFinite(loading.value) && Math.abs(loading.value) >= 0.5 ? "strong" : "muted";
+  item.dataset.polarity = Number.isFinite(loading.value) && loading.value < 0 ? "negative" : "positive";
+
+  const label = document.createElement("span");
+  label.textContent = loading.shortLabel || loading.label;
+  label.title = loading.label || "";
+  const value = document.createElement("strong");
+  value.textContent = Number.isFinite(loading.value) ? signedLoading(loading.value) : "--";
+  const trend = buildEigenSparkline(loading.trend || [], true);
+
+  item.title = Number.isFinite(loading.value)
+    ? `${loading.label || loading.shortLabel}: principal-mode loading ${signedLoading(loading.value)}.`
+    : `${loading.label || loading.shortLabel}: waiting for enough movement to compute a loading.`;
+  item.setAttribute("aria-label", item.title);
+
+  item.append(label, value, trend);
+  return item;
+}
+
+function liveEigenValueItem(entry, index) {
+  const item = document.createElement("div");
+  item.className = "live-eigen-value";
+
+  const label = document.createElement("span");
+  label.textContent = `L${index + 1}`;
+  const value = document.createElement("strong");
+  value.textContent = formatDecimal(entry.value, 2);
+  const trend = buildEigenSparkline(entry.trend || [], false);
+  const share = document.createElement("small");
+  share.textContent = `${pct(entry.sharePct)} share`;
+
+  item.title = `L${index + 1}: eigenvalue ${formatDecimal(entry.value, 2)}, ${pct(entry.sharePct)} share of rolling resource variance.`;
+  item.setAttribute("aria-label", item.title);
+
+  item.append(label, value, trend, share);
+  return item;
+}
+
+function buildCovarianceSparkline(points, isDiagonal) {
+  return buildTrendSparkline(points, {
+    className: "live-covariance-trend",
+    emptyClassName: "live-covariance-trend-empty",
+    lineClassName: "live-covariance-trend-line",
+    signed: !isDiagonal,
+    zeroClassName: "live-covariance-trend-zero"
+  });
+}
+
+function buildEigenSparkline(points, signed = false) {
+  return buildTrendSparkline(points, {
+    className: "live-eigen-trend",
+    emptyClassName: "live-eigen-trend-empty",
+    height: 26,
+    lineClassName: "live-eigen-trend-line",
+    signed,
+    zeroClassName: "live-eigen-trend-zero"
+  });
+}
+
+function buildTrendSparkline(points, options = {}) {
+  const width = 96;
+  const height = options.height || 30;
+  const pad = 4;
+  const innerWidth = width - pad * 2;
+  const innerHeight = height - pad * 2;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", options.className || "live-trend-sparkline");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+
+  const values = points.map((point) => numeric(point.value, Number.NaN)).filter(Number.isFinite);
+  if (values.length < 2) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", pad);
+    line.setAttribute("x2", width - pad);
+    line.setAttribute("y1", height / 2);
+    line.setAttribute("y2", height / 2);
+    line.setAttribute("class", options.emptyClassName || "live-trend-empty");
+    svg.append(line);
+    return svg;
+  }
+
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (options.signed) {
+    min = Math.min(min, 0);
+    max = Math.max(max, 0);
+  }
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+
+  if (min < 0 && max > 0) {
+    const zero = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    const y = pad + innerHeight - ((0 - min) / range) * innerHeight;
+    zero.setAttribute("x1", pad);
+    zero.setAttribute("x2", width - pad);
+    zero.setAttribute("y1", y);
+    zero.setAttribute("y2", y);
+    zero.setAttribute("class", options.zeroClassName || "live-trend-zero");
+    svg.append(zero);
+  }
+
+  const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+  polyline.setAttribute("points", values.map((value, index) => {
+    const x = pad + (index / (values.length - 1)) * innerWidth;
+    const y = pad + innerHeight - ((value - min) / range) * innerHeight;
+    return `${formatDecimal(x, 1)},${formatDecimal(y, 1)}`;
+  }).join(" "));
+  polyline.setAttribute("class", options.lineClassName || "live-trend-line");
+  svg.append(polyline);
+  return svg;
+}
+
+function covarianceCellTone(correlation, isDiagonal, sampleCount) {
+  if (sampleCount < 4) return "learning";
+  if (isDiagonal) return "self";
+  if (!Number.isFinite(correlation) || Math.abs(correlation) < 0.2) return "weak";
+  return correlation > 0 ? "positive" : "negative";
+}
+
+function covarianceCellBackground(correlation, isDiagonal, sampleCount) {
+  if (sampleCount < 4) return "rgba(98, 117, 129, 0.08)";
+  if (isDiagonal) return "rgba(36, 95, 145, 0.14)";
+  if (!Number.isFinite(correlation)) return "rgba(98, 117, 129, 0.1)";
+  const strength = Math.min(1, Math.abs(correlation));
+  const alpha = 0.08 + strength * 0.34;
+  return correlation >= 0
+    ? `rgba(0, 143, 115, ${formatDecimal(alpha, 3)})`
+    : `rgba(184, 76, 62, ${formatDecimal(alpha, 3)})`;
+}
+
+function formatCovariance(value, unsigned = false) {
+  if (!Number.isFinite(value)) return "learning";
+  const displayValue = Math.abs(value) < 0.005 ? 0 : value;
+  const absValue = Math.abs(displayValue);
+  const digits = absValue >= 100 ? 0 : absValue >= 10 ? 1 : 2;
+  const sign = unsigned || displayValue < 0 ? "" : "+";
+  return `${sign}${displayValue.toFixed(digits)}`;
+}
+
+function signedLoading(value) {
+  if (!Number.isFinite(value)) return "--";
+  return `${value >= 0 ? "+" : ""}${formatDecimal(value, 2)}`;
+}
+
+function principalMetricName(metric) {
+  if (metric.key === "networkUtilization") return "Network";
+  if (metric.key === "cpu") return "CPU";
+  if (metric.key === "gpu") return "GPU";
+  if (metric.key === "ram") return "RAM";
+  return metric.shortLabel || metric.label;
 }
 
 function liveRelationshipCard(relationship) {
@@ -4833,6 +12983,16 @@ function liveTelemetryAlert({ severity, title, evidence, recommendation, confide
   return { severity, title, evidence, recommendation, confidence: clamp(confidence, 0, 1) };
 }
 
+function telemetryValue(sample, key) {
+  const value = sample?.[key];
+  if (value === undefined || value === null || value === "") return Number.NaN;
+  return numeric(value, Number.NaN);
+}
+
+function telemetryRelationshipKey(history, keys) {
+  return keys.find((key) => history.filter((sample) => Number.isFinite(telemetryValue(sample, key))).length >= 2) || keys[0];
+}
+
 function telemetryRelationship(label, correlation, note) {
   if (correlation === null) {
     return {
@@ -4852,11 +13012,229 @@ function telemetryRelationship(label, correlation, note) {
   };
 }
 
+function buildLiveCovarianceMatrix(history) {
+  const rows = LIVE_COVARIANCE_METRICS.map((rowMetric) => ({
+    metric: rowMetric,
+    cells: LIVE_COVARIANCE_METRICS.map((columnMetric) => ({
+      rowKey: rowMetric.key,
+      columnKey: columnMetric.key,
+      rowLabel: rowMetric.label,
+      columnLabel: columnMetric.label,
+      stats: telemetryCovarianceStats(history, rowMetric.key, columnMetric.key),
+      trend: telemetryCovarianceTrend(history, rowMetric.key, columnMetric.key)
+    }))
+  }));
+
+  return {
+    metrics: LIVE_COVARIANCE_METRICS,
+    rows,
+    principalMode: buildPrincipalResourceMode(history)
+  };
+}
+
+function buildPrincipalResourceMode(history) {
+  const mode = calculatePrincipalResourceMode(history);
+  const trend = telemetryPrincipalModeTrend(history);
+  const loadingTrendByKey = new Map(LIVE_COVARIANCE_METRICS.map((metric) => ([
+    metric.key,
+    trend
+      .map((point) => {
+        const loading = point.loadings.find((entry) => entry.key === metric.key);
+        if (!Number.isFinite(loading?.value)) return null;
+        return {
+          timestampMs: point.timestampMs,
+          label: point.label,
+          value: loading.value
+        };
+      })
+      .filter(Boolean)
+  ])));
+  const eigenvalueTrends = mode.eigenvalues.map((_, index) => (
+    trend
+      .map((point) => {
+        const entry = point.eigenvalues[index];
+        if (!Number.isFinite(entry?.value)) return null;
+        return {
+          timestampMs: point.timestampMs,
+          label: point.label,
+          sharePct: entry.sharePct,
+          value: entry.value
+        };
+      })
+      .filter(Boolean)
+  ));
+
+  return {
+    ...mode,
+    explainedTrend: trend
+      .map((point) => Number.isFinite(point.explainedPct)
+        ? {
+            timestampMs: point.timestampMs,
+            label: point.label,
+            value: point.explainedPct
+          }
+        : null)
+      .filter(Boolean),
+    loadings: mode.loadings.map((loading) => ({
+      ...loading,
+      trend: loadingTrendByKey.get(loading.key) || []
+    })),
+    eigenvalues: mode.eigenvalues.map((entry, index) => ({
+      ...entry,
+      trend: eigenvalueTrends[index] || []
+    }))
+  };
+}
+
+function calculatePrincipalResourceMode(history) {
+  const activeMetrics = LIVE_COVARIANCE_METRICS
+    .map((metric) => ({
+      ...metric,
+      varianceStats: telemetryCovarianceStats(history, metric.key, metric.key)
+    }))
+    .filter((metric) => Number.isFinite(metric.varianceStats.covariance) && metric.varianceStats.covariance > LIVE_EIGEN_MIN_VARIANCE);
+
+  if (activeMetrics.length < 2) {
+    return {
+      status: "learning",
+      title: "Learning resource mode",
+      badge: "Need moving counters",
+      explainedPct: null,
+      note: "Need at least two live counters with variance across the rolling window to compute eigenvalues.",
+      loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({ ...metric, value: null })),
+      eigenvalues: []
+    };
+  }
+
+  const correlationMatrix = activeMetrics.map((rowMetric) => (
+    activeMetrics.map((columnMetric) => {
+      if (rowMetric.key === columnMetric.key) return 1;
+      const correlation = telemetryCorrelation(history, rowMetric.key, columnMetric.key);
+      return Number.isFinite(correlation) ? clamp(correlation, -1, 1) : 0;
+    })
+  ));
+  const decomposition = symmetricEigenDecomposition(correlationMatrix);
+  const eigenPairs = decomposition.values
+    .map((value, index) => ({
+      value: Math.max(0, value),
+      vector: decomposition.vectors[index]
+    }))
+    .sort((left, right) => right.value - left.value);
+  const principal = eigenPairs[0];
+  const total = eigenPairs.reduce((sum, pair) => sum + pair.value, 0) || activeMetrics.length;
+  const dominantIndex = principal.vector.reduce((best, value, index) => (
+    Math.abs(value) > Math.abs(principal.vector[best]) ? index : best
+  ), 0);
+  const direction = principal.vector[dominantIndex] < 0 ? -1 : 1;
+  const directedVector = principal.vector.map((value) => value * direction);
+  const dominantLabels = directedVector
+    .map((value, index) => ({ value: Math.abs(value), label: principalMetricName(activeMetrics[index]) }))
+    .sort((left, right) => right.value - left.value)
+    .slice(0, 2)
+    .map((entry) => entry.label);
+  const loadingByKey = new Map(activeMetrics.map((metric, index) => [metric.key, directedVector[index]]));
+
+  return {
+    status: "ready",
+    title: dominantLabels.join(" + ") || "Principal resource mode",
+    badge: `${activeMetrics.length} counters`,
+    explainedPct: (principal.value / total) * 100,
+    note: `Computed from the rolling correlation matrix across ${activeMetrics.length} moving ${activeMetrics.length === 1 ? "counter" : "counters"}.`,
+    loadings: LIVE_COVARIANCE_METRICS.map((metric) => ({
+      ...metric,
+      value: loadingByKey.has(metric.key) ? loadingByKey.get(metric.key) : null
+    })),
+    eigenvalues: eigenPairs.map((pair) => ({
+      value: pair.value,
+      sharePct: (pair.value / total) * 100
+    }))
+  };
+}
+
+function telemetryPrincipalModeTrend(history) {
+  return history
+    .map((sample, index) => {
+      const window = history.slice(Math.max(0, index - LIVE_TELEMETRY_RELATIONSHIP_WINDOW + 1), index + 1);
+      const mode = calculatePrincipalResourceMode(window);
+      if (mode.status !== "ready") return null;
+      return {
+        timestampMs: sample.timestampMs,
+        label: sample.label || "",
+        explainedPct: mode.explainedPct,
+        loadings: mode.loadings,
+        eigenvalues: mode.eigenvalues
+      };
+    })
+    .filter(Boolean);
+}
+
+function symmetricEigenDecomposition(matrix) {
+  const n = matrix.length;
+  const values = matrix.map((row) => row.slice());
+  const vectors = Array.from({ length: n }, (_, row) => (
+    Array.from({ length: n }, (_, column) => (row === column ? 1 : 0))
+  ));
+
+  for (let iteration = 0; iteration < 80; iteration += 1) {
+    let p = 0;
+    let q = 1;
+    let largest = 0;
+    for (let row = 0; row < n; row += 1) {
+      for (let column = row + 1; column < n; column += 1) {
+        const magnitude = Math.abs(values[row][column]);
+        if (magnitude > largest) {
+          largest = magnitude;
+          p = row;
+          q = column;
+        }
+      }
+    }
+    if (largest < 1e-10) break;
+
+    const app = values[p][p];
+    const aqq = values[q][q];
+    const apq = values[p][q];
+    const tau = (aqq - app) / (2 * apq);
+    const sign = tau >= 0 ? 1 : -1;
+    const t = sign / (Math.abs(tau) + Math.sqrt(1 + tau * tau));
+    const c = 1 / Math.sqrt(1 + t * t);
+    const s = t * c;
+
+    for (let index = 0; index < n; index += 1) {
+      if (index !== p && index !== q) {
+        const aip = values[index][p];
+        const aiq = values[index][q];
+        values[index][p] = c * aip - s * aiq;
+        values[p][index] = values[index][p];
+        values[index][q] = s * aip + c * aiq;
+        values[q][index] = values[index][q];
+      }
+    }
+
+    values[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq;
+    values[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq;
+    values[p][q] = 0;
+    values[q][p] = 0;
+
+    for (let row = 0; row < n; row += 1) {
+      const vip = vectors[row][p];
+      const viq = vectors[row][q];
+      vectors[row][p] = c * vip - s * viq;
+      vectors[row][q] = s * vip + c * viq;
+    }
+  }
+
+  return {
+    values: values.map((row, index) => row[index]),
+    vectors: values.map((_, index) => vectors.map((row) => row[index]))
+  };
+}
+
 function telemetryTrend(history, key) {
   const points = history
     .map((sample) => ({
       x: numeric(sample.timestampMs, Number.NaN),
-      y: numeric(sample[key], Number.NaN)
+      y: telemetryValue(sample, key)
     }))
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
 
@@ -4892,7 +13270,7 @@ function telemetryTrend(history, key) {
 
 function telemetryCorrelation(history, leftKey, rightKey) {
   const pairs = history
-    .map((sample) => [numeric(sample[leftKey], Number.NaN), numeric(sample[rightKey], Number.NaN)])
+    .map((sample) => [telemetryValue(sample, leftKey), telemetryValue(sample, rightKey)])
     .filter(([left, right]) => Number.isFinite(left) && Number.isFinite(right));
   if (pairs.length < 4) return null;
 
@@ -4905,8 +13283,55 @@ function telemetryCorrelation(history, leftKey, rightKey) {
   return covariance / Math.sqrt(leftVariance * rightVariance);
 }
 
+function telemetryCovarianceStats(history, leftKey, rightKey) {
+  const pairs = history
+    .map((sample) => [telemetryValue(sample, leftKey), telemetryValue(sample, rightKey)])
+    .filter(([left, right]) => Number.isFinite(left) && Number.isFinite(right));
+
+  if (pairs.length < 4) {
+    return {
+      sampleCount: pairs.length,
+      covariance: null,
+      correlation: null
+    };
+  }
+
+  const leftAvg = pairs.reduce((total, pair) => total + pair[0], 0) / pairs.length;
+  const rightAvg = pairs.reduce((total, pair) => total + pair[1], 0) / pairs.length;
+  const denominator = Math.max(1, pairs.length - 1);
+  const covariance = pairs.reduce((total, [left, right]) => total + (left - leftAvg) * (right - rightAvg), 0) / denominator;
+  const leftVariance = pairs.reduce((total, [left]) => total + (left - leftAvg) ** 2, 0) / denominator;
+  const rightVariance = pairs.reduce((total, [, right]) => total + (right - rightAvg) ** 2, 0) / denominator;
+  const correlation = leftKey === rightKey
+    ? 1
+    : leftVariance === 0 || rightVariance === 0
+      ? null
+      : covariance / Math.sqrt(leftVariance * rightVariance);
+
+  return {
+    sampleCount: pairs.length,
+    covariance,
+    correlation
+  };
+}
+
+function telemetryCovarianceTrend(history, leftKey, rightKey) {
+  return history
+    .map((sample, index) => {
+      const window = history.slice(Math.max(0, index - LIVE_TELEMETRY_RELATIONSHIP_WINDOW + 1), index + 1);
+      const stats = telemetryCovarianceStats(window, leftKey, rightKey);
+      if (!Number.isFinite(stats.covariance)) return null;
+      return {
+        timestampMs: sample.timestampMs,
+        label: sample.label || "",
+        value: stats.covariance
+      };
+    })
+    .filter(Boolean);
+}
+
 function telemetryAverage(history, key) {
-  const values = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  const values = history.map((sample) => telemetryValue(sample, key)).filter(Number.isFinite);
   if (!values.length) return null;
   return values.reduce((total, value) => total + value, 0) / values.length;
 }
@@ -4926,10 +13351,69 @@ function formatDecimal(value, digits) {
   return parsed.toFixed(digits);
 }
 
+function renderAnalysisResourceGraphs(container, summary, history = analysisResourceHistory(summary)) {
+  const latest = history[history.length - 1] || {};
+  const latestLabel = "Current analysis snapshot";
+  container.replaceChildren(
+    liveTelemetryGraphCard({
+      label: "Network util",
+      valueKey: "networkUtilization",
+      history,
+      latestLabel,
+      valueText: pct(latest.networkUtilization),
+      note: "NIC/link utilization from run evidence",
+      max: 100,
+      tone: inverseGrade(latest.networkUtilization, 70, 88).key
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU util",
+      valueKey: "gpu",
+      history,
+      latestLabel,
+      valueText: pct(latest.gpu),
+      note: "Accelerator utilization",
+      max: 100,
+      tone: grade(latest.gpu, 45, 70).key
+    }),
+    liveTelemetryGraphCard({
+      label: "CPU prep",
+      valueKey: "cpuPrep",
+      history,
+      latestLabel,
+      valueText: pct(latest.cpuPrep),
+      note: "Host-side CPU proxy",
+      max: 100,
+      tone: inverseGrade(latest.cpuPrep, 20, 35).key
+    }),
+    liveTelemetryGraphCard({
+      label: "Network wait",
+      valueKey: "networkWait",
+      history,
+      latestLabel,
+      valueText: pct(latest.networkWait),
+      note: "Latency/loss/stall pressure",
+      max: 100,
+      tone: inverseGrade(latest.networkWait, 10, 20).key
+    }),
+    liveTelemetryGraphCard({
+      label: "NCCL time",
+      valueKey: "ncclTime",
+      history,
+      latestLabel,
+      valueText: pct(latest.ncclTime),
+      note: "Collective communication time",
+      max: 100,
+      tone: inverseGrade(latest.ncclTime, 15, 30).key
+    })
+  );
+}
+
 function renderLiveTelemetryGraphs(container, machineContext, history) {
   const sampleCount = history.length;
   const latest = history[sampleCount - 1] || {};
   const latestLabel = latest.label ? `Latest sample ${latest.label}` : "Waiting for live samples";
+  const networkGraphKey = Number.isFinite(latest.networkUtilization) ? "networkUtilization" : "networkThroughputBps";
+  const networkGraphHasPercent = networkGraphKey === "networkUtilization";
   container.replaceChildren(
     liveTelemetryGraphCard({
       label: "CPU",
@@ -4994,6 +13478,18 @@ function renderLiveTelemetryGraphs(container, machineContext, history) {
       note: "Root filesystem usage",
       max: 100,
       tone: inverseGrade(latest.disk, 75, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "Network util",
+      valueKey: networkGraphKey,
+      history,
+      latestLabel,
+      valueText: networkGraphHasPercent
+        ? pct(latest.networkUtilization)
+        : Number.isFinite(latest.networkThroughputBps) ? formatBytesPerSecond(latest.networkThroughputBps) : "learning",
+      note: networkGraphHasPercent ? "NIC link utilization" : "NIC throughput",
+      max: networkGraphHasPercent ? 100 : adaptiveGraphMax(history, "networkThroughputBps", 1),
+      tone: networkGraphHasPercent ? inverseGrade(latest.networkUtilization, 70, 88).key : "watch"
     })
   );
 }
@@ -5042,7 +13538,7 @@ function buildTelemetrySparkline(history, valueKey, max) {
 
   const validPoints = history
     .map((sample, index) => {
-      const value = numeric(sample[valueKey], Number.NaN);
+      const value = telemetryValue(sample, valueKey);
       if (!Number.isFinite(value)) return null;
       const x = pad + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
       const y = pad + innerHeight - (clamp(value, 0, max) / Math.max(max, 1)) * innerHeight;
@@ -5076,7 +13572,7 @@ function buildTelemetrySparkline(history, valueKey, max) {
 }
 
 function adaptiveGraphMax(history, key, fallback) {
-  const observed = history.map((sample) => numeric(sample[key], Number.NaN)).filter(Number.isFinite);
+  const observed = history.map((sample) => telemetryValue(sample, key)).filter(Number.isFinite);
   if (!observed.length) return fallback;
   return Math.max(10, Math.ceil(Math.max(...observed, fallback * 0.2) * 1.25));
 }
@@ -5248,14 +13744,30 @@ function renderGrafanaHandoff(summary) {
 
   if (machineContext) {
     const services = machineDemoServices(machineContext.context.observedServices);
+    const grafanaLinks = [
+      machineContext.context.grafanaDashboardUrl ? {
+        label: machineContext.context.grafanaDashboardTitle || "turbalance Fleet Runtime",
+        type: "dashboard",
+        url: machineContext.context.grafanaDashboardUrl
+      } : null,
+      machineContext.context.grafanaExploreUrl ? {
+        label: "Explore",
+        type: "explore",
+        url: machineContext.context.grafanaExploreUrl
+      } : null
+    ].filter(Boolean);
     badge.textContent = services.includes("grafana") ? "Service reachable" : "No Grafana";
     context.replaceChildren(
-      grafanaContextItem("Dashboard", "No dashboard overlay imported"),
-      grafanaContextItem("Datasource", services.includes("node-exporter") ? "node-exporter reachable" : "No datasource export"),
+      grafanaContextItem("Dashboard", machineContext.context.grafanaDashboardTitle || "No dashboard overlay imported"),
+      grafanaContextItem("Datasource", machineContext.context.grafanaDatasourceName || (services.includes("node-exporter") ? "node-exporter reachable" : "No datasource export")),
       grafanaContextItem("Window", "live host sample"),
       grafanaContextItem("Variables", machineContext.host)
     );
     links.replaceChildren();
+    if (grafanaLinks.length) {
+      grafanaLinks.forEach((link) => links.append(grafanaLinkItem(link)));
+      return;
+    }
     const empty = document.createElement("div");
     empty.className = "grafana-empty";
     empty.textContent = services.includes("grafana")
@@ -5333,6 +13845,191 @@ function safeExternalUrl(value) {
   } catch {
     return "";
   }
+}
+
+function buildTaskMemory(summary, classifier) {
+  if (summary.scope !== "job") {
+    return { visible: false };
+  }
+
+  const current = taskSnapshotFromSummary(summary, classifier, "Current analysis", state.lastAnalysis);
+  const comparison = analytics.compareTaskUtilizationPattern(current, taskHistory, {
+    excludeCapturedAt: state.lastAnalysis
+  });
+
+  return {
+    visible: true,
+    ...comparison
+  };
+}
+
+function renderTaskMemory(memory) {
+  const panel = document.querySelector("#taskMemoryPanel");
+  const badge = document.querySelector("#taskMemoryBadge");
+  const identity = document.querySelector("#taskMemoryIdentity");
+  const resources = document.querySelector("#taskMemoryResources");
+  const changes = document.querySelector("#taskMemoryChanges");
+  if (!panel || !badge || !identity || !resources || !changes) return;
+
+  if (!memory?.visible || !memory.current) {
+    panel.hidden = true;
+    identity.replaceChildren();
+    resources.replaceChildren();
+    changes.replaceChildren();
+    return;
+  }
+
+  const current = memory.current;
+  const resource = current.resources || {};
+  const category = current.categories || {};
+
+  panel.hidden = false;
+  badge.textContent = taskMemoryBadgeText(memory);
+  badge.dataset.tone = taskMemoryTone(memory.differenceLevel);
+
+  identity.replaceChildren(
+    taskMemoryIdentityItem("Task family", current.taskLabel),
+    taskMemoryIdentityItem("Current run", listLabel(current.runIds.length ? current.runIds : [current.key], 2)),
+    taskMemoryIdentityItem("Category", taskMemoryCategoryLabel(category.primary)),
+    taskMemoryIdentityItem("History", memory.previousRuns > 0 ? `${memory.previousRuns} previous ${memory.previousRuns === 1 ? "run" : "runs"}` : "Learning")
+  );
+
+  resources.replaceChildren(
+    taskMemoryResourceCard("Accelerators", `${number.format(resource.gpus)} GPUs`, listLabel(resource.gpuModels, 2) || "GPU model unknown"),
+    taskMemoryResourceCard("Placement", `${number.format(resource.nodes.length)} nodes`, `${listLabel(resource.clusters, 2)} | ${number.format(resource.partialNodes.length)} partial`),
+    taskMemoryResourceCard("Scheduler", listLabel(resource.queueNames, 2) || "No queue", listLabel(resource.requestedGpuShapes, 2) || listLabel(resource.priorityClasses, 2) || "No shape"),
+    taskMemoryResourceCard("Owner", listLabel(resource.tenants, 1), listLabel(resource.reservations, 1)),
+    taskMemoryResourceCard("Sources", `${number.format(resource.adapters.length)} adapters`, listLabel(resource.adapters, 3) || "Seeded run")
+  );
+
+  changes.replaceChildren();
+  const changeRows = [
+    ...(memory.categoryChange ? [taskMemoryCategoryChangeRow(memory.categoryChange)] : []),
+    ...memory.significantChanges.slice(0, 5).map(taskMemoryMetricChangeRow),
+    ...memory.resourceChanges.slice(0, 3).map(taskMemoryResourceChangeRow)
+  ];
+
+  if (changeRows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "task-memory-empty";
+    empty.textContent = memory.summary;
+    changes.append(empty);
+    return;
+  }
+
+  changeRows.forEach((row) => changes.append(row));
+}
+
+function taskMemoryBadgeText(memory) {
+  if (memory.differenceLevel === "learning") return "Learning";
+  if (memory.differenceLevel === "same") return "Stable";
+  if (memory.differenceLevel === "major") return "Major drift";
+  if (memory.differenceLevel === "changed") return "Changed";
+  if (memory.differenceLevel === "minor") return "Minor drift";
+  return "Task memory";
+}
+
+function taskMemoryTone(level) {
+  if (level === "same") return "good";
+  if (level === "major" || level === "changed") return "poor";
+  return "watch";
+}
+
+function taskMemoryIdentityItem(label, value) {
+  const item = document.createElement("div");
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  labelEl.textContent = label;
+  valueEl.textContent = value || "n/a";
+  item.append(labelEl, valueEl);
+  return item;
+}
+
+function taskMemoryResourceCard(label, value, note) {
+  const card = document.createElement("div");
+  card.className = "task-memory-resource";
+
+  const labelEl = document.createElement("span");
+  const valueEl = document.createElement("strong");
+  const noteEl = document.createElement("small");
+  labelEl.textContent = label;
+  valueEl.textContent = value || "n/a";
+  noteEl.textContent = note || "n/a";
+
+  card.append(labelEl, valueEl, noteEl);
+  return card;
+}
+
+function taskMemoryMetricChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = change.direction;
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = change.label;
+  value.textContent = `${formatTaskMetricValue(change.current, change.unit)} now`;
+  note.textContent = `${formatTaskDelta(change.delta, change.unit)} vs ${formatTaskMetricValue(change.baseline, change.unit)} historical average`;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryCategoryChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = "changed";
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = "Utilization category";
+  value.textContent = taskMemoryCategoryLabel(change.current);
+  note.textContent = `Was ${taskMemoryCategoryLabel(change.previous)}`;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryResourceChangeRow(change) {
+  const row = document.createElement("div");
+  row.className = "task-memory-change";
+  row.dataset.direction = "changed";
+
+  const label = document.createElement("strong");
+  const value = document.createElement("span");
+  const note = document.createElement("small");
+
+  label.textContent = change.label;
+  value.textContent = change.added.length ? `Added ${listLabel(change.added, 2)}` : "Resource removed";
+  note.textContent = change.text;
+
+  row.append(label, value, note);
+  return row;
+}
+
+function taskMemoryCategoryLabel(value) {
+  return titleCase(String(value || "uncategorized").replace(/[-_]+/g, " "));
+}
+
+function formatTaskMetricValue(value, unit) {
+  if (unit === "USD") return currency.format(value);
+  if (unit === "points") return pct(value);
+  if (unit === "minutes") return `${round(value)} min`;
+  if (unit === "count") return number.format(value);
+  return number.format(value);
+}
+
+function formatTaskDelta(value, unit) {
+  if (unit === "USD") return signedCurrency(value);
+  if (unit === "points") return `${signedNumber(value)} pts`;
+  if (unit === "minutes") return `${signedNumber(value)} min`;
+  if (unit === "count") return signedNumber(value);
+  if (unit === "GPU-hours") return `${signedNumber(value)} GPU-hours`;
+  return signedNumber(value);
 }
 
 function renderTrend(summary) {
@@ -5566,8 +14263,8 @@ function renderTruthTable(summary) {
     },
     {
       question: "Are GPUs idle because of communication?",
-      metric: `${pct(summary.ncclTime)} collectives time, ${pct(summary.networkWait)} network wait, ${pct(summary.crossPodTraffic)} cross-pod traffic`,
-      status: inverseGrade(summary.ncclTime + summary.networkWait, 18, 32)
+      metric: `${pct(summary.ncclTime)} collectives time, ${pct(summary.networkWait)} network wait, ${pct(summary.networkUtilization)} network utilization`,
+      status: inverseGrade(summary.ncclTime + summary.networkWait + summary.networkUtilization * 0.16, 18, 34)
     },
     {
       question: "Are GPUs idle because of input pipeline?",
@@ -6700,6 +15397,10 @@ function formatBytes(value) {
   return `${scaled >= 10 || index === 0 ? round(scaled) : scaled.toFixed(1)} ${units[index]}`;
 }
 
+function formatBytesPerSecond(value) {
+  return `${formatBytes(value)}/s`;
+}
+
 function titleCase(value) {
   return analytics.titleCase(value);
 }
@@ -6718,7 +15419,7 @@ function gradeColor(value, higherIsBetter) {
 
 function pluralTitle(scope) {
   const titles = {
-    job: "Jobs",
+    job: "Machines",
     model: "Models",
     user: "Users",
     team: "Teams",
@@ -6745,8 +15446,22 @@ function scopeLabel(scope) {
 }
 
 function inventoryMeta(summary) {
+  if (summary.isFleetAggregate) {
+    const overview = fleetAggregateOverview(summary);
+    return `${overview.hostCount} hosts | ${overview.freshCount} fresh | ${round(overview.similarityScore)}% similar | ${overview.outlierCount} watch`;
+  }
+
   if (summary.scope === "job") {
     const job = summary.jobs[0];
+    const machineContext = machineDemoContext(summary);
+    if (machineContext) {
+      const presence = machineContext.machineInventoryMissing
+        ? formatMachineLastSeen(machineContext.machineInventoryLastSeenAt)
+        : Number.isFinite(machineContext.uptimeSeconds)
+        ? `up ${formatMachineUptime(machineContext.uptimeSeconds)}`
+        : job.status;
+      return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${presence}`;
+    }
     return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${job.status}`;
   }
 
@@ -6828,14 +15543,31 @@ async function copyReport() {
 }
 
 async function copyTextToClipboard(text) {
+  const value = String(text || "");
+  if (!value) return false;
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
   } catch {
+    // Fall through to the textarea copy path for non-secure local HTTP contexts.
+  }
+
+  try {
     const textarea = document.createElement("textarea");
-    textarea.value = text;
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
     document.body.append(textarea);
+    textarea.focus();
     textarea.select();
-    document.execCommand("copy");
+    const copied = document.execCommand("copy");
     textarea.remove();
+    return copied;
+  } catch {
+    return false;
   }
 }

@@ -3,16 +3,31 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>turbalance Analytics</title>
     <link rel="icon" href="assets/turbalance-mark.png">
-    <link rel="stylesheet" href="styles.css">
+    <script>
+      (function () {
+        try {
+          var storedTheme = window.localStorage.getItem("turba.analytics.theme");
+          var theme = storedTheme === "dark" || storedTheme === "light"
+            ? storedTheme
+            : window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.style.colorScheme = theme;
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      }());
+    </script>
+    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611">
   </head>
   <body>
     <header class="topbar">
       <div class="brand" aria-label="turbalance Analytics">
         <span class="brand-copy">
-          <img class="brand-wordmark" src="assets/turbalance-analytics-logo.png" alt="turbalance Analytics">
-          <span>Infrastructure loss attribution</span>
+          <img class="brand-wordmark" src="assets/turbalance-wordmark-special-t.png?v=logo-size-20260610-200px" alt="turbalance">
+          <span>Analytics</span>
         </span>
       </div>
 
@@ -33,15 +48,26 @@
           <input id="samePodToggle" type="checkbox">
           <span>Same-pod what-if</span>
         </label>
-        <button id="analyzeButton" class="primary-button" type="button">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 13.5a8 8 0 1 0 2.35-5.66"></path>
-            <path d="M4 4v6h6"></path>
-            <path d="M9 12h6"></path>
-            <path d="M12 9v6"></path>
-          </svg>
-          <span>Analyze</span>
-        </button>
+        <label class="theme-switch" for="themeToggle" title="Switch to dark mode">
+          <input id="themeToggle" type="checkbox" aria-label="Dark mode">
+          <span class="theme-switch-track" aria-hidden="true">
+            <svg class="theme-switch-sun" viewBox="0 0 24 24" focusable="false">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="theme-switch-moon" viewBox="0 0 24 24" focusable="false">
+              <path d="M20 14.4A7.6 7.6 0 0 1 9.6 4a8 8 0 1 0 10.4 10.4Z"></path>
+            </svg>
+          </span>
+          <span id="themeToggleText">Light</span>
+        </label>
       </div>
     </header>
 
@@ -121,7 +147,7 @@
           <div class="section-heading">
             <div>
               <p>Inventory</p>
-              <h1 id="inventoryTitle">Jobs</h1>
+              <h1 id="inventoryTitle">Machines</h1>
             </div>
             <span id="inventoryCount">0</span>
           </div>
@@ -152,6 +178,17 @@
             </div>
           </section>
 
+          <section id="dashboardSettingsPanel" class="dashboard-settings-panel" aria-label="Dashboard block settings">
+            <div class="dashboard-settings-head">
+              <div>
+                <p>Dashboard Settings</p>
+                <h2>Visible blocks</h2>
+              </div>
+              <span id="dashboardSettingsBadge">Lean</span>
+            </div>
+            <div id="dashboardSettingsControls" class="dashboard-settings-controls"></div>
+          </section>
+
           <section id="liveResourcePanel" class="live-resource-panel" aria-label="Live system resources" hidden>
             <div class="live-resource-head">
               <div>
@@ -167,6 +204,7 @@
             </div>
             <div id="liveResourceGrid" class="live-resource-grid"></div>
             <div id="liveTelemetryAlerts" class="live-telemetry-alerts" aria-label="Live telemetry relationship alerts"></div>
+            <div id="liveObservationLog" class="live-observation-log" aria-label="Live observation log"></div>
             <div id="liveTelemetryGraphs" class="live-telemetry-graphs"></div>
           </section>
 
@@ -180,54 +218,124 @@
             </div>
             <div id="sourceHeartbeatStrip" class="source-heartbeat-strip" aria-label="Per-source heartbeat status"></div>
             <div class="operator-cockpit-grid">
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="eventTimeline">
                 <div class="operator-card-head">
                   <p>Event Timeline</p>
                   <span id="eventTimelineBadge">Live</span>
                 </div>
                 <div id="eventTimeline" class="event-timeline"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="demoLaunchpad">
                 <div class="operator-card-head">
                   <p>Demo Launchpad</p>
                   <span>SPARK1</span>
                 </div>
                 <div id="demoLaunchpad" class="demo-launchpad"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card operator-card-wide" data-dashboard-block="autoDiscoveryDeployment">
+                <div class="operator-card-head">
+                  <p>Auto Discovery and Deployment</p>
+                  <span id="autoDiscoveryDeploymentBadge">Dry-run</span>
+                </div>
+                <div id="autoDiscoveryDeploymentPanel" class="auto-discovery-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="executionIdleEnergy">
+                <div class="operator-card-head">
+                  <p>Execution-Idle Energy</p>
+                  <span id="executionIdleEnergyBadge">Learning</span>
+                </div>
+                <div id="executionIdleEnergyPanel" class="execution-idle-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="gpuExporterCoverage">
+                <div class="operator-card-head">
+                  <p>GPU Exporter Coverage</p>
+                  <span id="gpuExporterCoverageBadge">Learning</span>
+                </div>
+                <div id="gpuExporterCoveragePanel" class="gpu-exporter-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="backgroundTasks">
+                <div class="operator-card-head">
+                  <p>Background Tasks</p>
+                  <span id="backgroundTasksBadge">Watching</span>
+                </div>
+                <div id="backgroundTasksPanel" class="background-tasks-panel"></div>
+              </section>
+              <section class="operator-card" data-dashboard-block="kafkaStream">
                 <div class="operator-card-head">
                   <p>Kafka Stream</p>
                   <span id="kafkaStreamBadge">Broker</span>
                 </div>
                 <div id="kafkaStreamPanel" class="kafka-stream-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="dataConfidence">
                 <div class="operator-card-head">
                   <p>Data Confidence</p>
                   <span id="confidenceDetailBadge">Scoring</span>
                 </div>
                 <div id="confidencePanel" class="confidence-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="replayMode">
                 <div class="operator-card-head">
                   <p>Replay Mode</p>
                   <span id="replayModeBadge">Ready</span>
                 </div>
                 <div id="replayModePanel" class="replay-mode-panel"></div>
               </section>
-              <section class="operator-card">
+              <section class="operator-card" data-dashboard-block="grafanaMini">
                 <div class="operator-card-head">
                   <p>Grafana Mini Handoff</p>
                   <span id="grafanaMiniBadge">Links</span>
                 </div>
                 <div id="grafanaMiniPanel" class="grafana-mini-panel"></div>
               </section>
-              <section class="operator-card operator-card-wide">
+              <section class="operator-card operator-card-wide" data-dashboard-block="productReadiness">
+                <div class="operator-card-head">
+                  <p>Product Readiness</p>
+                  <span id="productReadinessBadge">Pilot</span>
+                </div>
+                <div id="productReadinessPanel" class="product-readiness-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="fleetTiles">
                 <div class="operator-card-head">
                   <p>Fleet Tiles</p>
                   <span id="fleetTilesBadge">Observed hosts</span>
                 </div>
                 <div id="fleetTiles" class="fleet-tiles"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="unitEconomics">
+                <div class="operator-card-head">
+                  <p>Unit Economics</p>
+                  <span id="unitEconomicsBadge">Learning</span>
+                </div>
+                <div id="unitEconomicsPanel" class="unit-economics-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="sparkPair">
+                <div class="operator-card-head">
+                  <p>SPARK Pair Compare</p>
+                  <span id="sparkPairCompareBadge">Waiting</span>
+                </div>
+                <div id="sparkPairComparePanel" class="spark-pair-compare-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="fleetComparison">
+                <div class="operator-card-head">
+                  <p>Fleet Comparison</p>
+                  <span id="fleetComparisonBadge">Waiting</span>
+                </div>
+                <div id="fleetComparisonPanel" class="fleet-comparison-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="benchmarkLadder">
+                <div class="operator-card-head">
+                  <p>Benchmark Ladder</p>
+                  <span id="benchmarkLadderBadge">Waiting</span>
+                </div>
+                <div id="benchmarkLadderPanel" class="benchmark-ladder-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="systemCharacterization">
+                <div class="operator-card-head">
+                  <p>System Characterization</p>
+                  <span id="systemCharacterizationBadge">Learning</span>
+                </div>
+                <div id="systemCharacterizationPanel" class="system-characterization-panel"></div>
               </section>
             </div>
           </section>
@@ -253,6 +361,17 @@
               <span>Cost / useful GPU-hour</span>
               <strong id="costPerUseful">$0</strong>
             </div>
+          </section>
+
+          <section class="panel unit-economics-standalone-panel" data-dashboard-block="unitEconomics" aria-label="Unit economics profitability">
+            <div class="panel-heading">
+              <div>
+                <p>Unit Economics</p>
+                <h2>CAPEX, depreciation, OPEX, and profit/loss</h2>
+              </div>
+              <span id="unitEconomicsStandaloneBadge">Learning</span>
+            </div>
+            <div id="unitEconomicsStandalonePanel" class="unit-economics-panel"></div>
           </section>
 
           <div class="analysis-grid">
@@ -309,13 +428,35 @@
               <div id="opportunityList" class="opportunity-list"></div>
             </section>
 
+            <section id="taskMemoryPanel" class="panel task-memory-panel" aria-label="Task utilization memory">
+              <div class="panel-heading">
+                <div>
+                  <p>Task Utilization Memory</p>
+                  <h2>Repeat-run comparison</h2>
+                </div>
+                <span id="taskMemoryBadge" data-tone="watch">Learning</span>
+              </div>
+              <div id="taskMemoryIdentity" class="task-memory-identity"></div>
+              <div id="taskMemoryResources" class="task-memory-resources"></div>
+              <div id="taskMemoryChanges" class="task-memory-changes"></div>
+            </section>
+
             <section class="panel trend-panel">
               <div class="panel-heading">
                 <div>
                   <p>Snapshots</p>
                   <h2>Trend view</h2>
                 </div>
-                <span id="trendBadge">0 points</span>
+                <div class="panel-actions">
+                  <span id="trendBadge">0 points</span>
+                  <button id="captureSnapshotButton" class="icon-button" type="button" title="Capture trend snapshot" aria-label="Capture trend snapshot">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 19h16"></path>
+                      <path d="M5 15l4-4 3 3 7-8"></path>
+                      <path d="M15 6h4v4"></path>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="trend-body">
                 <div class="trend-toolbar">
@@ -323,6 +464,7 @@
                     <button type="button" data-trend-metric="usefulCompute" aria-selected="true">Efficiency</button>
                     <button type="button" data-trend-metric="wastedGpuHours" aria-selected="false">Waste</button>
                     <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
+                    <button type="button" data-trend-metric="networkUtilization" aria-selected="false">Network</button>
                     <button type="button" data-trend-metric="costPerUsefulGpuHour" aria-selected="false">Cost</button>
                     <button type="button" data-trend-metric="sellableWasteValue" aria-selected="false">Sellable</button>
                     <button type="button" data-trend-metric="opportunityImpactDollars" aria-selected="false">Opportunity</button>
@@ -482,9 +624,9 @@
       </div>
     </main>
 
-    <script src="analytics-core.js"></script>
-    <script src="nccl-trace-parser.js"></script>
-    <script src="nccl-trace-fixtures.js"></script>
-    <script src="app.js"></script>
+    <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
+    <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
+    <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
+    <script src="app.js?v=machine-inventory-20260611"></script>
   </body>
 </html>

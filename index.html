@@ -302,6 +302,13 @@
                 </div>
                 <div id="fleetTiles" class="fleet-tiles"></div>
               </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="unitEconomics">
+                <div class="operator-card-head">
+                  <p>Unit Economics</p>
+                  <span id="unitEconomicsBadge">Learning</span>
+                </div>
+                <div id="unitEconomicsPanel" class="unit-economics-panel"></div>
+              </section>
               <section class="operator-card operator-card-wide" data-dashboard-block="sparkPair">
                 <div class="operator-card-head">
                   <p>SPARK Pair Compare</p>
@@ -354,6 +361,17 @@
               <span>Cost / useful GPU-hour</span>
               <strong id="costPerUseful">$0</strong>
             </div>
+          </section>
+
+          <section class="panel unit-economics-standalone-panel" data-dashboard-block="unitEconomics" aria-label="Unit economics profitability">
+            <div class="panel-heading">
+              <div>
+                <p>Unit Economics</p>
+                <h2>CAPEX, depreciation, OPEX, and profit/loss</h2>
+              </div>
+              <span id="unitEconomicsStandaloneBadge">Learning</span>
+            </div>
+            <div id="unitEconomicsStandalonePanel" class="unit-economics-panel"></div>
           </section>
 
           <div class="analysis-grid">

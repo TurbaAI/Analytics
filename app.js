@@ -84,7 +84,8 @@ const PANEL_POPOUT_SELECTOR = [
   ".spark-pair-clock-panel",
   ".system-characterization-host",
   ".fleet-comparison-summary-item",
-  ".spark-pair-summary-item"
+  ".spark-pair-summary-item",
+  ".unit-economics-card"
 ].join(",");
 const PANEL_POPOUT_INTERACTIVE_SELECTOR = "a, button, input, label, select, textarea, [contenteditable='true'], [role='button']";
 let activePanelPopout = null;
@@ -1066,6 +1067,17 @@ const SYSTEM_ID_SUBSYSTEMS = [
   { key: "gpuMemory", target: "gpu", outputMetric: "gpuMemory", label: "GPU memory", shortLabel: "HBM" }
 ];
 const FLEET_COMPARISON_HOST_LIMIT = 16;
+const UNIT_ECONOMICS_HOURS_PER_YEAR = 8760;
+const UNIT_ECONOMICS_DEFAULTS = {
+  electricityUsdPerKwh: 0.12,
+  pue: 1.35,
+  salvagePct: 0.1,
+  gpuUsefulLifeYears: 5,
+  hostUsefulLifeYears: 4,
+  maintenancePctPerYear: 0.08,
+  facilityPctPerYear: 0.04,
+  cpuEquivalentRateFactor: 0.08
+};
 const FLEET_AGGREGATE_KEY = "__fleet_aggregate__";
 const FLEET_AGGREGATE_LABEL = "Fleet Aggregate";
 const MACHINE_INVENTORY_ARCHIVE_LIMIT = 128;
@@ -1150,6 +1162,7 @@ const DASHBOARD_BLOCKS = [
   { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
   { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
   { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
+  { id: "unitEconomics", label: "Unit economics cards", note: "CAPEX, depreciation, OPEX, utilization, and profit/loss by host", defaultOn: true },
   { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
   { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
   { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
@@ -1226,6 +1239,13 @@ const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
   maximumFractionDigits: 0
+});
+
+const hourlyCurrency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2
 });
 
 const compactNumber = new Intl.NumberFormat("en-US", {
@@ -4584,6 +4604,7 @@ function render() {
   renderLiveResources(summary);
   renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator);
   renderMetricRibbon(summary);
+  renderStandaloneUnitEconomics(summary);
   renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
   renderTaskMemory(buildTaskMemory(summary, classifier));
@@ -6291,6 +6312,19 @@ function liveNetworkDisplay(machineContext) {
   };
 }
 
+function renderStandaloneUnitEconomics(summary) {
+  const panel = document.querySelector("#unitEconomicsStandalonePanel");
+  const badge = document.querySelector("#unitEconomicsStandaloneBadge");
+  if (!panel) return;
+
+  const economics = buildUnitEconomicsState(summary, machineDemoContext(summary));
+  if (badge) {
+    badge.textContent = economics.badge;
+    badge.dataset.tone = economics.tone;
+  }
+  renderUnitEconomicsPanel(panel, economics);
+}
+
 function renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator) {
   const panel = document.querySelector("#operatorCockpitPanel");
   const title = document.querySelector("#operatorCockpitTitle");
@@ -6319,6 +6353,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const productReadinessBadge = document.querySelector("#productReadinessBadge");
   const fleetTiles = document.querySelector("#fleetTiles");
   const fleetBadge = document.querySelector("#fleetTilesBadge");
+  const unitEconomicsPanel = document.querySelector("#unitEconomicsPanel");
+  const unitEconomicsBadge = document.querySelector("#unitEconomicsBadge");
   const sparkPairComparePanel = document.querySelector("#sparkPairComparePanel");
   const sparkPairCompareBadge = document.querySelector("#sparkPairCompareBadge");
   const fleetComparisonPanel = document.querySelector("#fleetComparisonPanel");
@@ -6327,7 +6363,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -6346,6 +6382,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     grafanaPanel.replaceChildren();
     productReadinessPanel.replaceChildren();
     fleetTiles.replaceChildren();
+    unitEconomicsPanel.replaceChildren();
     sparkPairComparePanel.replaceChildren();
     fleetComparisonPanel.replaceChildren();
     benchmarkLadderPanel.replaceChildren();
@@ -6383,6 +6420,10 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     productReadinessBadge.dataset.tone = cockpit.productReadiness.tone;
   }
   if (fleetBadge) fleetBadge.textContent = `${cockpit.fleet.length} ${cockpit.fleet.length === 1 ? "host" : "hosts"}`;
+  if (unitEconomicsBadge) {
+    unitEconomicsBadge.textContent = cockpit.unitEconomics.badge;
+    unitEconomicsBadge.dataset.tone = cockpit.unitEconomics.tone;
+  }
   if (sparkPairCompareBadge) {
     sparkPairCompareBadge.textContent = cockpit.sparkComparison.badge;
     sparkPairCompareBadge.dataset.tone = cockpit.sparkComparison.tone;
@@ -6410,6 +6451,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
   productReadinessPanel.replaceChildren(...operatorProductReadinessNodes(cockpit.productReadiness));
   fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
+  renderUnitEconomicsPanel(unitEconomicsPanel, cockpit.unitEconomics);
   latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
   renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
   renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
@@ -6439,6 +6481,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   const timeline = buildOperatorTimeline({ summary, classifier, opportunityEngine, schedulerSimulator, machineContext, adapters, observedServices, generatedAt, ageMilliseconds, kafka, confidence });
   const grafana = buildOperatorGrafanaState(summary);
   const fleet = buildOperatorFleetTiles(summary, machineContext);
+  const unitEconomics = buildUnitEconomicsState(summary, machineContext);
   const sparkComparison = buildSparkPairComparison(summary, machineContext);
   const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
   const benchmarkLadder = buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison);
@@ -6485,6 +6528,7 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     backgroundTasks,
     productReadiness,
     fleet,
+    unitEconomics,
     sparkComparison,
     fleetComparison,
     benchmarkLadder,
@@ -8124,6 +8168,430 @@ function buildFleetComparison(summary, machineContext, characterization) {
   };
 }
 
+function buildUnitEconomicsState(summary, machineContext) {
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  if (!contexts.length) {
+    const fallbackContext = unitEconomicsFallbackContext(summary);
+    if (fallbackContext) contexts.push(fallbackContext);
+  }
+  const rows = contexts
+    .map((context, index) => unitEconomicsHostRow(context, index))
+    .filter(Boolean);
+
+  if (!rows.length) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      rows: [],
+      summaries: [],
+      emptyText: "Waiting for live machine rows before calculating per-device economics."
+    };
+  }
+
+  const totals = rows.reduce((accumulator, row) => {
+    accumulator.profitPerHour += row.profitPerHour;
+    accumulator.revenuePerHour += row.revenuePerHour;
+    accumulator.opexPerHour += row.opexPerHour;
+    accumulator.depreciationPerHour += row.depreciationPerHour;
+    accumulator.costPerHour += row.costPerHour;
+    accumulator.capexUsd += row.capexUsd;
+    accumulator.bookValueUsd += row.bookValueUsd;
+    return accumulator;
+  }, {
+    profitPerHour: 0,
+    revenuePerHour: 0,
+    opexPerHour: 0,
+    depreciationPerHour: 0,
+    costPerHour: 0,
+    capexUsd: 0,
+    bookValueUsd: 0
+  });
+  const estimatedRows = rows.filter((row) => row.estimated).length;
+  const tone = totals.profitPerHour >= 0
+    ? "good"
+    : totals.profitPerHour > -Math.max(1, totals.costPerHour * 0.25) ? "watch" : "poor";
+
+  return {
+    available: true,
+    badge: unitEconomicsSignedMoneyPerHour(totals.profitPerHour),
+    tone,
+    rows,
+    totals,
+    summaries: [
+      {
+        label: "Net P/L",
+        value: unitEconomicsSignedMoneyPerHour(totals.profitPerHour),
+        note: `${rows.length} ${rows.length === 1 ? "unit" : "units"} observed`,
+        tone
+      },
+      {
+        label: "Revenue",
+        value: unitEconomicsMoneyPerHour(totals.revenuePerHour),
+        note: `Rate input ${unitEconomicsMoneyPerHour(numeric(state.rate, 0)).replace("/hr", "/GPU-hr")}`,
+        tone: totals.revenuePerHour >= totals.costPerHour ? "good" : "watch"
+      },
+      {
+        label: "Loaded Cost",
+        value: unitEconomicsMoneyPerHour(totals.costPerHour),
+        note: `${unitEconomicsMoneyPerHour(totals.depreciationPerHour)} depreciation + ${unitEconomicsMoneyPerHour(totals.opexPerHour)} OPEX`,
+        tone: "watch"
+      },
+      {
+        label: "Input Quality",
+        value: estimatedRows ? `${estimatedRows} estimated` : "reported",
+        note: estimatedRows ? "CAPEX or OPEX defaults are visible per unit" : "Using reported finance fields",
+        tone: estimatedRows ? "watch" : "good"
+      }
+    ]
+  };
+}
+
+function unitEconomicsFallbackContext(summary) {
+  if (!summary) return null;
+  const gpus = Math.max(0, numeric(summary.gpus, 0));
+  const gpuModel = listLabel(summary.gpuModels || [], 1) || (gpus > 0 ? "GPU accelerator" : "host-only unit");
+  const gpuUtilizationPct = Number.isFinite(numeric(summary.gpuUtil, Number.NaN))
+    ? numeric(summary.gpuUtil, 0)
+    : numeric(summary.usefulCompute, 0);
+  const host = summary.label || summary.clusters?.[0] || "current unit";
+  const context = {
+    hostname: host,
+    gpuName: gpuModel,
+    gpuCount: gpus,
+    gpuPresent: gpus > 0 || gpuUtilizationPct > 0,
+    gpuUtilizationPct,
+    cpuUsagePct: numeric(summary.cpuUsagePct, numeric(summary.cpuPrep, 0)),
+    generatedAt: dateIso(state.lastAnalysis)
+  };
+
+  return {
+    host,
+    gpuModel,
+    gpuPresent: context.gpuPresent,
+    noGpu: !context.gpuPresent,
+    gpuUtilizationPct,
+    gpuPowerWatts: Number.NaN,
+    cpuUsagePct: context.cpuUsagePct,
+    context
+  };
+}
+
+function unitEconomicsHostRow(machineContext, index) {
+  if (!machineContext) return null;
+  const context = machineContext.context || {};
+  const host = machineContext.host || context.hostname || context.node || `host ${index + 1}`;
+  const hostKey = normalizeFleetHostId(host);
+  const gpuModel = machineContext.gpuModel || context.gpuName || "";
+  const gpuCount = unitEconomicsGpuCount(machineContext, context);
+  const gpuPresent = Boolean(machineContext.gpuPresent || gpuCount > 0) && !/no nvidia|unavailable|none/i.test(gpuModel);
+  const capacityUnits = gpuPresent ? Math.max(1, gpuCount || 1) : 1;
+  const utilizationPct = unitEconomicsUtilizationPct(machineContext, context, gpuPresent);
+  const explicitRevenue = firstFinite(
+    context.revenueUsdPerHour,
+    context.revenuePerHourUsd,
+    context.currentRevenueUsdPerHour,
+    context.unitRevenueUsdPerHour
+  );
+  const explicitRate = firstFinite(
+    context.gpuHourRateUsd,
+    context.pricePerGpuHourUsd,
+    context.billingRateUsdPerGpuHour,
+    context.revenueRateUsdPerGpuHour,
+    context.billableRateUsdPerHour,
+    context.hourlyRateUsd
+  );
+  const unitRateUsdPerHour = Number.isFinite(explicitRate)
+    ? explicitRate
+    : numeric(state.rate, 0) * (gpuPresent ? 1 : UNIT_ECONOMICS_DEFAULTS.cpuEquivalentRateFactor);
+  const currentUtilizationRatio = clamp(utilizationPct, 0, 100) / 100;
+  const fullCapacityRevenuePerHour = Number.isFinite(explicitRevenue)
+    ? explicitRevenue / Math.max(currentUtilizationRatio, 0.01)
+    : unitRateUsdPerHour * capacityUnits;
+  const capexExplicit = firstFinite(
+    context.initialCapexUsd,
+    context.capexUsd,
+    context.deviceCapexUsd,
+    context.serverCapexUsd,
+    context.hardwareCapexUsd,
+    context.assetCostUsd,
+    context.purchasePriceUsd,
+    context.initialCostUsd
+  );
+  const capexUsd = Number.isFinite(capexExplicit)
+    ? Math.max(0, capexExplicit)
+    : unitEconomicsEstimatedCapexUsd({ host, gpuModel, gpuCount, gpuPresent });
+  const usefulLifeYears = Math.max(0.5, firstFinite(
+    context.usefulLifeYears,
+    context.depreciationYears,
+    context.assetUsefulLifeYears,
+    gpuPresent ? UNIT_ECONOMICS_DEFAULTS.gpuUsefulLifeYears : UNIT_ECONOMICS_DEFAULTS.hostUsefulLifeYears
+  ));
+  const usefulLifeHours = usefulLifeYears * UNIT_ECONOMICS_HOURS_PER_YEAR;
+  const salvageValueUsd = Math.max(0, Math.min(capexUsd, firstFinite(
+    context.salvageValueUsd,
+    context.residualValueUsd,
+    capexUsd * UNIT_ECONOMICS_DEFAULTS.salvagePct
+  )));
+  const age = unitEconomicsAssetAge(context, usefulLifeHours, index);
+  const depreciationPerHour = usefulLifeHours > 0 ? Math.max(0, capexUsd - salvageValueUsd) / usefulLifeHours : 0;
+  const accumulatedDepreciationUsd = Math.min(capexUsd - salvageValueUsd, age.hours * depreciationPerHour);
+  const bookValueUsd = Math.max(salvageValueUsd, capexUsd - accumulatedDepreciationUsd);
+  const explicitOpex = firstFinite(
+    context.opexUsdPerHour,
+    context.opexPerHourUsd,
+    context.operatingCostUsdPerHour,
+    context.deviceOpexUsdPerHour
+  );
+  const power = unitEconomicsPowerEstimate(machineContext, context, { host, gpuModel, gpuCount, gpuPresent });
+  const maintenancePct = firstFinite(context.maintenancePctPerYear, context.annualMaintenancePct, UNIT_ECONOMICS_DEFAULTS.maintenancePctPerYear);
+  const facilityPct = firstFinite(context.facilityPctPerYear, context.annualFacilityPct, UNIT_ECONOMICS_DEFAULTS.facilityPctPerYear);
+  const fixedOpexPerHour = capexUsd * (maintenancePct + facilityPct) / UNIT_ECONOMICS_HOURS_PER_YEAR;
+  const model = {
+    host,
+    hostKey,
+    gpuModel,
+    gpuPresent,
+    gpuCount,
+    capacityUnits,
+    utilizationPct,
+    unitRateUsdPerHour,
+    fullCapacityRevenuePerHour,
+    capexUsd,
+    capexSource: Number.isFinite(capexExplicit) ? "reported CAPEX" : "estimated CAPEX",
+    usefulLifeYears,
+    salvageValueUsd,
+    depreciationPerHour,
+    accumulatedDepreciationUsd,
+    bookValueUsd,
+    ageHours: age.hours,
+    ageSource: age.source,
+    powerWatts: power.watts,
+    powerSource: power.source,
+    electricityUsdPerKwh: firstFinite(context.electricityUsdPerKwh, context.energyUsdPerKwh, UNIT_ECONOMICS_DEFAULTS.electricityUsdPerKwh),
+    pue: firstFinite(context.pue, context.powerUsageEffectiveness, UNIT_ECONOMICS_DEFAULTS.pue),
+    fixedOpexPerHour,
+    explicitOpexPerHour: Number.isFinite(explicitOpex) ? Math.max(0, explicitOpex) : Number.NaN,
+    opexSource: Number.isFinite(explicitOpex) ? "reported OPEX" : "power + support allocation",
+    revenueSource: Number.isFinite(explicitRevenue) ? "reported revenue" : "rate input x utilization",
+    estimated: !Number.isFinite(capexExplicit) || !Number.isFinite(explicitOpex),
+    timestampMs: Date.now()
+  };
+  const current = unitEconomicsFinancialPoint(model, {
+    utilizationPct,
+    powerWatts: power.watts,
+    timestampMs: Date.now(),
+    label: "now"
+  });
+  const history = unitEconomicsHistory(model);
+  const breakEvenUtilizationPct = model.fullCapacityRevenuePerHour > 0
+    ? (current.costPerHour / model.fullCapacityRevenuePerHour) * 100
+    : Number.NaN;
+  const marginPct = current.revenuePerHour > 0 ? (current.profitPerHour / current.revenuePerHour) * 100 : -100;
+  const tone = current.profitPerHour >= 0
+    ? "good"
+    : current.profitPerHour > -Math.max(0.5, current.costPerHour * 0.25) ? "watch" : "poor";
+
+  return {
+    ...model,
+    ...current,
+    history,
+    breakEvenUtilizationPct,
+    marginPct,
+    tone
+  };
+}
+
+function unitEconomicsGpuCount(machineContext, context) {
+  const explicit = firstFinite(
+    context.gpuCount,
+    context.gpuDeviceCount,
+    context.acceleratorCount,
+    context.accelerators,
+    context.gpus,
+    context.gpuTotal
+  );
+  if (Number.isFinite(explicit) && explicit > 0) return Math.round(explicit);
+  const uuidCount = [
+    context.gpuUuids,
+    context.gpuUUIDs,
+    context.gpuDevices
+  ]
+    .map((value) => Array.isArray(value) ? value.length : 0)
+    .find((count) => count > 0);
+  if (uuidCount) return uuidCount;
+  return machineContext?.gpuPresent ? 1 : 0;
+}
+
+function unitEconomicsUtilizationPct(machineContext, context, gpuPresent) {
+  const value = gpuPresent
+    ? firstFinite(
+      context.gpuBillableUtilizationPct,
+      context.gpuUtilizationPct,
+      context.gpuUtil,
+      machineContext?.gpuUtilizationPct
+    )
+    : firstFinite(
+      context.billableUtilizationPct,
+      context.cpuUsagePct,
+      machineContext?.cpuUsagePct
+    );
+  if (!Number.isFinite(value)) return 0;
+  return clamp(value >= 0 && value <= 1 ? value * 100 : value);
+}
+
+function unitEconomicsAssetAge(context, usefulLifeHours, index) {
+  const reportedDate = firstString([
+    context.commissionedAt,
+    context.acquiredAt,
+    context.purchaseDate,
+    context.installedAt,
+    context.assetStartDate,
+    context.depreciationStartDate
+  ]);
+  const parsed = reportedDate ? safeDate(reportedDate, null) : null;
+  if (parsed) {
+    return {
+      hours: Math.max(0, (Date.now() - parsed.getTime()) / 3600000),
+      source: "reported age"
+    };
+  }
+  const estimatedRatio = clamp(0.18 + (index % 5) * 0.04, 0.08, 0.42);
+  return {
+    hours: usefulLifeHours * estimatedRatio,
+    source: "estimated age"
+  };
+}
+
+function unitEconomicsEstimatedCapexUsd({ host, gpuModel, gpuCount, gpuPresent }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 120;
+  if (/nuc|mini pc|minipc/.test(label)) return 900;
+  if (/gb10|dgx spark/.test(label)) return 3000;
+  if (!gpuPresent) return 2500;
+  const baseServerUsd = /workstation|desktop|rtx/i.test(label) ? 2500 : 8000;
+  return baseServerUsd + unitEconomicsGpuCapexUsd(gpuModel) * Math.max(1, gpuCount || 1);
+}
+
+function unitEconomicsGpuCapexUsd(gpuModel) {
+  const label = String(gpuModel || "").toLowerCase();
+  if (/gb200|b200/.test(label)) return 40000;
+  if (/h200/.test(label)) return 32000;
+  if (/h100/.test(label)) return 30000;
+  if (/a100/.test(label)) return 12000;
+  if (/l40|a6000|rtx 6000|6000 ada/.test(label)) return 7000;
+  if (/4090/.test(label)) return 1800;
+  if (/gb10|dgx spark/.test(label)) return 3000;
+  return 15000;
+}
+
+function unitEconomicsPowerEstimate(machineContext, context, hardware) {
+  const reportedTotal = firstFinite(
+    context.powerWatts,
+    context.serverPowerWatts,
+    context.totalPowerWatts,
+    context.redfishPowerWatts,
+    context.chassisPowerWatts,
+    context.devicePowerWatts
+  );
+  if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+    return { watts: reportedTotal, source: "reported power" };
+  }
+
+  const gpuPower = firstFinite(context.gpuPowerWatts, machineContext?.gpuPowerWatts);
+  if (hardware.gpuPresent && Number.isFinite(gpuPower) && gpuPower > 0) {
+    return {
+      watts: gpuPower + unitEconomicsBaseHostWatts(hardware),
+      source: "GPU power + host estimate"
+    };
+  }
+
+  return {
+    watts: unitEconomicsEstimatedPowerWatts(hardware),
+    source: "estimated power"
+  };
+}
+
+function unitEconomicsBaseHostWatts({ host, gpuModel }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 8;
+  if (/nuc|mini pc|minipc/.test(label)) return 45;
+  if (/gb10|dgx spark/.test(label)) return 60;
+  return 220;
+}
+
+function unitEconomicsEstimatedPowerWatts({ host, gpuModel, gpuCount, gpuPresent }) {
+  const label = `${host} ${gpuModel}`.toLowerCase();
+  if (/raspberry|(^|\b)pi\d*\b/.test(label)) return 8;
+  if (/nuc|mini pc|minipc/.test(label)) return 45;
+  if (/gb10|dgx spark/.test(label)) return 120;
+  if (!gpuPresent) return 180;
+  const perGpuWatts = /b200|h200|h100/.test(label) ? 700 : /a100/.test(label) ? 500 : /4090|rtx|l40|a6000/.test(label) ? 350 : 450;
+  return unitEconomicsBaseHostWatts({ host, gpuModel }) + perGpuWatts * Math.max(1, gpuCount || 1);
+}
+
+function unitEconomicsFinancialPoint(model, sample) {
+  const utilizationPct = clamp(numeric(sample.utilizationPct, model.utilizationPct));
+  const utilizationRatio = utilizationPct / 100;
+  const powerWatts = Number.isFinite(sample.powerWatts) ? sample.powerWatts : model.powerWatts;
+  const revenuePerHour = Math.max(0, model.fullCapacityRevenuePerHour * utilizationRatio);
+  const powerOpexPerHour = Math.max(0, powerWatts) * model.pue / 1000 * model.electricityUsdPerKwh;
+  const opexPerHour = Number.isFinite(model.explicitOpexPerHour)
+    ? model.explicitOpexPerHour
+    : powerOpexPerHour + model.fixedOpexPerHour;
+  const costPerHour = model.depreciationPerHour + opexPerHour;
+
+  return {
+    timestampMs: sample.timestampMs || Date.now(),
+    label: sample.label || "",
+    utilizationPct,
+    powerWatts,
+    revenuePerHour,
+    powerOpexPerHour,
+    opexPerHour,
+    depreciationPerHour: model.depreciationPerHour,
+    costPerHour,
+    profitPerHour: revenuePerHour - costPerHour
+  };
+}
+
+function unitEconomicsHistory(model) {
+  const hostSamples = liveTelemetryHistory
+    .filter((sample) => normalizeFleetHostId(sample.host) === model.hostKey)
+    .slice(-24)
+    .map((sample) => ({
+      timestampMs: sample.timestampMs,
+      label: sample.label,
+      utilizationPct: model.gpuPresent && Number.isFinite(sample.gpu) ? sample.gpu : sample.cpu,
+      powerWatts: unitEconomicsSamplePowerWatts(model, sample)
+    }));
+  const sourceSamples = hostSamples.length >= 2 ? hostSamples : unitEconomicsSyntheticSamples(model);
+  return sourceSamples.map((sample) => unitEconomicsFinancialPoint(model, sample));
+}
+
+function unitEconomicsSamplePowerWatts(model, sample) {
+  if (!model.gpuPresent) return model.powerWatts;
+  if (!Number.isFinite(sample.gpuPower) || sample.gpuPower <= 0) return model.powerWatts;
+  return sample.gpuPower + unitEconomicsBaseHostWatts({ host: model.host, gpuModel: model.gpuModel });
+}
+
+function unitEconomicsSyntheticSamples(model) {
+  const count = 16;
+  const now = Date.now();
+  return Array.from({ length: count }, (_unused, index) => {
+    const phase = (index + 1) * (model.host.length + 3);
+    const drift = Math.sin(phase * 0.55) * 5 + Math.cos(phase * 0.23) * 2;
+    const utilizationPct = model.utilizationPct <= 0 ? 0 : clamp(model.utilizationPct + drift);
+    const loadRatio = model.utilizationPct > 0 ? utilizationPct / Math.max(1, model.utilizationPct) : 1;
+    return {
+      timestampMs: now - (count - index - 1) * 60000,
+      label: `${count - index - 1}m ago`,
+      utilizationPct,
+      powerWatts: Math.max(unitEconomicsBaseHostWatts({ host: model.host, gpuModel: model.gpuModel }), model.powerWatts * (0.78 + loadRatio * 0.22))
+    };
+  });
+}
+
 function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison) {
   const rows = benchmarkComparisonRows(summary, machineContext, fleetComparison);
   if (!rows.length) {
@@ -9686,6 +10154,190 @@ function sparkPairNetworkNote(left, right) {
 
 function sparkPairOllamaModelLabel(machineContext) {
   return machineContext.ollamaProbeModel || machineContext.ollamaRunningModels[0] || `${machineContext.modelCount} local`;
+}
+
+function renderUnitEconomicsPanel(container, economics) {
+  if (!economics.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = economics.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "unit-economics-summary";
+  summary.append(...economics.summaries.map(unitEconomicsSummaryItem));
+
+  const grid = document.createElement("div");
+  grid.className = "unit-economics-grid";
+  grid.append(...economics.rows.map(unitEconomicsCard));
+
+  container.replaceChildren(summary, grid);
+}
+
+function unitEconomicsSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "unit-economics-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function unitEconomicsCard(row) {
+  const card = document.createElement("article");
+  card.className = "unit-economics-card";
+  card.dataset.tone = row.tone;
+
+  const head = document.createElement("div");
+  head.className = "unit-economics-card-head";
+  const title = document.createElement("div");
+  const host = document.createElement("strong");
+  host.textContent = row.host;
+  const model = document.createElement("small");
+  model.textContent = row.gpuPresent
+    ? `${row.gpuCount || 1}x ${row.gpuModel || "GPU"}`
+    : row.gpuModel || "host-only unit";
+  title.append(host, model);
+  const profit = document.createElement("span");
+  profit.className = "unit-economics-profit";
+  profit.textContent = unitEconomicsSignedMoneyPerHour(row.profitPerHour);
+  head.append(title, profit);
+
+  const graph = buildUnitEconomicsGraph(row);
+  const legend = document.createElement("div");
+  legend.className = "unit-economics-legend";
+  [
+    ["revenue", "Revenue"],
+    ["cost", "OPEX + depreciation"],
+    ["profit", "Profit/loss"]
+  ].forEach(([series, label]) => {
+    const item = document.createElement("span");
+    item.dataset.series = series;
+    item.textContent = label;
+    legend.append(item);
+  });
+
+  const metrics = document.createElement("div");
+  metrics.className = "unit-economics-metrics";
+  [
+    ["Utilization", pct(row.utilizationPct), Number.isFinite(row.breakEvenUtilizationPct) ? `break-even ${pct(row.breakEvenUtilizationPct)}` : "break-even n/a"],
+    ["CAPEX", currency.format(row.capexUsd), row.capexSource],
+    ["Book value", currency.format(row.bookValueUsd), `${formatDecimal(row.ageHours / UNIT_ECONOMICS_HOURS_PER_YEAR, 1)} of ${formatDecimal(row.usefulLifeYears, 1)} yr`],
+    ["Depreciation", unitEconomicsMoneyPerHour(row.depreciationPerHour), "straight-line"],
+    ["OPEX", unitEconomicsMoneyPerHour(row.opexPerHour), row.opexSource],
+    ["Revenue", unitEconomicsMoneyPerHour(row.revenuePerHour), row.revenueSource]
+  ].forEach(([label, value, note]) => {
+    metrics.append(unitEconomicsMetricCell(label, value, note));
+  });
+
+  const note = document.createElement("small");
+  note.className = "unit-economics-note";
+  note.textContent = `${row.powerSource}; ${row.ageSource}; ${unitEconomicsMoneyPerHour(row.unitRateUsdPerHour).replace("/hr", row.gpuPresent ? "/GPU-hr" : "/host-hr")}`;
+
+  card.append(head, graph, legend, metrics, note);
+  return card;
+}
+
+function unitEconomicsMetricCell(label, value, note) {
+  const cell = document.createElement("span");
+  const small = document.createElement("small");
+  small.textContent = label;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  const em = document.createElement("em");
+  em.textContent = note;
+  cell.append(small, strong, em);
+  return cell;
+}
+
+function buildUnitEconomicsGraph(row) {
+  const width = 420;
+  const height = 128;
+  const padX = 16;
+  const padY = 14;
+  const innerWidth = width - padX * 2;
+  const innerHeight = height - padY * 2;
+  const svg = svgNode("svg", {
+    class: "unit-economics-chart",
+    viewBox: `0 0 ${width} ${height}`,
+    role: "img",
+    "aria-label": `${row.host} unit economics graph`
+  });
+  const history = row.history || [];
+  const values = history.flatMap((point) => [point.revenuePerHour, point.costPerHour, point.profitPerHour]).filter(Number.isFinite);
+
+  [0.25, 0.5, 0.75].forEach((ratio) => {
+    const y = padY + innerHeight * ratio;
+    svg.append(svgNode("line", {
+      x1: padX,
+      x2: width - padX,
+      y1: y,
+      y2: y,
+      class: "unit-economics-grid-line"
+    }));
+  });
+
+  if (history.length < 2 || values.length < 2) {
+    const empty = textNode("waiting for economics samples", width / 2, height / 2 + 4, "unit-economics-empty");
+    empty.setAttribute("text-anchor", "middle");
+    svg.append(empty);
+    return svg;
+  }
+
+  let min = Math.min(...values, 0);
+  let max = Math.max(...values, 0);
+  if (min === max) {
+    min -= 1;
+    max += 1;
+  }
+  const range = max - min;
+  const yFor = (value) => padY + innerHeight - ((value - min) / range) * innerHeight;
+  svg.append(svgNode("line", {
+    x1: padX,
+    x2: width - padX,
+    y1: yFor(0),
+    y2: yFor(0),
+    class: "unit-economics-zero-line"
+  }));
+
+  [
+    ["revenue", "revenuePerHour"],
+    ["cost", "costPerHour"],
+    ["profit", "profitPerHour"]
+  ].forEach(([series, key]) => {
+    const points = history
+      .map((point, index) => {
+        const value = numeric(point[key], Number.NaN);
+        if (!Number.isFinite(value)) return null;
+        const x = padX + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
+        return `${formatDecimal(x, 1)},${formatDecimal(yFor(value), 1)}`;
+      })
+      .filter(Boolean);
+    if (points.length < 2) return;
+    svg.append(svgNode("polyline", {
+      points: points.join(" "),
+      class: `unit-economics-line unit-economics-line-${series}`
+    }));
+  });
+
+  return svg;
+}
+
+function unitEconomicsMoneyPerHour(value) {
+  return `${hourlyCurrency.format(Math.max(0, numeric(value, 0)))}/hr`;
+}
+
+function unitEconomicsSignedMoneyPerHour(value) {
+  const amount = numeric(value, 0);
+  const prefix = amount > 0 ? "+" : amount < 0 ? "-" : "";
+  return `${prefix}${hourlyCurrency.format(Math.abs(amount))}/hr`;
 }
 
 function renderFleetComparisonPanel(container, comparison) {
