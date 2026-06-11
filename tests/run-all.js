@@ -15,6 +15,7 @@ const checks = [
   { label: "fleet remediation", args: ["tests/fleet-remediation.test.js"] },
   { label: "productization tooling", args: ["tests/productization.test.js"] },
   { label: "live machine push agent", args: ["tests/live-machine-push-agent.test.js"] },
+  { label: "auto discovery deployment", args: ["tests/auto-discover-deploy.test.js"] },
   { label: "system identification worker", args: ["tests/system-identification-worker.test.js"] },
   { label: "system characterization automation", args: ["tests/system-characterization-automation.test.js"] },
   { label: "SPARK1 Kubernetes demo collector", args: ["tests/spark1-kubernetes-demo.test.js"] },

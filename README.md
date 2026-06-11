@@ -1,6 +1,6 @@
 # turbalance Analytics
 
-![turbalance Analytics desktop screenshot](build/turbalance-analytics-desktop.png)
+![turbalance Analytics fleet aggregate dashboard](assets/turbalance-dashboard-fleet-aggregate.png)
 
 turbalance Analytics is an operator cockpit for AI infrastructure. It combines live machine telemetry, durable lakehouse telemetry, scheduler/source overlays, GPU observability, Redfish/BMC evidence, system identification, product packaging, and production runbooks into one workflow for finding wasted accelerator time, explaining why it is happening, and proving a change before a customer sees it.
 

@@ -32,7 +32,7 @@ const options = {
   collectorUrl: args["collector-url"] || process.env.TURBALANCE_COLLECTOR_URL || "http://192.168.10.30:8801/v1/source-bundles",
   hostUrl: args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.30:8000",
   tenantId: args["tenant-id"] || process.env.TURBALANCE_TENANT_ID || "dgx-lab",
-  agentLoopMs: args["agent-loop-ms"] || process.env.TURBALANCE_AGENT_LOOP_MS || "5000",
+  agentLoopMs: args["agent-loop-ms"] || process.env.TURBALANCE_AGENT_LOOP_MS || "1000",
   postTimeoutMs: args["post-timeout-ms"] || process.env.TURBALANCE_AGENT_POST_TIMEOUT_MS || "10000",
   commandTimeoutMs: Number(args["command-timeout-ms"] || process.env.TURBALANCE_ROLLOUT_COMMAND_TIMEOUT_MS || "60000"),
   productVersion: args["product-version"] || process.env.TURBALANCE_PRODUCT_VERSION || "0.1.0",

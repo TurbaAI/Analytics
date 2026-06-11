@@ -1036,6 +1036,8 @@ const SYSTEM_ID_SUBSYSTEMS = [
   { key: "gpuMemory", target: "gpu", outputMetric: "gpuMemory", label: "GPU memory", shortLabel: "HBM" }
 ];
 const FLEET_COMPARISON_HOST_LIMIT = 16;
+const FLEET_AGGREGATE_KEY = "__fleet_aggregate__";
+const FLEET_AGGREGATE_LABEL = "Fleet Aggregate";
 const SYSTEM_CHARACTERIZATION_HOST_LIMIT = 16;
 const LIVE_EIGEN_MIN_VARIANCE = 0.0001;
 const LIVE_OBSERVATION_LIMIT = 8;
@@ -1052,12 +1054,14 @@ const DASHBOARD_BLOCKS = [
   { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
   { id: "eventTimeline", label: "Event timeline", note: "Operator event stream", defaultOn: false },
   { id: "demoLaunchpad", label: "Demo launchpad", note: "SPARK demo command shortcuts", defaultOn: false },
+  { id: "autoDiscoveryDeployment", label: "Auto Discovery and Deployment", note: "Subnet discovery with credential-gated agent rollout", defaultOn: false },
   { id: "kafkaStream", label: "Kafka stream", note: "Broker smoke and stream panel", defaultOn: false },
   { id: "dataConfidence", label: "Data confidence", note: "Source quality scoring details", defaultOn: false },
   { id: "replayMode", label: "Replay mode", note: "Telemetry replay controls", defaultOn: false },
   { id: "grafanaMini", label: "Grafana handoff", note: "Mini observability links", defaultOn: false },
   { id: "sparkPair", label: "SPARK pair compare", note: "SPARK1/SPARK2 metrics and clock graph", defaultOn: false },
-  { id: "fleetComparison", label: "Pi fleet comparison", note: "Rank table and Pi benchmark histograms", defaultOn: false },
+  { id: "fleetComparison", label: "Fleet comparison", note: "Rank table and benchmark histograms", defaultOn: false },
+  { id: "benchmarkLadder", label: "Benchmark ladder", note: "CPU, GPU, RAM, network, and disk comparisons from host to global scope", defaultOn: true },
   { id: "systemCharacterization", label: "System characterization", note: "System-ID fingerprints and profiles", defaultOn: false }
 ];
 const DASHBOARD_BLOCK_DEFAULTS = Object.fromEntries(DASHBOARD_BLOCKS.map((block) => [block.id, Boolean(block.defaultOn)]));
@@ -1100,8 +1104,8 @@ const state = {
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   storageLabel: workspaceStore.storageLabel,
   storageTone: workspaceStore.storageTone,
-  ingestLabel: "Sample feed",
-  ingestTone: "good"
+  ingestLabel: shouldAutoLoadMachineDemoBundle() ? "Live feed pending" : "Sample feed",
+  ingestTone: shouldAutoLoadMachineDemoBundle() ? "watch" : "good"
 };
 
 if (snapshotHistory.length === 0) {
@@ -1344,6 +1348,9 @@ function replaceActiveIngestion(nextIngestion, label) {
 }
 
 function resolveJobSelectionKey(previousKey, previousIdentity) {
+  if (previousKey === FLEET_AGGREGATE_KEY && fleetAggregateSourceItems(jobs).length >= 2) {
+    return FLEET_AGGREGATE_KEY;
+  }
   if (previousKey && jobs.some((job) => job.id === previousKey)) return previousKey;
   if (previousIdentity) {
     const matched = jobs.find((job) => jobSelectionIdentity(job) === previousIdentity);
@@ -3043,7 +3050,7 @@ function shouldOfferMachineDemoBundle() {
 
 function shouldAutoLoadMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
-  if (params.get("demo") === "sample") return false;
+  if (params.get("demo") === "sample" && !isKnownMachineDemoHost()) return false;
   if (params.get("demo") === "machine" || params.get("source") === "machine") return true;
   return isKnownMachineDemoHost();
 }
@@ -3056,14 +3063,26 @@ function shouldAutoLoadSparkPairClockFeed() {
 
 function isKnownMachineDemoHost() {
   return [
+    "localhost",
+    "127.0.0.1",
+    "::1",
     "192.168.10.30",
     "nuc14e",
     "192.168.10.20",
     "spark1",
     "192.168.10.21",
     ...PI_FLEET_HOSTNAMES,
+    "192.168.10.27",
+    "192.168.10.33",
+    "192.168.10.38",
+    "dgx-lisa",
+    "192.168.10.42",
+    "dgx-jensen",
     "100.96.89.98",
-    "dgx-pat"
+    "dgx-pat",
+    "192.168.10.103",
+    "100.95.183.13",
+    "nuc15"
   ].includes(window.location.hostname.toLowerCase());
 }
 
@@ -3094,7 +3113,7 @@ function platformApiBaseUrl() {
 }
 
 function isLakehouseDashboardHost() {
-  return ["192.168.10.30", "nuc14e"].includes(window.location.hostname.toLowerCase());
+  return ["localhost", "127.0.0.1", "::1", "192.168.10.30", "nuc14e", "192.168.10.103", "100.95.183.13", "nuc15"].includes(window.location.hostname.toLowerCase());
 }
 
 function platformApiUrl(path) {
@@ -4201,11 +4220,36 @@ function buildEntries(scope) {
     groups.get(key).items.push(job);
   });
 
-  return Array.from(groups.values()).sort((a, b) => {
+  const entries = Array.from(groups.values()).sort((a, b) => {
     const aWaste = summarizeEntry(a).wastedGpuHours;
     const bWaste = summarizeEntry(b).wastedGpuHours;
     return bWaste - aWaste;
   });
+
+  if (scope === "job") {
+    const fleetItems = fleetAggregateSourceItems(jobs);
+    if (fleetItems.length >= 2) {
+      entries.unshift({
+        key: FLEET_AGGREGATE_KEY,
+        label: FLEET_AGGREGATE_LABEL,
+        scope,
+        items: fleetItems,
+        isFleetAggregate: true
+      });
+    }
+  }
+
+  return entries;
+}
+
+function fleetAggregateSourceItems(items) {
+  return uniqueBy(
+    (items || []).filter((item) => isMachineDemoItem(item) || item.source?.context?.hostname || item.source?.context?.node),
+    (item) => {
+      const context = item.source?.context || {};
+      return normalizeFleetHostId(context.hostname || context.node || context.networkLocalAddress || item.cluster || item.name || item.id);
+    }
+  );
 }
 
 function displaySummary(entry) {
@@ -4222,6 +4266,7 @@ function summarizeEntry(entry) {
     key: entry.key,
     label: entry.label,
     scope: entry.scope,
+    isFleetAggregate: Boolean(entry.isFleetAggregate),
     count: items.length,
     jobs: items,
     teams: unique(items.map((job) => job.team)),
@@ -4326,6 +4371,7 @@ function renderInventory(entries) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "entity-row";
+    if (summary.isFleetAggregate) button.dataset.aggregate = "true";
     button.setAttribute("aria-selected", String(entry.key === state.selectedKey));
     button.addEventListener("click", () => {
       state.selectedKey = entry.key;
@@ -4342,14 +4388,19 @@ function renderInventory(entries) {
     const foot = document.createElement("span");
     foot.className = "entity-foot";
     const machineContext = machineDemoContext(summary);
+    const fleetOverview = summary.isFleetAggregate ? fleetAggregateOverview(summary) : null;
 
     const score = document.createElement("span");
-    score.textContent = machineContext?.driverUnavailable || machineContext?.noGpu
+    score.textContent = fleetOverview
+      ? `${fleetOverview.hostCount} hosts`
+      : machineContext?.driverUnavailable || machineContext?.noGpu
       ? "host only"
       : machineContext?.idle ? "idle now" : `${round(summary.usefulCompute)}% useful`;
 
     const bottleneck = document.createElement("span");
-    bottleneck.textContent = machineContext?.driverUnavailable
+    bottleneck.textContent = fleetOverview
+      ? `${round(fleetOverview.similarityScore)}% similar`
+      : machineContext?.driverUnavailable
       ? "GPU unavailable"
       : machineContext?.noGpu ? "No GPU telemetry" : machineContext?.idle ? "Idle capacity" : classifier.primary.name.replace("-bound", "");
 
@@ -4365,8 +4416,16 @@ function renderDiagnosis(summary, classifier) {
   const useful = round(summary.usefulCompute);
   const gpuUtil = round(summary.gpuUtil);
   const primaryLoss = primary.name.replace("-bound", "").toLowerCase();
+  const fleetOverview = summary.isFleetAggregate ? fleetAggregateOverview(summary) : null;
   const machineContext = machineDemoContext(summary);
-  const meta = machineContext
+  const meta = fleetOverview
+    ? [
+      "Fleet",
+      `${fleetOverview.hostCount} hosts`,
+      `${fleetOverview.freshCount}/${fleetOverview.hostCount} fresh`,
+      `${round(fleetOverview.similarityScore)}% similarity`
+    ].join(" | ")
+    : machineContext
     ? [
       "Machine",
       machineContext.host,
@@ -4379,13 +4438,17 @@ function renderDiagnosis(summary, classifier) {
       summary.gpuModels.join(", "),
       `${summary.count} ${summary.count === 1 ? "job" : "jobs"}`
     ].join(" | ");
-  const headline = machineContext
+  const headline = fleetOverview
+    ? fleetOverview.headline
+    : machineContext
     ? machineDemoHeadline(machineContext, gpuUtil, useful)
     : summary.whatIfActive
     ? `Same-pod what-if lifts useful compute to ${useful}% and cuts cross-pod traffic to ${round(summary.crossPodTraffic)}%.`
     : `${gpuUtil}% GPU utilization, ${useful}% useful compute. ${titleCase(primaryLoss)} is the dominant loss.`;
 
-  const narrative = machineContext
+  const narrative = fleetOverview
+    ? fleetOverview.narrative
+    : machineContext
     ? machineDemoNarrative(machineContext)
     : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
@@ -4394,7 +4457,7 @@ function renderDiagnosis(summary, classifier) {
   document.querySelector("#selectedMeta").textContent = meta;
   document.querySelector("#diagnosisHeadline").textContent = headline;
   document.querySelector("#diagnosisNarrative").textContent = narrative;
-  renderScoreDial(summary.usefulCompute);
+  renderScoreDial(fleetOverview ? fleetOverview.healthScore : summary.usefulCompute);
 }
 
 function machineDemoContext(summary) {
@@ -4490,6 +4553,15 @@ function machineDemoContext(summary) {
     benchmarkMemoryMiBps: optionalMetric(context, "benchmarkMemoryMiBps"),
     benchmarkDiskWriteMiBps: optionalMetric(context, "benchmarkDiskWriteMiBps"),
     benchmarkDiskReadMiBps: optionalMetric(context, "benchmarkDiskReadMiBps"),
+    benchmarkGpuScore: optionalMetric(context, "benchmarkGpuScore"),
+    benchmarkGpuMemoryMiBps: optionalMetric(context, "benchmarkGpuMemoryMiBps"),
+    benchmarkGpuTensorOpsPerSecond: optionalMetric(context, "benchmarkGpuTensorOpsPerSecond"),
+    benchmarkNetworkMbps: optionalMetric(context, "benchmarkNetworkMbps"),
+    benchmarkNetworkLatencyUs: optionalMetric(context, "benchmarkNetworkLatencyUs"),
+    benchmarkGlobalScore: optionalMetric(context, "benchmarkGlobalScore"),
+    benchmarkGlobalPercentile: optionalMetric(context, "benchmarkGlobalPercentile"),
+    benchmarkGlobalDataset: String(context.benchmarkGlobalDataset || ""),
+    benchmarkGlobalUrl: String(context.benchmarkGlobalUrl || ""),
     benchmarkScore: optionalMetric(context, "benchmarkScore"),
     benchmarkError: String(context.benchmarkError || ""),
     clockSource: String(context.clockSource || ""),
@@ -4666,6 +4738,11 @@ function renderLiveResources(summary) {
   if (!panel || !title || !badge || !grid || !alerts || !observationLog || !graphs) return;
 
   const machineContext = machineDemoContext(summary);
+  if (summary.isFleetAggregate) {
+    renderFleetAggregateResources(summary, { panel, title, badge, grid, alerts, observationLog, graphs });
+    return;
+  }
+
   if (!machineContext) {
     renderAnalysisResourceFallback(summary, { panel, title, badge, grid, alerts, observationLog, graphs });
     return;
@@ -4950,6 +5027,588 @@ function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
   badge.setAttribute("aria-label", `${text}. ${badge.title}.`);
 }
 
+function renderFleetAggregateResources(summary, nodes) {
+  const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
+  const overview = fleetAggregateOverview(summary);
+  const ageSeconds = Number.isFinite(overview.maxAgeMs) ? Math.max(0, Math.round(overview.maxAgeMs / 1000)) : null;
+  const freshPct = overview.hostCount ? (overview.freshCount / overview.hostCount) * 100 : 0;
+  const outlierPct = overview.hostCount ? (overview.outlierCount / overview.hostCount) * 100 : 0;
+  const capacityNote = `${number.format(overview.totalCpuCores)} cores | ${formatBytes(overview.totalMemoryBytes)} RAM | ${formatBytes(overview.totalDiskBytes)} disk`;
+  const pressureNote = `${pct(overview.avgCpuUsagePct)} CPU | ${pct(overview.avgMemoryUsedPct)} RAM | ${pct(overview.avgGpuUtilizationPct)} GPU`;
+  const pairNote = overview.closestPair
+    ? `Closest ${overview.closestPair.left} / ${overview.closestPair.right}; widest ${overview.divergentPair?.left || "--"} / ${overview.divergentPair?.right || "--"}`
+    : "Need at least two live hosts";
+  const widestNote = overview.widestSpread
+    ? `${overview.widestSpread.label}: ${overview.widestSpread.bestHost || "--"} vs ${overview.widestSpread.worstHost || "--"}`
+    : "Spread learning";
+
+  liveTelemetryHistory = [];
+  panel.hidden = false;
+  title.textContent = "Fleet aggregate live resources";
+  renderLiveResourceHeartbeatBadge(badge, ageSeconds);
+
+  grid.replaceChildren(
+    liveResourceCard({
+      label: "Fleet similarity",
+      value: pct(overview.similarityScore),
+      note: pairNote,
+      percent: overview.similarityScore,
+      tone: grade(overview.similarityScore, 62, 82).key
+    }),
+    liveResourceCard({
+      label: "Fleet health",
+      value: `${round(overview.healthScore)}/100`,
+      note: `${round(overview.averageHostScore)} avg host rank | ${round(outlierPct)}% outlier hosts`,
+      percent: overview.healthScore,
+      tone: grade(overview.healthScore, 58, 78).key
+    }),
+    liveResourceCard({
+      label: "Fresh hosts",
+      value: `${overview.freshCount}/${overview.hostCount}`,
+      note: Number.isFinite(overview.maxAgeMs) ? `Oldest sample ${sparkPairAgeLabel(overview.maxAgeMs)}` : "No heartbeat timestamps",
+      percent: freshPct,
+      tone: grade(freshPct, 75, 100).key
+    }),
+    liveResourceCard({
+      label: "Outliers",
+      value: `${overview.outlierCount}`,
+      note: widestNote,
+      percent: outlierPct,
+      tone: inverseGrade(outlierPct, 18, 38).key
+    }),
+    liveResourceCard({
+      label: "Resource pressure",
+      value: pct(overview.maxPressurePct),
+      note: pressureNote,
+      percent: overview.maxPressurePct,
+      tone: inverseGrade(overview.maxPressurePct, 72, 88).key
+    }),
+    liveResourceCard({
+      label: "Capacity",
+      value: `${overview.gpuHostCount}/${overview.hostCount} GPU`,
+      note: capacityNote,
+      percent: overview.hostCount ? (overview.gpuHostCount / overview.hostCount) * 100 : null,
+      tone: overview.gpuHostCount ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Network activity",
+      value: formatBytesPerSecond(overview.totalNetworkThroughputBps),
+      note: `${fleetMbpsLabel(overview.fastestLinkMbps)} fastest link | ${overview.networkIssueCount} interface issues`,
+      percent: overview.avgNetworkUtilizationPct,
+      tone: overview.networkIssueCount ? "watch" : inverseGrade(overview.avgNetworkUtilizationPct, 70, 88).key
+    }),
+    liveResourceCard({
+      label: "Fingerprints",
+      value: `${overview.fingerprintCount}/${overview.hostCount}`,
+      note: overview.signatureSpreadLabel,
+      percent: overview.hostCount ? (overview.fingerprintCount / overview.hostCount) * 100 : null,
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor"
+    }),
+    liveResourceCard({
+      label: "Top rank",
+      value: overview.topRow?.host || "--",
+      note: overview.topRow ? `${round(overview.topRow.score)} score | ${overview.topRow.outlierLabels.join(", ") || "no outliers"}` : "No ranked hosts",
+      percent: overview.topRow?.score ?? null,
+      tone: overview.topRow?.tone || "watch"
+    }),
+    liveResourceCard({
+      label: "Watch host",
+      value: overview.watchRow?.host || "--",
+      note: overview.watchRow ? `${round(overview.watchRow.score)} score | ${overview.watchRow.outlierLabels.join(", ") || "lowest rank"}` : "No watch host",
+      percent: overview.watchRow?.score ?? null,
+      tone: overview.watchRow?.tone || "watch"
+    })
+  );
+
+  const analysis = fleetAggregateAnalysis(overview);
+  renderLiveTelemetryAlerts(alerts, analysis);
+  renderLiveObservationLog(observationLog, analysis, null, fleetAggregateGraphRows(overview));
+  renderFleetAggregateGraphs(graphs, overview);
+}
+
+function fleetAggregateOverview(summary) {
+  const comparison = buildFleetComparison(summary, null, platformVirtualSensorCache.systemIdentification);
+  let rows = comparison.available ? comparison.rows.slice() : [];
+  let spreadRows = comparison.available ? comparison.spreadRows.slice() : [];
+  if (!rows.length) {
+    rows = buildFleetMachineContexts(summary, null)
+      .slice(0, FLEET_COMPARISON_HOST_LIMIT)
+      .map((context) => fleetHostSnapshot(context, null));
+    assignFleetSignatureDistances(rows);
+    const metricConfigs = fleetMetricConfigs();
+    spreadRows = metricConfigs.map((config) => fleetMetricSpread(config, rows)).filter(Boolean);
+    assignFleetScores(rows, metricConfigs);
+    rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+    rows.forEach((row, index) => {
+      row.rank = index + 1;
+    });
+  }
+
+  const hostCount = rows.length;
+  const ages = rows.map((row) => numeric(row.sampleAgeMs, Number.NaN)).filter(Number.isFinite);
+  const freshCount = rows.filter((row) => Number.isFinite(row.sampleAgeMs) && row.sampleAgeMs <= MACHINE_DEMO_FRESH_MS).length;
+  const staleCount = Math.max(0, hostCount - freshCount);
+  const outlierCount = rows.filter((row) => row.outlierCount > 0 || row.tone === "poor").length;
+  const fingerprintCount = rows.filter((row) => row.signatureMetricCount > 0).length;
+  const benchmarkCount = rows.filter(fleetBenchmarkAvailable).length;
+  const averageHostScore = fleetAverage(rows, (row) => row.score, 0);
+  const avgCpuUsagePct = fleetAverage(rows, (row) => row.cpuUsagePct, 0);
+  const avgMemoryUsedPct = fleetAverage(rows, (row) => row.memoryUsedPct, 0);
+  const avgDiskUsedPct = fleetAverage(rows, (row) => row.diskUsedPct, 0);
+  const avgGpuUtilizationPct = fleetAverage(rows.filter((row) => row.gpuPresent), (row) => row.gpuUtilizationPct, 0);
+  const avgNetworkUtilizationPct = fleetAverage(rows, (row) => row.networkUtilizationPct, 0);
+  const totalCpuCores = rows.reduce((total, row) => total + numeric(row.cpuCount, 0), 0);
+  const totalMemoryBytes = rows.reduce((total, row) => total + numeric(row.memoryTotalBytes, 0), 0);
+  const totalDiskBytes = rows.reduce((total, row) => total + numeric(row.diskTotalBytes, 0), 0);
+  const gpuHostCount = rows.filter((row) => row.gpuPresent).length;
+  const totalNetworkThroughputBps = rows.reduce((total, row) => total + numeric(row.networkThroughputBps, 0), 0);
+  const fastestLinkMbps = rows.reduce((best, row) => Math.max(best, numeric(row.networkLinkSpeedMbps, 0)), 0);
+  const networkIssueCount = rows.reduce((total, row) => total + numeric(row.networkIssueCount, 0), 0);
+  const maxAgeMs = ages.length ? Math.max(...ages) : null;
+  const widestSpread = fleetAggregateWidestSpread(spreadRows);
+  const closestPair = fleetAggregatePair(rows, true);
+  const divergentPair = fleetAggregatePair(rows, false);
+  const similarityScore = fleetAggregateSimilarity(rows, spreadRows, { closestPair, divergentPair });
+  const maxPressurePct = Math.max(avgCpuUsagePct, avgMemoryUsedPct, avgDiskUsedPct, avgGpuUtilizationPct, avgNetworkUtilizationPct);
+  const freshnessScore = hostCount ? (freshCount / hostCount) * 100 : 0;
+  const outlierScore = hostCount ? 100 - (outlierCount / hostCount) * 100 : 100;
+  const pressureScore = clamp(100 - Math.max(0, maxPressurePct - 72) * 1.7);
+  const healthScore = clamp(
+    averageHostScore * 0.34
+    + freshnessScore * 0.24
+    + similarityScore * 0.22
+    + outlierScore * 0.12
+    + pressureScore * 0.08
+  );
+  const signatureValues = rows.map((row) => row.signatureDelta).filter(Number.isFinite);
+  const signatureMedian = fleetMedian(signatureValues);
+  const topRow = rows[0] || null;
+  const watchRow = rows.slice().sort((left, right) => left.score - right.score || right.outlierCount - left.outlierCount)[0] || null;
+  const similarityLabel = `${round(similarityScore)}% similarity`;
+  const headline = hostCount
+    ? `${hostCount}-host fleet aggregate: ${freshCount}/${hostCount} fresh, ${similarityLabel}, ${outlierCount} ${outlierCount === 1 ? "host" : "hosts"} to watch.`
+    : "Fleet aggregate is waiting for live hosts.";
+  const pairSentence = closestPair && divergentPair
+    ? `Closest pair is ${closestPair.left}/${closestPair.right} at ${round(closestPair.similarity)}%; widest separation is ${divergentPair.left}/${divergentPair.right} at ${round(divergentPair.similarity)}%.`
+    : "Pairwise comparison needs at least two hosts.";
+  const spreadSentence = widestSpread
+    ? `${widestSpread.label} has the broadest spread (${formatDecimal(widestSpread.cv, 2)} CV, ${widestSpread.bestHost || "--"} vs ${widestSpread.worstHost || "--"}).`
+    : "Metric spread is still learning.";
+  const narrative = `${pairSentence} ${spreadSentence} Top rank is ${topRow?.host || "--"}; fingerprints cover ${fingerprintCount}/${hostCount || 0} hosts.`;
+
+  return {
+    comparison,
+    rows,
+    spreadRows,
+    hostCount,
+    freshCount,
+    staleCount,
+    outlierCount,
+    fingerprintCount,
+    benchmarkCount,
+    averageHostScore,
+    avgCpuUsagePct,
+    avgMemoryUsedPct,
+    avgDiskUsedPct,
+    avgGpuUtilizationPct,
+    avgNetworkUtilizationPct,
+    totalCpuCores,
+    totalMemoryBytes,
+    totalDiskBytes,
+    gpuHostCount,
+    totalNetworkThroughputBps,
+    fastestLinkMbps,
+    networkIssueCount,
+    maxAgeMs,
+    widestSpread,
+    closestPair,
+    divergentPair,
+    similarityScore,
+    maxPressurePct,
+    healthScore,
+    signatureMedian,
+    signatureSpreadLabel: Number.isFinite(signatureMedian) ? `Median system-ID delta ${formatDecimal(signatureMedian, 2)}` : "System-ID signatures learning",
+    topRow,
+    watchRow,
+    headline,
+    narrative
+  };
+}
+
+function fleetAggregateAnalysis(overview) {
+  const relationships = [
+    analysisRelationship(
+      "Closest pair",
+      overview.closestPair ? `${round(overview.closestPair.similarity)}%` : "learning",
+      overview.closestPair ? `${overview.closestPair.left} and ${overview.closestPair.right} align across ${overview.closestPair.sharedMetrics} shared metrics` : "Need two or more hosts",
+      overview.closestPair ? grade(overview.closestPair.similarity, 62, 82).key : "watch"
+    ),
+    analysisRelationship(
+      "Widest pair",
+      overview.divergentPair ? `${round(overview.divergentPair.similarity)}%` : "learning",
+      overview.divergentPair?.reason || "Pairwise separation learning",
+      overview.divergentPair ? grade(overview.divergentPair.similarity, 54, 72).key : "watch"
+    ),
+    analysisRelationship(
+      "Freshness",
+      `${overview.freshCount}/${overview.hostCount}`,
+      Number.isFinite(overview.maxAgeMs) ? `Oldest live sample is ${sparkPairAgeLabel(overview.maxAgeMs)}` : "No heartbeat timestamps in this bundle",
+      overview.staleCount ? (overview.staleCount > overview.hostCount * 0.25 ? "poor" : "watch") : "good"
+    ),
+    analysisRelationship(
+      "Pressure",
+      pct(overview.maxPressurePct),
+      `${pct(overview.avgCpuUsagePct)} CPU, ${pct(overview.avgMemoryUsedPct)} RAM, ${pct(overview.avgGpuUtilizationPct)} GPU average`,
+      inverseGrade(overview.maxPressurePct, 72, 88).key
+    ),
+    analysisRelationship(
+      "Spread",
+      overview.widestSpread ? overview.widestSpread.label : "learning",
+      overview.widestSpread ? `${overview.widestSpread.bestHost || "--"} to ${overview.widestSpread.worstHost || "--"}; CV ${formatDecimal(overview.widestSpread.cv, 2)}` : "No comparable spread yet",
+      overview.widestSpread?.tone || "watch"
+    )
+  ];
+
+  return {
+    contextKey: `fleet:${overview.rows.map((row) => row.key || row.host).join(":")}`,
+    sampleCount: overview.hostCount,
+    windowSeconds: Number.isFinite(overview.maxAgeMs) ? Math.round(overview.maxAgeMs / 1000) : 0,
+    badgeText: `${overview.hostCount} hosts | ${round(overview.similarityScore)}% similar`,
+    covarianceBadgeText: "Fleet cross-section",
+    covarianceFootText: "Covariance is computed across hosts in the current fleet bundle, not a per-host time window.",
+    emptyAlertText: "No fleet-level divergence, staleness, or resource pressure detected.",
+    alerts: fleetAggregateAlerts(overview),
+    relationships,
+    covarianceMatrix: buildLiveCovarianceMatrix(fleetAggregateGraphRows(overview)),
+    observations: fleetAggregateObservations(overview),
+    history: fleetAggregateGraphRows(overview),
+    status: overview.outlierCount || overview.staleCount
+      ? `${overview.outlierCount + overview.staleCount} fleet signals`
+      : "Fleet balanced"
+  };
+}
+
+function fleetAggregateAlerts(overview) {
+  const alerts = [];
+  if (overview.staleCount > 0) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.staleCount > overview.hostCount * 0.35 ? "high" : "medium",
+      title: "Fleet bundle contains stale host samples",
+      evidence: `${overview.staleCount} of ${overview.hostCount} hosts are older than ${MACHINE_DEMO_FRESH_SECONDS}s; oldest sample is ${sparkPairAgeLabel(overview.maxAgeMs)}.`,
+      recommendation: "Check the push timers and receiver allow-list on the stale hosts before trusting cross-host comparisons.",
+      confidence: 0.86
+    }));
+  }
+
+  if (overview.outlierCount > 0) {
+    const row = overview.watchRow;
+    alerts.push(liveTelemetryAlert({
+      severity: overview.outlierCount > overview.hostCount * 0.35 ? "high" : "medium",
+      title: "Cross-host outliers detected",
+      evidence: `${overview.outlierCount} hosts diverge from the fleet median${row ? `; ${row.host} is currently the lowest-ranked host` : ""}.`,
+      recommendation: "Compare the watch host against the top-ranked host for freshness, CPU/RAM pressure, link speed, disk fullness, benchmark score, and system-ID signature delta.",
+      confidence: 0.8
+    }));
+  }
+
+  if (overview.divergentPair && overview.divergentPair.similarity < 55) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.divergentPair.similarity < 40 ? "high" : "medium",
+      title: "Fleet has a low-similarity pair",
+      evidence: `${overview.divergentPair.left} and ${overview.divergentPair.right} are only ${round(overview.divergentPair.similarity)}% similar. ${overview.divergentPair.reason}`,
+      recommendation: "Treat this pair as the first cross-check: compare host inventory, GPU visibility, NIC/link role, benchmark freshness, and resource pressure.",
+      confidence: 0.78
+    }));
+  }
+
+  if (overview.maxPressurePct >= 88) {
+    alerts.push(liveTelemetryAlert({
+      severity: "high",
+      title: "Fleet resource pressure is elevated",
+      evidence: `The highest average pressure across CPU, RAM, GPU, disk, and network is ${pct(overview.maxPressurePct)}.`,
+      recommendation: "Inspect the watch host and any host with sustained RAM/disk/network pressure before scheduling additional work.",
+      confidence: 0.74
+    }));
+  }
+
+  if (overview.networkIssueCount > 0) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.networkIssueCount > overview.hostCount ? "high" : "medium",
+      title: "Network counters report interface issues",
+      evidence: `${overview.networkIssueCount} drops/errors were observed across the fleet aggregate.`,
+      recommendation: "Prioritize interface error/drop checks on hosts with high network throughput or low fleet rank.",
+      confidence: 0.82
+    }));
+  }
+
+  return alerts.slice(0, LIVE_TELEMETRY_ALERT_LIMIT);
+}
+
+function fleetAggregateObservations(overview) {
+  const now = Date.now();
+  const rows = [
+    {
+      tone: grade(overview.similarityScore, 62, 82).key,
+      label: "Aggregate",
+      title: "Fleet similarity",
+      detail: `${overview.hostCount} hosts compare at ${pct(overview.similarityScore)} similarity with ${overview.outlierCount} outlier hosts.`,
+      timestampMs: now
+    },
+    {
+      tone: overview.closestPair ? grade(overview.closestPair.similarity, 62, 82).key : "watch",
+      label: "Pair",
+      title: "Closest pair",
+      detail: overview.closestPair
+        ? `${overview.closestPair.left}/${overview.closestPair.right} are ${round(overview.closestPair.similarity)}% similar across ${overview.closestPair.sharedMetrics} shared metrics.`
+        : "Need two or more hosts for pairwise similarity.",
+      timestampMs: now
+    },
+    {
+      tone: overview.divergentPair ? grade(overview.divergentPair.similarity, 54, 72).key : "watch",
+      label: "Pair",
+      title: "Widest separation",
+      detail: overview.divergentPair
+        ? `${overview.divergentPair.left}/${overview.divergentPair.right} are ${round(overview.divergentPair.similarity)}% similar. ${overview.divergentPair.reason}`
+        : "Pairwise separation is still learning.",
+      timestampMs: now
+    },
+    {
+      tone: overview.widestSpread?.tone || "watch",
+      label: "Spread",
+      title: overview.widestSpread ? `${overview.widestSpread.label} spread` : "Metric spread",
+      detail: overview.widestSpread
+        ? `${overview.widestSpread.bestHost || "--"} to ${overview.widestSpread.worstHost || "--"} with CV ${formatDecimal(overview.widestSpread.cv, 2)}.`
+        : "No comparable spread rows yet.",
+      timestampMs: now
+    },
+    {
+      tone: grade(overview.healthScore, 58, 78).key,
+      label: "Rank",
+      title: "Top and watch hosts",
+      detail: `Top rank ${overview.topRow?.host || "--"}; watch host ${overview.watchRow?.host || "--"}; average host score ${round(overview.averageHostScore)}.`,
+      timestampMs: now
+    },
+    {
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor",
+      label: "Fingerprint",
+      title: "System-ID coverage",
+      detail: `${overview.fingerprintCount}/${overview.hostCount} hosts have system-identification signatures. ${overview.signatureSpreadLabel}.`,
+      timestampMs: now
+    }
+  ];
+
+  return rows.slice(0, LIVE_OBSERVATION_LIMIT);
+}
+
+function renderFleetAggregateGraphs(container, overview) {
+  const history = fleetAggregateGraphRows(overview);
+  if (!history.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = "Waiting for live fleet rows.";
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const latestLabel = `${overview.hostCount} host cross-section`;
+  container.replaceChildren(
+    liveTelemetryGraphCard({
+      label: "Rank score",
+      valueKey: "score",
+      history,
+      latestLabel,
+      valueText: `${round(overview.averageHostScore)} avg`,
+      note: "Composite host rank",
+      max: 100,
+      tone: grade(overview.averageHostScore, 58, 78).key
+    }),
+    liveTelemetryGraphCard({
+      label: "CPU",
+      valueKey: "cpu",
+      history,
+      latestLabel,
+      valueText: pct(overview.avgCpuUsagePct),
+      note: "Host CPU cross-section",
+      max: 100,
+      tone: inverseGrade(overview.avgCpuUsagePct, 70, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "RAM",
+      valueKey: "ram",
+      history,
+      latestLabel,
+      valueText: pct(overview.avgMemoryUsedPct),
+      note: "Host memory cross-section",
+      max: 100,
+      tone: inverseGrade(overview.avgMemoryUsedPct, 75, 90).key
+    }),
+    liveTelemetryGraphCard({
+      label: "GPU util",
+      valueKey: "gpu",
+      history,
+      latestLabel,
+      valueText: overview.gpuHostCount ? pct(overview.avgGpuUtilizationPct) : "unavailable",
+      note: `${overview.gpuHostCount}/${overview.hostCount} hosts report GPU counters`,
+      max: 100,
+      tone: overview.gpuHostCount ? grade(overview.avgGpuUtilizationPct, 30, 70).key : "poor"
+    }),
+    liveTelemetryGraphCard({
+      label: "Network",
+      valueKey: "networkThroughputBps",
+      history,
+      latestLabel,
+      valueText: formatBytesPerSecond(overview.totalNetworkThroughputBps),
+      note: "Per-host throughput cross-section",
+      max: adaptiveGraphMax(history, "networkThroughputBps", 1),
+      tone: overview.networkIssueCount ? "watch" : "good"
+    }),
+    liveTelemetryGraphCard({
+      label: "Signature delta",
+      valueKey: "signatureDelta",
+      history,
+      latestLabel,
+      valueText: Number.isFinite(overview.signatureMedian) ? formatDecimal(overview.signatureMedian, 2) : "learning",
+      note: "System-ID distance from fleet median",
+      max: adaptiveGraphMax(history, "signatureDelta", 4),
+      tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor"
+    })
+  );
+}
+
+function fleetAggregateGraphRows(overview) {
+  return overview.rows
+    .slice()
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }))
+    .map((row, index) => ({
+      host: row.host,
+      timestampMs: Date.now() + index,
+      label: row.host,
+      score: row.score,
+      cpu: row.cpuUsagePct,
+      ram: row.memoryUsedPct,
+      gpu: row.gpuPresent ? row.gpuUtilizationPct : null,
+      disk: row.diskUsedPct,
+      networkUtilization: row.networkUtilizationPct,
+      networkThroughputBps: row.networkThroughputBps,
+      signatureDelta: row.signatureDelta
+    }));
+}
+
+function fleetAggregateSimilarity(rows, spreadRows, pairs = {}) {
+  if (rows.length < 2) return rows.length ? 100 : 0;
+  const pairScores = fleetAggregatePairComparisons(rows)
+    .map((pair) => pair.similarity)
+    .filter(Number.isFinite);
+  const pairSimilarity = pairScores.length
+    ? pairScores.reduce((total, value) => total + value, 0) / pairScores.length
+    : pairs.closestPair?.similarity ?? 100;
+  const spreadSamples = spreadRows
+    .map((row) => numeric(row.cv, Number.NaN))
+    .filter(Number.isFinite);
+  const spreadPenalty = spreadSamples.length
+    ? spreadSamples.reduce((total, value) => total + Math.min(1.25, value), 0) / spreadSamples.length
+    : 0;
+  const spreadSimilarity = clamp(100 - spreadPenalty * 55);
+  const outlierRatio = rows.reduce((total, row) => total + (row.outlierCount > 0 || row.tone === "poor" ? 1 : 0), 0) / rows.length;
+  const signaturePenalty = fleetAverage(rows, (row) => row.signatureDelta, 0);
+  const signatureSimilarity = Number.isFinite(signaturePenalty) && signaturePenalty > 0
+    ? clamp(100 - Math.min(4, signaturePenalty) * 18)
+    : 82;
+
+  return clamp(
+    pairSimilarity * 0.44
+    + spreadSimilarity * 0.30
+    + (100 - outlierRatio * 100) * 0.16
+    + signatureSimilarity * 0.10
+  );
+}
+
+function fleetAggregatePair(rows, closest) {
+  const pairs = fleetAggregatePairComparisons(rows);
+  if (!pairs.length) return null;
+  return pairs.sort((left, right) => closest ? right.similarity - left.similarity : left.similarity - right.similarity)[0];
+}
+
+function fleetAggregatePairComparisons(rows) {
+  const pairs = [];
+  for (let leftIndex = 0; leftIndex < rows.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < rows.length; rightIndex += 1) {
+      const pair = fleetAggregateComparePair(rows[leftIndex], rows[rightIndex]);
+      if (pair) pairs.push(pair);
+    }
+  }
+  return pairs;
+}
+
+function fleetAggregateComparePair(left, right) {
+  const metrics = [
+    { key: "cpuUsagePct", label: "CPU", percent: true },
+    { key: "loadPressurePct", label: "load/core", percent: true },
+    { key: "memoryUsedPct", label: "RAM", percent: true },
+    { key: "diskUsedPct", label: "disk", percent: true },
+    { key: "networkUtilizationPct", label: "network util", percent: true },
+    { key: "gpuUtilizationPct", label: "GPU util", percent: true, requireGpu: true },
+    { key: "gpuMemoryUsedPct", label: "GPU memory", percent: true, requireGpu: true },
+    { key: "cpuCount", label: "CPU cores", relative: true },
+    { key: "memoryTotalBytes", label: "RAM total", relative: true },
+    { key: "diskTotalBytes", label: "disk total", relative: true },
+    { key: "networkLinkSpeedMbps", label: "link speed", relative: true },
+    { key: "networkThroughputBps", label: "network activity", relative: true },
+    { key: "benchmarkScore", label: "benchmark", percent: true },
+    { key: "signatureDelta", label: "system-ID", domain: 4 }
+  ];
+  const deltas = [];
+
+  metrics.forEach((metric) => {
+    if (metric.requireGpu && (!left.gpuPresent || !right.gpuPresent)) return;
+    const leftValue = numeric(left[metric.key], Number.NaN);
+    const rightValue = numeric(right[metric.key], Number.NaN);
+    if (!Number.isFinite(leftValue) || !Number.isFinite(rightValue)) return;
+    let distance = 0;
+    if (metric.percent) {
+      distance = Math.abs(leftValue - rightValue) / 100;
+    } else if (metric.domain) {
+      distance = Math.abs(leftValue - rightValue) / metric.domain;
+    } else {
+      distance = Math.abs(leftValue - rightValue) / Math.max(Math.abs(leftValue), Math.abs(rightValue), 1);
+    }
+    deltas.push({
+      label: metric.label,
+      distance: clamp(distance, 0, 2)
+    });
+  });
+
+  if (!deltas.length) return null;
+  const averageDistance = deltas.reduce((total, delta) => total + delta.distance, 0) / deltas.length;
+  const largest = deltas.slice().sort((leftDelta, rightDelta) => rightDelta.distance - leftDelta.distance)[0];
+  return {
+    left: left.host,
+    right: right.host,
+    similarity: clamp(100 - averageDistance * 100),
+    distance: averageDistance,
+    sharedMetrics: deltas.length,
+    reason: largest ? `Largest gap is ${largest.label}.` : "No dominant gap."
+  };
+}
+
+function fleetAggregateWidestSpread(spreadRows) {
+  return spreadRows
+    .slice()
+    .sort((left, right) => {
+      const leftWeight = numeric(left.cv, 0) + numeric(left.outlierCount, 0) * 0.2;
+      const rightWeight = numeric(right.cv, 0) + numeric(right.outlierCount, 0) * 0.2;
+      return rightWeight - leftWeight;
+    })[0] || null;
+}
+
+function fleetAverage(rows, getter, fallback = Number.NaN) {
+  const values = rows
+    .map(getter)
+    .map((value) => numeric(value, Number.NaN))
+    .filter(Number.isFinite);
+  return values.length ? values.reduce((total, value) => total + value, 0) / values.length : fallback;
+}
+
 function liveNetworkDisplay(machineContext) {
   const hasPercent = Number.isFinite(machineContext.networkUtilizationPct);
   const throughput = Number.isFinite(machineContext.networkThroughputBps) ? machineContext.networkThroughputBps : 0;
@@ -4985,6 +5644,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const timeline = document.querySelector("#eventTimeline");
   const timelineBadge = document.querySelector("#eventTimelineBadge");
   const launchpad = document.querySelector("#demoLaunchpad");
+  const autoDiscoveryDeploymentPanel = document.querySelector("#autoDiscoveryDeploymentPanel");
+  const autoDiscoveryDeploymentBadge = document.querySelector("#autoDiscoveryDeploymentBadge");
   const kafkaPanel = document.querySelector("#kafkaStreamPanel");
   const kafkaBadge = document.querySelector("#kafkaStreamBadge");
   const confidencePanel = document.querySelector("#confidencePanel");
@@ -5001,9 +5662,11 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const sparkPairCompareBadge = document.querySelector("#sparkPairCompareBadge");
   const fleetComparisonPanel = document.querySelector("#fleetComparisonPanel");
   const fleetComparisonBadge = document.querySelector("#fleetComparisonBadge");
+  const benchmarkLadderPanel = document.querySelector("#benchmarkLadderPanel");
+  const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
@@ -5011,6 +5674,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     heartbeatStrip.replaceChildren();
     timeline.replaceChildren();
     launchpad.replaceChildren();
+    autoDiscoveryDeploymentPanel.replaceChildren();
     operatorLaunchpadSignature = "";
     kafkaPanel.replaceChildren();
     confidencePanel.replaceChildren();
@@ -5020,6 +5684,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     fleetTiles.replaceChildren();
     sparkPairComparePanel.replaceChildren();
     fleetComparisonPanel.replaceChildren();
+    benchmarkLadderPanel.replaceChildren();
     characterizationPanel.replaceChildren();
     return;
   }
@@ -5029,6 +5694,10 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   confidenceBadge.textContent = `Confidence ${pct(cockpit.confidence.score)}`;
   confidenceBadge.dataset.tone = cockpit.confidence.score >= 80 ? "good" : cockpit.confidence.score >= 55 ? "watch" : "poor";
   if (timelineBadge) timelineBadge.textContent = `${cockpit.timeline.length} events`;
+  if (autoDiscoveryDeploymentBadge) {
+    autoDiscoveryDeploymentBadge.textContent = cockpit.autoDiscovery.badge;
+    autoDiscoveryDeploymentBadge.dataset.tone = cockpit.autoDiscovery.tone;
+  }
   if (kafkaBadge) kafkaBadge.textContent = cockpit.kafka.reachable ? "Reachable" : "Missing";
   if (confidenceDetailBadge) confidenceDetailBadge.textContent = cockpit.confidence.label;
   if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : `${liveTelemetryHistory.length} samples`;
@@ -5046,11 +5715,16 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
     fleetComparisonBadge.textContent = cockpit.fleetComparison.badge;
     fleetComparisonBadge.dataset.tone = cockpit.fleetComparison.tone;
   }
+  if (benchmarkLadderBadge) {
+    benchmarkLadderBadge.textContent = cockpit.benchmarkLadder.badge;
+    benchmarkLadderBadge.dataset.tone = cockpit.benchmarkLadder.tone;
+  }
   updateSystemCharacterizationBadge(characterizationBadge, platformVirtualSensorCache.systemIdentification);
 
   heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
   timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
   renderOperatorLaunchpad(launchpad, cockpit.commands);
+  autoDiscoveryDeploymentPanel.replaceChildren(...operatorAutoDiscoveryDeploymentNodes(cockpit.autoDiscovery));
   kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
   confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
   replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
@@ -5060,6 +5734,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
   renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
   renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
+  renderBenchmarkLadderPanel(benchmarkLadderPanel, cockpit.benchmarkLadder);
   renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
 }
 
@@ -5087,7 +5762,9 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
   const fleet = buildOperatorFleetTiles(summary, machineContext);
   const sparkComparison = buildSparkPairComparison(summary, machineContext);
   const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
+  const benchmarkLadder = buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison);
   const productReadiness = buildProductReadinessState({ summary, machineContext, ageMilliseconds, grafana, fleet, confidence });
+  const autoDiscovery = buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, confidence });
   const clusters = Array.isArray(summary.clusters) ? summary.clusters : [];
   const hostLabel = machineContext?.host || clusters[0] || summary.label || "current selection";
 
@@ -5107,10 +5784,12 @@ function buildOperatorCockpitContext(summary, classifier, opportunityEngine, sch
     confidence,
     timeline,
     grafana,
+    autoDiscovery,
     productReadiness,
     fleet,
     sparkComparison,
     fleetComparison,
+    benchmarkLadder,
     commands: buildOperatorCommands({ summary, machineContext, grafana, kafka })
   };
 }
@@ -5358,6 +6037,187 @@ function buildProductReadinessState({ summary, machineContext, ageMilliseconds, 
   };
 }
 
+function buildAutoDiscoveryDeploymentState(summary, { fleet, machineContext, confidence }) {
+  const contexts = buildFleetMachineContexts(summary, machineContext);
+  const observedHosts = uniqueBy(
+    contexts.map((context) => {
+      const raw = context.context || {};
+      return {
+        host: context.host || raw.hostname || raw.node || "host",
+        address: raw.networkLocalAddress || raw.hostAddress || raw.primaryAddress || "",
+        gpu: context.gpuModel || raw.gpuName || "unknown GPU",
+        status: context.driverUnavailable ? "GPU telemetry blocked" : context.noGpu ? "host only" : context.idle ? "idle" : "live",
+        tone: context.driverUnavailable ? "watch" : context.noGpu ? "watch" : "good"
+      };
+    }),
+    (host) => normalizeFleetHostId(host.address || host.host)
+  );
+  const fallbackFleet = (fleet || []).map((host) => ({
+    host: host.host,
+    address: "",
+    gpu: host.gpu,
+    status: host.status,
+    tone: host.tone
+  }));
+  const hosts = observedHosts.length ? observedHosts : fallbackFleet;
+  const subnet = autoDiscoverySubnet(hosts);
+  const controller = autoDiscoveryControllerAddress();
+  const collectorUrl = `http://${controller}:8801/v1/source-bundles`;
+  const hostUrl = `http://${controller}:8000`;
+  const credentialsFile = "build/auto-discovery/credentials.local.json";
+  const remoteRoot = "/home/user/turbalance-analytics";
+  const baseCommand = [
+    "python3",
+    "scripts/auto-discover-deploy.py",
+    "--subnet", subnet,
+    "--user", "user",
+    "--credentials-file", credentialsFile,
+    "--collector-url", collectorUrl,
+    "--host-url", hostUrl,
+    "--remote-root", remoteRoot,
+    "--systemd-mode", "user",
+    "--benchmarks",
+    "--out", "build/auto-discovery/latest-report.json"
+  ];
+  const dryRunCommand = baseCommand.map(shellCommandPart).join(" ");
+  const applyCommand = [...baseCommand, "--apply"].map(shellCommandPart).join(" ");
+  const confidenceScore = numeric(confidence?.score, 0);
+  const tone = hosts.length && confidenceScore >= 55 ? "good" : hosts.length ? "watch" : "poor";
+  const rows = [
+    {
+      label: "Subnet",
+      value: subnet,
+      note: `${hosts.length} live ${hosts.length === 1 ? "host" : "hosts"} currently in the bundle`,
+      tone: hosts.length ? "good" : "watch"
+    },
+    {
+      label: "Credential gate",
+      value: credentialsFile,
+      note: "SSH BatchMode must pass before deployment is eligible",
+      tone: "watch"
+    },
+    {
+      label: "Deployment",
+      value: "dry-run first",
+      note: "Apply command only targets credentialed, unmonitored hosts",
+      tone: "good"
+    },
+    {
+      label: "Collector",
+      value: collectorUrl.replace(/^https?:\/\//, ""),
+      note: "Live-machine agent posts source bundles to the controller",
+      tone: "good"
+    }
+  ];
+
+  return {
+    badge: hosts.length ? `${hosts.length} observed` : "Waiting",
+    tone,
+    subnet,
+    controller,
+    collectorUrl,
+    hostUrl,
+    credentialsFile,
+    remoteRoot,
+    dryRunCommand,
+    applyCommand,
+    rows,
+    hosts
+  };
+}
+
+function autoDiscoverySubnet(hosts) {
+  const address = (hosts || [])
+    .map((host) => host.address)
+    .find((value) => /^192\.168\.10\.\d+$/.test(String(value || "")));
+  if (address) return `${address.split(".").slice(0, 3).join(".")}.0/24`;
+  const hostname = window.location.hostname;
+  if (/^192\.168\.10\.\d+$/.test(hostname)) return `${hostname.split(".").slice(0, 3).join(".")}.0/24`;
+  return "192.168.10.0/24";
+}
+
+function autoDiscoveryControllerAddress() {
+  const host = window.location.hostname.toLowerCase();
+  if (host === "100.95.183.13" || host === "nuc15") return "192.168.10.103";
+  if (/^192\.168\.10\.\d+$/.test(host)) return host;
+  if (host === "localhost" || host === "127.0.0.1" || host === "::1") return "192.168.10.103";
+  return host || "192.168.10.103";
+}
+
+function operatorAutoDiscoveryDeploymentNodes(discovery) {
+  const summary = document.createElement("div");
+  summary.className = "auto-discovery-summary";
+  summary.dataset.tone = discovery.tone;
+  const score = document.createElement("strong");
+  score.textContent = discovery.badge;
+  const copy = document.createElement("span");
+  copy.textContent = `${discovery.subnet} | ${discovery.controller} | SSH credential gate`;
+  summary.append(score, copy);
+
+  const grid = document.createElement("div");
+  grid.className = "auto-discovery-grid";
+  discovery.rows.forEach((row) => {
+    const item = document.createElement("div");
+    item.className = "auto-discovery-item";
+    item.dataset.tone = row.tone;
+    const label = document.createElement("span");
+    label.textContent = row.label;
+    const value = document.createElement("strong");
+    value.textContent = row.value;
+    const note = document.createElement("small");
+    note.textContent = row.note;
+    item.append(label, value, note);
+    grid.append(item);
+  });
+
+  const commands = document.createElement("div");
+  commands.className = "auto-discovery-commands";
+  commands.append(
+    operatorCommandButton({
+      label: "Discovery dry-run",
+      detail: "Copy controller scan and plan command",
+      command: discovery.dryRunCommand
+    }),
+    operatorCommandButton({
+      label: "Apply credentialed hosts",
+      detail: "Copy controlled deployment command",
+      command: discovery.applyCommand
+    })
+  );
+
+  const hosts = document.createElement("div");
+  hosts.className = "auto-discovery-hosts";
+  const hostRows = discovery.hosts.slice(0, 8);
+  if (!hostRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = "Waiting for live fleet hosts.";
+    hosts.append(empty);
+  } else {
+    hostRows.forEach((host) => {
+      const row = document.createElement("div");
+      row.className = "auto-discovery-host";
+      row.dataset.tone = host.tone || "watch";
+      const label = document.createElement("strong");
+      label.textContent = host.host || "host";
+      const meta = document.createElement("span");
+      meta.textContent = [host.address, host.gpu].filter(Boolean).join(" | ") || "address learning";
+      const status = document.createElement("small");
+      status.textContent = host.status || "observed";
+      row.append(label, meta, status);
+      hosts.append(row);
+    });
+  }
+
+  return [summary, grid, commands, hosts];
+}
+
+function shellCommandPart(value) {
+  const text = String(value ?? "");
+  if (/^[A-Za-z0-9_./:@,%+=-]+$/.test(text)) return text;
+  return `'${text.replace(/'/g, "'\\''")}'`;
+}
+
 function operatorProductReadinessNodes(readiness) {
   const summary = document.createElement("div");
   summary.className = "product-readiness-summary";
@@ -5552,6 +6412,428 @@ function buildFleetComparison(summary, machineContext, characterization) {
   };
 }
 
+function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison) {
+  const rows = benchmarkComparisonRows(summary, machineContext, fleetComparison);
+  if (!rows.length) {
+    return {
+      available: false,
+      badge: "Waiting",
+      tone: "watch",
+      emptyText: "Waiting for live machine benchmark samples."
+    };
+  }
+
+  const target = benchmarkTargetRow(rows, machineContext);
+  const metrics = benchmarkMetricConfigs().map((config) => benchmarkMetricState(target, rows, config));
+  const availableMetricCount = metrics.filter((metric) => metric.available).length;
+  const measuredMetricCount = metrics.filter((metric) => metric.status === "measured").length;
+  const levels = [
+    benchmarkSelfLevel(target, rows, metrics),
+    benchmarkPeerLevel(target, rows, metrics),
+    benchmarkGroupLevel("rack", "Rack", target, rows.filter((row) => row.rackKey && row.rackKey === target.rackKey), metrics, target.rackConfidence),
+    benchmarkGroupLevel("cluster", "Cluster", target, rows.filter((row) => row.clusterKey && row.clusterKey === target.clusterKey), metrics, target.clusterConfidence),
+    benchmarkGroupLevel("fleet", "Fleet", target, rows, metrics, "observed"),
+    benchmarkGlobalLevel(target, metrics)
+  ];
+  const blockedLevels = levels.filter((level) => level.status !== "ready").length;
+  const comparisonScore = benchmarkLevelScore(levels);
+  const tone = availableMetricCount < 2 || blockedLevels >= 3
+    ? "poor"
+    : comparisonScore >= 92 ? "good" : comparisonScore >= 72 ? "watch" : "poor";
+
+  return {
+    available: true,
+    badge: `${availableMetricCount}/5 metrics`,
+    tone,
+    target,
+    rows,
+    metrics,
+    levels,
+    measuredMetricCount,
+    availableMetricCount,
+    comparisonScore,
+    sourceLinks: benchmarkGlobalReferenceLinks()
+  };
+}
+
+function benchmarkComparisonRows(summary, machineContext, fleetComparison) {
+  if (fleetComparison?.available && Array.isArray(fleetComparison.rows) && fleetComparison.rows.length) {
+    return fleetComparison.rows;
+  }
+  const contexts = buildFleetMachineContexts(summary, machineContext).slice(0, FLEET_COMPARISON_HOST_LIMIT);
+  const rows = contexts.map((context) => fleetHostSnapshot(context, null));
+  assignFleetSignatureDistances(rows);
+  const metricConfigs = fleetMetricConfigs();
+  metricConfigs.map((config) => fleetMetricSpread(config, rows)).filter(Boolean);
+  assignFleetScores(rows, metricConfigs);
+  rows.sort((left, right) => right.score - left.score || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  rows.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  return rows;
+}
+
+function benchmarkTargetRow(rows, machineContext) {
+  if (machineContext) {
+    const key = fleetHostKey(machineContext);
+    const match = rows.find((row) => row.key === key);
+    if (match) return match;
+  }
+  const selected = selectedMachineContextFromInventory();
+  if (selected) {
+    const key = fleetHostKey(selected);
+    const match = rows.find((row) => row.key === key);
+    if (match) return match;
+  }
+  return rows.slice().sort((left, right) => {
+    const leftAvailable = benchmarkMetricConfigs().filter((config) => benchmarkMetricState(left, rows, config).available).length;
+    const rightAvailable = benchmarkMetricConfigs().filter((config) => benchmarkMetricState(right, rows, config).available).length;
+    return rightAvailable - leftAvailable || numeric(right.score, 0) - numeric(left.score, 0);
+  })[0] || rows[0];
+}
+
+function selectedMachineContextFromInventory() {
+  const selected = jobs.find((item) => item.id === state.selectedKey);
+  if (!selected) return null;
+  const summary = displaySummary({
+    key: selected.id,
+    label: selected.name || selected.id,
+    scope: "job",
+    items: [selected]
+  });
+  return machineContextFromSourceItem(summary, selected);
+}
+
+function benchmarkMetricConfigs() {
+  return [
+    {
+      id: "cpu",
+      label: "CPU",
+      key: "benchmarkCpuOpsPerSecond",
+      formatter: fleetOpsLabel,
+      source: "periodic benchmark",
+      globalKey: "cpuOpsPerSecond"
+    },
+    {
+      id: "gpu",
+      label: "GPU",
+      key: "benchmarkGpuScore",
+      formatter: fleetBenchmarkScoreLabel,
+      source: "GPU benchmark",
+      missing: "waiting for GPU run",
+      globalKey: "gpuScore"
+    },
+    {
+      id: "ram",
+      label: "RAM",
+      key: "benchmarkMemoryMiBps",
+      formatter: fleetMibPerSecondLabel,
+      source: "memory fill benchmark",
+      globalKey: "memoryMiBps"
+    },
+    {
+      id: "network",
+      label: "Network",
+      key: "benchmarkNetworkMbps",
+      formatter: fleetMbpsLabel,
+      source: "network benchmark",
+      fallbackKey: "networkLinkSpeedMbps",
+      fallbackSource: "link capacity proxy",
+      globalKey: "networkMbps"
+    },
+    {
+      id: "disk",
+      label: "Disk",
+      key: "benchmarkDiskReadMiBps",
+      secondaryKey: "benchmarkDiskWriteMiBps",
+      formatter: fleetMibPerSecondLabel,
+      source: "disk read/write benchmark",
+      globalKey: "diskReadMiBps"
+    }
+  ];
+}
+
+function benchmarkMetricState(row, rows, config) {
+  const rawValue = numeric(row?.[config.key], Number.NaN);
+  const fallbackValue = config.fallbackKey ? numeric(row?.[config.fallbackKey], Number.NaN) : Number.NaN;
+  const hasRaw = Number.isFinite(rawValue) && rawValue > 0;
+  const hasFallback = !hasRaw && Number.isFinite(fallbackValue) && fallbackValue > 0;
+  const value = hasRaw ? rawValue : hasFallback ? fallbackValue : Number.NaN;
+  const peers = rows
+    .filter((candidate) => candidate !== row)
+    .map((candidate) => benchmarkMetricNumeric(candidate, config))
+    .filter(Number.isFinite);
+  const median = peers.length ? fleetMedian(peers) : Number.NaN;
+  const secondary = config.secondaryKey ? numeric(row?.[config.secondaryKey], Number.NaN) : Number.NaN;
+  const detail = config.secondaryKey && Number.isFinite(secondary) && secondary > 0
+    ? `write ${config.formatter(secondary)}`
+    : hasFallback ? config.fallbackSource : config.source;
+
+  return {
+    id: config.id,
+    label: config.label,
+    value,
+    valueLabel: Number.isFinite(value) ? config.formatter(value) : config.missing || "waiting",
+    secondary,
+    detail,
+    available: Number.isFinite(value),
+    status: hasRaw ? "measured" : hasFallback ? "proxy" : "missing",
+    median,
+    ratio: Number.isFinite(value) && Number.isFinite(median) && median > 0 ? value / median : Number.NaN,
+    formatter: config.formatter,
+    source: hasFallback ? config.fallbackSource : config.source
+  };
+}
+
+function benchmarkMetricNumeric(row, config) {
+  const value = numeric(row?.[config.key], Number.NaN);
+  if (Number.isFinite(value) && value > 0) return value;
+  const fallback = config.fallbackKey ? numeric(row?.[config.fallbackKey], Number.NaN) : Number.NaN;
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : Number.NaN;
+}
+
+function benchmarkSelfLevel(target, rows, metrics) {
+  const available = metrics.filter((metric) => metric.available);
+  const measured = metrics.filter((metric) => metric.status === "measured");
+  const score = Number.isFinite(target.benchmarkScore)
+    ? target.benchmarkScore
+    : clamp((available.length / Math.max(1, metrics.length)) * 100);
+  return {
+    id: "absolute",
+    level: "1",
+    label: "Metric",
+    scope: target.host,
+    value: Number.isFinite(score) ? `${formatDecimal(score, 1)}` : `${available.length}/${metrics.length}`,
+    detail: `${measured.length} measured | ${available.length} available`,
+    status: available.length ? "ready" : "waiting",
+    tone: available.length >= 4 ? "good" : available.length >= 2 ? "watch" : "poor",
+    score: Number.isFinite(score) ? score : 0
+  };
+}
+
+function benchmarkPeerLevel(target, rows, metrics) {
+  const peer = benchmarkPeerRow(target, rows);
+  if (!peer) {
+    return benchmarkWaitingLevel("peer", "2", "1:1", "Need another machine");
+  }
+  return benchmarkComparisonLevel({
+    id: "peer",
+    level: "2",
+    label: "1:1",
+    scope: peer.host,
+    target,
+    baselineRows: [peer],
+    metrics,
+    confidence: "observed"
+  });
+}
+
+function benchmarkPeerRow(target, rows) {
+  const peers = rows.filter((row) => row !== target);
+  if (!peers.length) return null;
+  return peers.slice().sort((left, right) => {
+    const leftSameGpu = left.gpuPresent === target.gpuPresent ? 1 : 0;
+    const rightSameGpu = right.gpuPresent === target.gpuPresent ? 1 : 0;
+    return rightSameGpu - leftSameGpu || numeric(right.score, 0) - numeric(left.score, 0);
+  })[0];
+}
+
+function benchmarkGroupLevel(id, label, target, groupRows, metrics, confidence) {
+  const peers = groupRows.filter((row) => row !== target);
+  if (!peers.length) {
+    return benchmarkWaitingLevel(id, id === "rack" ? "3" : id === "cluster" ? "4" : "5", label, "Need peers in scope");
+  }
+  return benchmarkComparisonLevel({
+    id,
+    level: id === "rack" ? "3" : id === "cluster" ? "4" : "5",
+    label,
+    scope: id === "rack" ? target.rackLabel : id === "cluster" ? target.clusterLabel : `${groupRows.length} hosts`,
+    target,
+    baselineRows: peers,
+    metrics,
+    confidence
+  });
+}
+
+function benchmarkGlobalLevel(target, metrics) {
+  const context = target.machineContext?.context || {};
+  const percentile = numeric(target.benchmarkGlobalPercentile, Number.NaN);
+  const globalScore = numeric(target.benchmarkGlobalScore, Number.NaN);
+  const dataset = target.benchmarkGlobalDataset || context.benchmarkGlobalDataset || "";
+  if (Number.isFinite(percentile) || Number.isFinite(globalScore)) {
+    const score = Number.isFinite(percentile) ? percentile : globalScore;
+    return {
+      id: "global",
+      level: "6",
+      label: "Global",
+      scope: dataset || "imported reference",
+      value: Number.isFinite(percentile) ? `p${round(percentile)}` : `${formatDecimal(globalScore, 1)}`,
+      detail: target.benchmarkGlobalUrl ? "external result linked" : "global reference imported",
+      status: "ready",
+      tone: score >= 75 ? "good" : score >= 50 ? "watch" : "poor",
+      score
+    };
+  }
+
+  const measured = metrics.filter((metric) => metric.status === "measured").length;
+  return {
+    id: "global",
+    level: "6",
+    label: "Global",
+    scope: "OpenBenchmarking / MLPerf / SPEC",
+    value: "ready",
+    detail: measured ? `${measured} local metrics ready for external matching` : "waiting for measured benchmark samples",
+    status: measured ? "connector-ready" : "waiting",
+    tone: measured ? "watch" : "poor",
+    score: measured ? 58 : 20
+  };
+}
+
+function benchmarkComparisonLevel({ id, level, label, scope, target, baselineRows, metrics, confidence }) {
+  const comparisons = metrics
+    .map((metric) => {
+      if (!metric.available) return null;
+      const config = benchmarkMetricConfigs().find((item) => item.id === metric.id);
+      const baselineValues = baselineRows.map((row) => benchmarkMetricNumeric(row, config)).filter(Number.isFinite);
+      const baseline = baselineValues.length ? fleetMedian(baselineValues) : Number.NaN;
+      if (!Number.isFinite(baseline) || baseline <= 0) return null;
+      return {
+        metric,
+        baseline,
+        ratio: metric.value / baseline
+      };
+    })
+    .filter(Boolean);
+
+  if (!comparisons.length) {
+    return benchmarkWaitingLevel(id, level, label, "No shared benchmark metrics");
+  }
+
+  const index = benchmarkComparisonIndex(comparisons);
+  const leaderCount = comparisons.filter((item) => item.ratio >= 1.02).length;
+  const lagCount = comparisons.filter((item) => item.ratio <= 0.98).length;
+  const topGap = comparisons.slice().sort((left, right) => Math.abs(right.ratio - 1) - Math.abs(left.ratio - 1))[0];
+  const confidenceText = confidence === "explicit"
+    ? "explicit topology"
+    : confidence === "observed" ? "observed samples" : "inferred topology";
+
+  return {
+    id,
+    level,
+    label,
+    scope,
+    value: `${round(index)} index`,
+    detail: `${leaderCount} ahead | ${lagCount} behind | ${topGap.metric.label} ${signedPercent((topGap.ratio - 1) * 100)}`,
+    status: "ready",
+    tone: index >= 105 ? "good" : index >= 90 ? "watch" : "poor",
+    score: clamp(index, 0, 140),
+    confidence: confidenceText
+  };
+}
+
+function benchmarkComparisonIndex(comparisons) {
+  const scores = comparisons.map((item) => clamp(item.ratio * 100, 0, 200));
+  return scores.reduce((total, score) => total + score, 0) / Math.max(1, scores.length);
+}
+
+function benchmarkWaitingLevel(id, level, label, detail) {
+  return {
+    id,
+    level,
+    label,
+    scope: "learning",
+    value: "waiting",
+    detail,
+    status: "waiting",
+    tone: "watch",
+    score: 45
+  };
+}
+
+function benchmarkLevelScore(levels) {
+  const ready = levels.filter((level) => level.status === "ready" || level.status === "connector-ready");
+  return ready.length
+    ? ready.reduce((total, level) => total + numeric(level.score, 0), 0) / ready.length
+    : 0;
+}
+
+function benchmarkGlobalReferenceLinks() {
+  return [
+    { label: "OpenBenchmarking", note: "global public results", url: "https://openbenchmarking.org/features" },
+    { label: "MLPerf", note: "AI/storage benchmark suites", url: "https://mlcommons.org/benchmarks/" },
+    { label: "SPEC", note: "standardized CPU/workstation suites", url: "https://www.spec.org/products/" },
+    { label: "PerfKit", note: "cloud and local benchmark runner", url: "https://googlecloudplatform.github.io/PerfKitBenchmarker/" }
+  ];
+}
+
+function benchmarkRackKey(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([
+    context.rack,
+    context.rackId,
+    context.rackName,
+    context.topologyRack,
+    context.redfishRack,
+    context.chassisRack
+  ]);
+  if (explicit) return normalizeFleetHostId(explicit);
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  if (subnet) return `subnet-${subnet}`;
+  return `host-family-${normalizeFleetHostId(String(machineContext?.host || "").split(/[-._]/)[0] || "local")}`;
+}
+
+function benchmarkRackLabel(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([context.rack, context.rackId, context.rackName, context.topologyRack]);
+  if (explicit) return explicit;
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  if (subnet) return `${subnet}.0/24`;
+  return "inferred rack";
+}
+
+function benchmarkRackConfidence(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.rack, context.rackId, context.rackName, context.topologyRack]) ? "explicit" : "inferred";
+}
+
+function benchmarkClusterKey(machineContext) {
+  const context = machineContext?.context || {};
+  const explicit = firstString([
+    context.cluster,
+    context.clusterId,
+    context.clusterName,
+    context.kubernetesCluster,
+    context.fleetCluster
+  ]);
+  if (explicit) return normalizeFleetHostId(explicit);
+  const subnet = benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress);
+  return subnet ? `cluster-${subnet}` : "cluster-local";
+}
+
+function benchmarkClusterLabel(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.cluster, context.clusterId, context.clusterName, context.kubernetesCluster, context.fleetCluster])
+    || benchmarkSubnetKey(context.networkLocalAddress || context.ncclRuntimeHostIp || context.hostAddress || context.primaryAddress)
+    || "local cluster";
+}
+
+function benchmarkClusterConfidence(machineContext) {
+  const context = machineContext?.context || {};
+  return firstString([context.cluster, context.clusterId, context.clusterName, context.kubernetesCluster, context.fleetCluster]) ? "explicit" : "inferred";
+}
+
+function benchmarkSubnetKey(address) {
+  const match = String(address || "").match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+  if (!match) return "";
+  return `${match[1]}.${match[2]}.${match[3]}`;
+}
+
+function signedPercent(value) {
+  const parsed = numeric(value, 0);
+  const prefix = parsed > 0 ? "+" : "";
+  return `${prefix}${formatDecimal(parsed, Math.abs(parsed) >= 10 ? 0 : 1)}%`;
+}
+
 function buildFleetMachineContexts(summary, machineContext) {
   const items = operatorFleetSourceItems(summary);
   const contexts = items
@@ -5666,11 +6948,28 @@ function fleetHostSnapshot(machineContext, characterizationHost) {
     benchmarkMemoryMiBps: machineContext.benchmarkMemoryMiBps,
     benchmarkDiskWriteMiBps: machineContext.benchmarkDiskWriteMiBps,
     benchmarkDiskReadMiBps: machineContext.benchmarkDiskReadMiBps,
+    benchmarkGpuScore: machineContext.benchmarkGpuScore,
+    benchmarkGpuMemoryMiBps: machineContext.benchmarkGpuMemoryMiBps,
+    benchmarkGpuTensorOpsPerSecond: machineContext.benchmarkGpuTensorOpsPerSecond,
+    benchmarkNetworkMbps: machineContext.benchmarkNetworkMbps,
+    benchmarkNetworkLatencyUs: machineContext.benchmarkNetworkLatencyUs,
+    benchmarkGlobalScore: machineContext.benchmarkGlobalScore,
+    benchmarkGlobalPercentile: machineContext.benchmarkGlobalPercentile,
+    benchmarkGlobalDataset: machineContext.benchmarkGlobalDataset,
+    benchmarkGlobalUrl: machineContext.benchmarkGlobalUrl,
     benchmarkScore: fleetBenchmarkCompositeScore(machineContext),
     benchmarkError: machineContext.benchmarkError,
     gpuPresent: machineContext.gpuPresent,
     gpuUtilizationPct: machineContext.gpuUtilizationPct,
     gpuMemoryUsedPct: machineContext.gpuMemoryUsedPct,
+    gpuMemoryTotalMiB: machineContext.gpuMemoryTotalMiB,
+    gpuPowerWatts: machineContext.gpuPowerWatts,
+    rackKey: benchmarkRackKey(machineContext),
+    rackLabel: benchmarkRackLabel(machineContext),
+    rackConfidence: benchmarkRackConfidence(machineContext),
+    clusterKey: benchmarkClusterKey(machineContext),
+    clusterLabel: benchmarkClusterLabel(machineContext),
+    clusterConfidence: benchmarkClusterConfidence(machineContext),
     signature,
     signatureDelta: Number.NaN,
     signatureMetricCount: Object.keys(signature).length,
@@ -6821,6 +8120,158 @@ function fleetBenchmarkBarNode(bar) {
   age.textContent = bar.age;
   row.append(host, track, value, age);
   return row;
+}
+
+function renderBenchmarkLadderPanel(container, ladder) {
+  if (!ladder.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = ladder.emptyText;
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const summary = document.createElement("div");
+  summary.className = "benchmark-ladder-summary";
+  summary.append(
+    benchmarkLadderSummaryItem({
+      label: "Focus",
+      value: ladder.target.host,
+      note: `${ladder.target.rackLabel} | ${ladder.target.clusterLabel}`,
+      tone: "good"
+    }),
+    benchmarkLadderSummaryItem({
+      label: "Coverage",
+      value: `${ladder.availableMetricCount}/5`,
+      note: `${ladder.measuredMetricCount} measured samples`,
+      tone: ladder.availableMetricCount >= 4 ? "good" : ladder.availableMetricCount >= 2 ? "watch" : "poor"
+    }),
+    benchmarkLadderSummaryItem({
+      label: "Index",
+      value: `${round(ladder.comparisonScore)}`,
+      note: "ready levels average",
+      tone: ladder.tone
+    })
+  );
+
+  const metrics = document.createElement("div");
+  metrics.className = "benchmark-metric-grid";
+  metrics.append(...ladder.metrics.map(benchmarkMetricCard));
+
+  const levels = document.createElement("div");
+  levels.className = "benchmark-ladder-grid";
+  levels.append(benchmarkLadderHeader(), ...ladder.levels.map(benchmarkLadderRow));
+
+  const sources = document.createElement("div");
+  sources.className = "benchmark-source-strip";
+  sources.append(...ladder.sourceLinks.map(benchmarkSourceLink));
+
+  container.replaceChildren(summary, metrics, levels, sources);
+}
+
+function benchmarkLadderSummaryItem(item) {
+  const node = document.createElement("div");
+  node.className = "benchmark-ladder-summary-item";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
+}
+
+function benchmarkMetricCard(metric) {
+  const node = document.createElement("div");
+  node.className = "benchmark-metric-card";
+  node.dataset.status = metric.status;
+  const head = document.createElement("div");
+  head.className = "benchmark-metric-head";
+  const label = document.createElement("span");
+  label.textContent = metric.label;
+  const status = document.createElement("small");
+  status.textContent = metric.status;
+  head.append(label, status);
+
+  const value = document.createElement("strong");
+  value.textContent = metric.valueLabel;
+  const detail = document.createElement("small");
+  detail.textContent = Number.isFinite(metric.ratio)
+    ? `${signedPercent((metric.ratio - 1) * 100)} vs peer median`
+    : metric.detail;
+
+  const bar = document.createElement("span");
+  bar.className = "benchmark-metric-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${Number.isFinite(metric.ratio) ? clamp(metric.ratio * 50, 4, 100) : metric.available ? 58 : 6}%`;
+  bar.append(fill);
+
+  node.append(head, value, detail, bar);
+  return node;
+}
+
+function benchmarkLadderHeader() {
+  const row = document.createElement("div");
+  row.className = "benchmark-ladder-row benchmark-ladder-head";
+  ["Level", "Scope", "Result", "Signal"].forEach((text) => {
+    const cell = document.createElement("span");
+    cell.textContent = text;
+    row.append(cell);
+  });
+  return row;
+}
+
+function benchmarkLadderRow(level) {
+  const row = document.createElement("div");
+  row.className = "benchmark-ladder-row";
+  row.dataset.tone = level.tone;
+  row.dataset.status = level.status;
+  row.append(
+    benchmarkLadderCell(`L${level.level}`, level.label),
+    benchmarkLadderCell(level.scope, level.confidence || level.status),
+    benchmarkLadderScoreCell(level.value, level.score),
+    benchmarkLadderCell(level.detail, level.status)
+  );
+  return row;
+}
+
+function benchmarkLadderCell(value, detail = "") {
+  const cell = document.createElement("div");
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  cell.append(strong);
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    cell.append(small);
+  }
+  return cell;
+}
+
+function benchmarkLadderScoreCell(value, score) {
+  const cell = benchmarkLadderCell(value, "comparison index");
+  const bar = document.createElement("span");
+  bar.className = "benchmark-ladder-score-bar";
+  const fill = document.createElement("i");
+  fill.style.width = `${clamp(score)}%`;
+  bar.append(fill);
+  cell.append(bar);
+  return cell;
+}
+
+function benchmarkSourceLink(source) {
+  const link = document.createElement("a");
+  link.href = source.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  const strong = document.createElement("strong");
+  strong.textContent = source.label;
+  const small = document.createElement("small");
+  small.textContent = source.note;
+  link.append(strong, small);
+  return link;
 }
 
 function fleetComparisonRankRow(rowData) {
@@ -11604,7 +13055,7 @@ function gradeColor(value, higherIsBetter) {
 
 function pluralTitle(scope) {
   const titles = {
-    job: "Jobs",
+    job: "Machines",
     model: "Models",
     user: "Users",
     team: "Teams",
@@ -11631,6 +13082,11 @@ function scopeLabel(scope) {
 }
 
 function inventoryMeta(summary) {
+  if (summary.isFleetAggregate) {
+    const overview = fleetAggregateOverview(summary);
+    return `${overview.hostCount} hosts | ${overview.freshCount} fresh | ${round(overview.similarityScore)}% similar | ${overview.outlierCount} watch`;
+  }
+
   if (summary.scope === "job") {
     const job = summary.jobs[0];
     return `${job.tenant} | ${job.team} | ${job.gpus} GPUs | ${job.status}`;

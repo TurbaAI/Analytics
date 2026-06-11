@@ -20,7 +20,7 @@
         }
       }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=theme-mode-20260610">
+    <link rel="stylesheet" href="styles.css?v=benchmark-ladder-20260610">
   </head>
   <body>
     <header class="topbar">
@@ -147,7 +147,7 @@
           <div class="section-heading">
             <div>
               <p>Inventory</p>
-              <h1 id="inventoryTitle">Jobs</h1>
+              <h1 id="inventoryTitle">Machines</h1>
             </div>
             <span id="inventoryCount">0</span>
           </div>
@@ -232,6 +232,13 @@
                 </div>
                 <div id="demoLaunchpad" class="demo-launchpad"></div>
               </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="autoDiscoveryDeployment">
+                <div class="operator-card-head">
+                  <p>Auto Discovery and Deployment</p>
+                  <span id="autoDiscoveryDeploymentBadge">Dry-run</span>
+                </div>
+                <div id="autoDiscoveryDeploymentPanel" class="auto-discovery-panel"></div>
+              </section>
               <section class="operator-card" data-dashboard-block="kafkaStream">
                 <div class="operator-card-head">
                   <p>Kafka Stream</p>
@@ -287,6 +294,13 @@
                   <span id="fleetComparisonBadge">Waiting</span>
                 </div>
                 <div id="fleetComparisonPanel" class="fleet-comparison-panel"></div>
+              </section>
+              <section class="operator-card operator-card-wide" data-dashboard-block="benchmarkLadder">
+                <div class="operator-card-head">
+                  <p>Benchmark Ladder</p>
+                  <span id="benchmarkLadderBadge">Waiting</span>
+                </div>
+                <div id="benchmarkLadderPanel" class="benchmark-ladder-panel"></div>
               </section>
               <section class="operator-card operator-card-wide" data-dashboard-block="systemCharacterization">
                 <div class="operator-card-head">
@@ -574,6 +588,6 @@
     <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
     <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
     <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
-    <script src="app.js?v=product-secure-20260610"></script>
+    <script src="app.js?v=benchmark-ladder-20260610"></script>
   </body>
 </html>
