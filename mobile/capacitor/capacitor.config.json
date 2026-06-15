@@ -1,0 +1,8 @@
+{
+  "appId": "com.turbalance.analytics",
+  "appName": "turbalance Analytics",
+  "webDir": "www",
+  "server": {
+    "cleartext": true
+  }
+}

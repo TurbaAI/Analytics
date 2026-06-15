@@ -11,6 +11,9 @@ const outPath = path.join(tempDir, "live-machine-bundle.json");
 const fleetOutPath = path.join(tempDir, "live-machine-fleet-bundle.json");
 const benchmarkOutPath = path.join(tempDir, "live-machine-benchmark-bundle.json");
 const benchmarkCachePath = path.join(tempDir, "live-pi-benchmark-cache.json");
+const lakehousePath = path.join(tempDir, "lakehouse");
+fs.mkdirSync(lakehousePath, { recursive: true });
+fs.writeFileSync(path.join(lakehousePath, "part-000.jsonl"), `${JSON.stringify({ ok: true })}\n`);
 const result = spawnSync(process.execPath, [
   "scripts/collect-local-machine-bundle.js",
   "--out",
@@ -20,7 +23,9 @@ const result = spawnSync(process.execPath, [
   "--run-id",
   "machine-demo-test",
   "--ollama-probe",
-  "0"
+  "0",
+  "--lake-root",
+  lakehousePath
 ], {
   cwd: root,
   encoding: "utf8",
@@ -76,6 +81,14 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gb10MonitoringSummary
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryTotalBytes, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryAvailableBytes, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.linuxUmaMemoryUsedPct, "number");
+assert.equal(bundle.ingestion.runs[0].sourceContext.lakehouseRoot, lakehousePath);
+assert.equal(bundle.ingestion.runs[0].sourceContext.lakehouseExists, true);
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.lakehouseMeasuredAt, "string");
+assert.ok(bundle.ingestion.runs[0].sourceContext.lakehouseUsedBytes > 0);
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.lakehouseDiskTotalBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.lakehouseDiskUsedBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.lakehouseDiskAvailableBytes, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.lakehouseDiskUsedPct, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkInterface, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkLocalAddress, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkPeerAddress, "string");
@@ -163,6 +176,8 @@ assert.ok(localCollectorSource.includes("TURBALANCE_DGX_INTERCONNECT_INTERFACE")
 assert.ok(localCollectorSource.includes("192.168.100."));
 assert.ok(localCollectorSource.includes("live-network-rate-cache.json"));
 assert.ok(localCollectorSource.includes("readNetworkRateCache"));
+assert.ok(localCollectorSource.includes("TURBALANCE_LAKE_ROOT"));
+assert.ok(localCollectorSource.includes("lakehouseUsedBytes"));
 assert.ok(localCollectorSource.includes("collectBenchmarkSuite"));
 assert.ok(localCollectorSource.includes("benchmarkCpuOpsPerSecond"));
 assert.ok(localCollectorSource.includes("live-pi-benchmark-cache.json"));
@@ -190,7 +205,9 @@ const fastResult = spawnSync(process.execPath, [
   "machine-demo-fast-test",
   "--fast-refresh",
   "--ollama-probe",
-  "0"
+  "0",
+  "--lake-root",
+  lakehousePath
 ], {
   cwd: root,
   encoding: "utf8",
@@ -240,7 +257,9 @@ const gpustatResult = spawnSync(process.execPath, [
   "--gpu-backend",
   "gpustat",
   "--ollama-probe",
-  "0"
+  "0",
+  "--lake-root",
+  lakehousePath
 ], {
   cwd: root,
   encoding: "utf8",
@@ -290,7 +309,9 @@ const benchmarkResult = spawnSync(process.execPath, [
   "--benchmark-cache",
   benchmarkCachePath,
   "--ollama-probe",
-  "0"
+  "0",
+  "--lake-root",
+  lakehousePath
 ], {
   cwd: root,
   encoding: "utf8",

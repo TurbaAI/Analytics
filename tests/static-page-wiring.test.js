@@ -4,7 +4,9 @@ const path = require("node:path");
 
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
-const app = fs.readFileSync(path.join(root, "app.js"), "utf8");
+// app.js logic is split across app-data.js + app-*.js modules; use the full
+// bundle so function/selector checks see the relocated declarations.
+const app = require("./_app-bundle.js").appBundleSource();
 const css = fs.readFileSync(path.join(root, "styles.css"), "utf8");
 
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
@@ -25,8 +27,14 @@ assert.ok(html.includes("assets/turbalance-wordmark-special-t.png"));
 assert.ok(html.includes("<title>turbalance Analytics</title>"));
 assert.deepEqual(normalizedScripts, [
   "analytics-core.js",
+  "predictive-core.js",
   "nccl-trace-parser.js",
   "nccl-trace-fixtures.js",
+  "app-data.js",
+  "app-core.js",
+  "app-pipeline.js",
+  "app-state.js",
+  "app-render.js",
   "app.js"
 ]);
 

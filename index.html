@@ -20,7 +20,7 @@
         }
       }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611-brand-glow">
+    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611-monitor-controls-20260612">
   </head>
   <body>
     <header class="topbar">
@@ -31,44 +31,6 @@
         </span>
       </div>
 
-      <div class="top-actions">
-        <label class="select-label" for="windowSelect">
-          Window
-          <select id="windowSelect">
-            <option>Last 24 hours</option>
-            <option>Last 7 days</option>
-            <option>Current billing cycle</option>
-          </select>
-        </label>
-        <label class="rate-label" for="rateInput">
-          List $ / GPU-hour
-          <input id="rateInput" type="number" min="0" step="0.1" value="6.20">
-        </label>
-        <label class="toggle" for="samePodToggle">
-          <input id="samePodToggle" type="checkbox">
-          <span>Same-pod what-if</span>
-        </label>
-        <label class="theme-switch" for="themeToggle" title="Switch to dark mode">
-          <input id="themeToggle" type="checkbox" aria-label="Dark mode">
-          <span class="theme-switch-track" aria-hidden="true">
-            <svg class="theme-switch-sun" viewBox="0 0 24 24" focusable="false">
-              <circle cx="12" cy="12" r="4"></circle>
-              <path d="M12 2v2"></path>
-              <path d="M12 20v2"></path>
-              <path d="m4.93 4.93 1.41 1.41"></path>
-              <path d="m17.66 17.66 1.41 1.41"></path>
-              <path d="M2 12h2"></path>
-              <path d="M20 12h2"></path>
-              <path d="m6.34 17.66-1.41 1.41"></path>
-              <path d="m19.07 4.93-1.41 1.41"></path>
-            </svg>
-            <svg class="theme-switch-moon" viewBox="0 0 24 24" focusable="false">
-              <path d="M20 14.4A7.6 7.6 0 0 1 9.6 4a8 8 0 1 0 10.4 10.4Z"></path>
-            </svg>
-          </span>
-          <span id="themeToggleText">Light</span>
-        </label>
-      </div>
     </header>
 
     <main class="shell">
@@ -83,6 +45,14 @@
           <button type="button" data-scope="account" aria-selected="false">Account</button>
           <button type="button" data-scope="reservation" aria-selected="false">Reservation</button>
         </div>
+        <label class="select-label analysis-window-control" for="windowSelect">
+          Analysis window
+          <select id="windowSelect">
+            <option>Last 24 hours</option>
+            <option>Last 7 days</option>
+            <option>Current billing cycle</option>
+          </select>
+        </label>
         <div class="analysis-stamp">
           <span id="analysisState">Ready</span>
           <span id="storageState" data-status="good">Local seed</span>
@@ -184,7 +154,29 @@
                 <p>Dashboard Settings</p>
                 <h2>Visible blocks</h2>
               </div>
-              <span id="dashboardSettingsBadge">Lean</span>
+              <div class="dashboard-settings-head-actions">
+                <label class="theme-switch" for="themeToggle" title="Switch to dark mode">
+                  <input id="themeToggle" type="checkbox" aria-label="Dark mode">
+                  <span class="theme-switch-track" aria-hidden="true">
+                    <svg class="theme-switch-sun" viewBox="0 0 24 24" focusable="false">
+                      <circle cx="12" cy="12" r="4"></circle>
+                      <path d="M12 2v2"></path>
+                      <path d="M12 20v2"></path>
+                      <path d="m4.93 4.93 1.41 1.41"></path>
+                      <path d="m17.66 17.66 1.41 1.41"></path>
+                      <path d="M2 12h2"></path>
+                      <path d="M20 12h2"></path>
+                      <path d="m6.34 17.66-1.41 1.41"></path>
+                      <path d="m19.07 4.93-1.41 1.41"></path>
+                    </svg>
+                    <svg class="theme-switch-moon" viewBox="0 0 24 24" focusable="false">
+                      <path d="M20 14.4A7.6 7.6 0 0 1 9.6 4a8 8 0 1 0 10.4 10.4Z"></path>
+                    </svg>
+                  </span>
+                  <span id="themeToggleText">Light</span>
+                </label>
+                <span id="dashboardSettingsBadge">Lean</span>
+              </div>
             </div>
             <div id="dashboardSettingsControls" class="dashboard-settings-controls"></div>
           </section>
@@ -361,6 +353,12 @@
               <span>Cost / useful GPU-hour</span>
               <strong id="costPerUseful">$0</strong>
             </div>
+            <div class="metric-ribbon-control">
+              <label class="rate-label" for="rateInput">
+                List $ / GPU-hour
+                <input id="rateInput" type="number" min="0" step="0.1" value="6.20">
+              </label>
+            </div>
           </section>
 
           <section class="panel unit-economics-standalone-panel" data-dashboard-block="unitEconomics" aria-label="Unit economics profitability">
@@ -426,6 +424,17 @@
               </div>
               <div id="opportunityStats" class="opportunity-stats"></div>
               <div id="opportunityList" class="opportunity-list"></div>
+            </section>
+
+            <section class="panel predictive-prescriptive-panel" data-dashboard-block="predictivePrescriptive" aria-label="Predictive and prescriptive analytics">
+              <div class="panel-heading">
+                <div>
+                  <p>Predictive &amp; Prescriptive</p>
+                  <h2>Forecasts and action plan</h2>
+                </div>
+                <span id="predictivePrescriptiveBadge" data-tone="watch">Forecasting</span>
+              </div>
+              <div id="predictivePrescriptivePanel" class="predictive-prescriptive-content"></div>
             </section>
 
             <section id="taskMemoryPanel" class="panel task-memory-panel" aria-label="Task utilization memory">
@@ -571,7 +580,13 @@
                   <p>Topology</p>
                   <h2>Placement view</h2>
                 </div>
-                <span id="topologyScore">0</span>
+                <div class="panel-actions topology-actions">
+                  <label class="toggle topology-what-if" for="samePodToggle">
+                    <input id="samePodToggle" type="checkbox">
+                    <span>Same-pod what-if</span>
+                  </label>
+                  <span id="topologyScore">0</span>
+                </div>
               </div>
               <div class="topology-frame">
                 <svg id="topologyMap" viewBox="0 0 760 390" role="img" aria-labelledby="topologyTitle topologyDesc">
@@ -625,8 +640,14 @@
     </main>
 
     <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
+    <script src="predictive-core.js?v=predictive-prescriptive-20260615"></script>
     <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
     <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
+    <script src="app-data.js?v=predictive-prescriptive-20260615"></script>
+    <script src="app-core.js?v=modularize-20260615"></script>
+    <script src="app-pipeline.js?v=modularize-20260615"></script>
+    <script src="app-state.js?v=modularize-20260615"></script>
+    <script src="app-render.js?v=modularize-20260615"></script>
     <script src="app.js?v=machine-inventory-20260611"></script>
   </body>
 </html>

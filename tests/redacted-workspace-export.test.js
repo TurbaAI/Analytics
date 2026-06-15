@@ -4,7 +4,8 @@ const path = require("node:path");
 const vm = require("node:vm");
 const analytics = require("../analytics-core.js");
 
-const appSource = fs.readFileSync(path.join(__dirname, "../app.js"), "utf8");
+const { appBundleSource } = require("./_app-bundle.js");
+const appSource = appBundleSource();
 const context = {
   console,
   Date,

@@ -3478,6 +3478,7 @@ function shouldAutoLoadMachineDemoBundle() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("demo") === "sample" && !isKnownMachineDemoHost()) return false;
   if (params.get("demo") === "machine" || params.get("source") === "machine") return true;
+  if (mobileDashboardConfig().autoLoadBundle || mobileDashboardConfig().bundleUrl) return true;
   return isKnownMachineDemoHost();
 }
 
@@ -3514,7 +3515,12 @@ function isKnownMachineDemoHost() {
 
 function machineDemoBundleUrl() {
   const params = new URLSearchParams(window.location.search);
-  return parseImportUrl(params.get("bundle") || "build/demo/live-machine-bundle.json");
+  return parseImportUrl(params.get("bundle") || mobileDashboardConfig().bundleUrl || "build/demo/live-machine-bundle.json");
+}
+
+function mobileDashboardConfig() {
+  const config = window.TURBALANCE_MOBILE_CONFIG;
+  return config && typeof config === "object" ? config : {};
 }
 
 function sparkPairClockFeedUrl() {
@@ -4894,6 +4900,7 @@ function summarizeEntry(entry) {
     slo: summarizeSloFields(items),
     schedulerEvidence: summarizeSchedulerEvidence(items),
     grafana: summarizeGrafanaContext(items),
+    lakehouseTelemetry: entry.isFleetAggregate ? activeIngestion.lakehouseTelemetry || null : null,
     placement: mergePlacement(items),
     traceAttribution: mergeTraceAttribution(items),
     importedOpportunities: mergeImportedOpportunities(items),
@@ -5288,6 +5295,16 @@ function machineDemoContext(summary) {
     cpuTemperatureC: optionalMetric(context, "cpuTemperatureC"),
     memoryUsedPct: numeric(context.memoryUsedPct),
     diskUsedPct: numeric(context.diskUsedPct),
+    lakehouseRoot: String(context.lakehouseRoot || ""),
+    lakehouseExists: Boolean(context.lakehouseExists),
+    lakehouseMeasuredAt: String(context.lakehouseMeasuredAt || ""),
+    lakehouseUsedBytes: optionalMetric(context, "lakehouseUsedBytes"),
+    lakehouseDiskFilesystem: String(context.lakehouseDiskFilesystem || ""),
+    lakehouseDiskType: String(context.lakehouseDiskType || ""),
+    lakehouseDiskTotalBytes: optionalMetric(context, "lakehouseDiskTotalBytes"),
+    lakehouseDiskUsedBytes: optionalMetric(context, "lakehouseDiskUsedBytes"),
+    lakehouseDiskAvailableBytes: optionalMetric(context, "lakehouseDiskAvailableBytes"),
+    lakehouseDiskUsedPct: optionalMetric(context, "lakehouseDiskUsedPct"),
     networkInterface: String(context.networkInterface || ""),
     networkLocalAddress: String(context.networkLocalAddress || ""),
     networkPeerAddress: String(context.networkPeerAddress || ""),
@@ -5782,6 +5799,9 @@ function renderFleetAggregateResources(summary, nodes) {
   const outlierPct = overview.hostCount ? (overview.outlierCount / overview.hostCount) * 100 : 0;
   const capacityNote = `${number.format(overview.totalCpuCores)} cores | ${formatBytes(overview.totalMemoryBytes)} RAM | ${formatBytes(overview.totalDiskBytes)} disk`;
   const pressureNote = `${pct(overview.avgCpuUsagePct)} CPU | ${pct(overview.avgMemoryUsedPct)} RAM | ${pct(overview.avgGpuUtilizationPct)} GPU`;
+  const lakehouseNote = overview.lakehouseHostCount
+    ? `${overview.lakehouseHostCount} storage ${overview.lakehouseHostCount === 1 ? "source" : "sources"} | ${overview.largestLakehouseRow?.host || "largest"} ${formatBytes(overview.largestLakehouseRow?.lakehouseUsedBytes || 0)}`
+    : "Waiting for lakehouse path";
   const pairNote = overview.closestPair
     ? `Closest ${overview.closestPair.left} / ${overview.closestPair.right}; widest ${overview.divergentPair?.left || "--"} / ${overview.divergentPair?.right || "--"}`
     : "Need at least two live hosts";
@@ -5836,6 +5856,13 @@ function renderFleetAggregateResources(summary, nodes) {
       note: capacityNote,
       percent: overview.hostCount ? (overview.gpuHostCount / overview.hostCount) * 100 : null,
       tone: overview.gpuHostCount ? "good" : "watch"
+    }),
+    liveResourceCard({
+      label: "Data lake storage",
+      value: formatBytes(overview.totalLakehouseUsedBytes),
+      note: lakehouseNote,
+      percent: overview.lakehouseHostCount ? overview.avgLakehouseDiskUsedPct : null,
+      tone: overview.lakehouseHostCount ? inverseGrade(overview.avgLakehouseDiskUsedPct, 75, 90).key : "watch"
     }),
     liveResourceCard({
       label: "Network activity",
@@ -5904,6 +5931,16 @@ function fleetAggregateOverview(summary) {
   const avgDiskUsedPct = fleetAverage(rows, (row) => row.diskUsedPct, 0);
   const avgGpuUtilizationPct = fleetAverage(rows.filter((row) => row.gpuPresent), (row) => row.gpuUtilizationPct, 0);
   const avgNetworkUtilizationPct = fleetAverage(rows, (row) => row.networkUtilizationPct, 0);
+  const aggregateLakehouseRow = fleetAggregateLakehouseTelemetryRow(summary);
+  const lakehouseRows = [
+    ...rows.filter((row) => row.lakehouseExists || numeric(row.lakehouseUsedBytes, 0) > 0),
+    ...(aggregateLakehouseRow ? [aggregateLakehouseRow] : [])
+  ];
+  const lakehouseHostCount = lakehouseRows.length;
+  const totalLakehouseUsedBytes = lakehouseRows.reduce((total, row) => total + numeric(row.lakehouseUsedBytes, 0), 0);
+  const avgLakehouseDiskUsedPct = fleetAverage(lakehouseRows, (row) => row.lakehouseDiskUsedPct, 0);
+  const largestLakehouseRow = lakehouseRows.slice().sort((left, right) => numeric(right.lakehouseUsedBytes, 0) - numeric(left.lakehouseUsedBytes, 0))[0] || null;
+  const lakehouseDiskPressureCount = lakehouseRows.filter((row) => numeric(row.lakehouseDiskUsedPct, 0) >= 85).length;
   const totalCpuCores = rows.reduce((total, row) => total + numeric(row.cpuCount, 0), 0);
   const totalMemoryBytes = rows.reduce((total, row) => total + numeric(row.memoryTotalBytes, 0), 0);
   const totalDiskBytes = rows.reduce((total, row) => total + numeric(row.diskTotalBytes, 0), 0);
@@ -5959,6 +5996,13 @@ function fleetAggregateOverview(summary) {
     avgDiskUsedPct,
     avgGpuUtilizationPct,
     avgNetworkUtilizationPct,
+    lakehouseRows,
+    aggregateLakehouseRow,
+    lakehouseHostCount,
+    totalLakehouseUsedBytes,
+    avgLakehouseDiskUsedPct,
+    largestLakehouseRow,
+    lakehouseDiskPressureCount,
     totalCpuCores,
     totalMemoryBytes,
     totalDiskBytes,
@@ -6007,6 +6051,14 @@ function fleetAggregateAnalysis(overview) {
       pct(overview.maxPressurePct),
       `${pct(overview.avgCpuUsagePct)} CPU, ${pct(overview.avgMemoryUsedPct)} RAM, ${pct(overview.avgGpuUtilizationPct)} GPU average`,
       inverseGrade(overview.maxPressurePct, 72, 88).key
+    ),
+    analysisRelationship(
+      "Data lake",
+      formatBytes(overview.totalLakehouseUsedBytes),
+      overview.lakehouseHostCount
+        ? `${overview.lakehouseHostCount} storage ${overview.lakehouseHostCount === 1 ? "source reports" : "sources report"} lakehouse usage; filesystem average is ${pct(overview.avgLakehouseDiskUsedPct)} full`
+        : "No lakehouse storage usage reported yet",
+      overview.lakehouseHostCount ? inverseGrade(overview.avgLakehouseDiskUsedPct, 75, 90).key : "watch"
     ),
     analysisRelationship(
       "Spread",
@@ -6078,6 +6130,16 @@ function fleetAggregateAlerts(overview) {
     }));
   }
 
+  if (overview.lakehouseDiskPressureCount > 0) {
+    alerts.push(liveTelemetryAlert({
+      severity: overview.avgLakehouseDiskUsedPct >= 92 ? "high" : "medium",
+      title: "Data lake filesystem capacity is tight",
+      evidence: `${overview.lakehouseDiskPressureCount} lakehouse-reporting storage sources are at or above 85% filesystem usage; aggregate lakehouse directory size is ${formatBytes(overview.totalLakehouseUsedBytes)}.`,
+      recommendation: "Review the largest lakehouse host and prune, compact, or move older lakehouse partitions before the filesystem limits ingestion.",
+      confidence: 0.82
+    }));
+  }
+
   if (overview.networkIssueCount > 0) {
     alerts.push(liveTelemetryAlert({
       severity: overview.networkIssueCount > overview.hostCount ? "high" : "medium",
@@ -6136,6 +6198,15 @@ function fleetAggregateObservations(overview) {
       timestampMs: now
     },
     {
+      tone: overview.lakehouseHostCount ? inverseGrade(overview.avgLakehouseDiskUsedPct, 75, 90).key : "watch",
+      label: "Lake",
+      title: "Data lake storage",
+      detail: overview.lakehouseHostCount
+        ? `${formatBytes(overview.totalLakehouseUsedBytes)} used across ${overview.lakehouseHostCount} storage ${overview.lakehouseHostCount === 1 ? "source" : "sources"}; largest is ${overview.largestLakehouseRow?.host || "--"}.`
+        : "No lakehouse path is reporting storage usage yet.",
+      timestampMs: now
+    },
+    {
       tone: overview.fingerprintCount >= overview.hostCount ? "good" : overview.fingerprintCount ? "watch" : "poor",
       label: "Fingerprint",
       title: "System-ID coverage",
@@ -6149,6 +6220,7 @@ function fleetAggregateObservations(overview) {
 
 function renderFleetAggregateGraphs(container, overview) {
   const history = fleetAggregateGraphRows(overview);
+  const lakehouseHistory = fleetAggregateLakehouseGraphRows(overview, history);
   if (!history.length) {
     const empty = document.createElement("div");
     empty.className = "operator-empty";
@@ -6210,6 +6282,16 @@ function renderFleetAggregateGraphs(container, overview) {
       tone: overview.networkIssueCount ? "watch" : "good"
     }),
     liveTelemetryGraphCard({
+      label: "Data lake",
+      valueKey: "lakehouseUsedBytes",
+      history: lakehouseHistory,
+      latestLabel,
+      valueText: overview.lakehouseHostCount ? formatBytes(overview.totalLakehouseUsedBytes) : "not reported",
+      note: "Lakehouse directory usage",
+      max: adaptiveGraphMax(lakehouseHistory, "lakehouseUsedBytes", Math.max(1, overview.totalLakehouseUsedBytes)),
+      tone: overview.lakehouseHostCount ? inverseGrade(overview.avgLakehouseDiskUsedPct, 75, 90).key : "watch"
+    }),
+    liveTelemetryGraphCard({
       label: "Signature delta",
       valueKey: "signatureDelta",
       history,
@@ -6235,10 +6317,51 @@ function fleetAggregateGraphRows(overview) {
       ram: row.memoryUsedPct,
       gpu: row.gpuPresent ? row.gpuUtilizationPct : null,
       disk: row.diskUsedPct,
+      lakehouseUsedBytes: Number.isFinite(row.lakehouseUsedBytes) ? row.lakehouseUsedBytes : null,
       networkUtilization: row.networkUtilizationPct,
       networkThroughputBps: row.networkThroughputBps,
       signatureDelta: row.signatureDelta
     }));
+}
+
+function fleetAggregateLakehouseGraphRows(overview, history) {
+  if (!overview.aggregateLakehouseRow) return history;
+  return [
+    ...history,
+    {
+      host: overview.aggregateLakehouseRow.host,
+      timestampMs: Date.now() + history.length,
+      label: overview.aggregateLakehouseRow.host,
+      lakehouseUsedBytes: overview.aggregateLakehouseRow.lakehouseUsedBytes
+    }
+  ];
+}
+
+function fleetAggregateLakehouseTelemetryRow(summary) {
+  const telemetry = isPlainObject(summary.lakehouseTelemetry)
+    ? summary.lakehouseTelemetry
+    : isPlainObject(activeIngestion?.lakehouseTelemetry)
+    ? activeIngestion.lakehouseTelemetry
+    : null;
+  if (!telemetry) return null;
+  const usedBytes = numeric(telemetry.lakehouseUsedBytes ?? telemetry.usedBytes, Number.NaN);
+  const exists = telemetry.lakehouseExists ?? telemetry.exists;
+  if (!Number.isFinite(usedBytes) && !exists) return null;
+  return {
+    host: String(telemetry.hostname || telemetry.host || "data-lake"),
+    key: "aggregate-data-lake",
+    lakehouseRoot: String(telemetry.lakehouseRoot || telemetry.root || ""),
+    lakehouseExists: Boolean(exists),
+    lakehouseMeasuredAt: String(telemetry.lakehouseMeasuredAt || telemetry.measuredAt || ""),
+    lakehouseUsedBytes: Number.isFinite(usedBytes) ? usedBytes : 0,
+    lakehouseDiskFilesystem: String(telemetry.lakehouseDiskFilesystem || telemetry.filesystem || ""),
+    lakehouseDiskType: String(telemetry.lakehouseDiskType || telemetry.diskType || ""),
+    lakehouseDiskTotalBytes: numeric(telemetry.lakehouseDiskTotalBytes ?? telemetry.diskTotalBytes, 0),
+    lakehouseDiskUsedBytes: numeric(telemetry.lakehouseDiskUsedBytes ?? telemetry.diskUsedBytes, 0),
+    lakehouseDiskAvailableBytes: numeric(telemetry.lakehouseDiskAvailableBytes ?? telemetry.diskAvailableBytes, 0),
+    lakehouseDiskUsedPct: numeric(telemetry.lakehouseDiskUsedPct ?? telemetry.diskUsedPct, 0),
+    telemetryOnly: true
+  };
 }
 
 function fleetAggregateSimilarity(rows, spreadRows, pairs = {}) {
@@ -9160,6 +9283,7 @@ function fleetHostSnapshot(machineContext, characterizationHost) {
   const loadPressurePct = clamp((numeric(context.load1) / Math.max(1, numeric(context.cpuCount, machineContext.context?.cpuCount || 1))) * 100);
   const memoryTotalBytes = numeric(context.memoryTotalBytes, 0);
   const diskTotalBytes = numeric(context.diskTotalBytes, 0);
+  const lakehouseUsedBytes = numeric(machineContext.lakehouseUsedBytes, Number.NaN);
   const signature = fleetSystemSignature(characterizationHost);
   const host = machineContext.host || context.hostname || "host";
   const services = machineDemoServices(context.observedServices);
@@ -9181,6 +9305,16 @@ function fleetHostSnapshot(machineContext, characterizationHost) {
     memoryTotalBytes,
     diskUsedPct: machineContext.diskUsedPct,
     diskTotalBytes,
+    lakehouseRoot: machineContext.lakehouseRoot,
+    lakehouseExists: machineContext.lakehouseExists,
+    lakehouseMeasuredAt: machineContext.lakehouseMeasuredAt,
+    lakehouseUsedBytes,
+    lakehouseDiskFilesystem: machineContext.lakehouseDiskFilesystem,
+    lakehouseDiskType: machineContext.lakehouseDiskType,
+    lakehouseDiskTotalBytes: numeric(machineContext.lakehouseDiskTotalBytes, 0),
+    lakehouseDiskUsedBytes: numeric(machineContext.lakehouseDiskUsedBytes, 0),
+    lakehouseDiskAvailableBytes: numeric(machineContext.lakehouseDiskAvailableBytes, 0),
+    lakehouseDiskUsedPct: machineContext.lakehouseDiskUsedPct,
     networkUtilizationPct: machineContext.networkUtilizationPct,
     networkLinkSpeedMbps: machineContext.networkLinkSpeedMbps,
     networkThroughputBps,
@@ -15519,7 +15653,8 @@ function scopeLabel(scope) {
 function inventoryMeta(summary) {
   if (summary.isFleetAggregate) {
     const overview = fleetAggregateOverview(summary);
-    return `${overview.hostCount} hosts | ${overview.freshCount} fresh | ${round(overview.similarityScore)}% similar | ${overview.outlierCount} watch`;
+    const lakehouseMeta = overview.totalLakehouseUsedBytes > 0 ? ` | lake ${formatBytes(overview.totalLakehouseUsedBytes)}` : "";
+    return `${overview.hostCount} hosts | ${overview.freshCount} fresh | ${round(overview.similarityScore)}% similar | ${overview.outlierCount} watch${lakehouseMeta}`;
   }
 
   if (summary.scope === "job") {

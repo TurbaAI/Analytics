@@ -3,7 +3,13 @@
 lint:
 	sh -n install.sh
 	node --check app.js
+	node --check app-data.js
+	node --check app-core.js
+	node --check app-pipeline.js
+	node --check app-state.js
+	node --check app-render.js
 	node --check analytics-core.js
+	node --check predictive-core.js
 	node --check scripts/validate-gb100-telemetry.js
 	node --check scripts/package-gb100-telemetry.js
 	node --check scripts/build-lakehouse-platform-images.js

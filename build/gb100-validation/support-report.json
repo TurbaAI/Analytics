@@ -1,13 +1,13 @@
 {
   "schemaVersion": "gb100.telemetry.support-report.v1",
-  "generatedAt": "2026-06-11T14:27:57.833Z",
+  "generatedAt": "2026-06-15T23:37:47.462Z",
   "nodeInventory": {
-    "hostname": "Mac.localdomain",
-    "platform": "darwin",
-    "release": "25.5.0",
-    "arch": "x64",
-    "cpus": 18,
-    "totalMemoryBytes": 137438953472
+    "hostname": "claude",
+    "platform": "linux",
+    "release": "6.8.0-124-generic",
+    "arch": "arm64",
+    "cpus": 4,
+    "totalMemoryBytes": 4093870080
   },
   "gpuInventory": [],
   "inventoryError": "spawnSync nvidia-smi ENOENT",

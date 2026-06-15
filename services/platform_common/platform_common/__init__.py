@@ -24,6 +24,18 @@ from .analytics import (
     resource_samples_from_metric_rows,
     system_identification_signature_rows,
 )
+from .predictive import (
+    analyze_predictive,
+    analyze_prescriptive,
+    build_action_plan,
+    detect_anomalies,
+    forecast_driven_actions,
+    forecast_metric,
+    optimize_action_plan,
+    prescribe_actions,
+    regression_risk_score,
+    time_to_threshold,
+)
 from .observability import HttpRequestMetrics, OtlpHttpSpanExporter, install_request_observability, trace_id_from_traceparent
 
 __all__ = [
@@ -39,6 +51,16 @@ __all__ = [
     "parse_batch",
     "source_bundle_to_batch",
     "utc_now",
+    "analyze_predictive",
+    "analyze_prescriptive",
+    "build_action_plan",
+    "detect_anomalies",
+    "forecast_driven_actions",
+    "forecast_metric",
+    "optimize_action_plan",
+    "prescribe_actions",
+    "regression_risk_score",
+    "time_to_threshold",
     "alert_candidate_rows",
     "covariance_snapshot",
     "fleet_rca_rows",

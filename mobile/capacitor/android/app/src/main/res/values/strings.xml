@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">turbalance Analytics</string>
+    <string name="title_activity_main">turbalance Analytics</string>
+    <string name="package_name">com.turbalance.analytics</string>
+    <string name="custom_url_scheme">com.turbalance.analytics</string>
+</resources>

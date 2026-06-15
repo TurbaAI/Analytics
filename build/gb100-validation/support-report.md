@@ -1,12 +1,12 @@
 # GB100/GB200 Telemetry Support Report
 
-Generated: 2026-06-11T14:27:57.833Z
+Generated: 2026-06-15T23:37:47.462Z
 
 ## Node
 
-- Hostname: Mac.localdomain
-- Platform: darwin
-- Architecture: x64
+- Hostname: claude
+- Platform: linux
+- Architecture: arm64
 
 ## Versions
 

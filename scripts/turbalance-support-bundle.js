@@ -105,6 +105,13 @@ function runtimeFileSummary() {
   const files = [
     "index.html",
     "app.js",
+    "app-data.js",
+    "app-core.js",
+    "app-pipeline.js",
+    "app-state.js",
+    "app-render.js",
+    "analytics-core.js",
+    "predictive-core.js",
     "styles.css",
     "deploy/docker/product-edge-compose.yml",
     "deploy/docker/product-edge/nginx.conf",

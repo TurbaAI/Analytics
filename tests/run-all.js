@@ -5,7 +5,13 @@ const root = path.join(__dirname, "..");
 
 const checks = [
   { label: "syntax app.js", args: ["--check", "app.js"] },
+  { label: "syntax app-data.js", args: ["--check", "app-data.js"] },
+  { label: "syntax app-core.js", args: ["--check", "app-core.js"] },
+  { label: "syntax app-pipeline.js", args: ["--check", "app-pipeline.js"] },
+  { label: "syntax app-state.js", args: ["--check", "app-state.js"] },
+  { label: "syntax app-render.js", args: ["--check", "app-render.js"] },
   { label: "syntax analytics-core.js", args: ["--check", "analytics-core.js"] },
+  { label: "syntax predictive-core.js", args: ["--check", "predictive-core.js"] },
   { label: "syntax nccl-trace-parser.js", args: ["--check", "nccl-trace-parser.js"] },
   { label: "syntax nccl-trace-fixtures.js", args: ["--check", "nccl-trace-fixtures.js"] },
   { label: "provider image", args: ["tests/provider-image.test.js"] },
@@ -27,6 +33,8 @@ const checks = [
   { label: "provider go-live gates", args: ["tests/provider-go-live-gates.test.js"] },
   { label: "sandbox go-live", args: ["tests/sandbox-go-live.test.js"] },
   { label: "analytics core", args: ["tests/analytics-core.test.js"] },
+  { label: "predictive + prescriptive core", args: ["tests/predictive-prescriptive.test.js"] },
+  { label: "predictive python parity", args: ["tests/predictive-python.test.js"] },
   { label: "NCCL trace parser", args: ["tests/nccl-trace-parser.test.js"] },
   { label: "external ingestion fixture", args: ["tests/external-ingestion-fixture.test.js"] },
   { label: "neo-cloud provider fixture", args: ["tests/neo-cloud-provider-fixture.test.js"] },

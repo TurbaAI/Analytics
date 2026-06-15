@@ -157,6 +157,33 @@ Run the full validation suite:
 node tests/run-all.js
 ```
 
+## Mobile App Support
+
+The dashboard also has a Capacitor mobile shell under `mobile/capacitor` for Android and iOS. The mobile app bundles the same static cockpit UI and uses `mobile-config.js` to fetch live telemetry from the NUC-hosted bundle, so the native app stays aligned with the web dashboard.
+
+![turbalance Analytics running in the iOS simulator](assets/turbalance-ios-capacitor-simulator.png)
+
+Build or open the iOS app with Xcode:
+
+```sh
+cd mobile/capacitor
+npm install
+npm run sync
+npm run add:ios
+npm run open:ios
+```
+
+Build or open the Android app with Android Studio:
+
+```sh
+cd mobile/capacitor
+npm install
+npm run sync:native
+npm run open:android
+```
+
+The current mobile config points at `http://100.95.183.13:8000/build/demo/live-machine-bundle.json`. For production mobile distribution, prefer an HTTPS endpoint and update `mobile/capacitor/mobile-config.js` before syncing native projects.
+
 ## Product Appliance Workflow
 
 ### 1. Render Runtime Material

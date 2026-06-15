@@ -1,0 +1,24 @@
+{
+  "name": "turbalance-analytics-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacitor shell for the turbalance Analytics dashboard.",
+  "scripts": {
+    "sync": "node scripts/sync-dashboard.js",
+    "copy": "npm run sync && cap copy",
+    "sync:native": "npm run sync && cap sync",
+    "add:ios": "npm run sync && cap add ios",
+    "add:android": "npm run sync && cap add android",
+    "open:ios": "npm run sync:native && cap open ios",
+    "open:android": "npm run sync:native && cap open android",
+    "doctor": "cap doctor"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.4.0",
+    "@capacitor/cli": "^8.4.0",
+    "@capacitor/ios": "^8.4.0"
+  }
+}

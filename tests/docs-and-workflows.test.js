@@ -483,7 +483,7 @@ assert.ok(ci.includes("node scripts/validate-source-bundle.js --require-source-e
 assert.ok(ci.includes("node scripts/run-screenshot-qa.js"));
 assert.ok(pages.includes("node tests/run-all.js"));
 assert.ok(pages.includes("actions/deploy-pages@v4"));
-assert.ok(pages.includes("cp index.html styles.css app.js analytics-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/"));
+assert.ok(pages.includes("cp index.html styles.css app.js app-data.js app-core.js app-pipeline.js app-state.js app-render.js analytics-core.js predictive-core.js nccl-trace-parser.js nccl-trace-fixtures.js site/"));
 assert.ok(pages.includes("cp -R assets build fixtures docs schemas scripts grafana lib ops server site/"));
 assert.ok(visualQaWorkflow.includes("npx playwright install --with-deps chromium"));
 assert.ok(visualQaWorkflow.includes("TURBALANCE_SCREENSHOT_QA_REQUIRED"));

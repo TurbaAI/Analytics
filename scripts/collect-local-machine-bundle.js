@@ -38,6 +38,10 @@ const dgxInterconnectInterface = args["dgx-interconnect-interface"]
 const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"]
   || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX
   || "192.168.100.";
+const lakehouseRoot = args["lake-root"]
+  || args["lakehouse-root"]
+  || process.env.TURBALANCE_LAKE_ROOT
+  || path.join("build", "lakehouse");
 const linuxPtpContainerNames = (process.env.TURBALANCE_LINUXPTP_CONTAINERS || "turbalance-linuxptp,turbalance-ptp4l")
   .split(",")
   .map((name) => name.trim())
@@ -162,6 +166,7 @@ function collectAndWrite({ gpuOverride = null } = {}) {
 function collectHost({ cpuSampleMs = 250 } = {}) {
   const meminfo = readMeminfo();
   const disk = diskInfo("/");
+  const lakehouse = lakehouseInfo(lakehouseRoot);
   const cpuSample = cpuUsageSample(cpuSampleMs);
   const net = primaryNetworkStats();
   const load = os.loadavg();
@@ -191,6 +196,7 @@ function collectHost({ cpuSampleMs = 250 } = {}) {
     swapTotalBytes: meminfo.SwapTotal || 0,
     swapFreeBytes: meminfo.SwapFree || 0,
     disk,
+    lakehouse,
     network: net,
     clock,
     uptimeSeconds,
@@ -1342,6 +1348,16 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             diskTotalBytes: host.disk.totalBytes,
             diskUsedBytes: host.disk.usedBytes,
             diskUsedPct: round(metrics.diskUsedPct, 2),
+            lakehouseRoot: host.lakehouse.root,
+            lakehouseExists: Boolean(host.lakehouse.exists),
+            lakehouseMeasuredAt: host.lakehouse.measuredAt,
+            lakehouseUsedBytes: round(host.lakehouse.usedBytes, 0),
+            lakehouseDiskFilesystem: host.lakehouse.disk.filesystem,
+            lakehouseDiskType: host.lakehouse.disk.type,
+            lakehouseDiskTotalBytes: host.lakehouse.disk.totalBytes,
+            lakehouseDiskUsedBytes: host.lakehouse.disk.usedBytes,
+            lakehouseDiskAvailableBytes: host.lakehouse.disk.availableBytes,
+            lakehouseDiskUsedPct: round(host.lakehouse.diskUsedPct, 2),
             networkInterface: host.network.iface,
             networkLocalAddress: host.network.localAddress,
             networkPeerAddress: host.network.peerAddress,
@@ -1644,6 +1660,75 @@ function diskInfo(targetPath) {
     availableBytes: finite(parts[4], 0),
     mountedOn: parts[6] || targetPath
   };
+}
+
+function lakehouseInfo(targetPath) {
+  const root = path.resolve(String(targetPath || path.join("build", "lakehouse")));
+  const exists = fs.existsSync(root);
+  const disk = diskInfo(existingFilesystemPath(root));
+  const usedBytes = exists ? pathUsageBytes(root) : 0;
+  const diskUsedPct = disk.totalBytes > 0 ? (disk.usedBytes / disk.totalBytes) * 100 : 0;
+  return {
+    root,
+    exists,
+    measuredAt: new Date().toISOString(),
+    usedBytes,
+    disk,
+    diskUsedPct
+  };
+}
+
+function existingFilesystemPath(targetPath) {
+  let current = path.resolve(targetPath || ".");
+  while (current && !fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return parent;
+    current = parent;
+  }
+  return current || "/";
+}
+
+function pathUsageBytes(targetPath) {
+  const exactBytes = parseDuBytes(command("du", ["-sb", targetPath]));
+  if (Number.isFinite(exactBytes)) return exactBytes;
+
+  const kib = parseDuBytes(command("du", ["-sk", targetPath]));
+  if (Number.isFinite(kib)) return kib * 1024;
+
+  return pathUsageBytesFallback(targetPath);
+}
+
+function parseDuBytes(output) {
+  const trimmed = String(output || "").trim();
+  if (!trimmed) return undefined;
+  const value = trimmed.split(/\s+/)[0];
+  if (!/\d/.test(value)) return undefined;
+  const parsed = finite(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function pathUsageBytesFallback(targetPath) {
+  const stack = [targetPath];
+  let total = 0;
+  while (stack.length) {
+    const current = stack.pop();
+    let stats;
+    try {
+      stats = fs.lstatSync(current);
+    } catch {
+      continue;
+    }
+    total += Number.isFinite(stats.size) ? stats.size : 0;
+    if (!stats.isDirectory() || stats.isSymbolicLink()) continue;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(current);
+    } catch {
+      continue;
+    }
+    entries.forEach((entry) => stack.push(path.join(current, entry)));
+  }
+  return total;
 }
 
 function primaryNetworkStats() {

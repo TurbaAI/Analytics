@@ -1,0 +1,19 @@
+{
+  "name": "turbalance-analytics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Operator cockpit for AI infrastructure: live telemetry, lakehouse pipeline, alerting, and product appliance tooling.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node tests/run-all.js",
+    "lint": "make lint",
+    "validate": "node scripts/validate-source-bundle.js --require-source-export",
+    "screenshot-qa": "node scripts/run-screenshot-qa.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.44.0"
+  }
+}
