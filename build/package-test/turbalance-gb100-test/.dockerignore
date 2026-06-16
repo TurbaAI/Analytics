@@ -1,9 +1,0 @@
-.git
-.github
-.turbalance-control
-.turbalance-data
-.turbalance-objects
-build/qa
-node_modules
-npm-debug.log
-.DS_Store

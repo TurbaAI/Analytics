@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: gb100-telemetry
-  labels:
-    app.kubernetes.io/name: gb100-telemetry
