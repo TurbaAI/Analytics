@@ -69,6 +69,8 @@ const checks = [
   { label: "lakehouse go-live", args: ["tests/lakehouse-go-live.test.js"] },
   { label: "lakehouse production readiness", args: ["tests/lakehouse-production-readiness.test.js"] },
   { label: "lakehouse production smoke", args: ["scripts/run-lakehouse-production-smoke.js"] },
+  { label: "repo hygiene", args: ["tests/repo-hygiene.test.js"] },
+  { label: "productization phase audit", args: ["tests/productization-phases.test.js"] },
   { label: "static page wiring", args: ["tests/static-page-wiring.test.js"] },
   { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] },
   { label: "screenshot QA", args: ["scripts/run-screenshot-qa.js"] }

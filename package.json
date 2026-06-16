@@ -11,7 +11,8 @@
     "test": "node tests/run-all.js",
     "lint": "make lint",
     "validate": "node scripts/validate-source-bundle.js --require-source-export",
-    "screenshot-qa": "node scripts/run-screenshot-qa.js"
+    "screenshot-qa": "node scripts/run-screenshot-qa.js",
+    "productization:audit": "node scripts/audit-productization-phases.js"
   },
   "devDependencies": {
     "playwright": "^1.44.0"

@@ -8,6 +8,7 @@ const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 const readme = read("README.md");
 
 assert.ok(readme.includes("docs/customer-productization.md"));
+assert.ok(readme.includes("docs/security-compliance-posture.md"));
 
 [
   "docs/data-contract.md",
@@ -15,6 +16,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
   "docs/customer-productization.md",
+  "docs/security-compliance-posture.md",
   "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
@@ -139,6 +141,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "scripts/prepare-screenshot-qa.js",
   "scripts/collect-lakehouse-ebpf-rollout-evidence.js",
   "scripts/audit-lakehouse-production-readiness.js",
+  "scripts/audit-productization-phases.js",
   "scripts/run-lakehouse-go-live.js",
   "scripts/run-lakehouse-production-smoke.js",
   "scripts/run-lakehouse-load-test.js",
@@ -269,9 +272,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   ".github/workflows/provider-image.yml",
   ".github/workflows/lakehouse-platform.yml",
   ".github/workflows/sandbox-go-live.yml",
-  ".github/workflows/visual-qa.yml",
-  "build/turbalance-analytics-desktop.png",
-  "build/turbalance-analytics-mobile.png"
+  ".github/workflows/visual-qa.yml"
 ].forEach((relativePath) => {
   assert.ok(exists(relativePath), `${relativePath} should exist`);
 });
@@ -281,6 +282,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "docs/bare-metal-fleet-production.md",
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
+  "docs/security-compliance-posture.md",
   "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
@@ -361,6 +363,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "scripts/prepare-screenshot-qa.js",
   "scripts/collect-lakehouse-ebpf-rollout-evidence.js",
   "scripts/audit-lakehouse-production-readiness.js",
+  "scripts/audit-productization-phases.js",
   "scripts/run-lakehouse-go-live.js",
   "scripts/run-lakehouse-production-smoke.js",
   "scripts/run-lakehouse-load-test.js",
@@ -374,6 +377,8 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "tests/platform-lakehouse.test.js",
   "tests/lakehouse-go-live.test.js",
   "tests/lakehouse-production-readiness.test.js",
+  "tests/repo-hygiene.test.js",
+  "tests/productization-phases.test.js",
   "services/platform_common/platform_common/observability.py",
   "services/raw-writer/raw_writer/writer.py",
   "services/raw-writer/raw_writer/storage.py",
@@ -466,7 +471,7 @@ assert.ok(readme.includes("docs/customer-productization.md"));
   "tests/source-bundle-validator.test.js",
   "tests/evidence-pack-export.test.js",
   "tests/source-bundle-validation.test.js",
-  "build/turbalance-analytics-desktop.png"
+  "docs/visual-qa.md"
 ].forEach((text) => {
   assert.ok(readme.includes(text), `README should reference ${text}`);
 });
@@ -607,6 +612,19 @@ assert.ok(e2eDataPlatform.includes("webhook/Slack/PagerDuty alert routing"));
 assert.ok(e2eDataPlatform.includes("ops/kubernetes/lakehouse/base/kustomization.yaml"));
 assert.ok(e2eDataPlatform.includes("ops/kubernetes/lakehouse/production/kustomization.yaml"));
 assert.ok(readme.includes("docs/e2e-data-platform.md"));
+
+const securityCompliancePosture = read("docs/security-compliance-posture.md");
+assert.ok(securityCompliancePosture.includes("SLO"));
+assert.ok(securityCompliancePosture.includes("incident process"));
+assert.ok(securityCompliancePosture.includes("SOC 2 Type II"));
+assert.ok(securityCompliancePosture.includes("penetration test"));
+assert.ok(securityCompliancePosture.includes("vulnerability"));
+assert.ok(/data residency/i.test(securityCompliancePosture));
+assert.ok(securityCompliancePosture.includes("right-to-be-forgotten"));
+assert.ok(securityCompliancePosture.includes("Demo data"));
+assert.ok(securityCompliancePosture.includes("Rotate live collector bearer tokens and HMAC secrets"));
+assert.ok(readme.includes("scripts/audit-productization-phases.js"));
+assert.ok(readme.includes("npm run productization:audit"));
 
 const lakehouseCompose = read("deploy/docker/lakehouse-compose.yml");
 assert.ok(lakehouseCompose.includes("transform-runner"));
@@ -1063,7 +1081,7 @@ assert.ok(demoRelease.includes("Opportunity Engine"));
 assert.ok(demoRelease.includes("Scheduler Simulator"));
 assert.ok(demoRelease.includes("evidence pack"));
 assert.ok(demoRelease.includes("turba-source-bundle.v1.schema.json"));
-assert.ok(demoRelease.includes("build/turbalance-analytics-desktop.png"));
+assert.ok(demoRelease.includes("generated files under `build/` out of git"));
 
 const demoLogistics = read("docs/demo-logistics.md");
 assert.ok(demoLogistics.includes("Hardware Needed"));
