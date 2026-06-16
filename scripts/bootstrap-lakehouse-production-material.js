@@ -184,9 +184,12 @@ function buildMaterial(args, template, paths) {
   const postgresPassword = randomToken("pg", 24);
   const apiViewerToken = randomToken("api_viewer", 32);
   const apiAdminToken = randomToken("api_admin", 32);
+  const collectorToken = randomToken("collector", 32);
+  const collectorHmacSecret = randomToken("hmac", 48);
   const secrets = {
-    TURBALANCE_COLLECTOR_TOKEN: randomToken("collector", 32),
-    TURBALANCE_COLLECTOR_HMAC_SECRET: randomToken("hmac", 48),
+    TURBALANCE_COLLECTOR_TENANT_CREDENTIALS: `${args.tenantId}:${collectorToken}:${collectorHmacSecret}:${args.tenantId}-collector`,
+    TURBALANCE_COLLECTOR_TOKEN: collectorToken,
+    TURBALANCE_COLLECTOR_HMAC_SECRET: collectorHmacSecret,
     TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN: randomToken("enroll", 32),
     TURBALANCE_API_TOKENS: `${args.tenantId}:${apiViewerToken}:viewer:${args.tenantId}-viewer,admin:${apiAdminToken}:admin:platform-admin`,
     TURBALANCE_DISCOVERY_DATABASE_URL: `postgresql://${args.postgresUser}:${encodeURIComponent(postgresPassword)}@${args.postgresHost}:5432/${args.postgresDb}`,

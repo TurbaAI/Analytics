@@ -713,6 +713,71 @@ assert.equal(securityResult.audit, true);
 assert.equal(securityResult.hasReportRate, true);
 assert.equal(securityResult.hasReportWindowCount, true);
 
+const tenantCredentialResult = JSON.parse(run([
+  "-c",
+  `
+import json
+import time
+from pathlib import Path
+from fastapi.testclient import TestClient
+from collector_gateway import CollectorSettings, create_app, load_collector_credentials
+from collector_gateway.security import sign_body
+
+lake = Path(${JSON.stringify(lakeRoot)}) / "tenant-credentials"
+settings = CollectorSettings(
+    lake_root=lake,
+    tenant_credentials=load_collector_credentials("tenant-a:token-a:hmac-a:collector-a,tenant-b:token-b:hmac-b:collector-b"),
+    replay_db=lake.parent / "tenant-credentials-replay.sqlite",
+    audit_log=lake.parent / "tenant-credentials-audit.jsonl",
+    rate_limit_per_minute=100,
+)
+client = TestClient(create_app(settings))
+
+def bundle_body(tenant):
+    return json.dumps({
+        "tenantId": tenant,
+        "hostId": "tenant-host",
+        "agentId": "tenant-agent",
+        "sequenceNo": 1,
+        "bundle": {
+            "sources": {
+                "prometheus": [{
+                    "runId": "run-tenant-1",
+                    "metrics": {"gpu_utilization_pct": 42}
+                }]
+            }
+        }
+    }, separators=(",", ":")).encode()
+
+def signed_headers(token, secret, nonce, body):
+    timestamp = str(int(time.time()))
+    return {
+        "authorization": "Bearer " + token,
+        "x-turbalance-timestamp": timestamp,
+        "x-turbalance-nonce": nonce,
+        "x-turbalance-signature": "v1=" + sign_body(secret, timestamp, nonce, body),
+        "content-type": "application/json",
+    }
+
+good_body = bundle_body("tenant-a")
+bad_body = bundle_body("tenant-b")
+good = client.post("/v1/source-bundles", content=good_body, headers=signed_headers("token-a", "hmac-a", "tenant-cred-1", good_body))
+mismatch = client.post("/v1/source-bundles", content=bad_body, headers=signed_headers("token-a", "hmac-a", "tenant-cred-2", bad_body))
+ready = client.get("/ready").json()
+print(json.dumps({
+    "good": good.status_code,
+    "mismatch": mismatch.status_code,
+    "tenantCredentials": ready["auth"]["tenantCredentials"],
+    "goodStatus": good.json().get("status"),
+}))
+`
+]));
+
+assert.equal(tenantCredentialResult.good, 200);
+assert.equal(tenantCredentialResult.mismatch, 403);
+assert.equal(tenantCredentialResult.tenantCredentials, 2);
+assert.equal(tenantCredentialResult.goodStatus, "written");
+
 const mtlsResult = JSON.parse(run([
   "-c",
   `

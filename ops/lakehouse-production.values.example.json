@@ -25,6 +25,7 @@
     "TURBALANCE_AGENT_CLIENT_CA_FILE": "/secure/path/agent-client-ca.pem"
   },
   "secrets": {
+    "TURBALANCE_COLLECTOR_TENANT_CREDENTIALS": "tenant-a:replace-outside-source-control:replace-outside-source-control:tenant-a-collector",
     "TURBALANCE_COLLECTOR_TOKEN": "replace-outside-source-control",
     "TURBALANCE_COLLECTOR_HMAC_SECRET": "replace-outside-source-control",
     "TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN": "replace-outside-source-control",

@@ -109,8 +109,10 @@ function validate(config, options) {
     }
   }
   checks.push(check("image_tag_immutable", config.TURBALANCE_IMAGE_TAG && config.TURBALANCE_IMAGE_TAG !== "latest", "image tag is immutable"));
-  checks.push(check("lake_root_s3", String(config.TURBALANCE_LAKE_ROOT || "").startsWith("s3://"), "lake root uses s3://"));
+  checks.push(check("lake_root_object_store", isObjectStoreUrl(config.TURBALANCE_LAKE_ROOT), "lake root uses managed object storage (s3://, gs://, or gcs://)"));
   checks.push(check("jwt_issuer_https", isHttpsUrl(config.TURBALANCE_API_JWT_ISSUER), "JWT issuer is an HTTPS URL"));
+  checks.push(check("metadata_db_managed", isManagedMetadataDb(config), "metadata DB uses managed Postgres connection"));
+  checks.push(check("collector_tenant_credentials", hasTenantCollectorCredentials(config), "tenant-scoped collector credentials are configured"));
   checks.push(
     check(
       "certificate_mode_supported",
@@ -123,6 +125,13 @@ function validate(config, options) {
       "queue_backend_supported",
       ["kafka", "redpanda", "nats", "file"].includes(String(config.TURBALANCE_QUEUE_GATEWAY_BACKEND || "")),
       "queue backend is kafka, redpanda, nats, or file"
+    )
+  );
+  checks.push(
+    check(
+      "queue_backend_managed",
+      ["kafka", "redpanda", "nats"].includes(String(config.TURBALANCE_QUEUE_GATEWAY_BACKEND || "")),
+      "production queue backend is managed kafka, redpanda, or nats"
     )
   );
   if (config.TURBALANCE_DISCOVERY_CERTIFICATE_MODE === "external-ca") {
@@ -157,6 +166,28 @@ function isHttpsUrl(value) {
   }
 }
 
+function isObjectStoreUrl(value) {
+  try {
+    return ["s3:", "gs:", "gcs:"].includes(new URL(String(value || "")).protocol);
+  } catch {
+    return false;
+  }
+}
+
+function isManagedMetadataDb(config) {
+  const value = config.TURBALANCE_DISCOVERY_DATABASE_URL || config.TURBALANCE_POSTGRES_URL || "";
+  try {
+    const parsed = new URL(value);
+    return ["postgres:", "postgresql:"].includes(parsed.protocol) && parsed.hostname && !["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function hasTenantCollectorCredentials(config) {
+  return Boolean(config.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS || config.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE);
+}
+
 function publicConfig(config) {
   const keys = [
     "TURBALANCE_IMAGE_REGISTRY",
@@ -170,6 +201,8 @@ function publicConfig(config) {
     "TURBALANCE_QUEUE_GATEWAY_BACKEND",
     "TURBALANCE_QUEUE_GATEWAY_BROKER_URL",
     "TURBALANCE_QUEUE_GATEWAY_TOPIC",
+    "TURBALANCE_DISCOVERY_DATABASE_URL",
+    "TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE",
     "TURBALANCE_TERRAFORM_DIR",
     "TURBALANCE_EBPF_HOSTS_FILE"
   ];

@@ -61,7 +61,7 @@ node scripts/run-lakehouse-load-test.js --dry-run
 node scripts/run-lakehouse-load-test.js --url http://127.0.0.1:8801 --requests 100 --concurrency 8
 ```
 
-Use `TURBALANCE_COLLECTOR_TOKEN` or `TURBALANCE_COLLECTOR_HMAC_SECRET` to exercise the same auth path as agents.
+Use `TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE` for production collector auth. Each line is `tenant:bearer-token:hmac-secret[:subject]`; the collector rejects source bundles or telemetry batches whose `tenantId` does not match the authenticated credential. `TURBALANCE_COLLECTOR_TOKEN` and `TURBALANCE_COLLECTOR_HMAC_SECRET` remain available for lab migration and single-tenant sandbox tests.
 
 ## Agent Enrollment And Certificate Rotation
 

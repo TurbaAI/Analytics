@@ -18,7 +18,11 @@ const secretGroups = [
     name: "collector-auth",
     remoteKey: "lakehouse/collector-auth",
     required: true,
-    alternatives: [{ keys: ["TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_HMAC_SECRET"], detail: "collector bearer token plus HMAC secret" }]
+    alternatives: [
+      { keys: ["TURBALANCE_COLLECTOR_TENANT_CREDENTIALS"], detail: "tenant-scoped collector credential map" },
+      { keys: ["TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE"], detail: "tenant-scoped collector credential file" },
+      { keys: ["TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_HMAC_SECRET"], detail: "legacy collector bearer token plus HMAC secret" }
+    ]
   },
   {
     name: "discovery-auth",

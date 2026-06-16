@@ -6,7 +6,7 @@ import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
@@ -27,10 +27,27 @@ from .security import AuditLog, RateLimiter, ReplayStore, SignatureHeaders, veri
 
 
 @dataclass(frozen=True)
+class CollectorCredential:
+    tenant_id: str
+    bearer_token: str
+    hmac_secret: str
+    subject: str = "collector"
+
+
+@dataclass(frozen=True)
+class CollectorPrincipal:
+    tenant_id: str = ""
+    subject: str = "legacy-collector"
+    auth_method: str = "legacy"
+
+
+@dataclass(frozen=True)
 class CollectorSettings:
     lake_root: str | Path
     bearer_token: str = ""
     hmac_secret: str = ""
+    tenant_credentials: tuple[CollectorCredential, ...] = ()
+    tenant_credentials_file: Path | None = None
     replay_db: Path = Path("build/collector/replay.sqlite")
     audit_log: Path = Path("build/collector/audit.jsonl")
     max_body_bytes: int = 5 * 1024 * 1024
@@ -55,6 +72,15 @@ class CollectorSettings:
             lake_root=os.environ.get("TURBALANCE_LAKE_ROOT", "build/lakehouse"),
             bearer_token=_secret_env("TURBALANCE_COLLECTOR_TOKEN", "TURBALANCE_COLLECTOR_TOKEN_FILE"),
             hmac_secret=_secret_env("TURBALANCE_COLLECTOR_HMAC_SECRET", "TURBALANCE_COLLECTOR_HMAC_SECRET_FILE"),
+            tenant_credentials=load_collector_credentials(
+                os.environ.get("TURBALANCE_COLLECTOR_TENANT_CREDENTIALS", ""),
+                Path(os.environ["TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE"])
+                if os.environ.get("TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE")
+                else None,
+            ),
+            tenant_credentials_file=Path(os.environ["TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE"])
+            if os.environ.get("TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE")
+            else None,
             replay_db=Path(os.environ.get("TURBALANCE_COLLECTOR_REPLAY_DB", "build/collector/replay.sqlite")),
             audit_log=Path(os.environ.get("TURBALANCE_COLLECTOR_AUDIT_LOG", "build/collector/audit.jsonl")),
             max_body_bytes=int(os.environ.get("TURBALANCE_COLLECTOR_MAX_BODY_BYTES", str(5 * 1024 * 1024))),
@@ -198,7 +224,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
         timestamp: str | None,
         nonce: str | None,
         x_forwarded_client_cert: str | None,
-    ) -> bytes:
+    ) -> tuple[bytes, CollectorPrincipal]:
         body = await request.body()
         client = request.client.host if request.client else "unknown"
         rate_key = request.headers.get("x-turbalance-agent-id") or client
@@ -231,12 +257,33 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 subject=identity.subject,
                 fingerprint=identity.fingerprint,
             )
-            if not (settings.bearer_token or settings.hmac_secret):
-                return body
+            if not (settings.bearer_token or settings.hmac_secret or settings.tenant_credentials):
+                return body, CollectorPrincipal(auth_method="mtls")
+        if settings.tenant_credentials:
+            principal = _authenticate_tenant_collector(
+                settings.tenant_credentials,
+                authorization=authorization,
+                signature=signature,
+                timestamp=timestamp,
+                nonce=nonce,
+                body=body,
+            )
+            if principal is None:
+                stats.rejected_batches += 1
+                stats.auth_failures += 1
+                audit.write("invalid_tenant_credential", client=client)
+                raise HTTPException(status_code=401, detail="invalid tenant collector credential")
+            if nonce and not replay_store.check_and_record(nonce):
+                stats.rejected_batches += 1
+                stats.auth_failures += 1
+                audit.write("replay_detected", client=client, nonce=nonce, tenantId=principal.tenant_id)
+                raise HTTPException(status_code=409, detail="collector nonce has already been used")
+            audit.write("tenant_credential_accepted", client=client, tenantId=principal.tenant_id, subject=principal.subject)
+            return body, principal
         if settings.bearer_token:
             expected = f"Bearer {settings.bearer_token}"
             if authorization == expected:
-                return body
+                return body, CollectorPrincipal(auth_method="bearer")
         if settings.hmac_secret:
             if not (signature and timestamp and nonce):
                 stats.rejected_batches += 1
@@ -254,13 +301,13 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 stats.auth_failures += 1
                 audit.write("replay_detected", client=client, nonce=nonce)
                 raise HTTPException(status_code=409, detail="collector nonce has already been used")
-            return body
+            return body, CollectorPrincipal(auth_method="hmac")
         if settings.bearer_token:
             stats.rejected_batches += 1
             stats.auth_failures += 1
             audit.write("invalid_bearer", client=client)
             raise HTTPException(status_code=401, detail="invalid collector token")
-        return body
+        return body, CollectorPrincipal(auth_method="none")
 
     @app.get("/health")
     async def health() -> dict[str, str]:
@@ -280,6 +327,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 "bearerToken": bool(settings.bearer_token),
                 "hmac": bool(settings.hmac_secret),
                 "mtls": settings.require_mtls,
+                "tenantCredentials": len(settings.tenant_credentials),
             },
             "version": settings.product_version,
         }
@@ -301,7 +349,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
         x_turbalance_nonce: str | None = Header(default=None),
         x_forwarded_client_cert: str | None = Header(default=None),
     ) -> dict[str, Any]:
-        body = await guard(
+        body, principal = await guard(
             request,
             authorization,
             x_turbalance_signature,
@@ -327,9 +375,17 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 stats.rejected_batches += 1
                 audit.write("invalid_batch", reason=str(exc))
                 raise HTTPException(status_code=422, detail=str(exc)) from exc
+            _enforce_principal_tenant(principal, batch.tenant_id)
             result = writer.write_batch(batch)
             _record_write_result(stats, result)
-            audit.write("batch_ingested", batchId=result.get("batchId"), status=result.get("status"), rowCount=result.get("rowCount"))
+            audit.write(
+                "batch_ingested",
+                batchId=result.get("batchId"),
+                status=result.get("status"),
+                rowCount=result.get("rowCount"),
+                tenantId=batch.tenant_id,
+                subject=principal.subject,
+            )
             return result
         finally:
             backpressure.release(admission)
@@ -344,7 +400,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
         x_turbalance_nonce: str | None = Header(default=None),
         x_forwarded_client_cert: str | None = Header(default=None),
     ) -> dict[str, Any]:
-        request_body = await guard(
+        request_body, principal = await guard(
             request,
             authorization,
             x_turbalance_signature,
@@ -363,6 +419,7 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
             audit.write("backpressure_rejected", reason=admission.reason)
             raise HTTPException(status_code=503, detail=admission.reason)
         try:
+            _enforce_principal_tenant(principal, body.tenantId)
             result = writer.write_source_bundle(
                 body.bundle,
                 tenant_id=body.tenantId,
@@ -371,7 +428,14 @@ def create_app(settings: CollectorSettings | None = None) -> FastAPI:
                 sequence_no=body.sequenceNo,
             )
             _record_write_result(stats, result)
-            audit.write("source_bundle_ingested", hostId=body.hostId, status=result.get("status"), rowCount=result.get("rowCount"))
+            audit.write(
+                "source_bundle_ingested",
+                hostId=body.hostId,
+                status=result.get("status"),
+                rowCount=result.get("rowCount"),
+                tenantId=body.tenantId,
+                subject=principal.subject,
+            )
             return result
         finally:
             backpressure.release(admission)
@@ -392,6 +456,64 @@ def _record_write_result(stats: CollectorStats, result: dict[str, Any]) -> None:
         stats.quarantined_batches += 1
     else:
         stats.rejected_batches += 1
+
+
+def load_collector_credentials(raw_credentials: str = "", credentials_file: str | Path | None = None) -> tuple[CollectorCredential, ...]:
+    values: list[str] = []
+    if raw_credentials.strip():
+        values.extend(_split_credential_entries(raw_credentials))
+    if credentials_file:
+        path = Path(credentials_file)
+        if path.exists():
+            values.extend(_split_credential_entries(path.read_text(encoding="utf-8")))
+    return tuple(_parse_collector_credential(value) for value in values if value.strip())
+
+
+def _authenticate_tenant_collector(
+    credentials: Iterable[CollectorCredential],
+    *,
+    authorization: str | None,
+    signature: str | None,
+    timestamp: str | None,
+    nonce: str | None,
+    body: bytes,
+) -> CollectorPrincipal | None:
+    for credential in credentials:
+        if authorization != f"Bearer {credential.bearer_token}":
+            continue
+        if not (signature and timestamp and nonce):
+            continue
+        headers = SignatureHeaders(timestamp=timestamp, nonce=nonce, signature=signature)
+        if not verify_signature(credential.hmac_secret, headers, body):
+            continue
+        return CollectorPrincipal(
+            tenant_id=credential.tenant_id,
+            subject=credential.subject,
+            auth_method="tenant-credential",
+        )
+    return None
+
+
+def _enforce_principal_tenant(principal: CollectorPrincipal, tenant_id: str) -> None:
+    if not principal.tenant_id or principal.tenant_id == "*":
+        return
+    if tenant_id != principal.tenant_id:
+        raise HTTPException(status_code=403, detail="collector credential cannot write the requested tenant")
+
+
+def _parse_collector_credential(value: str) -> CollectorCredential:
+    parts = value.strip().split(":")
+    if len(parts) < 3:
+        raise ValueError("collector tenant credential entries must use tenant:bearer-token:hmac-secret[:subject]")
+    tenant_id, bearer_token, hmac_secret = parts[0], parts[1], parts[2]
+    if not tenant_id or not bearer_token or not hmac_secret:
+        raise ValueError("collector tenant credential entries require tenant, bearer token, and hmac secret")
+    subject = parts[3] if len(parts) > 3 and parts[3] else f"{tenant_id}:collector"
+    return CollectorCredential(tenant_id=tenant_id, bearer_token=bearer_token, hmac_secret=hmac_secret, subject=subject)
+
+
+def _split_credential_entries(value: str) -> list[str]:
+    return [entry.strip() for entry in value.replace("\n", ",").split(",") if entry.strip()]
 
 
 def _env_bool(value: str) -> bool:

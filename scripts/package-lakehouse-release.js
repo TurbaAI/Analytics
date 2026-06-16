@@ -8,7 +8,7 @@ const root = path.join(__dirname, "..");
 
 const requiredSecretBindings = [
   { secret: "turbalance-api-auth", remoteKey: "lakehouse/api-auth", properties: ["api-tokens", "jwks"] },
-  { secret: "turbalance-collector-auth", remoteKey: "lakehouse/collector-auth", properties: ["bearer-token", "hmac-secret"] },
+  { secret: "turbalance-collector-auth", remoteKey: "lakehouse/collector-auth", properties: ["tenant-credentials", "bearer-token", "hmac-secret"] },
   { secret: "turbalance-discovery-auth", remoteKey: "lakehouse/discovery-auth", properties: ["enrollment-token"] },
   { secret: "turbalance-agent-client-ca", remoteKey: "lakehouse/mtls-agent-ca", properties: ["ca.crt"] },
   { secret: "turbalance-metadata-db", remoteKey: "lakehouse/metadata-db", properties: ["database-url"] },

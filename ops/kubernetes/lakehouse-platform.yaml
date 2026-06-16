@@ -83,6 +83,7 @@ metadata:
   namespace: turbalance-lakehouse
 type: Opaque
 stringData:
+  tenant-credentials: tenant-a:replace-with-collector-token:replace-with-hmac-secret:tenant-a-collector
   bearer-token: replace-with-collector-token
   hmac-secret: replace-with-hmac-secret
 ---
@@ -122,6 +123,8 @@ spec:
             - secretRef: { name: turbalance-object-store, optional: true }
           env:
             - { name: PORT, value: "8801" }
+            - name: TURBALANCE_COLLECTOR_TENANT_CREDENTIALS
+              valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: tenant-credentials, optional: true } }
             - name: TURBALANCE_COLLECTOR_TOKEN
               valueFrom: { secretKeyRef: { name: turbalance-collector-auth, key: bearer-token } }
             - name: TURBALANCE_COLLECTOR_HMAC_SECRET

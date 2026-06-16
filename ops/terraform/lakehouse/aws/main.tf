@@ -225,8 +225,9 @@ resource "aws_secretsmanager_secret" "collector_auth" {
 resource "aws_secretsmanager_secret_version" "collector_auth" {
   secret_id = aws_secretsmanager_secret.collector_auth.id
   secret_string = jsonencode({
-    "bearer-token" = random_password.collector_token.result
-    "hmac-secret"  = random_password.collector_hmac_secret.result
+    "tenant-credentials" = "tenant-a:${random_password.collector_token.result}:${random_password.collector_hmac_secret.result}:tenant-a-collector"
+    "bearer-token"       = random_password.collector_token.result
+    "hmac-secret"        = random_password.collector_hmac_secret.result
   })
 }
 

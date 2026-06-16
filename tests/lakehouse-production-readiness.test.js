@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -9,6 +10,8 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "turba-lakehouse-readiness
 const caPath = path.join(tempDir, "agent-ca.pem");
 const jwksPath = path.join(tempDir, "jwks.json");
 const envPath = path.join(tempDir, "production.env");
+const collectorToken = `collector_test_${crypto.randomBytes(18).toString("base64url")}`;
+const collectorHmacSecret = `collector_hmac_test_${crypto.randomBytes(24).toString("base64url")}`;
 
 function runNode(args, options = {}) {
   const result = spawnSync(process.execPath, args, {
@@ -50,8 +53,9 @@ fs.writeFileSync(
     "TURBALANCE_QUEUE_GATEWAY_TOPIC=turbalance.collector.telemetry",
     "TURBALANCE_TERRAFORM_DIR=ops/terraform/lakehouse/aws",
     "TURBALANCE_EBPF_HOSTS_FILE=ops/lakehouse-ebpf-hosts.example.json",
-    "TURBALANCE_COLLECTOR_TOKEN=collector-token-redacted",
-    "TURBALANCE_COLLECTOR_HMAC_SECRET=collector-hmac-redacted",
+    `TURBALANCE_COLLECTOR_TENANT_CREDENTIALS=tenant-a:${collectorToken}:${collectorHmacSecret}:tenant-a-collector`,
+    `TURBALANCE_COLLECTOR_TOKEN=${collectorToken}`,
+    `TURBALANCE_COLLECTOR_HMAC_SECRET=${collectorHmacSecret}`,
     "TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN=discovery-enrollment-live",
     "TURBALANCE_API_TOKENS=tenant-a:viewer-live:viewer:tenant-a-viewer",
     `TURBALANCE_API_JWKS_FILE=${jwksPath}`,
@@ -87,7 +91,7 @@ assert.ok(secretSync.bindings.some((item) => item.remoteKey === "lakehouse/api-a
 assert.ok(secretSync.bindings.some((item) => item.remoteKey === "lakehouse/consul"));
 assert.equal(secretSync.bindings.flatMap((item) => item.missingRequired).length, 0);
 assert.ok(JSON.stringify(secretSync).includes("[REDACTED]"));
-assert.ok(!JSON.stringify(secretSync).includes("collector-token-redacted"));
+assert.ok(!JSON.stringify(secretSync).includes(collectorToken));
 
 const externalSecrets = runNode([
   "scripts/validate-lakehouse-externalsecrets.js",
@@ -150,7 +154,7 @@ const envAssembly = runNode([
 ]);
 assert.equal(envAssembly.status, "dry-run");
 assert.ok(envAssembly.envPreview.some((line) => line === "TURBALANCE_COLLECTOR_TOKEN=[REDACTED]"));
-assert.ok(!JSON.stringify(envAssembly).includes("collector-token-redacted"));
+assert.ok(!JSON.stringify(envAssembly).includes(collectorToken));
 
 const valuesEnvAssembly = runNode([
   "scripts/create-lakehouse-production-env-from-values.js",
@@ -173,7 +177,7 @@ const secretMaterial = runNode([
 assert.equal(secretMaterial.status, "ready");
 assert.equal(secretMaterial.summary.requiredMissing, 0);
 assert.ok(secretMaterial.groups.some((item) => item.name === "consul" && item.satisfied));
-assert.ok(!JSON.stringify(secretMaterial).includes("collector-token-redacted"));
+assert.ok(!JSON.stringify(secretMaterial).includes(collectorToken));
 
 const productionMaterial = runNode([
   "scripts/bootstrap-lakehouse-production-material.js",

@@ -7,7 +7,7 @@ const root = path.join(__dirname, "..");
 
 const baseBindings = [
   { externalSecret: "turbalance-api-auth", targetSecret: "turbalance-api-auth", keys: ["api-tokens", "jwks"] },
-  { externalSecret: "turbalance-collector-auth", targetSecret: "turbalance-collector-auth", keys: ["bearer-token", "hmac-secret"] },
+  { externalSecret: "turbalance-collector-auth", targetSecret: "turbalance-collector-auth", keys: ["tenant-credentials", "bearer-token", "hmac-secret"] },
   { externalSecret: "turbalance-discovery-auth", targetSecret: "turbalance-discovery-auth", keys: ["enrollment-token"] },
   { externalSecret: "turbalance-agent-client-ca", targetSecret: "turbalance-agent-client-ca", keys: ["ca.crt"] },
   { externalSecret: "turbalance-metadata-db", targetSecret: "turbalance-metadata-db", keys: ["database-url"] },

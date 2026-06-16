@@ -7,6 +7,8 @@ function parseArgs(argv) {
     namespace: "turbalance-lakehouse",
     out: "",
     example: false,
+    collectorTenantCredentials: process.env.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS || "",
+    collectorTenantCredentialsFile: process.env.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE || "",
     collectorToken: process.env.TURBALANCE_COLLECTOR_TOKEN || "",
     collectorHmacSecret: process.env.TURBALANCE_COLLECTOR_HMAC_SECRET || "",
     discoveryEnrollmentToken: process.env.TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN || "",
@@ -43,7 +45,11 @@ function parseArgs(argv) {
   if (options.apiJwksFile) {
     options.apiJwks = fs.readFileSync(path.resolve(options.apiJwksFile), "utf8");
   }
+  if (options.collectorTenantCredentialsFile) {
+    options.collectorTenantCredentials = fs.readFileSync(path.resolve(options.collectorTenantCredentialsFile), "utf8");
+  }
   if (options.example) {
+    options.collectorTenantCredentials ||= "tenant-a:replace-with-collector-token:replace-with-hmac-secret:tenant-a-collector";
     options.collectorToken ||= "replace-with-collector-token";
     options.collectorHmacSecret ||= "replace-with-hmac-secret";
     options.discoveryEnrollmentToken ||= "replace-with-enrollment-token";
@@ -61,14 +67,18 @@ function parseArgs(argv) {
       "-----END CERTIFICATE-----"
     ].join("\n");
   }
+  if (!options.collectorTenantCredentials && !(options.collectorToken && options.collectorHmacSecret)) {
+    throw new Error("collector auth requires collectorTenantCredentials or collectorToken plus collectorHmacSecret");
+  }
   return options;
 }
 
 function render(options) {
   const docs = [
     secret("turbalance-collector-auth", options.namespace, {
-      "bearer-token": required(options.collectorToken, "collector token"),
-      "hmac-secret": required(options.collectorHmacSecret, "collector HMAC secret")
+      "tenant-credentials": options.collectorTenantCredentials || "",
+      "bearer-token": options.collectorToken || "",
+      "hmac-secret": options.collectorHmacSecret || ""
     }),
     secret("turbalance-discovery-auth", options.namespace, {
       "enrollment-token": required(options.discoveryEnrollmentToken, "discovery enrollment token")

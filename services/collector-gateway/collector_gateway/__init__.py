@@ -1,4 +1,4 @@
-from .app import CollectorSettings, create_app
+from .app import CollectorCredential, CollectorSettings, load_collector_credentials, create_app
 from .backpressure import Admission, BackpressureAdapter
 from .identity import ClientIdentity, ClientIdentityError, client_identity_from_xfcc, parse_xfcc_header
 from .queue import FileQueuePublisher, HttpQueuePublisher, QueuePublishResult, create_queue_publisher
@@ -9,6 +9,7 @@ __all__ = [
     "BackpressureAdapter",
     "ClientIdentity",
     "ClientIdentityError",
+    "CollectorCredential",
     "CollectorSettings",
     "FileQueuePublisher",
     "HttpQueuePublisher",
@@ -17,6 +18,7 @@ __all__ = [
     "client_identity_from_xfcc",
     "create_queue_publisher",
     "create_app",
+    "load_collector_credentials",
     "parse_xfcc_header",
     "replay_spool",
 ]

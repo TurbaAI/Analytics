@@ -21,6 +21,8 @@ const requiredRuntimeKeys = [
 ];
 
 const secretSyncKeys = [
+  "TURBALANCE_COLLECTOR_TENANT_CREDENTIALS",
+  "TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE",
   "TURBALANCE_COLLECTOR_TOKEN",
   "TURBALANCE_COLLECTOR_HMAC_SECRET",
   "TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN",
@@ -173,7 +175,7 @@ function isPlaceholder(value) {
 }
 
 function isSecretKey(key) {
-  return /TOKEN|SECRET|PASSWORD|AUTHORIZATION|JWKS|CA_PEM|CA_FILE|DATABASE_URL|POSTGRES_URL|ACCESS_KEY|PAGERDUTY|SLACK/i.test(key);
+  return /TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTHORIZATION|JWKS|CA_PEM|CA_FILE|DATABASE_URL|POSTGRES_URL|ACCESS_KEY|PAGERDUTY|SLACK/i.test(key);
 }
 
 function buildEnv(config, options) {
@@ -213,9 +215,9 @@ function validate(config, options) {
     }
   }
   checks.push(check("image_tag_immutable", config.TURBALANCE_IMAGE_TAG && config.TURBALANCE_IMAGE_TAG !== "latest", "image tag is immutable"));
-  checks.push(check("lake_root_s3", String(config.TURBALANCE_LAKE_ROOT || "").startsWith("s3://"), "lake root uses s3://"));
+  checks.push(check("lake_root_object_store", /^(s3|gs|gcs):\/\//.test(String(config.TURBALANCE_LAKE_ROOT || "")), "lake root uses managed object storage"));
   checks.push(check("secrets.api_auth", Boolean(config.TURBALANCE_API_TOKENS || config.TURBALANCE_API_JWKS || config.TURBALANCE_API_JWKS_FILE), "API auth material is present", "warning"));
-  checks.push(check("secrets.collector_auth", Boolean(config.TURBALANCE_COLLECTOR_TOKEN && config.TURBALANCE_COLLECTOR_HMAC_SECRET), "collector auth material is present", "warning"));
+  checks.push(check("secrets.collector_auth", Boolean(config.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS || config.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE || (config.TURBALANCE_COLLECTOR_TOKEN && config.TURBALANCE_COLLECTOR_HMAC_SECRET)), "collector auth material is present", "warning"));
   checks.push(check("secrets.discovery", Boolean(config.TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN), "discovery enrollment token is present", "warning"));
   checks.push(check("secrets.agent_ca", Boolean(config.TURBALANCE_AGENT_CLIENT_CA_PEM || config.TURBALANCE_AGENT_CLIENT_CA_FILE), "agent client CA is present", "warning"));
   checks.push(check("secrets.metadata_db", Boolean(config.TURBALANCE_DISCOVERY_DATABASE_URL || config.TURBALANCE_POSTGRES_URL), "metadata DB URL is present", "warning"));

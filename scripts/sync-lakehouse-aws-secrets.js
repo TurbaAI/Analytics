@@ -78,7 +78,8 @@ function readFileValue(config, envKey, envDir) {
   const file = config[envKey];
   if (!file) return "";
   const candidates = [path.resolve(envDir, file), path.resolve(root, file)];
-  const fullPath = candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+  const fullPath = candidates.find((candidate) => fs.existsSync(candidate));
+  if (!fullPath) return "";
   return fs.readFileSync(fullPath, "utf8");
 }
 
@@ -92,6 +93,7 @@ function first(config, keys, fallback = "") {
 function buildBindings(config, envDir, includeConsul) {
   const apiJwks = readFileValue(config, "TURBALANCE_API_JWKS_FILE", envDir) || config.TURBALANCE_API_JWKS || '{"keys":[]}';
   const agentCa = readFileValue(config, "TURBALANCE_AGENT_CLIENT_CA_FILE", envDir) || config.TURBALANCE_AGENT_CLIENT_CA_PEM || "";
+  const tenantCredentials = readFileValue(config, "TURBALANCE_COLLECTOR_TENANT_CREDENTIALS_FILE", envDir) || config.TURBALANCE_COLLECTOR_TENANT_CREDENTIALS || "";
   const region = first(config, ["AWS_REGION", "TURBALANCE_AWS_REGION"], "us-west-2");
   const endpoint = first(
     config,
@@ -104,9 +106,10 @@ function buildBindings(config, envDir, includeConsul) {
       jwks: apiJwks
     }, ["api-tokens", "jwks"]),
     binding("turbalance-collector-auth", "lakehouse/collector-auth", {
+      "tenant-credentials": tenantCredentials,
       "bearer-token": config.TURBALANCE_COLLECTOR_TOKEN || "",
       "hmac-secret": config.TURBALANCE_COLLECTOR_HMAC_SECRET || ""
-    }, ["bearer-token", "hmac-secret"]),
+    }, tenantCredentials ? ["tenant-credentials"] : ["bearer-token", "hmac-secret"]),
     binding("turbalance-discovery-auth", "lakehouse/discovery-auth", {
       "enrollment-token": config.TURBALANCE_DISCOVERY_ENROLLMENT_TOKEN || ""
     }, ["enrollment-token"]),
