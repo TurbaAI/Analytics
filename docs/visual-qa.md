@@ -59,4 +59,4 @@ Open `index.html` around 390px wide.
 
 ## Known Constraint
 
-Screenshots in `build/` are static artifacts. Regenerate them in a local browser whenever layout changes materially.
+Screenshots in `build/` are generated artifacts and are not tracked in git. Regenerate them in a local browser or through the visual QA workflow whenever layout changes materially.

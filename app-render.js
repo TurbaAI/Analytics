@@ -246,10 +246,29 @@ function predictiveMetricHasSignal(metric, points = []) {
 
 function renderIngestState() {
   const ingestEl = document.querySelector("#ingestState");
-  if (!ingestEl) return;
+  const boundary = normalizeDataBoundary(state.dataBoundary, activeIngestion);
 
-  ingestEl.textContent = state.ingestLabel;
-  ingestEl.dataset.status = state.ingestTone;
+  if (ingestEl) {
+    ingestEl.textContent = state.ingestLabel;
+    ingestEl.dataset.status = state.ingestTone;
+    ingestEl.title = boundary.message;
+  }
+
+  renderDataBoundary(boundary);
+}
+
+function renderDataBoundary(boundary) {
+  const banner = document.querySelector("#dataBoundaryBanner");
+  if (!banner) return;
+
+  const label = document.querySelector("#dataBoundaryLabel");
+  const message = document.querySelector("#dataBoundaryMessage");
+  const visible = boundary.kind === "demo";
+
+  banner.hidden = !visible;
+  banner.dataset.status = boundary.tone;
+  if (label) label.textContent = boundary.label;
+  if (message) message.textContent = boundary.message;
 }
 
 function renderDashboardSettingsPanel() {

@@ -11,26 +11,29 @@ function loadWorkspaceStore(defaultIngestion) {
   const persisted = readWorkspaceStore();
 
   if (isValidWorkspaceStore(persisted)) {
+    const dataBoundary = normalizeDataBoundary(persisted.dataBoundary, persisted.ingestion);
     return {
       ...persisted,
+      dataBoundary,
       machineInventory: normalizeMachineInventoryArchive(persisted.machineInventory),
       snapshots: normalizeSnapshotStore(persisted.snapshots),
       taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
       storageLabel: "Loaded locally",
-      storageTone: "good"
+      storageTone: dataBoundary.kind === "demo" ? "watch" : "good"
     };
   }
 
   const seeded = createWorkspaceStore(defaultIngestion, {
     savedAt: new Date(),
-    lastAnalysisAt: null
+    lastAnalysisAt: null,
+    dataBoundary: demoDataBoundary()
   });
   const saved = writeWorkspaceStore(seeded);
 
   return {
     ...seeded,
-    storageLabel: saved ? "Seeded locally" : "Session only",
-    storageTone: saved ? "good" : "watch"
+    storageLabel: saved ? "Seeded demo data" : "Demo session only",
+    storageTone: "watch"
   };
 }
 
@@ -40,7 +43,8 @@ function persistWorkspaceStore() {
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
     taskHistory,
-    machineInventory: machineInventoryArchive
+    machineInventory: machineInventoryArchive,
+    dataBoundary: state.dataBoundary
   });
   const saved = writeWorkspaceStore(nextStore);
 
@@ -258,6 +262,7 @@ function restoreWorkspaceStore(store, label) {
   state.scope = "job";
   state.ingestLabel = label;
   state.ingestTone = "good";
+  state.dataBoundary = normalizeDataBoundary(store.dataBoundary, retainedIngestion);
   state.lastAnalysis = safeDate(store.lastAnalysisAt, new Date());
 
   if (snapshotHistory.length === 0) {
@@ -268,18 +273,100 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], machineInventory = [] }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], machineInventory = [], dataBoundary = null }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
     savedAt: dateIso(savedAt),
     lastAnalysisAt: dateIso(lastAnalysisAt),
+    dataBoundary: normalizeDataBoundary(dataBoundary, ingestion),
     ingestion,
     baselines: buildBaselineStore(ingestion.runs),
     machineInventory: normalizeMachineInventoryArchive(machineInventory),
     snapshots: normalizeSnapshotStore(snapshots),
     taskHistory: normalizeTaskHistoryStore(taskHistory)
   };
+}
+
+function demoDataBoundary() {
+  return {
+    kind: "demo",
+    label: "Demo data",
+    tone: "watch",
+    source: "SAMPLE_INGESTION",
+    message: "Sample figures only. Connect an imported, API, or live feed before deployment."
+  };
+}
+
+function normalizeDataBoundary(boundary, ingestion) {
+  const raw = isPlainObject(boundary) ? boundary : {};
+  const kind = ["demo", "imported", "api", "live", "workspace"].includes(raw.kind)
+    ? raw.kind
+    : isSampleIngestion(ingestion) ? "demo" : "workspace";
+  const defaults = dataBoundaryDefaults(kind);
+
+  return {
+    kind,
+    label: String(raw.label || defaults.label),
+    tone: String(raw.tone || defaults.tone),
+    source: String(raw.source || defaults.source || ""),
+    message: String(raw.message || defaults.message)
+  };
+}
+
+function dataBoundaryDefaults(kind) {
+  if (kind === "demo") return demoDataBoundary();
+  if (kind === "live") {
+    return {
+      label: "Live data",
+      tone: "good",
+      source: "live-machine-bundle",
+      message: "Observed telemetry feed."
+    };
+  }
+  if (kind === "api") {
+    return {
+      label: "API data",
+      tone: "good",
+      source: "api",
+      message: "Fetched from the configured API endpoint."
+    };
+  }
+  if (kind === "imported") {
+    return {
+      label: "Imported data",
+      tone: "good",
+      source: "file",
+      message: "Imported from an operator-provided JSON bundle."
+    };
+  }
+  return {
+    label: "Workspace data",
+    tone: "good",
+    source: "workspace",
+    message: "Restored from a saved workspace."
+  };
+}
+
+function dataBoundaryForSourceLabel(sourceLabel, payload = null) {
+  if (isPlainObject(payload?.dataBoundary)) {
+    return normalizeDataBoundary(payload.dataBoundary, payload.ingestion || payload);
+  }
+
+  const label = String(sourceLabel || "");
+  if (/^Live machine telemetry/i.test(label)) return dataBoundaryDefaults("live");
+  if (/^Fetched API feed/i.test(label)) return dataBoundaryDefaults("api");
+  if (/^Imported /i.test(label)) return dataBoundaryDefaults("imported");
+  if (/sample/i.test(label)) return demoDataBoundary();
+  return dataBoundaryDefaults("workspace");
+}
+
+function isSampleIngestion(ingestion) {
+  const runs = Array.isArray(ingestion?.runs) ? ingestion.runs : [];
+  const tenants = ingestion?.entities?.tenants || {};
+  return runs.some((run) => run?.id === "run-7421")
+    && runs.some((run) => run?.id === "run-7318")
+    && Boolean(tenants["apex-ai"]);
 }
 
 function readWorkspaceStore() {

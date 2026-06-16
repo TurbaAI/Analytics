@@ -36,6 +36,8 @@ assert.ok(telemetryProto.includes("rpc Health"));
 assert.equal(workspaceSchema.properties.storageSchemaVersion.const, "turba.workspace.v2");
 assert.equal(workspaceSchema.properties.ingestionSchemaVersion.const, "turba.ingestion.v1");
 assert.ok(workspaceSchema.properties.ingestion.$ref.includes("turba-ingestion.v1.schema.json"));
+assert.ok(workspaceSchema.properties.dataBoundary.properties.kind.enum.includes("demo"));
+assert.ok(workspaceSchema.properties.dataBoundary.properties.kind.enum.includes("live"));
 assert.ok(sourceBundleSchema.properties.ingestion.$ref.includes("turba-ingestion.v1.schema.json"));
 
 ["schemaVersion", "runs"].forEach((key) => {
@@ -48,6 +50,7 @@ assert.ok(sourceBundleSchema.properties.ingestion.$ref.includes("turba-ingestion
 
 assert.equal(workspaceFixture.storageSchemaVersion, workspaceSchema.properties.storageSchemaVersion.const);
 assert.equal(workspaceFixture.ingestion.schemaVersion, ingestionSchema.properties.schemaVersion.const);
+assert.equal(workspaceFixture.dataBoundary.kind, "imported");
 assert.ok(Array.isArray(sourceFixture.sources.prometheus));
 assert.ok(Array.isArray(sourceFixture.sources.provider));
 assert.ok(Array.isArray(sourceFixture.sources.scheduler));

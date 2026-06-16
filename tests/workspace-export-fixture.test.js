@@ -10,6 +10,8 @@ const snapshot = workspace.snapshots[0];
 assert.equal(workspace.storageSchemaVersion, "turba.workspace.v2");
 assert.equal(workspace.ingestionSchemaVersion, "turba.ingestion.v1");
 assert.equal(workspace.ingestion.schemaVersion, "turba.ingestion.v1");
+assert.equal(workspace.dataBoundary.kind, "imported");
+assert.equal(workspace.dataBoundary.label, "Imported data");
 assert.ok(!Number.isNaN(new Date(workspace.savedAt).getTime()));
 assert.ok(!Number.isNaN(new Date(workspace.lastAnalysisAt).getTime()));
 

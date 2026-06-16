@@ -259,6 +259,7 @@ let activeIngestion = applyPersistedBaselines(reconcileMachineInventory(workspac
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
+const initialDataBoundary = normalizeDataBoundary(workspaceStore.dataBoundary, activeIngestion);
 let liveTelemetryHistory = [];
 let sparkPairClockHistory = [];
 let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
@@ -290,12 +291,13 @@ const state = {
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   storageLabel: workspaceStore.storageLabel,
   storageTone: workspaceStore.storageTone,
-  ingestLabel: shouldAutoLoadMachineDemoBundle() ? "Live feed pending" : "Sample feed",
-  ingestTone: shouldAutoLoadMachineDemoBundle() ? "watch" : "good"
+  ingestLabel: shouldAutoLoadMachineDemoBundle() ? "Live feed pending" : initialDataBoundary.label,
+  ingestTone: shouldAutoLoadMachineDemoBundle() ? "watch" : initialDataBoundary.tone,
+  dataBoundary: initialDataBoundary
 };
 
 if (snapshotHistory.length === 0) {
-  captureAnalysisSnapshot("Seeded sample", state.lastAnalysis);
+  captureAnalysisSnapshot(initialDataBoundary.kind === "demo" ? "Seeded demo data" : "Seeded workspace", state.lastAnalysis);
   persistWorkspaceStore();
 } else if (taskHistory.length === 0) {
   captureTaskMemorySnapshot("Task memory seed", state.lastAnalysis);
@@ -814,7 +816,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
 
 
 

@@ -319,6 +319,35 @@ input[type="url"] {
   color: var(--red);
 }
 
+.data-boundary-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -6px 0 16px;
+  padding: 9px 12px;
+  border: 1px solid rgba(185, 118, 0, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(90deg, rgba(255, 209, 128, 0.2), rgba(255, 251, 235, 0.82));
+  color: #6f4a08;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.data-boundary-banner[hidden] {
+  display: none;
+}
+
+.data-boundary-banner strong {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.data-boundary-banner span {
+  min-width: 0;
+}
+
 .scope-strip > *,
 .topbar > *,
 .top-actions > *,
@@ -8066,6 +8095,12 @@ html[data-theme="dark"] .analysis-stamp span[data-status="poor"],
 html[data-theme="dark"] .ingest-strip > span[data-status="poor"] {
   background: var(--red-2);
   color: var(--red);
+}
+
+html[data-theme="dark"] .data-boundary-banner {
+  border-color: rgba(240, 191, 99, 0.32);
+  background: linear-gradient(90deg, rgba(240, 191, 99, 0.18), rgba(27, 36, 37, 0.92));
+  color: var(--amber);
 }
 
 html[data-theme="dark"] .bar-track,

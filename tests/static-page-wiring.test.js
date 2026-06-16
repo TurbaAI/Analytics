@@ -61,6 +61,9 @@ selectorMatches.forEach((selector) => {
   "exportWorkspaceButton",
   "exportRedactedWorkspaceButton",
   "resetWorkspaceButton",
+  "dataBoundaryBanner",
+  "dataBoundaryLabel",
+  "dataBoundaryMessage",
   "copyReport",
   "providerBadge",
   "providerContext",
@@ -111,6 +114,10 @@ assert.equal((html.match(/data-scheduler-scenario="/g) || []).length, 4);
 assert.ok(html.includes('accept="application/json,.json"'));
 assert.ok(app.includes("turba.analytics.workspace.v2"));
 assert.ok(app.includes("turba.workspace.v2"));
+assert.ok(app.includes("dataBoundary"));
+assert.ok(app.includes("demoDataBoundary"));
+assert.ok(app.includes("Sample figures only"));
+assert.ok(css.includes(".data-boundary-banner"));
 assert.ok(app.includes("renderProviderLens"));
 assert.ok(app.includes("renderProviderSummaryTables"));
 assert.ok(app.includes("renderOpportunityCenter"));

@@ -3,6 +3,13 @@
   "ingestionSchemaVersion": "turba.ingestion.v1",
   "savedAt": "2026-05-31T12:00:00.000Z",
   "lastAnalysisAt": "2026-05-31T12:00:00.000Z",
+  "dataBoundary": {
+    "kind": "imported",
+    "label": "Imported data",
+    "tone": "good",
+    "source": "fixture",
+    "message": "Imported from a fixture bundle."
+  },
   "ingestion": {
     "schemaVersion": "turba.ingestion.v1",
     "entities": {

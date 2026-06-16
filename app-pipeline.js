@@ -976,7 +976,7 @@ async function ingestJsonPayload(payload, sourceLabel) {
   }
 
   const nextIngestion = buildIngestionFromExternalPayload(payload);
-  replaceActiveIngestion(nextIngestion, sourceLabel);
+  replaceActiveIngestion(nextIngestion, sourceLabel, dataBoundaryForSourceLabel(sourceLabel, payload));
 }
 
 function buildIngestionFromExternalPayload(payload) {

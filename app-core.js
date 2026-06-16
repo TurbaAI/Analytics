@@ -61,7 +61,7 @@ function writeThemeMode(theme) {
   }
 }
 
-function replaceActiveIngestion(nextIngestion, label) {
+function replaceActiveIngestion(nextIngestion, label, dataBoundary = null) {
   const previousKey = state.selectedKey;
   const previousIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === previousKey)) : "";
   const retainedIngestion = reconcileMachineInventory(nextIngestion);
@@ -71,6 +71,7 @@ function replaceActiveIngestion(nextIngestion, label) {
   state.selectedKey = resolveJobSelectionKey(previousKey, previousIdentity) || jobs[0]?.id || "";
   state.ingestLabel = label;
   state.ingestTone = "good";
+  state.dataBoundary = normalizeDataBoundary(dataBoundary || dataBoundaryForSourceLabel(label), activeIngestion);
   state.lastAnalysis = new Date();
   captureAnalysisSnapshot(label, state.lastAnalysis);
   persistWorkspaceStore();
@@ -936,10 +937,11 @@ function resetWorkspace() {
   state.selectedKey = jobs.find((job) => job.id === "run-7421")?.id || jobs[0]?.id || "";
   state.samePod = false;
   state.schedulerScenario = "recommended";
-  state.ingestLabel = "Sample feed";
-  state.ingestTone = "good";
+  state.ingestLabel = "Demo data";
+  state.ingestTone = "watch";
+  state.dataBoundary = demoDataBoundary();
   state.lastAnalysis = new Date();
-  captureAnalysisSnapshot("Reset sample", state.lastAnalysis);
+  captureAnalysisSnapshot("Reset demo data", state.lastAnalysis);
   persistWorkspaceStore();
   render();
 }

@@ -35,7 +35,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 ## Visual Readiness
 
 1. Run the checks in `docs/visual-qa.md` on desktop and mobile widths.
-2. Regenerate `build/turbalance-analytics-desktop.png` and `build/turbalance-analytics-mobile.png` after layout changes.
+2. Regenerate screenshot QA artifacts with `node scripts/run-screenshot-qa.js` after layout changes; keep the generated files under `build/` out of git.
 3. Confirm no text overlap in provider lens, provider portfolio tables, Grafana Handoff links, Scheduler Simulator cards, Opportunity Engine rows, trend metrics, and mobile controls.
 4. Confirm eBPF-enriched imports do not create misleading GPU claims; host evidence should only affect network wait, network utilization, input pipeline, contention, latency tail, and noise signals.
 5. For `192.168.10.30`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with NUC14E and SPARK1 rows; use `?demo=sample` only when intentionally showing the canned provider fixture.

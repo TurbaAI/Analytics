@@ -26,6 +26,22 @@
       "type": ["string", "null"],
       "format": "date-time"
     },
+    "dataBoundary": {
+      "type": "object",
+      "required": ["kind", "label", "tone", "message"],
+      "properties": {
+        "kind": {
+          "enum": ["demo", "imported", "api", "live", "workspace"]
+        },
+        "label": { "type": "string" },
+        "tone": {
+          "enum": ["good", "watch", "poor"]
+        },
+        "source": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
     "ingestion": {
       "$ref": "./turba-ingestion.v1.schema.json"
     },
