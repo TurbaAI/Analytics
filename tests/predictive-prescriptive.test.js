@@ -189,6 +189,12 @@ const p = require("../predictive-core.js");
   assert.ok(full.plan.selected.length >= 1);
   assert.ok(full.remediation.steps.length >= 1);
   assert.ok(full.summary.urgentDirectives >= 1);
+
+  const filtered = p.prescribeActions(
+    [{ id: "tiny", title: "Tiny action", category: "Useful Compute FinOps", impactDollars: 2, impactGpuHours: 0.4, confidence: 90, priorityScore: 90 }],
+    { minImpactDollars: 25, minImpactGpuHours: 1 }
+  );
+  assert.equal(filtered.actions.length, 0, "dashboard impact floors should suppress tiny actions");
 }
 
 console.log("predictive-prescriptive tests passed");

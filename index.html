@@ -20,7 +20,7 @@
         }
       }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611-monitor-controls-20260612">
+    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611-monitor-controls-20260612-cachefix-20260616-panel-layout-split">
   </head>
   <body>
     <header class="topbar">
@@ -426,15 +426,26 @@
               <div id="opportunityList" class="opportunity-list"></div>
             </section>
 
-            <section class="panel predictive-prescriptive-panel" data-dashboard-block="predictivePrescriptive" aria-label="Predictive and prescriptive analytics">
+            <section class="panel predictive-panel predictive-prescriptive-panel" data-dashboard-block="predictiveAnalytics" aria-label="Predictive analytics">
               <div class="panel-heading">
                 <div>
-                  <p>Predictive &amp; Prescriptive</p>
-                  <h2>Forecasts and action plan</h2>
+                  <p>Predictive</p>
+                  <h2>Forecast signal watch</h2>
                 </div>
-                <span id="predictivePrescriptiveBadge" data-tone="watch">Forecasting</span>
+                <span id="predictiveAnalyticsBadge" data-tone="watch">Forecasting</span>
               </div>
-              <div id="predictivePrescriptivePanel" class="predictive-prescriptive-content"></div>
+              <div id="predictiveAnalyticsPanel" class="predictive-prescriptive-content predictive-content"></div>
+            </section>
+
+            <section class="panel prescriptive-panel predictive-prescriptive-panel" data-dashboard-block="prescriptiveActions" aria-label="Prescriptive action plan">
+              <div class="panel-heading">
+                <div>
+                  <p>Prescriptive</p>
+                  <h2>Action plan</h2>
+                </div>
+                <span id="prescriptiveActionsBadge" data-tone="watch">Actions</span>
+              </div>
+              <div id="prescriptiveActionsPanel" class="predictive-prescriptive-content prescriptive-content"></div>
             </section>
 
             <section id="taskMemoryPanel" class="panel task-memory-panel" aria-label="Task utilization memory">
@@ -639,15 +650,15 @@
       </div>
     </main>
 
-    <script src="analytics-core.js?v=grafana-runtime-20260610"></script>
-    <script src="predictive-core.js?v=predictive-prescriptive-20260615"></script>
-    <script src="nccl-trace-parser.js?v=grafana-runtime-20260610"></script>
-    <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610"></script>
-    <script src="app-data.js?v=predictive-prescriptive-20260615"></script>
-    <script src="app-core.js?v=modularize-20260615"></script>
-    <script src="app-pipeline.js?v=modularize-20260615"></script>
-    <script src="app-state.js?v=modularize-20260615"></script>
-    <script src="app-render.js?v=modularize-20260615"></script>
-    <script src="app.js?v=machine-inventory-20260611"></script>
+    <script src="analytics-core.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
+    <script src="predictive-core.js?v=predictive-prescriptive-20260615-cachefix-20260616-panel"></script>
+    <script src="nccl-trace-parser.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
+    <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
+    <script src="app-data.js?v=predictive-prescriptive-20260615-cachefix-20260616"></script>
+    <script src="app-core.js?v=modularize-20260615-cachefix-20260616"></script>
+    <script src="app-pipeline.js?v=modularize-20260615-cachefix-20260616"></script>
+    <script src="app-state.js?v=modularize-20260615-cachefix-20260616-split"></script>
+    <script src="app-render.js?v=modularize-20260615-cachefix-20260616-panel-split"></script>
+    <script src="app.js?v=machine-inventory-20260611-cachefix-20260616-split"></script>
   </body>
 </html>

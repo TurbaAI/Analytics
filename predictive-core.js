@@ -552,6 +552,7 @@
         ? input.opportunities
         : [];
     const minImpactDollars = numeric(options.minImpactDollars, 0);
+    const minImpactGpuHours = numeric(options.minImpactGpuHours, 0);
 
     const actions = opportunities
       .map((opportunity) => {
@@ -587,7 +588,7 @@
           urgency: "standard"
         };
       })
-      .filter((action) => action.expectedDollars >= minImpactDollars || action.expectedGpuHours > 0)
+      .filter((action) => action.expectedDollars >= minImpactDollars || action.expectedGpuHours >= minImpactGpuHours)
       .sort((a, b) => b.priorityScore - a.priorityScore || b.roi - a.roi);
 
     return {

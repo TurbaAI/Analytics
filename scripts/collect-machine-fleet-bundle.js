@@ -217,6 +217,7 @@ function gpuArgs() {
 
 function buildRemoteUnavailableBundle(remote, error) {
   const generatedAt = new Date();
+  const generatedIso = generatedAt.toISOString();
   const host = remoteHost(remote);
   const hostKey = safeId(host);
   const runId = `machine-${hostKey}-ssh-unreachable-${timestampId(generatedAt)}`;
@@ -224,7 +225,7 @@ function buildRemoteUnavailableBundle(remote, error) {
   const sshError = compactWhitespace(error.stderr || error.message || "ssh collection failed");
   return {
     metadata: {
-      generatedAt: generatedAt.toISOString(),
+      generatedAt: generatedIso,
       source: "collect-machine-fleet-bundle.js",
       observedHost: host,
       sourceAdapters,
@@ -416,7 +417,7 @@ function buildRemoteUnavailableBundle(remote, error) {
             sourceAdapters,
             unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],
             workloadCountersObserved: false,
-            generatedAt: generatedAt.toISOString()
+            generatedAt: generatedIso
           }
         }
       ],

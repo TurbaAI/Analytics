@@ -322,6 +322,14 @@ function saveDashboardBlockPreferences() {
 function normalizeDashboardBlockPreferences(preferences) {
   const normalized = { ...DASHBOARD_BLOCK_DEFAULTS };
   if (!isPlainObject(preferences)) return normalized;
+  if (typeof preferences.predictivePrescriptive === "boolean") {
+    if (typeof preferences.predictiveAnalytics !== "boolean") {
+      normalized.predictiveAnalytics = preferences.predictivePrescriptive;
+    }
+    if (typeof preferences.prescriptiveActions !== "boolean") {
+      normalized.prescriptiveActions = preferences.predictivePrescriptive;
+    }
+  }
   DASHBOARD_BLOCKS.forEach((block) => {
     if (typeof preferences[block.id] === "boolean") normalized[block.id] = preferences[block.id];
   });

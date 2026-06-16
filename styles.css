@@ -3867,6 +3867,14 @@ button.fleet-tile:focus-visible {
   grid-column: span 12;
 }
 
+.predictive-panel {
+  grid-column: span 5;
+}
+
+.prescriptive-panel {
+  grid-column: span 7;
+}
+
 .task-memory-panel {
   grid-column: span 12;
 }
@@ -5204,6 +5212,8 @@ button.fleet-tile:focus-visible {
   .provider-summary-panel,
   .grafana-panel,
   .opportunity-panel,
+  .predictive-panel,
+  .prescriptive-panel,
   .task-memory-panel,
   .simulator-panel,
   .efficiency-panel,
@@ -8367,8 +8377,16 @@ html[data-theme="dark"] .panel-popout-active {
    Namespaced under .predictive-* / .prescriptive-* so it is additive and does
    not affect existing styles.
    --------------------------------------------------------------------------- */
-.predictive-prescriptive-content { display: flex; flex-direction: column; gap: 16px; }
+.predictive-prescriptive-content { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.predictive-empty { min-height: 82px; font-size: 0.86rem; font-weight: 800; }
 .predictive-subhead { margin: 0 0 8px; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.75; }
+
+#predictiveAnalyticsBadge[data-tone="good"],
+#prescriptiveActionsBadge[data-tone="good"] { color: var(--green); }
+#predictiveAnalyticsBadge[data-tone="watch"],
+#prescriptiveActionsBadge[data-tone="watch"] { color: var(--amber); }
+#predictiveAnalyticsBadge[data-tone="poor"],
+#prescriptiveActionsBadge[data-tone="poor"] { color: var(--red); }
 
 .predictive-directives { display: flex; flex-direction: column; gap: 6px; }
 .predictive-directive { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; background: rgba(127, 127, 127, 0.08); }

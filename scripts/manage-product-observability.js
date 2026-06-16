@@ -225,6 +225,7 @@ function preparePrometheusTokenCommand() {
   return [
     `test -s ${shellQuote(tokenFile)}`,
     `mkdir -p ${shellQuote(path.dirname(runtimeTokenFile))}`,
+    `rm -f ${shellQuote(runtimeTokenFile)}`,
     `cp ${shellQuote(tokenFile)} ${shellQuote(runtimeTokenFile)}`,
     `chmod 0444 ${shellQuote(runtimeTokenFile)}`
   ].join(" && ");

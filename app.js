@@ -229,7 +229,8 @@ const DASHBOARD_BLOCKS = [
   { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
   { id: "unitEconomics", label: "Unit economics cards", note: "CAPEX, depreciation, OPEX, utilization, and profit/loss by host", defaultOn: true },
   { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
-  { id: "predictivePrescriptive", label: "Predictive & prescriptive", note: "Metric forecasts, saturation ETAs, anomaly/regression-risk early warning, and a ranked, forecast-driven action plan", defaultOn: true },
+  { id: "predictiveAnalytics", label: "Predictive analytics", note: "Metric forecasts, saturation ETAs, anomaly detection, and regression-risk early warning", defaultOn: true },
+  { id: "prescriptiveActions", label: "Prescriptive actions", note: "Ranked remediation plan and forecast-driven operational directives", defaultOn: true },
   { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
   { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
   { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
@@ -813,7 +814,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
 
 
 

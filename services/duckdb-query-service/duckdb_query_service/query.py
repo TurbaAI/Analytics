@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -37,11 +38,15 @@ class LakeQuery:
         self.storage = LakeStorage(lake_root)
         self.lake_root = self.storage.local_root or Path(str(lake_root))
         self.max_rows = max_rows
+        self.local_engine = os.environ.get("TURBALANCE_LAKE_QUERY_ENGINE", "pyarrow-stream").strip().lower()
+        self.max_files = max(1, int(os.environ.get("TURBALANCE_LAKE_QUERY_MAX_FILES", str(max(1000, max_rows * 5)))))
 
     @property
     def engine(self) -> str:
         if self.storage.is_object_store:
             return "pyarrow-object"
+        if self.storage.local_root is not None and self.local_engine not in {"duckdb", "duckdb-glob"}:
+            return "pyarrow-stream"
         return "duckdb" if duckdb is not None else "pyarrow"
 
     def list_tables(self) -> list[str]:
@@ -62,8 +67,10 @@ class LakeQuery:
         table_path = self.lake_root / "raw" / table_name
         if self.storage.local_root is not None and not table_path.exists():
             return []
-        if self.storage.local_root is not None and duckdb is not None:
+        if self.storage.local_root is not None and duckdb is not None and self.local_engine in {"duckdb", "duckdb-glob"}:
             return self._read_table_duckdb(table_name, tenant_id=tenant_id, limit=limit)
+        if self.storage.local_root is not None:
+            return self._read_table_local_stream(table_name, tenant_id=tenant_id, limit=limit)
         return self._read_table_pyarrow(table_name, tenant_id=tenant_id, limit=limit)
 
     def metric_rows(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
@@ -117,6 +124,25 @@ class LakeQuery:
             if tenant_id is not None and partitions.get("tenant_id") != tenant_id:
                 continue
             for row in self.storage.read_parquet_table(file_path).to_pylist():
+                rows.append({**partitions, **row})
+                if len(rows) >= limit:
+                    return rows
+        return rows
+
+    def _read_table_local_stream(self, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        table_path = self.lake_root / "raw" / table_name
+        scanned_files = 0
+        for file_path in table_path.rglob("*.parquet"):
+            scanned_files += 1
+            if scanned_files > self.max_files:
+                break
+            relative_path = file_path.relative_to(self.lake_root)
+            relative_text = relative_path.as_posix()
+            partitions = _hive_partitions(relative_text)
+            if tenant_id is not None and partitions.get("tenant_id") != tenant_id:
+                continue
+            for row in self.storage.read_parquet_table(relative_path).to_pylist():
                 rows.append({**partitions, **row})
                 if len(rows) >= limit:
                     return rows

@@ -52,12 +52,9 @@ function render() {
 }
 
 function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
-  const panel = document.querySelector("#predictivePrescriptivePanel");
-  if (!panel) return;
-  if (typeof TurbaPredictive === "undefined" || !dashboardBlockEnabled("predictivePrescriptive")) {
-    panel.replaceChildren();
-    return;
-  }
+  const predictivePanel = document.querySelector("#predictiveAnalyticsPanel");
+  const prescriptivePanel = document.querySelector("#prescriptiveActionsPanel");
+  if (!predictivePanel && !prescriptivePanel) return;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -66,17 +63,107 @@ function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
     return node;
   };
 
+  if (typeof TurbaPredictive === "undefined") {
+    const unavailable = "Predictive and prescriptive analysis is unavailable in this build.";
+    if (predictivePanel && dashboardBlockEnabled("predictiveAnalytics")) {
+      predictivePanel.replaceChildren(el("div", "operator-empty predictive-empty", unavailable));
+      updatePanelBadge("#predictiveAnalyticsBadge", "Offline", "poor");
+    }
+    if (prescriptivePanel && dashboardBlockEnabled("prescriptiveActions")) {
+      prescriptivePanel.replaceChildren(el("div", "operator-empty predictive-empty", unavailable));
+      updatePanelBadge("#prescriptiveActionsBadge", "Offline", "poor");
+    }
+    return;
+  }
+
   const series = predictiveSeriesForScope(summary);
   const predictive = TurbaPredictive.analyzePredictive(series, { horizon: 4, metrics: PREDICTIVE_METRIC_CONFIG });
-  const prescriptive = TurbaPredictive.analyzePrescriptive(opportunityEngine.opportunities || [], {
+  const prescriptive = TurbaPredictive.analyzePrescriptive(opportunityEngine?.opportunities || [], {
     predictive,
     effortBudget: 8,
-    riskTolerance: "medium"
+    riskTolerance: "medium",
+    minImpactDollars: 25,
+    minImpactGpuHours: 1
   });
 
+  if (predictivePanel) {
+    if (dashboardBlockEnabled("predictiveAnalytics")) {
+      const rendered = buildPredictivePanelNodes(el, predictive, series);
+      predictivePanel.replaceChildren(...rendered.nodes);
+      updatePanelBadge("#predictiveAnalyticsBadge", rendered.badge, rendered.tone);
+    } else {
+      predictivePanel.replaceChildren();
+    }
+  }
+
+  if (prescriptivePanel) {
+    if (dashboardBlockEnabled("prescriptiveActions")) {
+      const rendered = buildPrescriptivePanelNodes(el, prescriptive);
+      prescriptivePanel.replaceChildren(...rendered.nodes);
+      updatePanelBadge("#prescriptiveActionsBadge", rendered.badge, rendered.tone);
+    } else {
+      prescriptivePanel.replaceChildren();
+    }
+  }
+
+}
+
+function buildPredictivePanelNodes(el, predictive, series) {
   const nodes = [];
 
-  // --- Forecast-driven directives (the "what to do now" headline) ----------
+  const forecastKeys = Object.keys(predictive.metrics);
+  if (!forecastKeys.length) {
+    nodes.push(el("div", "operator-empty predictive-empty",
+      "Capture two or more analysis snapshots for this scope to unlock predictive forecasts."));
+    return { nodes, badge: "Needs history", tone: "watch" };
+  }
+
+  const grid = el("div", "predictive-forecast-grid");
+  let signalCount = 0;
+  forecastKeys.forEach((key) => {
+    const metric = predictive.metrics[key];
+    const fc = metric.forecast;
+    if (!fc || !fc.ok) return;
+    if (!predictiveMetricHasSignal(metric, series[key])) return;
+    signalCount += 1;
+    const card = el("div", "predictive-forecast-card");
+    card.dataset.trend = fc.trend;
+    card.append(el("div", "predictive-metric-label", metric.label));
+    card.append(el("div", "predictive-metric-now", `now ${fc.lastValue} -> ${fc.projectedValue} in ${fc.horizon} snapshots`));
+    const meta = el("div", "predictive-metric-meta");
+    meta.append(el("span", "predictive-trend-pill", fc.trend));
+    meta.append(el("span", "predictive-conf", `conf ${fc.confidence}%`));
+    if (metric.saturation && metric.saturation.ok && metric.saturation.willCross) {
+      const sat = metric.saturation;
+      const eta = Number.isFinite(sat.etaDays) ? `~${sat.etaDays}d` : `~${sat.periodsToThreshold} periods`;
+      meta.append(el("span", "predictive-saturation", `crosses ${sat.threshold} in ${eta}`));
+    }
+    if (metric.risk && metric.risk.ok && (metric.risk.band === "elevated" || metric.risk.band === "critical")) {
+      meta.append(el("span", "predictive-risk", `regression risk ${metric.risk.score}`));
+    }
+    if (metric.anomalies && metric.anomalies.ok && metric.anomalies.latest && metric.anomalies.latest.isAnomaly) {
+      meta.append(el("span", "predictive-anomaly", `anomaly ${metric.anomalies.latest.score}`));
+    }
+    card.append(meta);
+    grid.append(card);
+  });
+
+  if (signalCount) {
+    const wrap = el("div", "predictive-forecasts");
+    wrap.append(el("h4", "predictive-subhead", `Forecasts (next ${predictive.horizon} snapshots)`));
+    wrap.append(grid);
+    nodes.push(wrap);
+    return { nodes, badge: countLabel(signalCount, "signal"), tone: "good" };
+  }
+
+  nodes.push(el("div", "operator-empty predictive-empty",
+    "No directional predictive signal yet for this scope. Capture another materially different snapshot to unlock forecast cards."));
+  return { nodes, badge: "No signal", tone: "watch" };
+}
+
+function buildPrescriptivePanelNodes(el, prescriptive) {
+  const nodes = [];
+
   if (prescriptive.directives.length) {
     const directives = el("div", "predictive-directives");
     directives.append(el("h4", "predictive-subhead", "Forecast-driven directives"));
@@ -90,44 +177,6 @@ function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
     nodes.push(directives);
   }
 
-  // --- Predictive forecasts ------------------------------------------------
-  const forecastKeys = Object.keys(predictive.metrics);
-  if (forecastKeys.length) {
-    const grid = el("div", "predictive-forecast-grid");
-    forecastKeys.forEach((key) => {
-      const metric = predictive.metrics[key];
-      const fc = metric.forecast;
-      if (!fc || !fc.ok) return;
-      const card = el("div", "predictive-forecast-card");
-      card.dataset.trend = fc.trend;
-      card.append(el("div", "predictive-metric-label", metric.label));
-      card.append(el("div", "predictive-metric-now", `now ${fc.lastValue} → ${fc.projectedValue} in ${fc.horizon}`));
-      const meta = el("div", "predictive-metric-meta");
-      meta.append(el("span", "predictive-trend-pill", fc.trend));
-      meta.append(el("span", "predictive-conf", `conf ${fc.confidence}%`));
-      if (metric.saturation && metric.saturation.ok && metric.saturation.willCross) {
-        const sat = metric.saturation;
-        const eta = Number.isFinite(sat.etaDays) ? `~${sat.etaDays}d` : `~${sat.periodsToThreshold} periods`;
-        meta.append(el("span", "predictive-saturation", `crosses ${sat.threshold} in ${eta}`));
-      }
-      if (metric.risk && metric.risk.ok && (metric.risk.band === "elevated" || metric.risk.band === "critical")) {
-        meta.append(el("span", "predictive-risk", `regression risk ${metric.risk.score}`));
-      }
-      if (metric.anomalies && metric.anomalies.ok && metric.anomalies.latest && metric.anomalies.latest.isAnomaly) {
-        meta.append(el("span", "predictive-anomaly", `anomaly ${metric.anomalies.latest.score}`));
-      }
-      card.append(meta);
-      grid.append(card);
-    });
-    if (grid.childNodes.length) {
-      const wrap = el("div", "predictive-forecasts");
-      wrap.append(el("h4", "predictive-subhead", "Forecasts (next periods)"));
-      wrap.append(grid);
-      nodes.push(wrap);
-    }
-  }
-
-  // --- Prescriptive action plan -------------------------------------------
   const plan = prescriptive.remediation;
   if (plan && plan.steps.length) {
     const planWrap = el("div", "prescriptive-plan");
@@ -154,13 +203,45 @@ function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
   }
 
   if (!nodes.length) {
-    const empty = el("div", "operator-empty",
-      "Capture two or more analysis snapshots for this scope to unlock forecasts; prescriptive actions appear once opportunities are detected.");
-    panel.replaceChildren(empty);
-    return;
+    nodes.push(el("div", "operator-empty predictive-empty",
+      "No prescriptive actions above the impact floor for this scope."));
+    return { nodes, badge: "No actions", tone: "good" };
   }
 
-  panel.replaceChildren(...nodes);
+  const stepCount = plan?.steps.length || 0;
+  const urgentCount = prescriptive.summary?.urgentDirectives || 0;
+  if (urgentCount) return { nodes, badge: countLabel(urgentCount, "urgent"), tone: "poor" };
+  return { nodes, badge: countLabel(stepCount, "action"), tone: "watch" };
+}
+
+function updatePanelBadge(selector, label, tone) {
+  const badge = document.querySelector(selector);
+  if (!badge) return;
+  badge.textContent = label;
+  if (tone) badge.dataset.tone = tone;
+}
+
+function countLabel(count, singular, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function predictiveMetricHasSignal(metric, points = []) {
+  const fc = metric?.forecast;
+  if (!fc || !fc.ok) return false;
+  if (fc.trend && fc.trend !== "flat") return true;
+  if (metric?.saturation?.ok && metric.saturation.willCross) return true;
+  if (metric?.anomalies?.ok && metric.anomalies.latest?.isAnomaly) return true;
+  if (metric?.risk?.ok && (metric.risk.band === "elevated" || metric.risk.band === "critical")) return true;
+
+  const values = (Array.isArray(points) ? points : [])
+    .map((point) => Number(typeof point === "object" && point ? point.value : point))
+    .filter((value) => Number.isFinite(value));
+  if (values.length < 2) return false;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const magnitude = Math.max(...values.map((value) => Math.abs(value)), 1);
+  return (max - min) >= Math.max(0.5, magnitude * 0.02);
 }
 
 function renderIngestState() {

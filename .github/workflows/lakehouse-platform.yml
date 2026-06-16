@@ -1,0 +1,203 @@
+name: Lakehouse Platform
+
+on:
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: "Image registry/prefix"
+        required: true
+        default: "ghcr.io/your-org/turbalance"
+      tag:
+        description: "Release image tag"
+        required: true
+        default: "dev"
+      push:
+        description: "Push images"
+        required: true
+        default: "false"
+      lake_root:
+        description: "Production lake root"
+        required: false
+        default: "s3://replace-with-bucket/turbalance/lakehouse"
+      jwt_issuer:
+        description: "API JWT issuer"
+        required: false
+        default: "https://issuer.example"
+      jwt_audience:
+        description: "API JWT audience"
+        required: false
+        default: "turbalance-api"
+      queue_broker_url:
+        description: "Queue broker bootstrap URL"
+        required: true
+        default: "kafka.kafka.svc.cluster.local:9092"
+      certificate_mode:
+        description: "Discovery certificate mode"
+        required: true
+        default: "spire"
+
+jobs:
+  verify-build-render:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate lakehouse platform
+        run: |
+          make lint
+          node tests/platform-lakehouse.test.js
+          node tests/lakehouse-production-readiness.test.js
+          node scripts/run-lakehouse-production-smoke.js
+          node tests/docs-and-workflows.test.js
+
+      - name: Log in to GHCR
+        if: ${{ inputs.push == 'true' && startsWith(inputs.registry, 'ghcr.io/') }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build lakehouse images
+        env:
+          TURBALANCE_IMAGE_REGISTRY: ${{ inputs.registry }}
+          TURBALANCE_IMAGE_TAG: ${{ inputs.tag }}
+        run: |
+          if [ "${{ inputs.push }}" = "true" ]; then
+            scripts/build-lakehouse-platform-images.js
+            for image in collector-gateway duckdb-query-service api-server discovery-api queue-gateway raw-writer transform-runner ebpf-agent dagster sqlmesh; do
+              docker push "${TURBALANCE_IMAGE_REGISTRY}/${image}:${TURBALANCE_IMAGE_TAG}"
+            done
+          else
+            scripts/build-lakehouse-platform-images.js --dry-run
+          fi
+
+      - name: Package production release
+        run: |
+          scripts/package-lakehouse-release.js \
+            --out build/lakehouse-release \
+            --no-archive \
+            --registry "${{ inputs.registry }}" \
+            --tag "${{ inputs.tag }}" \
+            --lake-root "${{ inputs.lake_root }}" \
+            --jwt-issuer "${{ inputs.jwt_issuer }}" \
+            --jwt-audience "${{ inputs.jwt_audience }}" \
+            --queue-broker-url "${{ inputs.queue_broker_url }}" \
+            --certificate-mode "${{ inputs.certificate_mode }}"
+
+      - name: Validate release hardening gates
+        run: |
+          scripts/validate-lakehouse-release-supply-chain.js \
+            --release-dir build/lakehouse-release \
+            --registry "${{ inputs.registry }}" \
+            --tag "${{ inputs.tag }}" \
+            --out build/lakehouse-release-supply-chain.json
+          scripts/validate-lakehouse-kubernetes-release.js \
+            --overlay build/lakehouse-release/kustomize \
+            --out build/lakehouse-kubernetes-release.json
+          scripts/validate-lakehouse-slo-policy.js \
+            --out build/lakehouse-slo-policy.json
+          scripts/validate-lakehouse-secret-material.js \
+            --env-file ops/lakehouse-production.env.example \
+            --values ops/lakehouse-production.values.example.json \
+            --out build/lakehouse-secret-material.json
+          if [ "${{ inputs.push }}" = "true" ]; then
+            scripts/generate-lakehouse-image-lock.js \
+              --registry "${{ inputs.registry }}" \
+              --tag "${{ inputs.tag }}" \
+              --out build/lakehouse-image-lock.json
+          else
+            scripts/generate-lakehouse-image-lock.js \
+              --registry "${{ inputs.registry }}" \
+              --tag "${{ inputs.tag }}" \
+              --dry-run \
+              --out build/lakehouse-image-lock.json
+          fi
+          scripts/sign-lakehouse-images.js \
+            --env-file ops/lakehouse-production.env.example \
+            --image-lock build/lakehouse-image-lock.json \
+            --dry-run \
+            --out build/lakehouse-image-signatures.json
+          scripts/package-lakehouse-native-ebpf.js \
+            --out-dir build/lakehouse-native-ebpf \
+            --archive
+          scripts/generate-lakehouse-change-window.js \
+            --env-file ops/lakehouse-production.env.example \
+            --release-dir build/lakehouse-release \
+            --out-dir build/lakehouse-change-window
+          scripts/create-lakehouse-production-activation-bundle.js \
+            --env-file ops/lakehouse-production.env.example \
+            --values-file ops/lakehouse-production.values.example.json \
+            --target-host user@192.168.10.20 \
+            --remote-root /home/user/Analytics \
+            --out-dir build/lakehouse-production-activation
+          scripts/bootstrap-lakehouse-production-material.js \
+            --out-dir build/lakehouse-production-material-ci \
+            --force
+          scripts/prepare-lakehouse-operator-workstation.js \
+            --env-file ops/lakehouse-production.env.example \
+            --out build/lakehouse-operator-workstation.json
+          scripts/prepare-lakehouse-target-host.js \
+            --target-host user@192.168.10.20 \
+            --remote-root /home/user/Analytics \
+            --dry-run \
+            --out build/lakehouse-target-host-prep.json
+          scripts/prepare-lakehouse-local-registry.js \
+            --env-file ops/lakehouse-production.env.example \
+            --docker-context spark1 \
+            --destination-registry localhost:5000/turbalance \
+            --dry-run \
+            --out build/lakehouse-local-registry.json
+          scripts/render-lakehouse-single-host-overlay.js \
+            --out build/lakehouse-single-host-overlay \
+            --registry localhost:5000/turbalance \
+            --tag "${{ inputs.tag }}"
+          scripts/run-lakehouse-image-release.js \
+            --env-file ops/lakehouse-production.env.example \
+            --registry "${{ inputs.registry }}" \
+            --tag "${{ inputs.tag }}" \
+            --dry-run \
+            --out-dir build/lakehouse-image-release
+          scripts/report-lakehouse-production-gaps.js \
+            --env-file ops/lakehouse-production.env.example \
+            --values-file ops/lakehouse-production.values.example.json \
+            --target-host user@192.168.10.20 \
+            --remote-root /home/user/Analytics \
+            --out-dir build/lakehouse-production-gaps
+          scripts/prepare-screenshot-qa.js --out build/screenshot-qa-prep.json
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: lakehouse-release-package
+          path: |
+            build/lakehouse-release
+            build/lakehouse-release-supply-chain.json
+            build/lakehouse-kubernetes-release.json
+            build/lakehouse-slo-policy.json
+            build/lakehouse-secret-material.json
+            build/lakehouse-image-lock.json
+            build/lakehouse-image-signatures.json
+            build/lakehouse-native-ebpf
+            build/lakehouse-native-ebpf.tar.gz
+            build/lakehouse-change-window
+            build/lakehouse-production-activation
+            build/lakehouse-operator-workstation.json
+            build/lakehouse-target-host-prep.json
+            build/lakehouse-local-registry.json
+            build/lakehouse-single-host-overlay
+            build/lakehouse-image-release
+            build/lakehouse-production-gaps
+            build/screenshot-qa-prep.json
