@@ -1,6 +1,12 @@
 # turbalance Analytics
 
-![turbalance Analytics fleet aggregate dashboard](assets/turbalance-dashboard-fleet-aggregate.png)
+![turbalance Analytics live NUC14E dashboard with profile topbar](assets/turbalance-live-nuc14e-profile.png)
+
+Live NUC14E desktop view with the profile-aware topbar, live telemetry, machine inventory, and explicit production/demo data boundary state.
+
+![turbalance Analytics live NUC15 dashboard with profile topbar](assets/turbalance-live-nuc15-profile.png)
+
+Live NUC15/Tailscale desktop view showing the same current-user profile treatment against a different machine bundle.
 
 turbalance Analytics is an operator cockpit for AI infrastructure. It combines live machine telemetry, durable lakehouse telemetry, scheduler/source overlays, GPU observability, Redfish/BMC evidence, system identification, product packaging, and production runbooks into one workflow for finding wasted accelerator time, explaining why it is happening, and proving a change before a customer sees it.
 
@@ -23,11 +29,20 @@ The fastest orientation path is:
 This repository has moved from a static analytics prototype into a friendly-pilot product appliance plus a production lakehouse lane:
 
 - **Pilot appliance**: a single NUC14E controller for SPARK1, SPARK2, and `pi@pi1` through `pi@pi12`, with HTTPS, mTLS collector edge, API auth, Grafana, Prometheus, live agents, periodic benchmarks, support bundles, releases, rollback, and doctor checks.
-- **Analytics cockpit**: static dashboard with live resource tiles, SPARK pair comparison, Pi fleet histograms, PTP/NTP/chrony clock offset tracking, system characterization, opportunity analysis, provider lens, evidence packs, dark mode, and block settings.
-- **Source-bundle bridge**: import and backend ingest for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, Redfish, provider billing/SLO, opportunity exports, and NCCL traces.
+- **Analytics cockpit**: static/live dashboard with a profile-aware topbar, host-specific live bundle bootstrap, live resource tiles, SPARK pair comparison, Pi fleet histograms, PTP/NTP/chrony clock offset tracking, system characterization, opportunity analysis, provider lens, evidence packs, dark mode, and block settings.
+- **Source-bundle bridge**: import and backend ingest for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, Redfish, provider billing/SLO, opportunity exports, OCP Benchmark Commons exports, GPU process/thermal/topology diagnostics, and NCCL traces.
 - **Lakehouse platform**: collector gateway, queue/spool handling, raw writer, Parquet lake, DuckDB query service, transforms, alert engine, API, OpenTelemetry, Kubernetes overlays, managed storage, security manifests, and release/go-live gates.
 
 It is pilot-ready for controlled customer evaluation. It is not yet a turnkey multi-tenant SaaS; see `## Deployment Boundary` for the remaining enterprise rollout work.
+
+## Recent Feature Highlights
+
+- **Profile-aware live desktops**: root static and React headers show the current user, role, and circular avatar. Profile data can come from `user-profile.json`, `localStorage`, or `window.TURBALANCE_USER_PROFILE`, with Ahmad Byagowi as the demo fallback.
+- **Live host bootstrap**: known desktop hosts such as `192.168.10.30` and `100.95.183.13` load `build/demo/live-machine-bundle.json` before the app scripts run, so the desktop view starts from live machine telemetry instead of stale fixture data.
+- **Machine and GPU updates**: the local bundle now captures GPU process ownership, thermal qualification, topology fingerprints, backend provenance, Docker/Ollama/procfs context, and unsupported-metric status rather than inventing missing counters.
+- **Operator views**: dashboard panels cover source heartbeat, fleet tiles, unit economics, product readiness, predictive/prescriptive guidance, resource alerts, rolling graphs, GPU exporter coverage, execution-idle proof, SPARK pair comparison, fleet comparison, System ID, and Benchmark Ladder evidence.
+- **OCP Benchmark Commons lane**: Benchmark Ladder L6 can export redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison, with proposal, Innovation Village, and internal presentation docs in `docs/`.
+- **Commercial and engineering process**: licensing, GTM packaging, support SLA, status page, design-partner validation, billing/usage integration, branch protection, release process, changelog, performance budgets, and load/regression test gates are documented and validated by repository scripts.
 
 ## Current Live Pilot
 
@@ -36,7 +51,8 @@ The active lab/pilot deployment is centered on NUC14E:
 | Surface | URL or target | Notes |
 | --- | --- | --- |
 | HTTPS product edge | `https://192.168.10.30:8443/` | Nginx edge using generated local CA material in `build/product-tls/` |
-| Internal dashboard | `http://192.168.10.30:8000/` | Static dashboard served by systemd |
+| NUC14E live desktop | `http://192.168.10.30:8000/` | Static dashboard served by systemd; auto-loads the live-machine bundle and profile config |
+| NUC15/Tailscale live desktop | `http://100.95.183.13:8000/` | Alternate live desktop used by the mobile shell and cross-machine visual checks |
 | Product API | `http://192.168.10.30:8080` and `/api` through the HTTPS edge | API auth enabled |
 | Collector gateway | `http://192.168.10.30:8801/v1/source-bundles` | Internal collector with bearer plus HMAC auth |
 | mTLS collector edge | `https://192.168.10.30:9443/v1/source-bundles` | Requires generated client certificate |
@@ -57,6 +73,8 @@ Runtime containers:
 - `turbalance-prometheus-runtime`
 - `turbalance-grafana-runtime`
 - `turbalance-product-edge`
+
+Both desktop URLs ship the same profile-aware UI. `user-profile.json` can override the demo user, and known hosts pin the initial source to their live `build/demo/live-machine-bundle.json` so the header, machine count, telemetry freshness, and data boundary agree at first paint.
 
 The live doctor currently checks internal HTTP services, Prometheus readiness, Prometheus target health, Grafana, the live-machine bundle, runtime containers, HTTPS dashboard/API, the mTLS collector path, rejection of collector requests without a client certificate, and remote agent/benchmark state across SPARK and Pi machines.
 
@@ -316,10 +334,11 @@ The release manager keeps `releases/`, `backups/`, `current`, and `release-state
 
 ## Dashboard Capabilities
 
-The dashboard is a static browser app backed by live-machine bundles and optional API calls. It keeps workspace state in `localStorage` and supports normal export, redacted workspace export, and Markdown evidence-pack export.
+The dashboard is a static browser app backed by live-machine bundles and optional API calls. It keeps workspace state in `localStorage`, hydrates the current-user profile from host config when present, and supports normal export, redacted workspace export, and Markdown evidence-pack export.
 
 Current operator surfaces include:
 
+- Profile-aware topbar with current user, role, circular avatar, and host-configurable `user-profile.json`
 - Job, model, user, team, cluster, tenant, account, and reservation scopes
 - Useful compute, wasted GPU-hours, waste dollars, cost per useful GPU-hour, and bottleneck attribution
 - Provider Lens for tenant/account/reservation, queue SLO, sellable waste, commit burn, gross margin, and customer risk
@@ -327,21 +346,31 @@ Current operator surfaces include:
 - Grafana Handoff links through `sources.grafana`
 - Redfish/BMC hardware evidence through `sources.redfish`
 - Live System Resources with CPU, RAM, disk, network, Docker, Ollama, GPU, power, temperature, and signal freshness
+- GPU Process Inspector, Thermal Qualification, topology fingerprints, and backend provenance when NVIDIA telemetry is available
 - Fleet Comparison for SPARK/NUC/Pi groups
 - Raspberry Pi benchmark histograms across `pi@pi1` through `pi@pi12`
 - SPARK1/SPARK2 pair comparison with PTP/NTP/chrony/linuxptp state, rolling clock-offset graph, and sample skew
 - System Identification cards, profile bars, signature-distance comparisons, and rolling feature sparklines
+- Benchmark Ladder L6 OCP Commons cards and export-ready benchmark evidence
 - Settings panel for enabling/disabling dashboard blocks, with bare minimum enabled by default
 - Light and dark modes
 - Observation Log that records interpreted events rather than raw one-second noise
 
-Known live hosts include `192.168.10.30` / `NUC14E`, `192.168.10.20` / `SPARK1`, `192.168.10.21` / `SPARK2`, `pi1` through `pi12`, and optional lab targets such as `100.96.89.98` / `dgx-pat` when reachable.
+Known live hosts include `192.168.10.30` / `NUC14E`, `100.95.183.13` / `NUC15`, `192.168.10.20` / `SPARK1`, `192.168.10.21` / `SPARK2`, `pi1` through `pi12`, and optional lab targets such as `100.96.89.98` / `dgx-pat` when reachable.
 
 ## Live Telemetry And Benchmarks
 
 The live-machine collector samples Linux/macOS/BSD host counters, optional `gpustat --json`, selective `nvidia-smi`, Docker, Grafana, Kafka, Netdata, Ollama, node-exporter, procfs, disk, memory, network counters, link speed, drops/errors, and utilization percent when link speed is known.
 
-For NVIDIA telemetry, the preferred lightweight path is `gpustat` when present, with selective `nvidia-smi` fallback. DCGM remains the serious datacenter path for GB100/GB200 telemetry, health, power, clocks, ECC, MIG, and diagnostics.
+For NVIDIA telemetry, the preferred lightweight path is `gpustat` when present, with selective `nvidia-smi` fallback. Set `TURBALANCE_GPU_BACKEND=auto`, `gpustat`, or `nvidia-smi`, and use `TURBALANCE_GPUSTAT_BIN` when `gpustat` lives in a user virtualenv. DCGM remains the serious datacenter path for GB100/GB200 telemetry, health, power, clocks, ECC, MIG, and diagnostics.
+
+Recent machine updates add:
+
+- `gpuProcessInspector` for PID, command, user, GPU UUID/index, and GPU memory attribution
+- `gpuThermalQualification` for temperature, slowdown margin, throttle state, power draw, and power-limit benchmark comparability
+- `gpuTopology` for salted-safe topology fingerprinting and peer-link summaries
+- `scripts/turbalance-gpu-top.js` and `npm run gpu:top` for a terminal operator view over the same live-machine bundle
+- `notebooks/turbalance_gpu_monitor.py` for read-only notebook rendering of GPU status, process, thermal, and topology fields
 
 Periodic benchmarks are conservative and cache-aware. The Pi fleet gets CPU/RAM/network/disk benchmark histograms for comparison. SPARK/NUC hosts can opt into broader active characterization while still avoiding unsafe default GPU/RAM/network/disk stress.
 
@@ -465,7 +494,7 @@ node scripts/validate-source-bundle.js --require-source-export provider-pilot-bu
 
 Redfish/BMC hardware-management evidence is supported through `sources.redfish`. Use `scripts/fetch-redfish-source-export.js` for direct Redfish collection or `scripts/fetch-source-system-export.js --system redfish` when a customer source gateway exposes normalized snapshots. See `docs/redfish-integration.md`.
 
-Benchmark Ladder L6 is framed as an OCP Benchmark Commons export/import boundary. Use `scripts/export-ocp-benchmark-commons.js` to turn validated benchmark-bearing source bundles into redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison. See `docs/ocp-benchmark-commons-proposal.md` and `docs/ocp-innovation-village-submission.md`.
+Benchmark Ladder L6 is framed as an OCP Benchmark Commons export/import boundary. Use `scripts/export-ocp-benchmark-commons.js` to turn validated benchmark-bearing source bundles into redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison. The export includes machine class, salted hardware fingerprint, benchmark results, GPU process/thermal/topology quality gates, and evidence metadata so OCP members can compare received hardware against peer production fleets without exposing tenant data. See `docs/ocp-benchmark-commons-proposal.md`, `docs/ocp-innovation-village-submission.md`, and `docs/turbalance-internal-ocp-benchmark-commons.md`.
 
 ## Demo Data Boundary
 
@@ -503,11 +532,13 @@ For customer exposure, replace the generated self-signed/local CA material with 
 - `index.html`, `styles.css`, `app.js`: static dashboard shell, visual system, and browser app
 - `analytics-core.js`: scoring, bottlenecks, provider economics, scheduler simulation, opportunities
 - `nccl-trace-parser.js`, `nccl-trace-fixtures.js`: NCCL parser and fixtures
-- `assets/`: turbalance logo and UI assets
+- `assets/`: turbalance logo, profile images, UI assets, and README screenshots
 - `docs/`: operator, productization, deployment, provider, telemetry, demo, and QA docs
 - `fixtures/`: sample source bundles and provider/scheduler/eBPF/Redfish inputs
+- `frontend/react/`: React dashboard surface aligned with the static cockpit header and profile treatment
 - `grafana/`: dashboard templates
 - `lib/`: shared config and validation helpers
+- `notebooks/`: read-only notebook helpers for live-machine/GPU monitoring
 - `ops/`: product config, Kubernetes manifests, Terraform, source contracts, approvals
 - `schemas/`: JSON Schemas
 - `scripts/`: rollout, productization, exporters, validation, release, support, demo tooling
@@ -520,6 +551,10 @@ For customer exposure, replace the generated self-signed/local CA material with 
 
 The README intentionally references these files and tests because they are part of the documented surface. Generated artifacts under `build/`, including screenshot captures, are intentionally excluded from git and must be regenerated by the relevant scripts or CI workflow:
 
+- `assets/ahmad-byagowi-profile.png`
+- `assets/turbalance-live-nuc14e-profile.png`
+- `assets/turbalance-live-nuc15-profile.png`
+- `user-profile.json`
 - `docs/visual-qa.md`
 - `docs/data-contract.md`
 - `docs/backend-ingestion.md`
@@ -554,6 +589,8 @@ The README intentionally references these files and tests because they are part 
 - `schemas/turba-workspace.v2.schema.json`
 - `schemas/turba-ocp-benchmark-commons.v1.schema.json`
 - `fixtures/ocp-benchmark-commons.example.json`
+- `frontend/react/src/App.tsx`
+- `frontend/react/src/style.css`
 - `scripts/build-provider-overlay.js`
 - `scripts/build-provider-pilot-bundle.js`
 - `scripts/build-scheduler-overlay.js`
@@ -563,6 +600,7 @@ The README intentionally references these files and tests because they are part 
 - `scripts/generate-provider-pilot-config.js`
 - `scripts/collect-local-machine-bundle.js`
 - `scripts/collect-machine-fleet-bundle.js`
+- `scripts/turbalance-gpu-top.js`
 - `scripts/push-live-machine-telemetry.js`
 - `scripts/rollout-production-fleet.js`
 - `scripts/run-live-lakehouse-fleet.js`
@@ -642,6 +680,7 @@ The README intentionally references these files and tests because they are part 
 - `scripts/validate-lakehouse-alerts-dashboards.js`
 - `scripts/validate-commercial-readiness.js`
 - `scripts/validate-engineering-process.js`
+- `notebooks/turbalance_gpu_monitor.py`
 - `tests/ocp-benchmark-commons.test.js`
 - `scripts/validate-performance-budgets.js`
 - `scripts/validate-conventional-commit.js`

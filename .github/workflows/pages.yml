@@ -30,6 +30,7 @@ jobs:
 
       - name: Run desktop/static checks
         run: |
+          node tests/run-all.js
           node tests/static-page-wiring.test.js
           node tests/prepare-demo.test.js
           node scripts/prepare-demo.js --out-dir build/demo
