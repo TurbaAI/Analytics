@@ -75,7 +75,16 @@ export function App() {
           <h1>turbalance Analytics</h1>
           <p>Lakehouse telemetry console</p>
         </div>
-        <StatusPill healthy={!hasError([hostQuery, meQuery, discoveryQuery, alertQuery, covarianceQuery, modeQuery])} />
+        <div className="topActions">
+          <StatusPill healthy={!hasError([hostQuery, meQuery, discoveryQuery, alertQuery, covarianceQuery, modeQuery])} />
+          <div className="topUser" aria-label="Signed in user">
+            <span className="topUserCopy">
+              <span className="topUserName">Ahmad Byagowi</span>
+              <span className="topUserRole">Demo operator</span>
+            </span>
+            <img className="topUserAvatar" src="/ahmad-byagowi-profile.png" alt="Ahmad Byagowi" />
+          </div>
+        </div>
       </header>
 
       <section className="summaryGrid">
