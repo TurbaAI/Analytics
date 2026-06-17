@@ -62,9 +62,13 @@ async function main() {
 
 function buildPlan(composeFiles, securePrometheus) {
   if (action === "status") return [];
-  const envPrefix = securePrometheus
-    ? `TURBALANCE_PROMETHEUS_API_TOKEN_FILE=${shellQuote(runtimeTokenFile)} `
-    : "";
+  const envValues = [
+    `TURBALANCE_GRAFANA_PUBLIC_URL=${shellQuote(config.observability.grafanaPublicUrl || config.observability.grafanaUrl)}`
+  ];
+  if (securePrometheus) {
+    envValues.push(`TURBALANCE_PROMETHEUS_API_TOKEN_FILE=${shellQuote(runtimeTokenFile)}`);
+  }
+  const envPrefix = `${envValues.join(" ")} `;
   const compose = `${envPrefix}docker compose ${composeFiles.flatMap((file) => ["-f", shellQuote(file)]).join(" ")}`;
   const plan = [];
   if (securePrometheus && ["up", "restart"].includes(action)) {

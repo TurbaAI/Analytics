@@ -277,9 +277,11 @@ function dcgmGpuSourceContext(fields = {}) {
 }
 
 function grafanaLinksFromSample(sample) {
+  const dashboardUrl = sample.dashboardUrl || grafanaDashboardUrlFromSample(sample);
+  const exploreUrl = sample.exploreUrl || grafanaExploreUrlFromSample(sample);
   const directLinks = [
-    sample.dashboardUrl ? { label: sample.dashboardTitle || "Dashboard", type: "dashboard", url: sample.dashboardUrl } : null,
-    sample.exploreUrl ? { label: "Explore", type: "explore", url: sample.exploreUrl } : null
+    dashboardUrl ? { label: sample.dashboardTitle || "Dashboard", type: "dashboard", url: dashboardUrl } : null,
+    exploreUrl ? { label: "Explore", type: "explore", url: exploreUrl } : null
   ].filter(Boolean);
   const suppliedLinks = Array.isArray(sample.links) ? sample.links : [];
 
@@ -294,6 +296,89 @@ function grafanaLinksFromSample(sample) {
       .filter((link) => link.url),
     (link) => link.url
   );
+}
+
+function grafanaDashboardUrlFromSample(sample = {}) {
+  const baseUrl = grafanaBaseUrl(sample);
+  const uid = String(sample.dashboardUid || sample.uid || "").trim();
+  if (!baseUrl || !uid) return "";
+  const slug = String(sample.dashboardSlug || sample.slug || grafanaSlug(sample.dashboardTitle || sample.title || uid)).trim();
+  const params = grafanaUrlParams(sample);
+  const query = params.toString();
+  return `${baseUrl}/d/${encodeURIComponent(uid)}/${encodeURIComponent(slug || "dashboard")}${query ? `?${query}` : ""}`;
+}
+
+function grafanaExploreUrlFromSample(sample = {}) {
+  const baseUrl = grafanaBaseUrl(sample);
+  if (!baseUrl) return "";
+  const params = grafanaUrlParams(sample);
+  const datasourceUid = String(sample.datasourceUid || sample.datasource || "").trim();
+  if (datasourceUid) {
+    const query = String(sample.exploreQuery || sample.query || sample.expr || grafanaDefaultExploreQuery(sample)).trim();
+    params.set("schemaVersion", "1");
+    params.set("panes", JSON.stringify({
+      "0": compactObject({
+        datasource: datasourceUid,
+        queries: [{ refId: "A", expr: query || "up" }],
+        range: grafanaExploreRange(sample)
+      })
+    }));
+  }
+  const query = params.toString();
+  return `${baseUrl}/explore${query ? `?${query}` : ""}`;
+}
+
+function grafanaBaseUrl(sample = {}) {
+  return String(sample.grafanaBaseUrl || sample.baseUrl || sample.publicBaseUrl || "").replace(/\/+$/, "");
+}
+
+function grafanaUrlParams(sample = {}) {
+  const params = new URLSearchParams();
+  const orgId = String(sample.orgId || sample.grafanaOrgId || "").trim();
+  if (orgId) params.set("orgId", orgId);
+  const timeRange = isPlainObject(sample.timeRange) ? sample.timeRange : {};
+  const from = sample.from || timeRange.from;
+  const to = sample.to || timeRange.to;
+  const refresh = sample.refresh || timeRange.refresh;
+  if (from) params.set("from", String(from));
+  if (to) params.set("to", String(to));
+  if (refresh) params.set("refresh", String(refresh));
+  if (isPlainObject(sample.variables)) {
+    Object.entries(sample.variables).forEach(([key, value]) => {
+      const param = String(key).startsWith("var-") ? String(key) : `var-${key}`;
+      const values = Array.isArray(value) ? value : [value];
+      values
+        .filter((item) => item !== undefined && item !== null && item !== "")
+        .forEach((item) => params.append(param, String(item)));
+    });
+  }
+  return params;
+}
+
+function grafanaExploreRange(sample = {}) {
+  const timeRange = isPlainObject(sample.timeRange) ? sample.timeRange : {};
+  return {
+    from: String(sample.from || timeRange.from || "now-1h"),
+    to: String(sample.to || timeRange.to || "now")
+  };
+}
+
+function grafanaDefaultExploreQuery(sample = {}) {
+  const runId = sample.runId || (isPlainObject(sample.variables) ? sample.variables.run || sample.variables.runId : "");
+  return runId ? `turba_useful_compute_ratio{run_id="${prometheusStringLiteral(runId)}"}` : "up";
+}
+
+function grafanaSlug(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/['"]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "dashboard";
+}
+
+function prometheusStringLiteral(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
 }
 
 function redfishHealthPressure(values = []) {

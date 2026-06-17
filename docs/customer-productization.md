@@ -158,6 +158,7 @@ Use `--action status` after startup to check Grafana health, Prometheus readines
 The single-controller product edge gives pilot deployments a TLS boundary without moving the internal service ports. It starts Nginx in host networking with:
 
 - HTTPS dashboard/API proxy on `https://192.168.10.30:8443`
+- HTTPS Grafana proxy on `https://192.168.10.30:8443/grafana/`
 - mTLS collector proxy on `https://192.168.10.30:9443`
 
 ```sh
@@ -167,7 +168,7 @@ node scripts/manage-product-edge.js \
   --apply
 ```
 
-The manager generates local certificate material in `build/product-tls`, starts `turbalance-product-edge`, checks the HTTPS dashboard and `/api/ready`, verifies the collector mTLS path with the generated client certificate, and confirms the mTLS collector endpoint rejects requests without a client certificate.
+The manager generates local certificate material in `build/product-tls`, starts `turbalance-product-edge`, checks the HTTPS dashboard, `/api/ready`, and `/grafana/api/health`, verifies the collector mTLS path with the generated client certificate, and confirms the mTLS collector endpoint rejects requests without a client certificate.
 
 ## Apply Agents
 

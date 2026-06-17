@@ -379,6 +379,8 @@ function importSchedulerSamples(samples = []) {
 function importGrafanaSamples(samples = []) {
   return samples.map((sample) => {
     const links = grafanaLinksFromSample(sample);
+    const dashboardUrl = sample.dashboardUrl || grafanaDashboardUrlFromSample(sample);
+    const exploreUrl = sample.exploreUrl || grafanaExploreUrlFromSample(sample);
     const timeRange = isPlainObject(sample.timeRange) ? compactObject({
       from: sample.timeRange.from,
       to: sample.timeRange.to
@@ -400,8 +402,8 @@ function importGrafanaSamples(samples = []) {
           datasourceName: sample.datasourceName,
           timeRange: Object.keys(timeRange).length > 0 ? timeRange : undefined,
           variables: Object.keys(variables).length > 0 ? variables : undefined,
-          dashboardUrl: sample.dashboardUrl,
-          exploreUrl: sample.exploreUrl,
+          dashboardUrl,
+          exploreUrl,
           links: links.length > 0 ? links : undefined
         }),
         sourceContext: compactObject({
@@ -415,8 +417,8 @@ function importGrafanaSamples(samples = []) {
           grafanaFolder: sample.folder,
           grafanaDatasourceUid: sample.datasourceUid,
           grafanaDatasourceName: sample.datasourceName,
-          grafanaDashboardUrl: sample.dashboardUrl,
-          grafanaExploreUrl: sample.exploreUrl
+          grafanaDashboardUrl: dashboardUrl,
+          grafanaExploreUrl: exploreUrl
         })
       })
     };
@@ -2848,7 +2850,7 @@ function buildSparkPairClockGraph(history, series, values, options = {}) {
 }
 
 function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
-  const hostUrl = machineContext?.context?.hostUrl || "http://192.168.10.20:8000";
+  const hostUrl = operatorAnalyzerBaseUrl(machineContext);
   const grafanaUrl = grafana.links.find((link) => /dashboard/i.test(link.type || link.label || ""))?.url
     || machineContext?.context?.grafanaDashboardUrl
     || "http://192.168.10.20:3000/d/spark1-dcgm/spark1-dcgm-gpu-demo";
@@ -2877,7 +2879,7 @@ function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
     },
     {
       label: "Open Analyzer",
-      detail: "Open SPARK1 machine demo",
+      detail: "Open current machine demo",
       url: `${hostUrl}/?demo=machine`
     },
     {
@@ -2888,6 +2890,26 @@ function buildOperatorCommands({ summary, machineContext, grafana, kafka }) {
   ];
 
   return commands;
+}
+
+function operatorAnalyzerBaseUrl(machineContext) {
+  const configured = firstString([
+    machineContext?.context?.hostUrl,
+    machineContext?.context?.publicBaseUrl,
+    machineContext?.context?.staticUrl
+  ]);
+  if (configured) return configured.replace(/\/+$/, "");
+
+  if (typeof window !== "undefined" && window.location) {
+    const origin = window.location.origin;
+    if (origin && origin !== "null") return origin.replace(/\/+$/, "");
+
+    const protocol = window.location.protocol || "http:";
+    const host = window.location.host || window.location.hostname;
+    if (host) return `${protocol}//${host}`.replace(/\/+$/, "");
+  }
+
+  return "http://192.168.10.20:8000";
 }
 
 function parseMaybeJson(value) {

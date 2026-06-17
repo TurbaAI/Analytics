@@ -99,7 +99,8 @@
   "observability": {
     "prometheusUrl": "http://192.168.10.30:9091",
     "grafanaUrl": "http://192.168.10.30:3001",
-    "grafanaDashboardUrl": "http://192.168.10.30:3001/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s",
+    "grafanaPublicUrl": "https://192.168.10.30:8443/grafana",
+    "grafanaDashboardUrl": "https://192.168.10.30:8443/grafana/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s",
     "prometheusApiTokenFile": "build/product-secrets/api-viewer-token",
     "otelEndpoint": "",
     "supportBundleRetentionDays": 14

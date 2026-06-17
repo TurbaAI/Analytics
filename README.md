@@ -57,7 +57,7 @@ The active lab/pilot deployment is centered on NUC14E:
 | Collector gateway | `http://192.168.10.30:8801/v1/source-bundles` | Internal collector with bearer plus HMAC auth |
 | mTLS collector edge | `https://192.168.10.30:9443/v1/source-bundles` | Requires generated client certificate |
 | Prometheus | `http://192.168.10.30:9091` | Authenticated API metrics scrape is configured |
-| Grafana | `http://192.168.10.30:3001` | Runtime dashboard stack |
+| Grafana | `https://192.168.10.30:8443/grafana/` and `http://192.168.10.30:3001` | Runtime dashboard stack; handoff links use the HTTPS edge path when `observability.grafanaPublicUrl` is set |
 | Release bundle | `/home/user/turbalance-analytics/build/releases/turbalance-product-0.1.0-redfish-20260610.tar.gz` | Checksummed customer release package including the Redfish bridge |
 | Support bundles | `/home/user/turbalance-analytics/build/support/turbalance-support-*.tar.gz` | Redacted diagnostic archives with remote checks, rebuilt on demand |
 

@@ -1,0 +1,35 @@
+{
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "runs": [
+      {
+        "id": "run-grafana-smoke",
+        "name": "Grafana metadata smoke",
+        "allocation": {
+          "allocatedGpuHours": 4
+        }
+      }
+    ]
+  },
+  "sources": {
+    "grafana": [
+      {
+        "runId": "run-grafana-smoke",
+        "grafanaBaseUrl": "https://panel.example/grafana",
+        "orgId": "1",
+        "dashboardUid": "turbalance-fleet-runtime",
+        "dashboardTitle": "turbalance Fleet Runtime",
+        "datasourceUid": "prometheus",
+        "datasourceName": "turbalance Prometheus",
+        "timeRange": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "run-grafana-smoke",
+          "tenant": "tenant-a"
+        }
+      }
+    ]
+  }
+}

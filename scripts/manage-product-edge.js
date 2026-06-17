@@ -101,6 +101,7 @@ async function statusChecks() {
   return [
     await httpsCheck("edge-dashboard", edgeUrl("/"), { ca, expectText: "turbalance Analytics" }),
     await httpsCheck("edge-api-ready", edgeUrl("/api/ready"), { ca, expectText: "ready" }),
+    await httpsCheck("edge-grafana-health", edgeUrl("/grafana/api/health"), { ca, expectText: "database" }),
     await httpsCheck("edge-collector-mtls-ready", mtlsUrl("/ready"), { ca, cert: clientCert, key: clientKey, expectText: "ready" }),
     await httpsRejectsWithoutClientCert(),
     containerCheck("turbalance-product-edge")

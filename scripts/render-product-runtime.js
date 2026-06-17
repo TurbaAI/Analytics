@@ -94,7 +94,7 @@ function buildControllerEnv(config) {
     TURBALANCE_COLLECTOR_TOKEN_FILE: config.security.collectorTokenFile,
     TURBALANCE_COLLECTOR_HMAC_SECRET: config.security.collectorHmacSecret,
     TURBALANCE_COLLECTOR_HMAC_SECRET_FILE: config.security.collectorHmacSecretFile,
-    TURBALANCE_GRAFANA_PUBLIC_URL: config.observability.grafanaUrl,
+    TURBALANCE_GRAFANA_PUBLIC_URL: config.observability.grafanaPublicUrl || config.observability.grafanaUrl,
     TURBALANCE_PROMETHEUS_URL: config.observability.prometheusUrl,
     TURBALANCE_OTEL_EXPORTER_OTLP_ENDPOINT: config.observability.otelEndpoint
   });

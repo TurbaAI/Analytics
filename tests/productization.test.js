@@ -50,7 +50,8 @@ fs.writeFileSync(configPath, JSON.stringify({
   },
   observability: {
     prometheusUrl: "http://127.0.0.1:65504",
-    grafanaUrl: "http://127.0.0.1:65505"
+    grafanaUrl: "http://127.0.0.1:65505",
+    grafanaPublicUrl: "https://127.0.0.1:65510/grafana"
   }
 }, null, 2));
 
@@ -105,6 +106,7 @@ const controllerEnv = fs.readFileSync(path.join(outDir, "controller.env"), "utf8
 assert.ok(controllerEnv.includes("TURBALANCE_PRODUCT_VERSION=9.9.9-test"));
 assert.ok(controllerEnv.includes("TURBALANCE_API_REQUIRE_AUTH=true"));
 assert.ok(controllerEnv.includes("TURBALANCE_COLLECTOR_TOKEN=\"[REDACTED]\""));
+assert.ok(controllerEnv.includes("TURBALANCE_GRAFANA_PUBLIC_URL=https://127.0.0.1:65510/grafana"));
 assert.ok(!controllerEnv.includes("test-token"));
 assert.ok(!controllerEnv.includes("test-secret"));
 
@@ -230,6 +232,7 @@ assert.equal(observabilityPlan.status, "dry-run");
 assert.equal(observabilityPlan.securePrometheus, true);
 assert.ok(observabilityPlan.composeFiles.some((file) => file.includes("grafana-runtime-compose.secure.yml")));
 assert.ok(observabilityPlan.plan.some((step) => step.command.includes("docker compose")));
+assert.ok(observabilityPlan.plan.some((step) => step.command.includes("TURBALANCE_GRAFANA_PUBLIC_URL=https://127.0.0.1:65510/grafana")));
 assert.ok(observabilityPlan.plan.every((step) => !step.command.includes("api-viewer-token")));
 
 const edgeTlsPlan = JSON.parse(runNode([
@@ -257,6 +260,7 @@ const edgePlan = JSON.parse(runNode([
 assert.equal(edgePlan.status, "dry-run");
 assert.ok(edgePlan.plan.some((step) => step.step === "generate-product-edge-tls"));
 assert.ok(edgePlan.plan.some((step) => step.step === "start-product-edge"));
+assert.ok(edgePlan.checks.some((check) => check.name === "edge-grafana-health"));
 
 const doctorReport = JSON.parse(runNode([
   "scripts/turbalance-doctor.js",

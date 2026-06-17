@@ -298,4 +298,39 @@ assert.equal(grafanaRun.grafanaContext.links.length, 2);
 assert.equal(grafanaRun.sourceContext.grafanaInstance, "grafana-prod");
 assert.equal(grafanaRun.sourceContext.grafanaDatasourceUid, "prometheus-main");
 
+const synthesizedGrafanaBundle = context.buildIngestionFromExternalPayload({
+  ingestion: {
+    schemaVersion: "turba.ingestion.v1",
+    runs: [
+      {
+        id: "run-grafana-synth",
+        name: "grafana metadata import",
+        allocation: { allocatedGpuHours: 5 }
+      }
+    ]
+  },
+  sources: {
+    grafana: [
+      {
+        runId: "run-grafana-synth",
+        grafanaBaseUrl: "https://panel.example/grafana/",
+        orgId: "1",
+        dashboardUid: "turbalance-fleet-runtime",
+        dashboardTitle: "turbalance Fleet Runtime",
+        datasourceUid: "prometheus",
+        timeRange: { from: "now-1h", to: "now" },
+        variables: { run: "run-grafana-synth", tenant: "tenant-a" }
+      }
+    ]
+  }
+});
+const synthesizedGrafanaRun = synthesizedGrafanaBundle.runs[0];
+assert.equal(synthesizedGrafanaRun.grafanaContext.links.length, 2);
+assert.ok(synthesizedGrafanaRun.grafanaContext.dashboardUrl.startsWith("https://panel.example/grafana/d/turbalance-fleet-runtime/turbalance-fleet-runtime?"));
+assert.ok(synthesizedGrafanaRun.grafanaContext.dashboardUrl.includes("var-run=run-grafana-synth"));
+assert.ok(synthesizedGrafanaRun.grafanaContext.dashboardUrl.includes("from=now-1h"));
+assert.ok(synthesizedGrafanaRun.grafanaContext.exploreUrl.startsWith("https://panel.example/grafana/explore?"));
+assert.ok(synthesizedGrafanaRun.grafanaContext.exploreUrl.includes("schemaVersion=1"));
+assert.equal(synthesizedGrafanaRun.sourceContext.grafanaDashboardUrl, synthesizedGrafanaRun.grafanaContext.dashboardUrl);
+
 console.log("source bundle validation tests passed");

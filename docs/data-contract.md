@@ -186,7 +186,7 @@ Simulator estimates are directional. Use source overlays and trace evidence to v
 
 ## Grafana Handoff Overlay
 
-Grafana links should use `sources.grafana` when an observability system can provide dashboard or Explore URLs by `runId`. The app does not call Grafana APIs directly; it preserves operator-provided links, dashboard metadata, datasource metadata, variables, and time range in a local `grafanaContext`.
+Grafana links should use `sources.grafana` when an observability system can provide dashboard or Explore URLs by `runId`. The app does not call Grafana APIs directly; it preserves operator-provided links, dashboard metadata, datasource metadata, variables, and time range in a local `grafanaContext`. If `dashboardUrl` or `exploreUrl` are omitted, the app can synthesize handoff links from `grafanaBaseUrl`, dashboard UID, datasource UID, variables, and time range.
 
 ```json
 {

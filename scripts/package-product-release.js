@@ -59,6 +59,7 @@ function main() {
       apiUrl: config.controller.apiUrl,
       collectorUrl: config.controller.collectorUrl,
       grafanaUrl: config.observability.grafanaUrl,
+      grafanaPublicUrl: config.observability.grafanaPublicUrl || config.observability.grafanaUrl,
       prometheusUrl: config.observability.prometheusUrl
     },
     fleet: {
@@ -237,7 +238,8 @@ function rollbackGuide(config) {
     `- Dashboard: ${config.controller.staticUrl}`,
     `- API: ${config.controller.apiUrl}`,
     `- Collector: ${config.controller.collectorUrl}`,
-    `- Grafana: ${config.observability.grafanaUrl}`,
+    `- Grafana: ${config.observability.grafanaPublicUrl || config.observability.grafanaUrl}`,
+    `- Grafana internal health URL: ${config.observability.grafanaUrl}`,
     ""
   ].join("\n");
 }
