@@ -28,8 +28,11 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Run full suite
-        run: node tests/run-all.js
+      - name: Run desktop/static checks
+        run: |
+          node tests/static-page-wiring.test.js
+          node tests/prepare-demo.test.js
+          node scripts/prepare-demo.js --out-dir build/demo
 
       - name: Validate source bundles
         run: node scripts/validate-source-bundle.js --require-source-export

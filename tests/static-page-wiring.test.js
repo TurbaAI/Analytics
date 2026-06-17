@@ -25,6 +25,9 @@ assert.equal(ids.length, idSet.size, "HTML ids should be unique");
 assert.ok(html.includes("assets/turbalance-mark.png"));
 assert.ok(html.includes("assets/turbalance-wordmark-special-t.png"));
 assert.ok(html.includes("<title>turbalance Analytics</title>"));
+assert.ok(html.includes('class="topbar-user"'));
+assert.ok(html.includes("Ahmad Byagowi"));
+assert.ok(html.includes("assets/ahmad-byagowi-profile.png?v=profile-20260617"));
 assert.deepEqual(normalizedScripts, [
   "analytics-core.js",
   "predictive-core.js",

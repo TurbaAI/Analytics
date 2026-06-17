@@ -99,7 +99,7 @@ Use `scripts/run-provider-go-live-gates.js` when you want the image dry-run/push
 
 The repository includes `.github/workflows/pages.yml`. On pushes to `main`, the workflow:
 
-1. runs `node tests/run-all.js`
+1. runs the desktop/static wiring checks and prepares `build/demo`
 2. validates source bundles with `node scripts/validate-source-bundle.js --require-source-export`
 3. runs screenshot QA when Playwright is available
 4. assembles the static site into `site/`
