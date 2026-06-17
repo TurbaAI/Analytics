@@ -126,6 +126,12 @@ assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.ncclRuntimeImages
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimeSocketIfname, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimeHostIp, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ncclRuntimeDetail, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsDataset, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsUrl, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsHardwareClass, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsConfigHash, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsBinning, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.benchmarkOcpCommonsPolicy, "string");
 assert.ok(bundle.metadata.note.includes("Kubernetes, DCGM"));
 assert.ok(bundle.metadata.note.includes("not synthesized"));
 assert.ok(bundle.metadata.note.includes("gpustat/NVML"));
@@ -180,6 +186,8 @@ assert.ok(localCollectorSource.includes("TURBALANCE_LAKE_ROOT"));
 assert.ok(localCollectorSource.includes("lakehouseUsedBytes"));
 assert.ok(localCollectorSource.includes("collectBenchmarkSuite"));
 assert.ok(localCollectorSource.includes("benchmarkCpuOpsPerSecond"));
+assert.ok(localCollectorSource.includes("TURBALANCE_BENCHMARK_OCP_DATASET"));
+assert.ok(localCollectorSource.includes("benchmarkOcpCommonsPolicy"));
 assert.ok(localCollectorSource.includes("live-pi-benchmark-cache.json"));
 assert.ok(localCollectorSource.includes("TURBALANCE_PI_BENCHMARKS"));
 assert.ok(fleetCollectorSource.includes("TURBALANCE_REMOTE_MACHINES"));
@@ -308,6 +316,16 @@ const benchmarkResult = spawnSync(process.execPath, [
   "1",
   "--benchmark-cache",
   benchmarkCachePath,
+  "--benchmark-ocp-dataset",
+  "ocp-benchmark-commons-2026-design-partner",
+  "--benchmark-ocp-peer-count",
+  "128",
+  "--benchmark-ocp-percentile",
+  "74.5",
+  "--benchmark-ocp-hardware-class",
+  "edge-cpu-small",
+  "--benchmark-ocp-binning",
+  "p50-p75",
   "--ollama-probe",
   "0",
   "--lake-root",
@@ -328,6 +346,12 @@ assert.equal(typeof benchmarkContext.benchmarkMemoryMiBps, "number");
 assert.equal(typeof benchmarkContext.benchmarkDiskWriteMiBps, "number");
 assert.equal(typeof benchmarkContext.benchmarkDiskReadMiBps, "number");
 assert.equal(typeof benchmarkContext.benchmarkScore, "number");
+assert.equal(benchmarkContext.benchmarkOcpCommonsDataset, "ocp-benchmark-commons-2026-design-partner");
+assert.equal(benchmarkContext.benchmarkOcpCommonsPeerCount, 128);
+assert.equal(benchmarkContext.benchmarkOcpCommonsPercentile, 74.5);
+assert.equal(benchmarkContext.benchmarkOcpCommonsHardwareClass, "edge-cpu-small");
+assert.equal(benchmarkContext.benchmarkOcpCommonsBinning, "p50-p75");
+assert.equal(benchmarkContext.benchmarkOcpCommonsPolicy, "aggregate-anonymized");
 assert.ok(benchmarkContext.benchmarkCpuOpsPerSecond > 0);
 assert.ok(benchmarkContext.benchmarkMemoryMiBps > 0);
 assert.ok(benchmarkContext.benchmarkDiskWriteMiBps > 0);

@@ -4,6 +4,8 @@
 
 Recommended submission type: **OCP Global Summit Breakout Session, Special Focus Session**
 
+Companion Innovation Village proposal: `docs/ocp-benchmark-commons-proposal.md` and `docs/ocp-innovation-village-submission.md` now frame Benchmark Ladder L6 as an OCP-hosted Benchmark Commons for member-owned hardware-quality comparison.
+
 Recommended session category / project alignment:
 
 - Primary: **Data Center Facility / Data Center Telemetry (DCT)**

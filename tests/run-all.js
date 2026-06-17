@@ -62,6 +62,7 @@ const checks = [
   { label: "workspace export fixture", args: ["tests/workspace-export-fixture.test.js"] },
   { label: "redacted workspace export", args: ["tests/redacted-workspace-export.test.js"] },
   { label: "evidence pack export", args: ["tests/evidence-pack-export.test.js"] },
+  { label: "OCP benchmark commons export", args: ["tests/ocp-benchmark-commons.test.js"] },
   { label: "schemas", args: ["tests/schemas.test.js"] },
   { label: "source bundle validation", args: ["tests/source-bundle-validation.test.js"] },
   { label: "import validation copy", args: ["tests/import-validation-copy.test.js"] },

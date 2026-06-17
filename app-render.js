@@ -1606,6 +1606,18 @@ function renderBenchmarkLadderPanel(container, ladder) {
       value: `${round(ladder.comparisonScore)}`,
       note: "ready levels average",
       tone: ladder.tone
+    }),
+    benchmarkLadderSummaryItem({
+      label: "Commons",
+      value: ladder.ocpCommons?.hasImportedScore
+        ? (Number.isFinite(ladder.ocpCommons.percentile) ? `p${round(ladder.ocpCommons.percentile)}` : `${formatDecimal(ladder.ocpCommons.score, 1)}`)
+        : ladder.ocpCommons?.submissionReady ? "OCP-ready" : "waiting",
+      note: ladder.ocpCommons?.hasImportedScore
+        ? `${Number.isFinite(ladder.ocpCommons.peerCount) ? `${round(ladder.ocpCommons.peerCount)} peers` : "imported corpus"}`
+        : `${ladder.ocpCommons?.measuredMetricCount || 0} measured for export`,
+      tone: ladder.ocpCommons?.hasImportedScore
+        ? ladder.levels.find((level) => level.level === "6")?.tone || "watch"
+        : ladder.ocpCommons?.submissionReady ? "watch" : "poor"
     })
   );
 
@@ -1621,7 +1633,7 @@ function renderBenchmarkLadderPanel(container, ladder) {
   sources.className = "benchmark-source-strip";
   sources.append(...ladder.sourceLinks.map(benchmarkSourceLink));
 
-  container.replaceChildren(summary, metrics, levels, sources);
+  container.replaceChildren(summary, metrics, levels, benchmarkOcpCommonsPanel(ladder.ocpCommons), sources);
 }
 
 function renderSparkPairComparisonPanel(container, comparison) {

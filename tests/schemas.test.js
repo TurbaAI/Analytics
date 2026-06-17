@@ -10,7 +10,9 @@ const ingestionSchema = readJson("schemas/turba-ingestion.v1.schema.json");
 const sourceBundleSchema = readJson("schemas/turba-source-bundle.v1.schema.json");
 const telemetryBatchSchema = readJson("schemas/turba-telemetry-batch.v1.schema.json");
 const workspaceSchema = readJson("schemas/turba-workspace.v2.schema.json");
+const ocpCommonsSchema = readJson("schemas/turba-ocp-benchmark-commons.v1.schema.json");
 const workspaceFixture = readJson("fixtures/workspace-export.json");
+const ocpCommonsFixture = readJson("fixtures/ocp-benchmark-commons.example.json");
 const sourceFixture = readJson("fixtures/external-source-bundle.json");
 const providerFixture = readJson("fixtures/neo-cloud-provider-bundle.json");
 const providerTemplate = readJson("fixtures/provider-overlay-template.json");
@@ -34,6 +36,7 @@ assert.ok(telemetryProto.includes("WriteTelemetryBatchResponse"));
 assert.ok(telemetryProto.includes("CollectorHealthResponse"));
 assert.ok(telemetryProto.includes("rpc Health"));
 assert.equal(workspaceSchema.properties.storageSchemaVersion.const, "turba.workspace.v2");
+assert.equal(ocpCommonsSchema.properties.schemaVersion.const, "turba.ocp_benchmark_commons.v1");
 assert.equal(workspaceSchema.properties.ingestionSchemaVersion.const, "turba.ingestion.v1");
 assert.ok(workspaceSchema.properties.ingestion.$ref.includes("turba-ingestion.v1.schema.json"));
 assert.ok(workspaceSchema.properties.dataBoundary.properties.kind.enum.includes("demo"));
@@ -49,6 +52,9 @@ assert.ok(sourceBundleSchema.properties.ingestion.$ref.includes("turba-ingestion
 });
 
 assert.equal(workspaceFixture.storageSchemaVersion, workspaceSchema.properties.storageSchemaVersion.const);
+assert.equal(ocpCommonsFixture.schemaVersion, ocpCommonsSchema.properties.schemaVersion.const);
+assert.ok(ocpCommonsSchema.properties.records.items.$ref.includes("record"));
+assert.ok(ocpCommonsFixture.records[0].metrics.cpuOpsPerSecond);
 assert.equal(workspaceFixture.ingestion.schemaVersion, ingestionSchema.properties.schemaVersion.const);
 assert.equal(workspaceFixture.dataBoundary.kind, "imported");
 assert.ok(Array.isArray(sourceFixture.sources.prometheus));

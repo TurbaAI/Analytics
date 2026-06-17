@@ -29,6 +29,17 @@ const benchmarkDiskBytes = numberArg(args["benchmark-disk-mib"] || process.env.T
 const benchmarkCachePath = args["benchmark-cache"]
   || process.env.TURBALANCE_BENCHMARK_CACHE
   || defaultBenchmarkCachePath();
+const benchmarkOcpCommons = {
+  dataset: args["benchmark-ocp-dataset"] || process.env.TURBALANCE_BENCHMARK_OCP_DATASET || "",
+  url: args["benchmark-ocp-url"] || process.env.TURBALANCE_BENCHMARK_OCP_URL || "",
+  hardwareClass: args["benchmark-ocp-hardware-class"] || process.env.TURBALANCE_BENCHMARK_OCP_HARDWARE_CLASS || "",
+  configHash: args["benchmark-ocp-config-hash"] || process.env.TURBALANCE_BENCHMARK_OCP_CONFIG_HASH || "",
+  binning: args["benchmark-ocp-binning"] || process.env.TURBALANCE_BENCHMARK_OCP_BINNING || "",
+  policy: args["benchmark-ocp-policy"] || process.env.TURBALANCE_BENCHMARK_OCP_POLICY || "aggregate-anonymized",
+  peerCount: optionalFinite(args["benchmark-ocp-peer-count"] || process.env.TURBALANCE_BENCHMARK_OCP_PEER_COUNT),
+  percentile: optionalFinite(args["benchmark-ocp-percentile"] || process.env.TURBALANCE_BENCHMARK_OCP_PERCENTILE),
+  score: optionalFinite(args["benchmark-ocp-score"] || process.env.TURBALANCE_BENCHMARK_OCP_SCORE)
+};
 const explicitNetworkInterface = args["network-interface"]
   || process.env.TURBALANCE_LIVE_NETWORK_INTERFACE
   || "";
@@ -1508,6 +1519,15 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             benchmarkDiskReadMiBps: roundOptional(benchmark.diskReadMiBps, 2),
             benchmarkDiskBytes: round(finite(benchmark.diskBytes, 0), 0),
             benchmarkScore: roundOptional(benchmark.score, 2),
+            benchmarkOcpCommonsDataset: benchmarkOcpCommons.dataset,
+            benchmarkOcpCommonsUrl: benchmarkOcpCommons.url,
+            benchmarkOcpCommonsPeerCount: roundOptional(benchmarkOcpCommons.peerCount, 0),
+            benchmarkOcpCommonsPercentile: roundOptional(benchmarkOcpCommons.percentile, 2),
+            benchmarkOcpCommonsScore: roundOptional(benchmarkOcpCommons.score, 2),
+            benchmarkOcpCommonsHardwareClass: benchmarkOcpCommons.hardwareClass,
+            benchmarkOcpCommonsConfigHash: benchmarkOcpCommons.configHash,
+            benchmarkOcpCommonsBinning: benchmarkOcpCommons.binning,
+            benchmarkOcpCommonsPolicy: benchmarkOcpCommons.policy,
             benchmarkError: benchmark.error || "",
             sourceAdapters,
             unavailableExports: ["kubernetes", "dcgm", "ebpf", "scheduler", "provider"],

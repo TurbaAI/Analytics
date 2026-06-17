@@ -455,6 +455,7 @@ Machine-readable schemas:
 - `schemas/turba-ingestion.v1.schema.json`
 - `schemas/turba-source-bundle.v1.schema.json`
 - `schemas/turba-workspace.v2.schema.json`
+- `schemas/turba-ocp-benchmark-commons.v1.schema.json`
 
 Validate source bundles before import or upload:
 
@@ -463,6 +464,8 @@ node scripts/validate-source-bundle.js --require-source-export provider-pilot-bu
 ```
 
 Redfish/BMC hardware-management evidence is supported through `sources.redfish`. Use `scripts/fetch-redfish-source-export.js` for direct Redfish collection or `scripts/fetch-source-system-export.js --system redfish` when a customer source gateway exposes normalized snapshots. See `docs/redfish-integration.md`.
+
+Benchmark Ladder L6 is framed as an OCP Benchmark Commons export/import boundary. Use `scripts/export-ocp-benchmark-commons.js` to turn validated benchmark-bearing source bundles into redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison. See `docs/ocp-benchmark-commons-proposal.md` and `docs/ocp-innovation-village-submission.md`.
 
 ## Demo Data Boundary
 
@@ -541,15 +544,21 @@ The README intentionally references these files and tests because they are part 
 - `docs/design-partner-validation.md`
 - `docs/billing-usage-integration.md`
 - `docs/engineering-process.md`
+- `docs/ocp-benchmark-commons-proposal.md`
+- `docs/ocp-innovation-village-submission.md`
+- `docs/turbalance-internal-ocp-benchmark-commons.md`
 - `LICENSE.md`
 - `CHANGELOG.md`
 - `schemas/turba-ingestion.v1.schema.json`
 - `schemas/turba-source-bundle.v1.schema.json`
 - `schemas/turba-workspace.v2.schema.json`
+- `schemas/turba-ocp-benchmark-commons.v1.schema.json`
+- `fixtures/ocp-benchmark-commons.example.json`
 - `scripts/build-provider-overlay.js`
 - `scripts/build-provider-pilot-bundle.js`
 - `scripts/build-scheduler-overlay.js`
 - `scripts/build-ebpf-overlay.js`
+- `scripts/export-ocp-benchmark-commons.js`
 - `scripts/build-publish-ingestion-image.js`
 - `scripts/generate-provider-pilot-config.js`
 - `scripts/collect-local-machine-bundle.js`
@@ -633,6 +642,7 @@ The README intentionally references these files and tests because they are part 
 - `scripts/validate-lakehouse-alerts-dashboards.js`
 - `scripts/validate-commercial-readiness.js`
 - `scripts/validate-engineering-process.js`
+- `tests/ocp-benchmark-commons.test.js`
 - `scripts/validate-performance-budgets.js`
 - `scripts/validate-conventional-commit.js`
 - `scripts/generate-telemetry-protos.sh`

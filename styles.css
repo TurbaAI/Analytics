@@ -2633,7 +2633,8 @@ button.fleet-tile:focus-visible {
 }
 
 .benchmark-ladder-summary,
-.benchmark-metric-grid {
+.benchmark-metric-grid,
+.benchmark-ocp-commons {
   display: grid;
   gap: 1px;
   min-width: 0;
@@ -2644,7 +2645,7 @@ button.fleet-tile:focus-visible {
 }
 
 .benchmark-ladder-summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .benchmark-metric-grid {
@@ -2652,7 +2653,8 @@ button.fleet-tile:focus-visible {
 }
 
 .benchmark-ladder-summary-item,
-.benchmark-metric-card {
+.benchmark-metric-card,
+.benchmark-ocp-commons > * {
   display: grid;
   align-content: start;
   gap: 5px;
@@ -2687,6 +2689,8 @@ button.fleet-tile:focus-visible {
 
 .benchmark-ladder-summary-item span,
 .benchmark-ladder-summary-item small,
+.benchmark-ocp-commons span,
+.benchmark-ocp-commons small,
 .benchmark-metric-head span,
 .benchmark-metric-head small,
 .benchmark-metric-card small,
@@ -2702,6 +2706,7 @@ button.fleet-tile:focus-visible {
 
 .benchmark-ladder-summary-item strong,
 .benchmark-metric-card strong,
+.benchmark-ocp-commons strong,
 .benchmark-ladder-row strong,
 .benchmark-source-strip strong {
   min-width: 0;
@@ -2718,6 +2723,7 @@ button.fleet-tile:focus-visible {
 }
 
 .benchmark-metric-card > small,
+.benchmark-ocp-commons small,
 .benchmark-ladder-row small {
   overflow-wrap: anywhere;
   text-transform: none;
@@ -2760,6 +2766,23 @@ button.fleet-tile:focus-visible {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--line);
+}
+
+.benchmark-ocp-commons {
+  grid-template-columns: minmax(180px, 1.15fr) repeat(4, minmax(112px, 1fr));
+}
+
+.benchmark-ocp-commons-head {
+  background: linear-gradient(135deg, rgba(15, 31, 42, 0.96), rgba(19, 92, 97, 0.92));
+}
+
+.benchmark-ocp-commons-head strong,
+.benchmark-ocp-commons-head small {
+  color: #ffffff;
+}
+
+.benchmark-ocp-commons-item strong {
+  color: var(--ink);
 }
 
 .benchmark-ladder-row {
@@ -2805,7 +2828,7 @@ button.fleet-tile:focus-visible {
 
 .benchmark-source-strip {
   display: grid;
-  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  grid-template-columns: repeat(5, minmax(112px, 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -5288,7 +5311,7 @@ button.fleet-tile:focus-visible {
   .unit-economics-summary,
   .fleet-comparison-summary,
   .benchmark-ladder-summary {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -5438,6 +5461,7 @@ button.fleet-tile:focus-visible {
   .fleet-benchmark-histograms,
   .benchmark-ladder-summary,
   .benchmark-metric-grid,
+  .benchmark-ocp-commons,
   .benchmark-source-strip,
   .system-characterization-summary,
   .system-characterization-stats,
@@ -7752,6 +7776,7 @@ html[data-theme="dark"] .fleet-comparison-rank-row,
 html[data-theme="dark"] .fleet-comparison-spread-row,
 html[data-theme="dark"] .benchmark-ladder-summary,
 html[data-theme="dark"] .benchmark-metric-grid,
+html[data-theme="dark"] .benchmark-ocp-commons,
 html[data-theme="dark"] .benchmark-ladder-grid,
 html[data-theme="dark"] .benchmark-ladder-row,
 html[data-theme="dark"] .benchmark-source-strip,
@@ -7842,6 +7867,7 @@ html[data-theme="dark"] .fleet-benchmark-histogram,
 html[data-theme="dark"] .fleet-benchmark-empty,
 html[data-theme="dark"] .benchmark-ladder-summary-item,
 html[data-theme="dark"] .benchmark-metric-card,
+html[data-theme="dark"] .benchmark-ocp-commons > *,
 html[data-theme="dark"] .benchmark-ladder-row > *,
 html[data-theme="dark"] .benchmark-source-strip a,
 html[data-theme="dark"] .spark-pair-clock-panel,
@@ -7891,6 +7917,10 @@ html[data-theme="dark"] .benchmark-ladder-head > *,
 html[data-theme="dark"] .execution-idle-head > *,
 html[data-theme="dark"] .gpu-exporter-head > * {
   background: #202b2c;
+}
+
+html[data-theme="dark"] .benchmark-ocp-commons-head {
+  background: linear-gradient(135deg, rgba(13, 43, 45, 0.98), rgba(20, 103, 94, 0.88));
 }
 
 html[data-theme="dark"] .entity-row[aria-selected="true"],

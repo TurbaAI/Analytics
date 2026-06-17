@@ -279,6 +279,21 @@ Prefer summary values by `runId`, pod, container, or cgroup. Do not import raw e
 
 Live machine bundles may also include `sourceContext.networkInterface`, `networkLinkSpeedMbps`, `networkRxBytes`, `networkTxBytes`, `networkRxBytesPerSecond`, `networkTxBytesPerSecond`, `networkUtilizationPct`, `networkRxDrops`, `networkTxDrops`, `networkRxErrors`, and `networkTxErrors`. Byte counters are cumulative; bytes-per-second and utilization are only present after the collector has two samples for the same interface.
 
+## OCP Benchmark Commons Export
+
+Benchmark Ladder L6 uses an OCP Benchmark Commons boundary. Local machine bundles can carry optional corpus metadata in `sourceContext.benchmarkOcpCommonsDataset`, `benchmarkOcpCommonsPeerCount`, `benchmarkOcpCommonsPercentile`, `benchmarkOcpCommonsScore`, `benchmarkOcpCommonsHardwareClass`, `benchmarkOcpCommonsConfigHash`, `benchmarkOcpCommonsBinning`, `benchmarkOcpCommonsUrl`, and `benchmarkOcpCommonsPolicy`.
+
+Use `scripts/export-ocp-benchmark-commons.js` to convert a validated source bundle into a redacted `turba.ocp_benchmark_commons.v1` payload. The exporter hashes member, host, and run identity with a caller-provided salt and excludes hostnames, IP addresses, tenant IDs, account IDs, and billing account IDs. The schema lives in `schemas/turba-ocp-benchmark-commons.v1.schema.json`; an example payload lives in `fixtures/ocp-benchmark-commons.example.json`.
+
+```sh
+node scripts/export-ocp-benchmark-commons.js \
+  --bundle live-machine-bundle.json \
+  --out ocp-benchmark-commons.json \
+  --dataset ocp-benchmark-commons-proposed-v1 \
+  --member-id "member-private-id" \
+  --salt "$OCP_COMMONS_EXPORT_SALT"
+```
+
 ## Redfish Hardware Overlay
 
 Redfish/BMC summaries should use `sources.redfish`. This source is optional and should be treated as management-plane evidence, not as a replacement for DCGM/NVML GPU counters, eBPF host telemetry, scheduler events, or workload traces. It is useful for explaining hardware health, power, thermal, firmware, and BMC event-service context.

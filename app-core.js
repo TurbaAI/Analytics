@@ -2853,19 +2853,16 @@ function benchmarkGroupLevel(id, label, target, groupRows, metrics, confidence) 
 }
 
 function benchmarkGlobalLevel(target, metrics) {
-  const context = target.machineContext?.context || {};
-  const percentile = numeric(target.benchmarkGlobalPercentile, Number.NaN);
-  const globalScore = numeric(target.benchmarkGlobalScore, Number.NaN);
-  const dataset = target.benchmarkGlobalDataset || context.benchmarkGlobalDataset || "";
-  if (Number.isFinite(percentile) || Number.isFinite(globalScore)) {
-    const score = Number.isFinite(percentile) ? percentile : globalScore;
+  const commons = benchmarkOcpCommonsProfile(target, metrics);
+  if (commons.hasImportedScore) {
+    const score = commons.score;
     return {
       id: "global",
       level: "6",
-      label: "Global",
-      scope: dataset || "imported reference",
-      value: Number.isFinite(percentile) ? `p${round(percentile)}` : `${formatDecimal(globalScore, 1)}`,
-      detail: target.benchmarkGlobalUrl ? "external result linked" : "global reference imported",
+      label: "OCP Commons",
+      scope: commons.dataset || "OCP member corpus",
+      value: Number.isFinite(commons.percentile) ? `p${round(commons.percentile)}` : `${formatDecimal(score, 1)}`,
+      detail: benchmarkOcpCommonsLevelDetail(commons),
       status: "ready",
       tone: score >= 75 ? "good" : score >= 50 ? "watch" : "poor",
       score
@@ -2876,14 +2873,152 @@ function benchmarkGlobalLevel(target, metrics) {
   return {
     id: "global",
     level: "6",
-    label: "Global",
-    scope: "OpenBenchmarking / MLPerf / SPEC",
-    value: "ready",
-    detail: measured ? `${measured} local metrics ready for external matching` : "waiting for measured benchmark samples",
-    status: measured ? "connector-ready" : "waiting",
-    tone: measured ? "watch" : "poor",
-    score: measured ? 58 : 20
+    label: "OCP Commons",
+    scope: commons.hardwareClass || "OCP member benchmark commons",
+    value: commons.submissionReady ? "export-ready" : "waiting",
+    detail: measured ? `${measured} measured metrics ready for anonymized OCP submission` : "waiting for measured benchmark samples",
+    status: commons.submissionReady ? "connector-ready" : "waiting",
+    tone: commons.submissionReady ? "watch" : "poor",
+    score: commons.submissionReady ? 62 : 20
   };
+}
+
+function benchmarkOcpCommonsProfile(target, metrics) {
+  const context = target.machineContext?.context || {};
+  const percentile = firstFinite(
+    target.benchmarkOcpCommonsPercentile,
+    context.benchmarkOcpCommonsPercentile,
+    target.benchmarkGlobalPercentile,
+    context.benchmarkGlobalPercentile
+  );
+  const importedScore = firstFinite(
+    target.benchmarkOcpCommonsScore,
+    context.benchmarkOcpCommonsScore,
+    target.benchmarkGlobalScore,
+    context.benchmarkGlobalScore
+  );
+  const score = Number.isFinite(percentile) ? percentile : importedScore;
+  const dataset = firstString([
+    target.benchmarkOcpCommonsDataset,
+    context.benchmarkOcpCommonsDataset,
+    target.benchmarkGlobalDataset,
+    context.benchmarkGlobalDataset
+  ]);
+  const url = firstString([
+    target.benchmarkOcpCommonsUrl,
+    context.benchmarkOcpCommonsUrl,
+    target.benchmarkGlobalUrl,
+    context.benchmarkGlobalUrl
+  ]);
+  const peerCount = firstFinite(target.benchmarkOcpCommonsPeerCount, context.benchmarkOcpCommonsPeerCount);
+  const available = metrics.filter((metric) => metric.available);
+  const measured = metrics.filter((metric) => metric.status === "measured");
+  const hasImportedScore = Number.isFinite(score);
+  const hardwareClass = firstString([
+    target.benchmarkOcpCommonsHardwareClass,
+    context.benchmarkOcpCommonsHardwareClass,
+    context.hardwareClass,
+    context.machineClass,
+    benchmarkOcpHardwareClass(target)
+  ]);
+  const configHash = firstString([
+    target.benchmarkOcpCommonsConfigHash,
+    context.benchmarkOcpCommonsConfigHash,
+    benchmarkOcpConfigFingerprint(target)
+  ]);
+
+  return {
+    available: hasImportedScore || available.length > 0,
+    hasImportedScore,
+    submissionReady: measured.length > 0,
+    dataset: dataset || (hasImportedScore ? "OCP member corpus" : "proposed OCP corpus"),
+    url,
+    peerCount,
+    percentile,
+    score,
+    hardwareClass,
+    configHash,
+    binning: firstString([target.benchmarkOcpCommonsBinning, context.benchmarkOcpCommonsBinning]) || (hasImportedScore ? "reported bin" : "pending corpus bin"),
+    policy: firstString([target.benchmarkOcpCommonsPolicy, context.benchmarkOcpCommonsPolicy]) || "aggregate-anonymized",
+    metricCount: available.length,
+    measuredMetricCount: measured.length,
+    record: benchmarkOcpCommonsRecord(target, metrics, {
+      dataset,
+      hardwareClass,
+      configHash,
+      policy: firstString([target.benchmarkOcpCommonsPolicy, context.benchmarkOcpCommonsPolicy]) || "aggregate-anonymized"
+    })
+  };
+}
+
+function benchmarkOcpCommonsLevelDetail(commons) {
+  const peerText = Number.isFinite(commons.peerCount) && commons.peerCount > 0
+    ? `${round(commons.peerCount)} peer records`
+    : "";
+  return [peerText, commons.binning, commons.url ? "external result linked" : "member corpus imported"]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function benchmarkOcpHardwareClass(target) {
+  const context = target.machineContext?.context || {};
+  const gpuModel = target.machineContext?.gpuModel || context.gpuName || "";
+  if (gpuModel && !/no nvidia|unavailable|none/i.test(gpuModel)) return `${gpuModel} host`;
+  return firstString([context.cpuModel, target.platform, context.platform]) || "unclassified hardware";
+}
+
+function benchmarkOcpConfigFingerprint(target) {
+  const context = target.machineContext?.context || {};
+  const parts = [
+    context.platform,
+    context.arch,
+    context.cpuModel,
+    context.cpuCount,
+    target.machineContext?.gpuModel || context.gpuName,
+    context.gpuMemoryTotalMiB,
+    context.gpuPcie,
+    context.networkLinkSpeedMbps,
+    context.benchmarkSuiteName
+  ].filter((value) => String(value || "").trim());
+  return parts.length
+    ? `cfg-${normalizeFleetHostId(parts.join("-")).slice(0, 56)}`
+    : "cfg-unclassified";
+}
+
+function benchmarkOcpCommonsRecord(target, metrics, profile) {
+  const context = target.machineContext?.context || {};
+  return {
+    schemaVersion: "turba.ocp_benchmark_commons.v1",
+    recordType: "benchmark-result",
+    dataset: profile.dataset || "proposed OCP corpus",
+    generatedAt: target.benchmarkGeneratedAt || context.benchmarkGeneratedAt || context.generatedAt || "",
+    hardware: {
+      class: profile.hardwareClass || benchmarkOcpHardwareClass(target),
+      configFingerprint: profile.configHash || benchmarkOcpConfigFingerprint(target),
+      platform: context.platform || target.platform || "",
+      arch: context.arch || "",
+      cpuCount: numeric(context.cpuCount, 0),
+      gpuPresent: Boolean(target.gpuPresent)
+    },
+    metrics: benchmarkOcpCommonsMetricPayload(metrics),
+    policy: {
+      visibility: profile.policy || "aggregate-anonymized",
+      containsHostIdentity: false,
+      exportIntent: "member cross-comparison and hardware quality binning"
+    }
+  };
+}
+
+function benchmarkOcpCommonsMetricPayload(metrics) {
+  return Object.fromEntries(metrics
+    .filter((metric) => metric.available)
+    .map((metric) => [metric.id, {
+      label: metric.label,
+      value: metric.value,
+      valueLabel: metric.valueLabel,
+      status: metric.status,
+      source: metric.source
+    }]));
 }
 
 function benchmarkComparisonLevel({ id, level, label, scope, target, baselineRows, metrics, confidence }) {
@@ -2956,6 +3091,7 @@ function benchmarkLevelScore(levels) {
 
 function benchmarkGlobalReferenceLinks() {
   return [
+    { label: "OCP Commons", note: "member benchmark corpus proposal", url: "https://www.opencompute.org/summit/global-summit/innovation-village" },
     { label: "OpenBenchmarking", note: "global public results", url: "https://openbenchmarking.org/features" },
     { label: "MLPerf", note: "AI/storage benchmark suites", url: "https://mlcommons.org/benchmarks/" },
     { label: "SPEC", note: "standardized CPU/workstation suites", url: "https://www.spec.org/products/" },
@@ -3145,6 +3281,15 @@ function fleetHostSnapshot(machineContext, characterizationHost) {
     benchmarkGlobalPercentile: machineContext.benchmarkGlobalPercentile,
     benchmarkGlobalDataset: machineContext.benchmarkGlobalDataset,
     benchmarkGlobalUrl: machineContext.benchmarkGlobalUrl,
+    benchmarkOcpCommonsScore: machineContext.benchmarkOcpCommonsScore,
+    benchmarkOcpCommonsPercentile: machineContext.benchmarkOcpCommonsPercentile,
+    benchmarkOcpCommonsDataset: machineContext.benchmarkOcpCommonsDataset,
+    benchmarkOcpCommonsUrl: machineContext.benchmarkOcpCommonsUrl,
+    benchmarkOcpCommonsPeerCount: machineContext.benchmarkOcpCommonsPeerCount,
+    benchmarkOcpCommonsHardwareClass: machineContext.benchmarkOcpCommonsHardwareClass,
+    benchmarkOcpCommonsConfigHash: machineContext.benchmarkOcpCommonsConfigHash,
+    benchmarkOcpCommonsBinning: machineContext.benchmarkOcpCommonsBinning,
+    benchmarkOcpCommonsPolicy: machineContext.benchmarkOcpCommonsPolicy,
     benchmarkScore: fleetBenchmarkCompositeScore(machineContext),
     benchmarkError: machineContext.benchmarkError,
     gpuPresent: machineContext.gpuPresent,
@@ -4112,6 +4257,43 @@ function benchmarkSourceLink(source) {
   small.textContent = source.note;
   link.append(strong, small);
   return link;
+}
+
+function benchmarkOcpCommonsPanel(profile = {}) {
+  const node = document.createElement("div");
+  node.className = "benchmark-ocp-commons";
+
+  const head = document.createElement("div");
+  head.className = "benchmark-ocp-commons-head";
+  const title = document.createElement("strong");
+  title.textContent = "L6 OCP Benchmark Commons";
+  const detail = document.createElement("small");
+  detail.textContent = profile.hasImportedScore
+    ? "member corpus comparison imported"
+    : profile.submissionReady ? "redacted submission record ready" : "waiting for measured benchmark evidence";
+  head.append(title, detail);
+
+  node.append(
+    head,
+    benchmarkOcpCommonsItem("Corpus", profile.dataset || "proposed OCP corpus", Number.isFinite(profile.peerCount) ? `${round(profile.peerCount)} peer records` : "member aggregate"),
+    benchmarkOcpCommonsItem("Hardware", profile.hardwareClass || "unclassified hardware", profile.configHash || "fingerprint pending"),
+    benchmarkOcpCommonsItem("Binning", profile.binning || "pending corpus bin", `${profile.measuredMetricCount || 0}/${profile.metricCount || 0} measured metrics`),
+    benchmarkOcpCommonsItem("Policy", profile.policy || "aggregate-anonymized", "no host identity in export record")
+  );
+  return node;
+}
+
+function benchmarkOcpCommonsItem(labelText, valueText, noteText) {
+  const item = document.createElement("div");
+  item.className = "benchmark-ocp-commons-item";
+  const label = document.createElement("span");
+  label.textContent = labelText;
+  const value = document.createElement("strong");
+  value.textContent = valueText;
+  const note = document.createElement("small");
+  note.textContent = noteText;
+  item.append(label, value, note);
+  return item;
 }
 
 function fleetComparisonRankRow(rowData) {

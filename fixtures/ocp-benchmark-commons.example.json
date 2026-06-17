@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "turba.ocp_benchmark_commons.v1",
+  "generatedAt": "2026-06-16T00:00:00.000Z",
+  "dataset": "ocp-benchmark-commons-proposed-v1",
+  "member": {
+    "idHash": "3a0f6d6ff4e47c9d92e7263d",
+    "label": "member-hash"
+  },
+  "policy": {
+    "visibility": "aggregate-anonymized",
+    "hostIdentity": "salted sha256 hash",
+    "prohibitedFields": ["hostname", "ipAddress", "tenantId", "accountId", "billingAccountId"],
+    "intendedUse": "OCP member hardware cross-comparison and binning"
+  },
+  "records": [
+    {
+      "recordId": "ocp-2e0367f33a4f5524718afbd2",
+      "runHash": "2e0367f33a4f5524718afbd2",
+      "hostHash": "3f6c8d6e49b0dfc1f76f22aa",
+      "dataset": "ocp-benchmark-commons-proposed-v1",
+      "generatedAt": "2026-06-16T00:00:00.000Z",
+      "benchmarkSuite": {
+        "name": "pi-light-v1",
+        "status": "fresh",
+        "durationMs": 450,
+        "sampleCached": false
+      },
+      "hardware": {
+        "class": "NVIDIA GB10 host",
+        "configFingerprint": "9e9a9f9a5dd2e6746a147a9f",
+        "platform": "linux",
+        "arch": "arm64",
+        "cpuModel": "ARM Neoverse-N-class",
+        "cpuCount": 20,
+        "gpuModel": "NVIDIA GB10",
+        "gpuPresent": true,
+        "gpuMemoryMiB": 131072,
+        "networkLinkSpeedMbps": 10000
+      },
+      "corpusComparison": {
+        "peerCount": 128,
+        "percentile": 74.5,
+        "score": 74.5,
+        "binning": "p50-p75",
+        "referenceUrl": "https://www.opencompute.org/summit/global-summit/innovation-village"
+      },
+      "metrics": {
+        "cpuOpsPerSecond": { "value": 4200000, "unit": "ops/s" },
+        "memoryMiBps": { "value": 18500, "unit": "MiB/s" },
+        "diskReadMiBps": { "value": 920, "unit": "MiB/s" },
+        "diskWriteMiBps": { "value": 760, "unit": "MiB/s" },
+        "compositeScore": { "value": 83.2, "unit": "score" }
+      },
+      "provenance": {
+        "sourceRun": "redacted",
+        "sourceAdapters": ["local-machine", "pi-benchmark"],
+        "dataBoundary": "member-submitted benchmark evidence"
+      }
+    }
+  ]
+}

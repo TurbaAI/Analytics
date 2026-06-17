@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-ocp-benchmark-commons.v1.schema.json",
+  "title": "turbalance OCP Benchmark Commons Export",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "dataset", "member", "policy", "records"],
+  "properties": {
+    "schemaVersion": { "const": "turba.ocp_benchmark_commons.v1" },
+    "generatedAt": { "type": "string" },
+    "dataset": { "type": "string", "minLength": 1 },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idHash", "label"],
+      "properties": {
+        "idHash": { "type": "string", "minLength": 12 },
+        "label": { "type": "string" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["visibility", "hostIdentity", "intendedUse"],
+      "properties": {
+        "visibility": { "type": "string" },
+        "hostIdentity": { "type": "string" },
+        "prohibitedFields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "intendedUse": { "type": "string" }
+      }
+    },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordId", "runHash", "hostHash", "dataset", "hardware", "metrics", "provenance"],
+      "properties": {
+        "recordId": { "type": "string" },
+        "runHash": { "type": "string" },
+        "hostHash": { "type": "string" },
+        "dataset": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "benchmarkSuite": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "hardware": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["class", "configFingerprint", "gpuPresent"],
+          "properties": {
+            "class": { "type": "string" },
+            "configFingerprint": { "type": "string" },
+            "platform": { "type": "string" },
+            "arch": { "type": "string" },
+            "cpuModel": { "type": "string" },
+            "cpuCount": { "type": "number" },
+            "gpuModel": { "type": "string" },
+            "gpuPresent": { "type": "boolean" },
+            "gpuMemoryMiB": { "type": "number" },
+            "networkLinkSpeedMbps": { "type": "number" }
+          }
+        },
+        "corpusComparison": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "metrics": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["value", "unit"],
+            "properties": {
+              "value": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          }
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["sourceRun", "dataBoundary"],
+          "properties": {
+            "sourceRun": { "type": "string" },
+            "sourceAdapters": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "dataBoundary": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

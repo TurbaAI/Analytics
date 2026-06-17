@@ -2377,6 +2377,7 @@ function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison
   const metrics = benchmarkMetricConfigs().map((config) => benchmarkMetricState(target, rows, config));
   const availableMetricCount = metrics.filter((metric) => metric.available).length;
   const measuredMetricCount = metrics.filter((metric) => metric.status === "measured").length;
+  const ocpCommons = benchmarkOcpCommonsProfile(target, metrics);
   const levels = [
     benchmarkSelfLevel(target, rows, metrics),
     benchmarkPeerLevel(target, rows, metrics),
@@ -2402,6 +2403,7 @@ function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison
     measuredMetricCount,
     availableMetricCount,
     comparisonScore,
+    ocpCommons,
     sourceLinks: benchmarkGlobalReferenceLinks()
   };
 }
