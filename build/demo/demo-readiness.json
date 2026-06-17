@@ -1,0 +1,158 @@
+{
+  "ok": true,
+  "generatedAt": "2026-06-17T04:39:08.169Z",
+  "outDir": "/Users/ahmadbyagowi/git/Analytics/build/demo",
+  "summary": {
+    "passed": 16,
+    "warnings": 1,
+    "failed": 0
+  },
+  "checks": [
+    {
+      "id": "artifacts.provider_overlay",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider commercial overlay generated",
+      "command": "node scripts/build-provider-overlay.js fixtures/provider-export-inputs"
+    },
+    {
+      "id": "artifacts.provider_overlay.written",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider commercial overlay generated artifact written"
+    },
+    {
+      "id": "artifacts.scheduler_overlay",
+      "ok": true,
+      "severity": "error",
+      "message": "Scheduler evidence overlay generated",
+      "command": "node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs"
+    },
+    {
+      "id": "artifacts.scheduler_overlay.written",
+      "ok": true,
+      "severity": "error",
+      "message": "Scheduler evidence overlay generated artifact written"
+    },
+    {
+      "id": "artifacts.ebpf_overlay",
+      "ok": true,
+      "severity": "error",
+      "message": "Linux eBPF host overlay generated",
+      "command": "node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs"
+    },
+    {
+      "id": "artifacts.ebpf_overlay.written",
+      "ok": true,
+      "severity": "error",
+      "message": "Linux eBPF host overlay generated artifact written"
+    },
+    {
+      "id": "artifacts.provider_pilot_bundle",
+      "ok": true,
+      "severity": "error",
+      "message": "All-lanes provider pilot source bundle generated",
+      "command": "node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs"
+    },
+    {
+      "id": "artifacts.provider_pilot_bundle.written",
+      "ok": true,
+      "severity": "error",
+      "message": "All-lanes provider pilot source bundle generated artifact written"
+    },
+    {
+      "id": "artifacts.live_machine_bundle",
+      "ok": true,
+      "severity": "error",
+      "message": "Local machine source bundle generated",
+      "command": "node scripts/collect-local-machine-bundle.js --out /Users/ahmadbyagowi/git/Analytics/build/demo/live-machine-bundle.json --host-url http://192.168.10.30:8000"
+    },
+    {
+      "id": "artifacts.live_machine_bundle.written",
+      "ok": true,
+      "severity": "error",
+      "message": "Local machine source bundle artifact written"
+    },
+    {
+      "id": "validation.source_export_bundles",
+      "ok": true,
+      "severity": "error",
+      "message": "Demo source-export bundles validate against schemas",
+      "command": "node scripts/validate-source-bundle.js --json --require-source-export fixtures/external-source-bundle.json fixtures/neo-cloud-provider-bundle.json /Users/ahmadbyagowi/git/Analytics/build/demo/provider-pilot-bundle.json"
+    },
+    {
+      "id": "validation.live_machine_bundle",
+      "ok": true,
+      "severity": "error",
+      "message": "Strict live-machine ingestion bundle validates without synthetic source exports",
+      "command": "node scripts/validate-source-bundle.js --json /Users/ahmadbyagowi/git/Analytics/build/demo/live-machine-bundle.json"
+    },
+    {
+      "id": "validation.sandbox_readiness",
+      "ok": true,
+      "severity": "error",
+      "message": "Strict sandbox provider readiness passes",
+      "command": "node scripts/validate-provider-readiness.js --config ops/pilot-provider.sandbox.json --source-contracts ops/source-contracts.sandbox.json --source-approvals ops/source-approvals.sandbox.json --out /Users/ahmadbyagowi/git/Analytics/build/demo/provider-readiness.json"
+    },
+    {
+      "id": "artifacts.managed_kubernetes",
+      "ok": true,
+      "severity": "error",
+      "message": "Managed Kubernetes manifests render from sandbox config",
+      "command": "node scripts/render-managed-kubernetes.js --config ops/pilot-provider.sandbox.json"
+    },
+    {
+      "id": "artifacts.managed_kubernetes.written",
+      "ok": true,
+      "severity": "error",
+      "message": "Managed Kubernetes manifests render from sandbox config artifact written"
+    },
+    {
+      "id": "validation.image_dry_run",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider ingestion image build command resolves",
+      "command": "node scripts/build-publish-ingestion-image.js --config ops/pilot-provider.sandbox.json --dry-run"
+    },
+    {
+      "id": "validation.screenshot_qa",
+      "ok": true,
+      "severity": "warning",
+      "message": "Screenshot QA was not requested; run with --screenshots or --require-screenshots before sharing a visual demo."
+    }
+  ],
+  "artifacts": {
+    "providerOverlay": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-overlay.json",
+    "schedulerOverlay": "/Users/ahmadbyagowi/git/Analytics/build/demo/scheduler-overlay.json",
+    "ebpfOverlay": "/Users/ahmadbyagowi/git/Analytics/build/demo/ebpf-overlay.json",
+    "providerPilotBundle": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-pilot-bundle.json",
+    "liveMachineBundle": "/Users/ahmadbyagowi/git/Analytics/build/demo/live-machine-bundle.json",
+    "sourceBundleValidation": "/Users/ahmadbyagowi/git/Analytics/build/demo/source-bundle-validation.json",
+    "providerReadiness": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-readiness.json",
+    "managedKubernetes": "/Users/ahmadbyagowi/git/Analytics/build/demo/managed-kubernetes.yaml",
+    "imageDryRun": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-image-dry-run.json",
+    "reportJson": "/Users/ahmadbyagowi/git/Analytics/build/demo/demo-readiness.json",
+    "reportMarkdown": "/Users/ahmadbyagowi/git/Analytics/build/demo/demo-readiness.md"
+  },
+  "demoPath": {
+    "localStaticServer": "python3 -m http.server 8000",
+    "localUrl": "http://127.0.0.1:8000/",
+    "primaryDataset": "fixtures/neo-cloud-provider-bundle.json",
+    "generatedProviderBundle": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-pilot-bundle.json",
+    "liveMachineBundle": "/Users/ahmadbyagowi/git/Analytics/build/demo/live-machine-bundle.json",
+    "remoteMachines": []
+  },
+  "hardware": {
+    "demo": "Laptop or small VM is enough for the offline dashboard and generated telemetry bundles.",
+    "integration": "One Linux NVIDIA GPU node is enough for smoke testing DCGM/Prometheus/Kubernetes exports.",
+    "realisticPilot": "Two to four or more GPU nodes are recommended for scheduler placement, topology, queue, and multi-tenant behavior.",
+    "mig": "A100/H100-class MIG-capable hardware is useful only if the demo includes MIG partitioning or isolation policy."
+  },
+  "nvidiaSchedulerPosition": "Do not claim SM scheduler replacement. The practical control surface is kernel/workload design plus cluster-level placement, batching, streams, MPS, MIG, admission, and topology-aware scheduling.",
+  "caveats": [
+    "The demo is offline-first unless a provider grants staging source-system access.",
+    "Do not claim live cluster or billing connectivity unless source contracts and approvals point at real provider staging systems.",
+    "Run screenshot QA with Playwright before sharing screenshots after any layout change."
+  ],
+  "error": ""
+}

@@ -1,0 +1,88 @@
+{
+  "ok": true,
+  "reports": [
+    {
+      "file": "fixtures/external-source-bundle.json",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "sourceCounts": {
+        "prometheus": 1,
+        "dcgm": 0,
+        "kubernetes": 0,
+        "scheduler": 1,
+        "grafana": 1,
+        "ebpf": 1,
+        "redfish": 1,
+        "provider": 1,
+        "opportunities": 1,
+        "ncclTraces": 1
+      },
+      "runIds": [
+        "run-7421"
+      ]
+    },
+    {
+      "file": "fixtures/neo-cloud-provider-bundle.json",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "sourceCounts": {
+        "prometheus": 2,
+        "dcgm": 0,
+        "kubernetes": 0,
+        "scheduler": 2,
+        "grafana": 2,
+        "ebpf": 2,
+        "redfish": 0,
+        "provider": 2,
+        "opportunities": 2,
+        "ncclTraces": 0
+      },
+      "runIds": [
+        "provider-run-9001",
+        "provider-svc-4102"
+      ]
+    },
+    {
+      "file": "/Users/ahmadbyagowi/git/Analytics/build/demo/provider-pilot-bundle.json",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "sourceCounts": {
+        "prometheus": 1,
+        "dcgm": 1,
+        "kubernetes": 1,
+        "scheduler": 1,
+        "grafana": 1,
+        "ebpf": 1,
+        "redfish": 1,
+        "provider": 1,
+        "opportunities": 1,
+        "ncclTraces": 1
+      },
+      "runIds": [
+        "provider-run-9001"
+      ]
+    },
+    {
+      "file": "/Users/ahmadbyagowi/git/Analytics/build/demo/live-machine-bundle.json",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "sourceCounts": {
+        "prometheus": 0,
+        "dcgm": 0,
+        "kubernetes": 0,
+        "scheduler": 0,
+        "grafana": 0,
+        "ebpf": 0,
+        "redfish": 0,
+        "provider": 0,
+        "opportunities": 0,
+        "ncclTraces": 0
+      },
+      "runIds": []
+    }
+  ]
+}

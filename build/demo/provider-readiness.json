@@ -1,0 +1,338 @@
+{
+  "ok": true,
+  "allowExample": false,
+  "pilotConfigPath": "/Users/ahmadbyagowi/git/Analytics/ops/pilot-provider.sandbox.json",
+  "sourceContractsPath": "/Users/ahmadbyagowi/git/Analytics/ops/source-contracts.sandbox.json",
+  "sourceApprovalsPath": "/Users/ahmadbyagowi/git/Analytics/ops/source-approvals.sandbox.json",
+  "checks": [
+    {
+      "id": "image.configured",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider image is configured"
+    },
+    {
+      "id": "image.pinned_tag",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider image uses a pinned tag instead of latest"
+    },
+    {
+      "id": "image.provider_registry",
+      "ok": true,
+      "severity": "error",
+      "message": "Provider image points at a non-placeholder registry"
+    },
+    {
+      "id": "image.dockerfile",
+      "ok": true,
+      "severity": "error",
+      "message": "Dockerfile exists for ingestion image build"
+    },
+    {
+      "id": "iam.secret_provider",
+      "ok": true,
+      "severity": "error",
+      "message": "Cloud secret provider is configured"
+    },
+    {
+      "id": "iam.secret_store",
+      "ok": true,
+      "severity": "error",
+      "message": "ExternalSecret ClusterSecretStore name is configured"
+    },
+    {
+      "id": "iam.service_account_annotations",
+      "ok": true,
+      "severity": "error",
+      "message": "Service account IAM annotations are configured"
+    },
+    {
+      "id": "secrets.postgres_url",
+      "ok": true,
+      "severity": "error",
+      "message": "Postgres URL remote secret is configured"
+    },
+    {
+      "id": "secrets.tenant_tokens",
+      "ok": true,
+      "severity": "error",
+      "message": "Tenant-token remote secret is configured"
+    },
+    {
+      "id": "secrets.upload_secret",
+      "ok": true,
+      "severity": "error",
+      "message": "Upload-signing remote secret is configured"
+    },
+    {
+      "id": "secrets.exporter_token",
+      "ok": true,
+      "severity": "error",
+      "message": "Exporter-token remote secret is configured"
+    },
+    {
+      "id": "storage.object_bucket",
+      "ok": true,
+      "severity": "error",
+      "message": "Object bucket is configured"
+    },
+    {
+      "id": "storage.object_bucket_real",
+      "ok": true,
+      "severity": "error",
+      "message": "Object bucket does not use an example value"
+    },
+    {
+      "id": "storage.object_prefix",
+      "ok": true,
+      "severity": "error",
+      "message": "Object prefix is configured"
+    },
+    {
+      "id": "contracts.enabled",
+      "ok": true,
+      "severity": "error",
+      "message": "At least one source contract is enabled"
+    },
+    {
+      "id": "contracts.prometheus",
+      "ok": true,
+      "severity": "error",
+      "message": "prometheus source contract is configured"
+    },
+    {
+      "id": "contracts.kubernetes",
+      "ok": true,
+      "severity": "error",
+      "message": "kubernetes source contract is configured"
+    },
+    {
+      "id": "contracts.scheduler-admission",
+      "ok": true,
+      "severity": "error",
+      "message": "scheduler-admission source contract is configured"
+    },
+    {
+      "id": "contracts.grafana",
+      "ok": true,
+      "severity": "error",
+      "message": "grafana source contract is configured"
+    },
+    {
+      "id": "contracts.billing-slo",
+      "ok": true,
+      "severity": "error",
+      "message": "billing-slo source contract is configured"
+    },
+    {
+      "id": "contracts.ebpf",
+      "ok": true,
+      "severity": "error",
+      "message": "ebpf source contract is configured"
+    },
+    {
+      "id": "contracts.redfish",
+      "ok": true,
+      "severity": "error",
+      "message": "redfish source contract is configured"
+    },
+    {
+      "id": "contracts.nccl",
+      "ok": true,
+      "severity": "error",
+      "message": "nccl source contract is configured"
+    },
+    {
+      "id": "contracts.opportunities",
+      "ok": true,
+      "severity": "error",
+      "message": "opportunities source contract is configured"
+    },
+    {
+      "id": "contracts.prometheus.url",
+      "ok": true,
+      "severity": "error",
+      "message": "prometheus URL is configured"
+    },
+    {
+      "id": "contracts.prometheus.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "prometheus URL does not use an example host"
+    },
+    {
+      "id": "contracts.prometheus.queries",
+      "ok": true,
+      "severity": "error",
+      "message": "Prometheus query file is configured"
+    },
+    {
+      "id": "contracts.prometheus.queries_file",
+      "ok": true,
+      "severity": "error",
+      "message": "Prometheus query file exists"
+    },
+    {
+      "id": "contracts.kubernetes.url",
+      "ok": true,
+      "severity": "error",
+      "message": "kubernetes URL is configured"
+    },
+    {
+      "id": "contracts.kubernetes.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "kubernetes URL does not use an example host"
+    },
+    {
+      "id": "contracts.scheduler-admission.url",
+      "ok": true,
+      "severity": "error",
+      "message": "scheduler-admission URL is configured"
+    },
+    {
+      "id": "contracts.scheduler-admission.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "scheduler-admission URL does not use an example host"
+    },
+    {
+      "id": "contracts.grafana.url",
+      "ok": true,
+      "severity": "error",
+      "message": "grafana URL is configured"
+    },
+    {
+      "id": "contracts.grafana.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "grafana URL does not use an example host"
+    },
+    {
+      "id": "contracts.billing-slo.url",
+      "ok": true,
+      "severity": "error",
+      "message": "billing-slo URL is configured"
+    },
+    {
+      "id": "contracts.billing-slo.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "billing-slo URL does not use an example host"
+    },
+    {
+      "id": "contracts.ebpf.url",
+      "ok": true,
+      "severity": "error",
+      "message": "ebpf URL is configured"
+    },
+    {
+      "id": "contracts.ebpf.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "ebpf URL does not use an example host"
+    },
+    {
+      "id": "contracts.redfish.url",
+      "ok": true,
+      "severity": "error",
+      "message": "redfish URL is configured"
+    },
+    {
+      "id": "contracts.redfish.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "redfish URL does not use an example host"
+    },
+    {
+      "id": "contracts.nccl.url",
+      "ok": true,
+      "severity": "error",
+      "message": "nccl URL is configured"
+    },
+    {
+      "id": "contracts.nccl.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "nccl URL does not use an example host"
+    },
+    {
+      "id": "contracts.opportunities.url",
+      "ok": true,
+      "severity": "error",
+      "message": "opportunities URL is configured"
+    },
+    {
+      "id": "contracts.opportunities.url_real",
+      "ok": true,
+      "severity": "error",
+      "message": "opportunities URL does not use an example host"
+    },
+    {
+      "id": "approvals.prometheus",
+      "ok": true,
+      "severity": "error",
+      "message": "prometheus source-owner approval is configured"
+    },
+    {
+      "id": "approvals.kubernetes",
+      "ok": true,
+      "severity": "error",
+      "message": "kubernetes source-owner approval is configured"
+    },
+    {
+      "id": "approvals.scheduler-admission",
+      "ok": true,
+      "severity": "error",
+      "message": "scheduler-admission source-owner approval is configured"
+    },
+    {
+      "id": "approvals.grafana",
+      "ok": true,
+      "severity": "error",
+      "message": "grafana source-owner approval is configured"
+    },
+    {
+      "id": "approvals.billing-slo",
+      "ok": true,
+      "severity": "error",
+      "message": "billing-slo source-owner approval is configured"
+    },
+    {
+      "id": "approvals.ebpf",
+      "ok": true,
+      "severity": "error",
+      "message": "ebpf source-owner approval is configured"
+    },
+    {
+      "id": "approvals.redfish",
+      "ok": true,
+      "severity": "error",
+      "message": "redfish source-owner approval is configured"
+    },
+    {
+      "id": "approvals.nccl",
+      "ok": true,
+      "severity": "error",
+      "message": "nccl source-owner approval is configured"
+    },
+    {
+      "id": "approvals.opportunities",
+      "ok": true,
+      "severity": "error",
+      "message": "opportunities source-owner approval is configured"
+    },
+    {
+      "id": "approvals.valid",
+      "ok": true,
+      "severity": "error",
+      "message": "Source-owner approvals match source contracts"
+    }
+  ],
+  "summary": {
+    "passed": 54,
+    "warnings": 0,
+    "failed": 0
+  }
+}

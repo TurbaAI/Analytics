@@ -1,0 +1,12 @@
+{
+  "Mac.localdomain|en0|192.168.10.189": {
+    "iface": "en0",
+    "localAddress": "192.168.10.189",
+    "peerAddress": "",
+    "linkRole": "Primary interface",
+    "collectedAtMs": 1781671146655,
+    "linkSpeedMbps": 0,
+    "rxBytes": 90921629887,
+    "txBytes": 21187848801
+  }
+}

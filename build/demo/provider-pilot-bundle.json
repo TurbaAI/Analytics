@@ -1,0 +1,361 @@
+{
+  "sources": {
+    "prometheus": [
+      {
+        "runId": "provider-run-9001",
+        "metrics": {
+          "turba_gpu_utilization_ratio": 0.66,
+          "turba_useful_compute_ratio": 0.43,
+          "turba_nccl_time_ratio": 0.27,
+          "turba_network_wait_ratio": 0.13,
+          "turba_network_utilization_ratio": 0.74,
+          "turba_dataloader_stall_ratio": 0.04,
+          "turba_storage_wait_ratio": 0.03,
+          "turba_cpu_prep_ratio": 0.04,
+          "turba_queue_wait_minutes": 31,
+          "turba_step_regularity_ratio": 0.88,
+          "turba_latency_tail_ratio": 0,
+          "turba_tokens_million_total": 810,
+          "turba_training_steps_total": 14600,
+          "turba_inference_requests_million_total": 0,
+          "turba_all_to_all_time_ratio": 0.03
+        }
+      }
+    ],
+    "dcgm": [
+      {
+        "runId": "provider-run-9001",
+        "fields": {
+          "DCGM_FI_PROF_SM_OCCUPANCY": 58,
+          "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE": 51,
+          "DCGM_FI_DEV_FB_USED_RATIO": 73,
+          "DCGM_FI_PROF_DRAM_ACTIVE": 68,
+          "DCGM_FI_DEV_MEM_FRAGMENTATION": 12,
+          "DCGM_FI_DEV_KV_CACHE_PRESSURE": 0
+        }
+      }
+    ],
+    "kubernetes": [
+      {
+        "runId": "provider-run-9001",
+        "namespace": "frontier-training",
+        "podSelector": "job-name=apex-70b-pretrain-9001",
+        "status": "Running",
+        "allocation": {
+          "durationHours": 8.8,
+          "gpus": 256,
+          "allocatedGpuHours": 2253
+        },
+        "scheduler": {
+          "placementQuality": 49,
+          "idleGpus": 0,
+          "partialNodes": 4,
+          "queueWaitMinutes": 31
+        },
+        "topology": {
+          "crossRackTraffic": 72,
+          "crossPodTraffic": 44,
+          "nodes": [
+            "A1-01",
+            "A1-02",
+            "A2-01",
+            "B1-01"
+          ],
+          "partialNodes": [
+            "B1-01"
+          ]
+        },
+        "annotations": {
+          "noiseEvents": 1,
+          "contentionPct": 13,
+          "precisionLoss": 6,
+          "batchInefficiency": 8
+        }
+      }
+    ],
+    "scheduler": [
+      {
+        "runId": "provider-run-9001",
+        "schedulerExportId": "sched-2026-05-week-4",
+        "schedulerName": "slurm-topology-aware",
+        "queueName": "frontier-reserved",
+        "priorityClass": "p1-reserved",
+        "admissionClass": "reserved-burst",
+        "requestedGpuShape": "32x8-h100",
+        "localityPreference": "same-pod",
+        "queuedAt": "2026-05-30T09:42:00-07:00",
+        "startedAt": "2026-05-30T10:13:00-07:00",
+        "placementQuality": 49,
+        "partialNodes": 4,
+        "idleGpus": 0,
+        "placementRetries": 8,
+        "localityMisses": 4,
+        "backfillCandidates": 6,
+        "pendingJobsAhead": 9,
+        "pendingGpuHoursAhead": 1240,
+        "gpusPerNode": 8,
+        "events": [
+          {
+            "type": "queued",
+            "timestamp": "2026-05-30T09:42:00-07:00"
+          },
+          {
+            "type": "placement_retry",
+            "timestamp": "2026-05-30T09:49:00-07:00"
+          },
+          {
+            "type": "locality_miss",
+            "timestamp": "2026-05-30T10:05:00-07:00"
+          },
+          {
+            "type": "admitted",
+            "timestamp": "2026-05-30T10:13:00-07:00"
+          }
+        ]
+      }
+    ],
+    "grafana": [
+      {
+        "runId": "provider-run-9001",
+        "grafanaBaseUrl": "https://grafana.provider.example",
+        "instanceName": "provider-observability-prod",
+        "orgId": "1",
+        "dashboardUid": "turbalance-provider-overview",
+        "dashboardSlug": "turbalance-provider-overview",
+        "dashboardTitle": "turbalance Provider Overview",
+        "folder": "AI Infrastructure",
+        "datasourceUid": "prometheus-h100-prod",
+        "datasourceName": "Prometheus h100-prod-west",
+        "timeRange": {
+          "from": "now-12h",
+          "to": "now"
+        },
+        "variables": {
+          "run": "provider-run-9001",
+          "tenant": "apex-ai",
+          "reservation": "rsv-h100-frontier-q2"
+        },
+        "dashboardUrl": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-run-9001",
+        "exploreUrl": "https://grafana.provider.example/explore?orgId=1",
+        "links": [
+          {
+            "label": "Apex provider overview",
+            "type": "dashboard",
+            "url": "https://grafana.provider.example/d/turbalance-provider-overview/turbalance-provider-overview?orgId=1&var-run=provider-run-9001"
+          }
+        ]
+      }
+    ],
+    "ebpf": [
+      {
+        "runId": "provider-run-9001",
+        "ebpfExportId": "ebpf-2026-05-week-4",
+        "collector": "bpftrace-summary",
+        "kernelRelease": "6.8.0-provider",
+        "host": "h100-a1-01.internal",
+        "node": "A1-01",
+        "namespace": "frontier-training",
+        "podName": "apex-70b-pretrain-9001-worker-0",
+        "containerName": "trainer",
+        "cgroupPath": "/kubepods.slice/frontier-training/apex-70b-pretrain-9001",
+        "cpu": {
+          "offCpuTimePct": 9,
+          "cpuThrottlePct": 6,
+          "softIrqPct": 4
+        },
+        "scheduler": {
+          "runQueueLatencyMsP95": 12
+        },
+        "network": {
+          "tcpRetransmitPct": 3.2,
+          "socketLatencyMsP95": 46,
+          "utilizationPct": 74
+        },
+        "storage": {
+          "blockIoLatencyMsP95": 7,
+          "filesystemLatencyMsP95": 10
+        },
+        "noise": {
+          "noisyNeighborScore": 24,
+          "noiseEvents": 1
+        }
+      }
+    ],
+    "redfish": [
+      {
+        "runId": "provider-run-9001",
+        "hostId": "h100-a1-01",
+        "sourceSystem": "redfish",
+        "collectedAt": "2026-06-10T07:00:00.000Z",
+        "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+        "serviceRoot": {
+          "redfishVersion": "1.20.0",
+          "uuid": "bmc-h100-a1-01",
+          "vendor": "Example Systems",
+          "product": "AI Node BMC"
+        },
+        "systems": [
+          {
+            "id": "System.Embedded.1",
+            "name": "h100-a1-01",
+            "model": "HGX H100 Node",
+            "biosVersion": "2.7.4",
+            "powerState": "On",
+            "health": "Warning",
+            "state": "Enabled",
+            "criticalLogEntries": 1
+          }
+        ],
+        "chassis": [
+          {
+            "id": "Chassis.1",
+            "name": "h100-a1-01 chassis",
+            "powerWatts": 4850,
+            "powerLimitWatts": 5200,
+            "inletTempCelsius": 31,
+            "exhaustTempCelsius": 58,
+            "maxTempCelsius": 58,
+            "fanCount": 2,
+            "health": "Warning",
+            "state": "Enabled"
+          }
+        ],
+        "managers": [
+          {
+            "id": "BMC",
+            "name": "Node BMC",
+            "managerType": "BMC",
+            "firmwareVersion": "6.11.2",
+            "health": "OK",
+            "state": "Enabled"
+          }
+        ],
+        "firmwareInventory": [
+          {
+            "id": "BIOS",
+            "name": "System BIOS",
+            "version": "2.7.4",
+            "updateable": true,
+            "health": "OK",
+            "state": "Enabled"
+          }
+        ],
+        "metrics": {
+          "redfish_systems_total": 1,
+          "redfish_chassis_total": 1,
+          "redfish_managers_total": 1,
+          "redfish_unhealthy_resources_total": 2,
+          "redfish_power_watts": 4850,
+          "redfish_power_limit_watts": 5200,
+          "redfish_inlet_temp_celsius": 31,
+          "redfish_exhaust_temp_celsius": 58,
+          "redfish_max_temp_celsius": 58,
+          "redfish_fan_count": 2,
+          "redfish_critical_log_entries_total": 1
+        },
+        "health": {
+          "rollup": "Warning",
+          "unhealthyResources": [
+            {
+              "type": "system",
+              "id": "System.Embedded.1",
+              "health": "Warning",
+              "state": "Enabled"
+            },
+            {
+              "type": "chassis",
+              "id": "Chassis.1",
+              "health": "Warning",
+              "state": "Enabled"
+            }
+          ]
+        },
+        "sourceContext": {
+          "redfishBaseUrl": "https://bmc-h100-a1-01.example/redfish/v1",
+          "redfishServiceUuid": "bmc-h100-a1-01",
+          "redfishHealthRollup": "Warning",
+          "redfishBiosVersion": "2.7.4",
+          "redfishManagerFirmwareVersion": "6.11.2"
+        }
+      }
+    ],
+    "provider": [
+      {
+        "runId": "provider-run-9001",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-apex-frontier",
+        "reservationWindow": "2026-Q2",
+        "sourceContext": {
+          "namespace": "frontier-training",
+          "podSelector": "job-name=apex-70b-pretrain-9001",
+          "slurmJobId": "provider-run-9001"
+        },
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "ctr-apex-2026-q2",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 320,
+          "billableGpuHours": 2253,
+          "sellableGpuHours": 2253
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 56,
+          "supportTicketId": "CS-2044"
+        }
+      }
+    ],
+    "opportunities": [
+      {
+        "runId": "provider-run-9001",
+        "opportunityId": "opp-apex-pod-pack",
+        "category": "Fabric + Topology",
+        "title": "Move Apex pretraining into a single pod admission window",
+        "impactDollars": 3600,
+        "impactGpuHours": 530,
+        "riskScore": 78,
+        "confidence": 86,
+        "evidence": "Cross-pod NCCL trace share, queue miss, and reserved-capacity pressure align on provider-run-9001.",
+        "recommendation": "Reserve one contiguous pod for the next Apex burst and compare useful compute plus NCCL time.",
+        "owner": "Provider capacity desk"
+      }
+    ]
+  },
+  "ncclTraces": [
+    {
+      "runId": "provider-run-9001",
+      "rankCount": 256,
+      "events": [
+        {
+          "op": "all_reduce",
+          "startMs": 0,
+          "durationMs": 580,
+          "bytes": 12884901888,
+          "nodes": [
+            "A1-01",
+            "A1-02",
+            "A2-01",
+            "B1-01"
+          ]
+        },
+        {
+          "op": "broadcast",
+          "startMs": 700,
+          "durationMs": 140,
+          "bytes": 1073741824,
+          "nodes": [
+            "A1-01",
+            "A1-02"
+          ]
+        }
+      ]
+    }
+  ]
+}

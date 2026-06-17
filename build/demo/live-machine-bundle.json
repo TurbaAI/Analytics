@@ -1,0 +1,454 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-17T04:39:06.326Z",
+    "source": "collect-local-machine-bundle.js",
+    "observedHost": "Mac.localdomain",
+    "sourceAdapters": [
+      "local-machine",
+      "os-counters",
+      "clock-sync",
+      "ollama"
+    ],
+    "note": "Strict live machine observation. The bundle only claims data collected from gpustat/NVML or nvidia-smi when present, host OS counters, Docker when present, and reachable local services; Kubernetes, DCGM, eBPF, scheduler, and provider exports are not synthesized."
+  },
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "entities": {
+      "models": {
+        "no-nvidia-gpu-telemetry": {
+          "label": "No NVIDIA GPU telemetry local host",
+          "family": "local-cpu",
+          "parameterCountB": 120
+        }
+      },
+      "users": {
+        "local-operator": {
+          "label": "ahmadbyagowi"
+        }
+      },
+      "teams": {
+        "local-ai-ops": {
+          "label": "Local AI Ops"
+        }
+      },
+      "tenants": {
+        "local-lab": {
+          "label": "Local lab"
+        }
+      },
+      "accounts": {
+        "mac-localdomain": {
+          "label": "Mac.localdomain"
+        }
+      },
+      "reservations": {
+        "cpu-only-workstation": {
+          "label": "CPU workstation window"
+        }
+      },
+      "clusters": {
+        "mac-localdomain": {
+          "label": "Mac.localdomain",
+          "region": "local-lan",
+          "topology": "single-node"
+        }
+      }
+    },
+    "runs": [
+      {
+        "id": "machine-mac-localdomain-20260617t043906z",
+        "name": "Mac.localdomain current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "mac-localdomain",
+          "tenant": "local-lab",
+          "account": "mac-localdomain",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "os-counters",
+          "clock-sync",
+          "ollama"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 4.85,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 32.35,
+          "stepRegularity": 80.5908203125,
+          "latencyTail": 19.41
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "Mac.localdomain"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "Mac.localdomain",
+          "platform": "darwin",
+          "arch": "x64",
+          "os": "Darwin 25.5.0",
+          "kernel": "25.5.0",
+          "cpuModel": "Apple M5 Max",
+          "cpuCount": 18,
+          "uptimeSeconds": 1250015,
+          "clockSource": "unsynchronized",
+          "clockSynchronized": false,
+          "clockTimeUnixMs": 1781671146662,
+          "clockTimeUnixNs": "1781671146879590000",
+          "clockTimezone": "",
+          "clockLocalRtc": false,
+          "clockPtpInstalled": false,
+          "clockPtpActive": false,
+          "clockPtpPortState": "",
+          "clockPtpGrandmaster": "",
+          "clockChronyReference": "",
+          "clockSyncServices": [
+            {
+              "name": "systemd-timesyncd",
+              "active": false
+            },
+            {
+              "name": "chrony",
+              "active": false
+            },
+            {
+              "name": "chronyd",
+              "active": false
+            },
+            {
+              "name": "ptp4l",
+              "active": false
+            },
+            {
+              "name": "phc2sys",
+              "active": false
+            }
+          ],
+          "clockSyncDetail": "clock not synchronized; PTP tools missing",
+          "load1": 5.823,
+          "load5": 5.329,
+          "load15": 4.726,
+          "cpuUsagePct": 0,
+          "memoryTotalBytes": 137438953472,
+          "memoryAvailableBytes": 3527729152,
+          "memoryUsedPct": 97.43,
+          "diskTotalBytes": 0,
+          "diskUsedBytes": 0,
+          "diskUsedPct": 0,
+          "lakehouseRoot": "/Users/ahmadbyagowi/git/Analytics/build/lakehouse",
+          "lakehouseExists": false,
+          "lakehouseMeasuredAt": "2026-06-17T04:39:06.370Z",
+          "lakehouseUsedBytes": 0,
+          "lakehouseDiskFilesystem": "",
+          "lakehouseDiskType": "",
+          "lakehouseDiskTotalBytes": 0,
+          "lakehouseDiskUsedBytes": 0,
+          "lakehouseDiskAvailableBytes": 0,
+          "lakehouseDiskUsedPct": 0,
+          "networkInterface": "en0",
+          "networkLocalAddress": "192.168.10.189",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 0,
+          "networkRxBytes": 90921629887,
+          "networkTxBytes": 21187848801,
+          "networkRxBytesPerSecond": 447352.33,
+          "networkTxBytesPerSecond": 44151.62,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [
+            "ollama"
+          ],
+          "grafanaBaseUrl": "http://192.168.10.30:3001",
+          "grafanaInstance": "",
+          "grafanaOrgId": "1",
+          "grafanaDashboardUid": "turbalance-fleet-runtime",
+          "grafanaDashboardSlug": "turbalance-fleet-runtime",
+          "grafanaDashboardTitle": "turbalance Fleet Runtime",
+          "grafanaDatasourceUid": "prometheus",
+          "grafanaDatasourceName": "turbalance Prometheus",
+          "grafanaDashboardUrl": "http://192.168.10.30:3001/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s",
+          "grafanaExploreUrl": "http://192.168.10.30:3001/explore?orgId=1",
+          "collectorGatewayReachable": false,
+          "collectorAuthBearer": false,
+          "collectorAuthHmac": false,
+          "collectorAuthMtls": false,
+          "apiAuthRequired": false,
+          "hardwareHealthScore": 88,
+          "hardwareFaultScore": 12,
+          "hardwareFaultLevel": "healthy",
+          "hardwareFaultCount": 1,
+          "hardwareCriticalFaultCount": 0,
+          "hardwareWarningFaultCount": 1,
+          "hardwareKernelEventCount": 0,
+          "hardwareMachineCheckCount": 0,
+          "hardwareGpuXidCount": 0,
+          "hardwareStorageErrorCount": 0,
+          "hardwarePcieAerCount": 0,
+          "hardwareOomKillCount": 0,
+          "hardwareFailedUnitCount": 0,
+          "hardwareThermalThrottleActive": false,
+          "hardwareThermalThrottleRaw": "",
+          "hardwareRepairAction": "restart-gpu-telemetry",
+          "hardwareRepairConfidence": 0.72,
+          "hardwareRepairRequiresApproval": false,
+          "hardwareRcaFingerprint": "nuc-x64-25-5-0-nvidia-smi-not-found-gpu",
+          "hardwareFaults": [
+            {
+              "id": "gpu-telemetry-unavailable",
+              "category": "gpu",
+              "severity": "medium",
+              "source": "nvidia-smi-not-found",
+              "count": 1,
+              "detail": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+              "suggestedAction": "restart-gpu-telemetry"
+            }
+          ],
+          "hardwareRcaDimensions": {
+            "hostRole": "nuc",
+            "platform": "darwin",
+            "arch": "x64",
+            "kernel": "25.5.0",
+            "gpuSource": "nvidia-smi-not-found",
+            "gpuName": "",
+            "clockSource": "unsynchronized",
+            "ptpActive": false,
+            "collectorGateway": false,
+            "benchmarkStatus": "disabled"
+          },
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [
+            "qwen2.5-coder:32b",
+            "qwen2.5-coder:14b",
+            "granite-code:34b",
+            "gpt-oss:120b",
+            "qwen3-vl:30b",
+            "gemma3:27b"
+          ],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "no-running-model",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "Ollama is reachable, but no model is currently loaded in /api/ps; generation probe skipped.",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuBackendRequested": "auto",
+          "gpuAttemptedSources": [
+            "gpustat-not-found",
+            "nvidia-smi-not-found"
+          ],
+          "gpuError": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuSmOccupancyPct": 0,
+          "gpuTensorActivePct": 0,
+          "gpuDramActivePct": 0,
+          "gpuPcieTxBytesPerSecond": 0,
+          "gpuPcieRxBytesPerSecond": 0,
+          "gpuNvlinkTxBytesPerSecond": 0,
+          "gpuNvlinkRxBytesPerSecond": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuProcessInspector": {
+            "status": "unavailable",
+            "source": "nvidia-smi-not-found",
+            "processCount": 0,
+            "totalUsedMemoryMiB": 0,
+            "ownerCount": 0,
+            "ownerNames": [],
+            "byGpu": [],
+            "topProcesses": [],
+            "largestProcess": null,
+            "summary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT"
+          },
+          "gpuProcessInspectorStatus": "unavailable",
+          "gpuProcessInspectorSummary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+          "gpuProcessCount": 0,
+          "gpuProcessMemoryMiB": 0,
+          "gpuProcessOwners": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gpuDiagnosticsCollectedAtMs": 1781671146893,
+          "gpuDiagnosticsSampleCached": false,
+          "gpuDiagnosticsError": "",
+          "gpuThermalQualification": {
+            "status": "unavailable",
+            "source": "",
+            "benchmarkComparable": false,
+            "requiredForBenchmark": true,
+            "throttleActive": false,
+            "checks": [],
+            "deviceCount": 0,
+            "summary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+            "error": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT"
+          },
+          "gpuThermalQualificationStatus": "unavailable",
+          "gpuThermalQualificationSummary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+          "gpuThermalQualificationComparable": false,
+          "gpuThermalThrottleActive": false,
+          "gpuTopology": {
+            "status": "unavailable",
+            "source": "",
+            "deviceCount": 0,
+            "peerLinkCount": 0,
+            "nvlinkLinks": 0,
+            "pcieLinks": 0,
+            "linkCounts": {},
+            "matrix": [],
+            "fingerprint": "",
+            "rawDigest": "",
+            "summary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+            "error": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT"
+          },
+          "gpuTopologyStatus": "unavailable",
+          "gpuTopologyFingerprint": "",
+          "gpuTopologySummary": "spawnSync gpustat ENOENT; spawnSync nvidia-smi ENOENT",
+          "gpuTopologyDeviceCount": 0,
+          "gpuTopologyPeerLinkCount": 0,
+          "gpuTopologyNvlinkLinks": 0,
+          "gpuTopologyPcieLinks": 0,
+          "gpuTopologyMatrix": [],
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "hooks-present",
+          "nsightCuptiProfilingScripts": [
+            "collectors/profiling/run-nsight-compute-sample.sh",
+            "collectors/profiling/run-nsight-systems-sample.sh",
+            "collectors/profiling/run-cupti-sample.sh"
+          ],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "en0",
+          "ncclRuntimeHostIp": "192.168.10.189",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "benchmarkSuiteName": "pi-light-v1",
+          "benchmarkSuiteStatus": "disabled",
+          "benchmarkGeneratedAt": "",
+          "benchmarkSampleCached": false,
+          "benchmarkSampleAgeMs": 0,
+          "benchmarkTtlMs": 900000,
+          "benchmarkDurationMs": 0,
+          "benchmarkDiskBytes": 0,
+          "benchmarkOcpCommonsDataset": "",
+          "benchmarkOcpCommonsUrl": "",
+          "benchmarkOcpCommonsHardwareClass": "",
+          "benchmarkOcpCommonsConfigHash": "",
+          "benchmarkOcpCommonsBinning": "",
+          "benchmarkOcpCommonsPolicy": "aggregate-anonymized",
+          "benchmarkError": "",
+          "sourceAdapters": [
+            "local-machine",
+            "os-counters",
+            "clock-sync",
+            "ollama"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-17T04:39:06.326Z"
+        }
+      }
+    ],
+    "sourceAdapters": [
+      "local-machine",
+      "os-counters",
+      "clock-sync",
+      "ollama"
+    ]
+  },
+  "sources": {}
+}

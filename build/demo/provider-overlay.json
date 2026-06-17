@@ -1,0 +1,68 @@
+{
+  "sources": {
+    "provider": [
+      {
+        "runId": "provider-run-9001",
+        "tenant": "apex-ai",
+        "account": "acct-apex-frontier",
+        "reservation": "rsv-h100-frontier-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-apex-frontier",
+        "reservationWindow": "2026-Q2",
+        "sourceContext": {
+          "namespace": "frontier-training",
+          "podSelector": "job-name=apex-70b-pretrain-9001",
+          "slurmJobId": "provider-run-9001"
+        },
+        "commercial": {
+          "billingModel": "reserved-cluster",
+          "customerTier": "strategic",
+          "contractId": "ctr-apex-2026-q2",
+          "listGpuHourRate": 6.8,
+          "floorGpuHourCost": 3.9,
+          "committedGpuHours": 6500,
+          "burstGpuHours": 240,
+          "billableGpuHours": 1184,
+          "sellableGpuHours": 1184
+        },
+        "slo": {
+          "priority": "p1",
+          "targetStartMinutes": 20,
+          "targetEfficiency": 58,
+          "supportTicketId": "CS-2044"
+        }
+      },
+      {
+        "runId": "provider-run-9002",
+        "tenant": "helix-labs",
+        "account": "acct-helix-platform",
+        "reservation": "rsv-a100-batch-q2",
+        "providerExportId": "billing-2026-05-week-4",
+        "billingAccountId": "ba-helix-platform",
+        "reservationWindow": "2026-Q2",
+        "sourceContext": {
+          "namespace": "genomics-batch",
+          "podSelector": "job-name=helix-infer-9002",
+          "slurmJobId": "provider-run-9002"
+        },
+        "commercial": {
+          "billingModel": "committed-burst",
+          "customerTier": "growth",
+          "contractId": "ctr-helix-2026-q2",
+          "listGpuHourRate": 3.4,
+          "floorGpuHourCost": 2.05,
+          "committedGpuHours": 2800,
+          "burstGpuHours": 96,
+          "billableGpuHours": 612,
+          "sellableGpuHours": 612
+        },
+        "slo": {
+          "priority": "p2",
+          "targetStartMinutes": 45,
+          "targetEfficiency": 50,
+          "supportTicketId": "CS-2051"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,2422 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-08T05:25:43.783Z",
+    "source": "collect-machine-fleet-bundle.js",
+    "observedHosts": [
+      "pi1",
+      "pi2",
+      "pi3",
+      "pi4",
+      "pi5",
+      "pi6",
+      "pi7",
+      "pi8",
+      "pi9",
+      "pi10",
+      "pi11",
+      "pi12"
+    ],
+    "remoteCollectionFailures": [],
+    "note": "Strict live machine fleet observation. Each run is collected from that host and no Kubernetes, DCGM, eBPF, scheduler, provider, billing, SLO, or opportunity overlays are synthesized."
+  },
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "entities": {
+      "models": {
+        "no-nvidia-gpu-telemetry": {
+          "label": "No NVIDIA GPU telemetry local host",
+          "family": "local-cpu",
+          "parameterCountB": 0
+        }
+      },
+      "users": {
+        "local-operator": {
+          "label": "pi"
+        }
+      },
+      "teams": {
+        "local-ai-ops": {
+          "label": "Local AI Ops"
+        }
+      },
+      "tenants": {
+        "local-lab": {
+          "label": "Local lab"
+        }
+      },
+      "accounts": {
+        "pi1": {
+          "label": "pi1"
+        },
+        "pi2": {
+          "label": "pi2"
+        },
+        "pi3": {
+          "label": "pi3"
+        },
+        "pi4": {
+          "label": "pi4"
+        },
+        "pi5": {
+          "label": "pi5"
+        },
+        "pi6": {
+          "label": "pi6"
+        },
+        "pi7": {
+          "label": "pi7"
+        },
+        "pi8": {
+          "label": "pi8"
+        },
+        "pi9": {
+          "label": "pi9"
+        },
+        "pi10": {
+          "label": "pi10"
+        },
+        "pi11": {
+          "label": "pi11"
+        },
+        "pi12": {
+          "label": "pi12"
+        }
+      },
+      "reservations": {
+        "cpu-only-workstation": {
+          "label": "CPU workstation window"
+        }
+      },
+      "clusters": {
+        "pi1": {
+          "label": "pi1",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi2": {
+          "label": "pi2",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi3": {
+          "label": "pi3",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi4": {
+          "label": "pi4",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi5": {
+          "label": "pi5",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi6": {
+          "label": "pi6",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi7": {
+          "label": "pi7",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi8": {
+          "label": "pi8",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi9": {
+          "label": "pi9",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi10": {
+          "label": "pi10",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi11": {
+          "label": "pi11",
+          "region": "local-lan",
+          "topology": "single-node"
+        },
+        "pi12": {
+          "label": "pi12",
+          "region": "local-lan",
+          "topology": "single-node"
+        }
+      }
+    },
+    "runs": [
+      {
+        "id": "machine-pi1-20260608t052522z",
+        "name": "pi1 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi1",
+          "tenant": "local-lab",
+          "account": "pi1",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.3,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 2,
+          "stepRegularity": 98.8,
+          "latencyTail": 1.2
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi1"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi1",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664113,
+          "load1": 0.08,
+          "load5": 0.03,
+          "load15": 0,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 47.71,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3469606912,
+          "memoryUsedPct": 12.71,
+          "diskTotalBytes": 62222987264,
+          "diskUsedBytes": 5685452800,
+          "diskUsedPct": 9.14,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.11",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 27201029,
+          "networkTxBytes": 10591542,
+          "networkRxBytesPerSecond": 16.04,
+          "networkTxBytesPerSecond": 14.11,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.11",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:22.591Z"
+        }
+      },
+      {
+        "id": "machine-pi2-20260608t052525z",
+        "name": "pi2 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi2",
+          "tenant": "local-lab",
+          "account": "pi2",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.3,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 2,
+          "stepRegularity": 98.8,
+          "latencyTail": 1.2
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi2"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi2",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664116,
+          "load1": 0.08,
+          "load5": 0.08,
+          "load15": 0.03,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 43.82,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3542126592,
+          "memoryUsedPct": 10.89,
+          "diskTotalBytes": 62256541696,
+          "diskUsedBytes": 6072348672,
+          "diskUsedPct": 9.75,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.12",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 2590421,
+          "networkTxBytes": 4817553,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.12",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:25.142Z"
+        }
+      },
+      {
+        "id": "machine-pi3-20260608t052527z",
+        "name": "pi3 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi3",
+          "tenant": "local-lab",
+          "account": "pi3",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.6,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 4,
+          "stepRegularity": 97.6,
+          "latencyTail": 2.4
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi3"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi3",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664118,
+          "load1": 0.16,
+          "load5": 0.1,
+          "load15": 0.04,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 44.3,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3540041728,
+          "memoryUsedPct": 10.94,
+          "diskTotalBytes": 62256541696,
+          "diskUsedBytes": 6072946688,
+          "diskUsedPct": 9.75,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.13",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 2579201,
+          "networkTxBytes": 1850181,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.13",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:27.421Z"
+        }
+      },
+      {
+        "id": "machine-pi4-20260608t052529z",
+        "name": "pi4 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi4",
+          "tenant": "local-lab",
+          "account": "pi4",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.34,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0.74
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 2.25,
+          "stepRegularity": 98.65,
+          "latencyTail": 1.35
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi4"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi4",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664119,
+          "load1": 0.09,
+          "load5": 0.06,
+          "load15": 0.02,
+          "cpuUsagePct": 0.99,
+          "cpuTemperatureC": 47.23,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3539513344,
+          "memoryUsedPct": 10.95,
+          "diskTotalBytes": 62256541696,
+          "diskUsedBytes": 6072360960,
+          "diskUsedPct": 9.75,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.14",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 2610981,
+          "networkTxBytes": 4740185,
+          "networkRxBytesPerSecond": 11.89,
+          "networkTxBytesPerSecond": 9.85,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.14",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:29.850Z"
+        }
+      },
+      {
+        "id": "machine-pi5-20260608t052532z",
+        "name": "pi5 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi5",
+          "tenant": "local-lab",
+          "account": "pi5",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 0,
+          "stepRegularity": 100,
+          "latencyTail": 0
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi5"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi5",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664123,
+          "load1": 0,
+          "load5": 0,
+          "load15": 0,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 44.3,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3548348416,
+          "memoryUsedPct": 10.73,
+          "diskTotalBytes": 62256541696,
+          "diskUsedBytes": 6071812096,
+          "diskUsedPct": 9.75,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.15",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 2599162,
+          "networkTxBytes": 5191932,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.15",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:32.487Z"
+        }
+      },
+      {
+        "id": "machine-pi6-20260608t052534z",
+        "name": "pi6 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi6",
+          "tenant": "local-lab",
+          "account": "pi6",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.26,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 1.75,
+          "stepRegularity": 98.95,
+          "latencyTail": 1.05
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi6"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi6",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.87+rpt-rpi-v8",
+          "cpuModel": "Cortex-A72",
+          "cpuCount": 4,
+          "uptimeSeconds": 664125,
+          "load1": 0.07,
+          "load5": 0.04,
+          "load15": 0.01,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 42.84,
+          "memoryTotalBytes": 3974963200,
+          "memoryAvailableBytes": 3503169536,
+          "memoryUsedPct": 11.87,
+          "diskTotalBytes": 62256541696,
+          "diskUsedBytes": 6080745472,
+          "diskUsedPct": 9.77,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.16",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 2633427,
+          "networkTxBytes": 5529109,
+          "networkRxBytesPerSecond": 7.48,
+          "networkTxBytesPerSecond": 6.2,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.16",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:34.757Z"
+        }
+      },
+      {
+        "id": "machine-pi7-20260608t052536z",
+        "name": "pi7 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi7",
+          "tenant": "local-lab",
+          "account": "pi7",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs",
+          "ollama"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 2.25,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0.74
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 15,
+          "stepRegularity": 91,
+          "latencyTail": 9
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi7"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi7",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664108,
+          "load1": 0.6,
+          "load5": 0.58,
+          "load15": 0.55,
+          "cpuUsagePct": 0.99,
+          "cpuTemperatureC": 65,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 15783788544,
+          "memoryUsedPct": 7.19,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 28708233216,
+          "diskUsedPct": 2.92,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.17",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 3341871028,
+          "networkTxBytes": 4597440830,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [
+            "ollama"
+          ],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "no-running-model",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "Ollama is reachable, but no model is currently loaded in /api/ps; generation probe skipped.",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.17",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs",
+            "ollama"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:36.568Z"
+        }
+      },
+      {
+        "id": "machine-pi8-20260608t052537z",
+        "name": "pi8 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi8",
+          "tenant": "local-lab",
+          "account": "pi8",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.34,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 2.25,
+          "stepRegularity": 98.65,
+          "latencyTail": 1.35
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi8"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi8",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664109,
+          "load1": 0.09,
+          "load5": 0.05,
+          "load15": 0.01,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 51.8,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 16241655808,
+          "memoryUsedPct": 4.5,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 6329696256,
+          "diskUsedPct": 0.64,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.18",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 905057945,
+          "networkTxBytes": 687878624,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.18",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:37.818Z"
+        }
+      },
+      {
+        "id": "machine-pi9-20260608t052538z",
+        "name": "pi9 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi9",
+          "tenant": "local-lab",
+          "account": "pi9",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 0,
+          "stepRegularity": 100,
+          "latencyTail": 0
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi9"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi9",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664110,
+          "load1": 0,
+          "load5": 0.01,
+          "load15": 0,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 48.5,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 16257908736,
+          "memoryUsedPct": 4.4,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 6329192448,
+          "diskUsedPct": 0.64,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.19",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 900241181,
+          "networkTxBytes": 684046667,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.19",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:38.989Z"
+        }
+      },
+      {
+        "id": "machine-pi10-20260608t052540z",
+        "name": "pi10 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi10",
+          "tenant": "local-lab",
+          "account": "pi10",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 0,
+          "stepRegularity": 100,
+          "latencyTail": 0
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi10"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi10",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664110,
+          "load1": 0,
+          "load5": 0,
+          "load15": 0,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 47.95,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 16247390208,
+          "memoryUsedPct": 4.47,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 6329716736,
+          "diskUsedPct": 0.64,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.20",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 904481415,
+          "networkTxBytes": 687080643,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.20",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:40.198Z"
+        }
+      },
+      {
+        "id": "machine-pi11-20260608t052541z",
+        "name": "pi11 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi11",
+          "tenant": "local-lab",
+          "account": "pi11",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.11,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0.74
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 0.75,
+          "stepRegularity": 99.55,
+          "latencyTail": 0.45
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi11"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi11",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664113,
+          "load1": 0.03,
+          "load5": 0.01,
+          "load15": 0,
+          "cpuUsagePct": 0.99,
+          "cpuTemperatureC": 49.6,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 16243752960,
+          "memoryUsedPct": 4.49,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 6329704448,
+          "diskUsedPct": 0.64,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.21",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 902817354,
+          "networkTxBytes": 685716068,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.21",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:41.893Z"
+        }
+      },
+      {
+        "id": "machine-pi12-20260608t052543z",
+        "name": "pi12 current host window",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "pi12",
+          "tenant": "local-lab",
+          "account": "pi12",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Live host observation",
+        "importedSources": [
+          "local-machine",
+          "procfs"
+        ],
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "No NVIDIA GPU telemetry"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 0.08,
+          "networkUtilization": 0,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 0.5,
+          "stepRegularity": 99.7,
+          "latencyTail": 0.3
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "pi12"
+          ],
+          "partialNodes": []
+        },
+        "sourceContext": {
+          "hostname": "pi12",
+          "platform": "linux",
+          "arch": "arm64",
+          "os": "Debian GNU/Linux 12 (bookworm)",
+          "kernel": "6.12.34+rpt-rpi-2712",
+          "cpuModel": "Cortex-A76",
+          "cpuCount": 4,
+          "uptimeSeconds": 664114,
+          "load1": 0.02,
+          "load5": 0.03,
+          "load15": 0,
+          "cpuUsagePct": 0,
+          "cpuTemperatureC": 52.9,
+          "memoryTotalBytes": 17007050752,
+          "memoryAvailableBytes": 16271114240,
+          "memoryUsedPct": 4.33,
+          "diskTotalBytes": 982814294016,
+          "diskUsedBytes": 6329806848,
+          "diskUsedPct": 0.64,
+          "networkInterface": "eth0",
+          "networkLocalAddress": "10.10.0.22",
+          "networkPeerAddress": "",
+          "networkLinkRole": "Primary interface",
+          "networkSelectionReason": "first non-internal IPv4 interface",
+          "networkLinkSpeedMbps": 1000,
+          "networkRxBytes": 904043860,
+          "networkTxBytes": 686902187,
+          "networkRxBytesPerSecond": 0,
+          "networkTxBytesPerSecond": 0,
+          "networkUtilizationPct": 0,
+          "networkRxDrops": 0,
+          "networkTxDrops": 0,
+          "networkRxErrors": 0,
+          "networkTxErrors": 0,
+          "dockerContainers": [],
+          "observedServices": [],
+          "kafkaBootstrapServers": "",
+          "kafkaNodePortBootstrap": "",
+          "kafkaSmokeStatus": "",
+          "kafkaSmokeTopic": "",
+          "kafkaSmokeMessageId": "",
+          "kafkaSmokeTimestamp": "",
+          "kafkaSmokePayload": "",
+          "kafkaSmokeProcessedMessages": 0,
+          "ollamaModels": [],
+          "ollamaRunningModels": [],
+          "ollamaTelemetryStatus": "",
+          "ollamaProbeModel": "",
+          "ollamaTokensPerSecond": 0,
+          "ollamaTimeToFirstTokenMs": 0,
+          "ollamaEvalCount": 0,
+          "ollamaEvalDurationMs": 0,
+          "ollamaTotalDurationMs": 0,
+          "ollamaLoadDurationMs": 0,
+          "ollamaPromptEvalCount": 0,
+          "ollamaPromptEvalDurationMs": 0,
+          "ollamaProbeCached": false,
+          "ollamaProbeAgeMs": 0,
+          "ollamaProbeError": "",
+          "gpuPresent": false,
+          "gpuName": "",
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "spawnSync nvidia-smi ENOENT",
+          "gpuUtilizationPct": 0,
+          "gpuMemoryUsedMiB": 0,
+          "gpuMemoryTotalMiB": 0,
+          "gpuMemoryUsedPct": 0,
+          "gpuPowerWatts": 0,
+          "gpuTemperatureC": 0,
+          "gpuComputeProcesses": [],
+          "gpuComputeProcessQuerySkipped": false,
+          "gpuSampleCached": false,
+          "gpuSampleAgeMs": 0,
+          "gpuPcie": "",
+          "gb10Present": false,
+          "gb10MonitoringList": [],
+          "gb10MonitoringSummary": "",
+          "linuxUmaMemoryTotalBytes": 0,
+          "linuxUmaMemoryAvailableBytes": 0,
+          "linuxUmaMemoryUsedPct": 0,
+          "appMetricsReachable": false,
+          "nsightCuptiProfilingStatus": "missing",
+          "nsightCuptiProfilingScripts": [],
+          "ncclRuntimePresent": false,
+          "ncclRuntimeStatus": "missing",
+          "ncclRuntimeSource": "",
+          "ncclRuntimeContainers": [],
+          "ncclRuntimeImages": [],
+          "ncclRuntimeSocketIfname": "eth0",
+          "ncclRuntimeHostIp": "10.10.0.22",
+          "ncclRuntimeDetail": "No NCCL-capable runtime container observed",
+          "sourceAdapters": [
+            "local-machine",
+            "procfs"
+          ],
+          "unavailableExports": [
+            "kubernetes",
+            "dcgm",
+            "ebpf",
+            "scheduler",
+            "provider"
+          ],
+          "workloadCountersObserved": false,
+          "generatedAt": "2026-06-08T05:25:43.137Z"
+        }
+      }
+    ],
+    "sourceAdapters": [
+      "local-machine",
+      "procfs",
+      "ollama"
+    ]
+  },
+  "sources": {}
+}

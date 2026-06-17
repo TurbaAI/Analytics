@@ -1,0 +1,407 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-01T17:40:04.195Z",
+    "source": "collect-local-machine-bundle.js",
+    "observedHost": "Mac.localdomain",
+    "note": "Observed local machine state. Kubernetes and DCGM are included only when installed; this host currently uses nvidia-smi/procfs/node-exporter style signals."
+  },
+  "ingestion": {
+    "schemaVersion": "turba.ingestion.v1",
+    "entities": {
+      "models": {
+        "no-nvidia-gpu": {
+          "label": "CPU-only local capacity",
+          "family": "local-cpu",
+          "parameterCountB": 120
+        }
+      },
+      "users": {
+        "local-operator": {
+          "label": "ahmadbyagowi"
+        }
+      },
+      "teams": {
+        "local-ai-ops": {
+          "label": "Local AI Ops"
+        }
+      },
+      "tenants": {
+        "local-lab": {
+          "label": "Local lab"
+        }
+      },
+      "accounts": {
+        "mac-localdomain": {
+          "label": "Mac.localdomain"
+        }
+      },
+      "reservations": {
+        "cpu-only-workstation": {
+          "label": "CPU workstation window"
+        }
+      },
+      "clusters": {
+        "mac-localdomain": {
+          "label": "Mac.localdomain",
+          "region": "local-lan",
+          "topology": "single-node"
+        }
+      }
+    },
+    "runs": [
+      {
+        "id": "machine-mac-localdomain-20260601t174004z",
+        "name": "Mac.localdomain current CPU window",
+        "refs": {
+          "model": "no-nvidia-gpu",
+          "user": "local-operator",
+          "team": "local-ai-ops",
+          "cluster": "mac-localdomain",
+          "tenant": "local-lab",
+          "account": "mac-localdomain",
+          "reservation": "cpu-only-workstation"
+        },
+        "status": "Observed",
+        "allocation": {
+          "durationHours": 1,
+          "gpus": 0,
+          "allocatedGpuHours": 0,
+          "gpuModel": "none"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0,
+          "smOccupancy": 0,
+          "tensorCoreUtil": 0
+        },
+        "communication": {
+          "ncclTime": 0,
+          "networkWait": 2.55,
+          "allToAllTime": 0,
+          "crossRackTraffic": 0,
+          "crossPodTraffic": 0
+        },
+        "inputPipeline": {
+          "dataloaderStall": 0,
+          "storageWait": 0,
+          "cpuPrep": 0
+        },
+        "memory": {
+          "hbmCapacity": 0,
+          "hbmBandwidth": 0,
+          "memoryFragmentation": 0,
+          "kvCachePressure": 0
+        },
+        "scheduler": {
+          "placementQuality": 100,
+          "idleGpus": 0,
+          "partialNodes": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "reliability": {
+          "noiseEvents": 0,
+          "contentionPct": 17.03,
+          "stepRegularity": 89.78352864583333,
+          "latencyTail": 10.22
+        },
+        "configuration": {
+          "precisionLoss": 0,
+          "batchInefficiency": 0
+        },
+        "work": {
+          "tokensM": 0,
+          "steps": 0,
+          "inferenceRequestsM": 0
+        },
+        "baseline": {
+          "gpuEfficiency": 65,
+          "queueWaitMinutes": 0,
+          "ncclTime": 0
+        },
+        "placement": {
+          "nodes": [
+            "Mac.localdomain"
+          ],
+          "partialNodes": []
+        },
+        "schedulerEvidence": {
+          "schedulerName": "local-linux-process-scheduler",
+          "queueName": "local-workstation",
+          "priorityClass": "interactive",
+          "admissionClass": "direct",
+          "requestedGpuShape": "0x CPU",
+          "localityPreference": "single-node",
+          "queuedAt": "2026-06-01T16:40:04.195Z",
+          "admittedAt": "2026-06-01T16:40:04.195Z",
+          "startedAt": "2026-06-01T16:40:04.195Z",
+          "eventCount": 0,
+          "queueWaitMinutes": 0,
+          "gpusPerNode": 1
+        },
+        "grafanaContext": {
+          "grafanaBaseUrl": "http://127.0.0.1:3000",
+          "instanceName": "NUC14E Grafana",
+          "dashboardTitle": "Local observability",
+          "links": [
+            {
+              "label": "Grafana health",
+              "type": "dashboard",
+              "url": "http://127.0.0.1:3000/api/health"
+            },
+            {
+              "label": "Node exporter metrics",
+              "type": "metrics",
+              "url": "http://127.0.0.1:9100/metrics"
+            }
+          ]
+        },
+        "commercial": {
+          "billingModel": "local-workstation",
+          "customerTier": "internal",
+          "contractId": "local-observed",
+          "listGpuHourRate": 0,
+          "floorGpuHourCost": 0,
+          "committedGpuHours": 1,
+          "burstGpuHours": 0,
+          "billableGpuHours": 0,
+          "sellableGpuHours": 0
+        },
+        "slo": {
+          "priority": "local",
+          "targetStartMinutes": 0,
+          "targetEfficiency": 0,
+          "supportTicketId": "local-demo"
+        },
+        "sourceContext": {
+          "hostname": "Mac.localdomain",
+          "os": "Darwin 25.5.0",
+          "kernel": "25.5.0",
+          "cpuModel": "Apple M5 Max",
+          "cpuCount": 18,
+          "memoryTotalBytes": 137438953472,
+          "diskTotalBytes": 0,
+          "dockerContainers": [],
+          "observedServices": [
+            "ollama"
+          ],
+          "ollamaModels": [
+            "qwen2.5-coder:32b",
+            "qwen2.5-coder:14b",
+            "granite-code:34b",
+            "gpt-oss:120b",
+            "qwen3-vl:30b",
+            "gemma3:27b"
+          ],
+          "gpuPcie": "",
+          "generatedAt": "2026-06-01T17:40:04.195Z"
+        },
+        "opportunities": [
+          {
+            "id": "local-gpu-idle",
+            "category": "Useful Compute FinOps",
+            "title": "Measure active local GPU workload efficiency",
+            "impactDollars": 0,
+            "impactGpuHours": 0,
+            "riskScore": 18,
+            "confidence": 92,
+            "evidence": "GPU reports 0% utilization during the sampled window.",
+            "recommendation": "Compare this host window against Ollama request volume or training logs before making tuning claims.",
+            "owner": "Local operator"
+          }
+        ]
+      }
+    ],
+    "sourceAdapters": [
+      "local-machine",
+      "nvidia-smi",
+      "procfs",
+      "ollama"
+    ]
+  },
+  "sources": {
+    "prometheus": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "metrics": {
+          "turba_gpu_utilization_ratio": 0,
+          "turba_useful_compute_ratio": 0,
+          "turba_nccl_time_ratio": 0,
+          "turba_network_wait_ratio": 0.02554117838541667,
+          "turba_dataloader_stall_ratio": 0,
+          "turba_storage_wait_ratio": 0,
+          "turba_cpu_prep_ratio": 0,
+          "turba_queue_wait_minutes": 0,
+          "turba_step_regularity_ratio": 0.8978352864583333,
+          "turba_latency_tail_ratio": 0.10216471354166667,
+          "turba_tokens_million_total": 0,
+          "turba_training_steps_total": 0,
+          "turba_inference_requests_million_total": 0,
+          "turba_all_to_all_time_ratio": 0
+        },
+        "sourceContext": {
+          "collector": "procfs+nvidia-smi",
+          "nodeExporter": false,
+          "netdata": false
+        }
+      }
+    ],
+    "dcgm": [],
+    "scheduler": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "schedulerExportId": "local-scheduler-20260601t174004z",
+        "schedulerName": "local-linux-process-scheduler",
+        "queueName": "local-workstation",
+        "priorityClass": "interactive",
+        "admissionClass": "direct",
+        "requestedGpuShape": "0x CPU",
+        "localityPreference": "single-node",
+        "queuedAt": "2026-06-01T16:40:04.195Z",
+        "admittedAt": "2026-06-01T16:40:04.195Z",
+        "startedAt": "2026-06-01T16:40:04.195Z",
+        "queueWaitMinutes": 0,
+        "placementQuality": 100,
+        "idleGpus": 0,
+        "partialNodes": 0,
+        "preemptionCount": 0,
+        "placementRetries": 0,
+        "localityMisses": 0,
+        "backfillCandidates": 0,
+        "pendingJobsAhead": 0,
+        "pendingGpuHoursAhead": 0,
+        "gpusPerNode": 1,
+        "targetStartMinutes": 0,
+        "events": []
+      }
+    ],
+    "grafana": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "grafanaBaseUrl": "http://127.0.0.1:3000",
+        "instanceName": "NUC14E Grafana",
+        "orgId": "1",
+        "dashboardTitle": "Local observability",
+        "datasourceName": "local host",
+        "timeRange": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "variables": {
+          "host": "Mac.localdomain",
+          "gpu": "none"
+        },
+        "links": [
+          {
+            "label": "Grafana health",
+            "type": "dashboard",
+            "url": "http://127.0.0.1:3000/api/health"
+          },
+          {
+            "label": "Netdata local",
+            "type": "dashboard",
+            "url": "http://127.0.0.1:19999"
+          },
+          {
+            "label": "Node exporter metrics",
+            "type": "metrics",
+            "url": "http://127.0.0.1:9100/metrics"
+          }
+        ]
+      }
+    ],
+    "ebpf": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "ebpfExportId": "procfs-20260601t174004z",
+        "collector": "procfs-summary",
+        "kernelRelease": "25.5.0",
+        "host": "Mac.localdomain",
+        "node": "Mac.localdomain",
+        "namespace": "local",
+        "podName": "",
+        "containerName": "",
+        "cgroupPath": "",
+        "cpu": {
+          "offCpuTimePct": 100,
+          "cpuThrottlePct": 0,
+          "softIrqPct": 0
+        },
+        "scheduler": {
+          "runQueueLatencyMsP95": 5
+        },
+        "network": {
+          "tcpRetransmitPct": 0,
+          "socketLatencyMsP95": 3
+        },
+        "storage": {
+          "blockIoLatencyMsP95": 4,
+          "filesystemLatencyMsP95": 6
+        },
+        "noise": {
+          "noisyNeighborScore": 17.03,
+          "noiseEvents": 0
+        },
+        "sourceContext": {
+          "note": "procfs summary used because no eBPF collector is installed on this host."
+        }
+      }
+    ],
+    "provider": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "tenant": "local-lab",
+        "account": "mac-localdomain",
+        "reservation": "cpu-only-workstation",
+        "providerExportId": "local-machine-20260601t174004z",
+        "billingAccountId": "mac-localdomain",
+        "reservationWindow": "60m-observed",
+        "commercial": {
+          "billingModel": "local-workstation",
+          "customerTier": "internal",
+          "contractId": "local-observed",
+          "listGpuHourRate": 0,
+          "floorGpuHourCost": 0,
+          "committedGpuHours": 1,
+          "burstGpuHours": 0,
+          "billableGpuHours": 0,
+          "sellableGpuHours": 0
+        },
+        "slo": {
+          "priority": "local",
+          "targetStartMinutes": 0,
+          "targetEfficiency": 0,
+          "supportTicketId": "local-demo"
+        },
+        "sourceContext": {
+          "hostname": "Mac.localdomain",
+          "os": "Darwin 25.5.0",
+          "dockerContainers": 0,
+          "observedServices": "ollama"
+        }
+      }
+    ],
+    "opportunities": [
+      {
+        "runId": "machine-mac-localdomain-20260601t174004z",
+        "opportunityId": "local-machine-right-size",
+        "category": "Useful Compute FinOps",
+        "title": "Attach request-level telemetry to active GPU work",
+        "impactDollars": 0,
+        "impactGpuHours": 0,
+        "riskScore": 24,
+        "confidence": 90,
+        "evidence": "Active GPU process detected with 0% GPU utilization.",
+        "recommendation": "Join Ollama request logs or application traces to this host window for cost-per-useful-token analysis.",
+        "owner": "Local operator",
+        "sourceSignals": {
+          "gpuUtil": 0,
+          "gpuMemoryPct": 0,
+          "dockerContainers": 0,
+          "ollamaModels": 10,
+          "largeOllamaModels": 1
+        }
+      }
+    ]
+  }
+}

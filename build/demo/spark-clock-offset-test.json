@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-08T20:34:17.391Z",
+    "source": "run-spark-clock-feed.js",
+    "intervalMs": 0,
+    "remotes": [
+      "user@192.168.10.20",
+      "user@192.168.10.21"
+    ]
+  },
+  "samples": [
+    {
+      "role": "SPARK1",
+      "remote": "user@192.168.10.20",
+      "hostname": "SPARK1",
+      "status": "ok",
+      "generatedAt": "2026-06-08T20:34:17.833Z",
+      "clockTimeUnixMs": 1780950857833,
+      "clockTimeUnixNs": "1780950857834241157",
+      "clockSource": "ptp",
+      "clockSynchronized": true,
+      "clockTimezone": "America/Vancouver",
+      "clockOffsetNs": 0,
+      "clockPtpInstalled": true,
+      "clockPtpActive": true,
+      "clockPtpPortState": "MASTER",
+      "clockPtpGrandmaster": "4cbb47.fffe.2cfed8",
+      "clockSyncDetail": "fast linuxptp clock sample"
+    },
+    {
+      "role": "SPARK2",
+      "remote": "user@192.168.10.21",
+      "hostname": "SPARK2",
+      "status": "ok",
+      "generatedAt": "2026-06-08T20:34:18.564Z",
+      "clockTimeUnixMs": 1780950858564,
+      "clockTimeUnixNs": "1780950858565183100",
+      "clockSource": "ptp",
+      "clockSynchronized": true,
+      "clockTimezone": "America/Los_Angeles",
+      "clockOffsetNs": 4,
+      "clockPtpInstalled": true,
+      "clockPtpActive": true,
+      "clockPtpPortState": "SLAVE",
+      "clockPtpGrandmaster": "4cbb47.fffe.2cfed8",
+      "clockSyncDetail": "fast linuxptp clock sample"
+    }
+  ]
+}

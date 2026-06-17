@@ -1,0 +1,98 @@
+{
+  "sources": {
+    "scheduler": [
+      {
+        "runId": "provider-run-9001",
+        "schedulerExportId": "sched-2026-05-week-4",
+        "schedulerName": "slurm-topology-aware",
+        "queueName": "frontier-reserved",
+        "priorityClass": "p1-reserved",
+        "admissionClass": "reserved-burst",
+        "requestedGpuShape": "32x8-h100",
+        "localityPreference": "same-pod",
+        "queuedAt": "2026-05-30T09:42:00-07:00",
+        "startedAt": "2026-05-30T10:13:00-07:00",
+        "placementQuality": 49,
+        "idleGpus": 0,
+        "partialNodes": 4,
+        "placementRetries": 8,
+        "localityMisses": 4,
+        "backfillCandidates": 6,
+        "pendingJobsAhead": 9,
+        "pendingGpuHoursAhead": 1240,
+        "gpusPerNode": 8,
+        "events": [
+          {
+            "type": "queued",
+            "timestamp": "2026-05-30T09:42:00-07:00",
+            "reason": "reserved capacity request"
+          },
+          {
+            "type": "placement_retry",
+            "timestamp": "2026-05-30T09:49:00-07:00",
+            "reason": "single-pod shape unavailable"
+          },
+          {
+            "type": "placement_retry",
+            "timestamp": "2026-05-30T09:56:00-07:00",
+            "reason": "partial nodes blocked contiguous allocation"
+          },
+          {
+            "type": "locality_miss",
+            "timestamp": "2026-05-30T10:05:00-07:00",
+            "reason": "cross-pod admission accepted"
+          },
+          {
+            "type": "admitted",
+            "timestamp": "2026-05-30T10:13:00-07:00",
+            "reason": "reservation SLO at risk"
+          }
+        ]
+      },
+      {
+        "runId": "provider-svc-4102",
+        "schedulerExportId": "sched-2026-05-week-4",
+        "schedulerName": "kueue-prod",
+        "queueName": "inference-prod",
+        "priorityClass": "p1-serving",
+        "admissionClass": "committed-plus-burst",
+        "requestedGpuShape": "8x8-h100",
+        "localityPreference": "same-rack",
+        "queuedAt": "2026-05-30T11:04:00-07:00",
+        "startedAt": "2026-05-30T11:16:00-07:00",
+        "placementQuality": 76,
+        "idleGpus": 8,
+        "partialNodes": 2,
+        "preemptionCount": 2,
+        "placementRetries": 2,
+        "localityMisses": 1,
+        "backfillCandidates": 4,
+        "pendingJobsAhead": 5,
+        "pendingGpuHoursAhead": 320,
+        "gpusPerNode": 8,
+        "events": [
+          {
+            "type": "queued",
+            "timestamp": "2026-05-30T11:04:00-07:00",
+            "reason": "batch serving expansion"
+          },
+          {
+            "type": "preempted_lower_priority",
+            "timestamp": "2026-05-30T11:09:00-07:00",
+            "reason": "protect serving SLO"
+          },
+          {
+            "type": "backfill_candidate",
+            "timestamp": "2026-05-30T11:11:00-07:00",
+            "reason": "idle partial node found"
+          },
+          {
+            "type": "admitted",
+            "timestamp": "2026-05-30T11:16:00-07:00",
+            "reason": "queue target inside SLO"
+          }
+        ]
+      }
+    ]
+  }
+}
