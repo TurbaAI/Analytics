@@ -19,8 +19,26 @@
           document.documentElement.dataset.theme = "light";
         }
       }());
+      (function () {
+        var host = window.location.hostname.toLowerCase();
+        var liveHosts = [
+          "localhost",
+          "127.0.0.1",
+          "::1",
+          "192.168.10.30",
+          "nuc14e",
+          "192.168.10.103",
+          "100.95.183.13",
+          "nuc15"
+        ];
+        if (!liveHosts.includes(host)) return;
+        window.TURBALANCE_MOBILE_CONFIG = Object.assign({}, window.TURBALANCE_MOBILE_CONFIG || {}, {
+          autoLoadBundle: true,
+          bundleUrl: "build/demo/live-machine-bundle.json"
+        });
+      }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=machine-inventory-20260611-monitor-controls-20260612-cachefix-20260616-panel-layout-split-profile-20260617">
+    <link rel="stylesheet" href="styles.css?v=live-profile-20260617-2">
   </head>
   <body>
     <header class="topbar">
@@ -662,15 +680,15 @@
       </div>
     </main>
 
-    <script src="analytics-core.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
-    <script src="predictive-core.js?v=predictive-prescriptive-20260615-cachefix-20260616-panel"></script>
-    <script src="nccl-trace-parser.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
-    <script src="nccl-trace-fixtures.js?v=grafana-runtime-20260610-cachefix-20260616"></script>
-    <script src="app-data.js?v=predictive-prescriptive-20260615-cachefix-20260616"></script>
-    <script src="app-core.js?v=modularize-20260615-cachefix-20260616"></script>
-    <script src="app-pipeline.js?v=modularize-20260615-cachefix-20260616"></script>
-    <script src="app-state.js?v=modularize-20260615-cachefix-20260616-split"></script>
-    <script src="app-render.js?v=modularize-20260615-cachefix-20260616-panel-split"></script>
-    <script src="app.js?v=machine-inventory-20260611-cachefix-20260616-split-profile-20260617"></script>
+    <script src="analytics-core.js?v=live-profile-20260617-2"></script>
+    <script src="predictive-core.js?v=live-profile-20260617-2"></script>
+    <script src="nccl-trace-parser.js?v=live-profile-20260617-2"></script>
+    <script src="nccl-trace-fixtures.js?v=live-profile-20260617-2"></script>
+    <script src="app-data.js?v=live-profile-20260617-2"></script>
+    <script src="app-core.js?v=live-profile-20260617-2"></script>
+    <script src="app-pipeline.js?v=live-profile-20260617-2"></script>
+    <script src="app-state.js?v=live-profile-20260617-2"></script>
+    <script src="app-render.js?v=live-profile-20260617-2"></script>
+    <script src="app.js?v=live-profile-20260617-2"></script>
   </body>
 </html>
