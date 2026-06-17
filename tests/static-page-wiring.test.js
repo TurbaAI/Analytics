@@ -333,7 +333,7 @@ assert.ok(app.includes("dataset.machineMissing"));
 assert.ok(app.includes("No scheduler export"));
 assert.ok(app.includes("No provider billing"));
 assert.ok(app.includes("build/demo/live-machine-bundle.json"));
-assert.ok(app.includes("ensureTopbarUserProfile"));
+assert.ok(app.includes("hydrateTopbarUserProfile"));
 assert.ok(html.includes("liveResourcePanel"));
 assert.ok(html.includes("live-resource-heart"));
 assert.ok(html.includes("operatorCockpitPanel"));

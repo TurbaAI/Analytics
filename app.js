@@ -399,21 +399,57 @@ const TREND_METRIC_DEFS = {
   }
 };
 
-function ensureTopbarUserProfile() {
-  const topbar = document.querySelector(".topbar");
-  if (!topbar || topbar.querySelector(".topbar-user")) return;
+const DEFAULT_TOPBAR_USER_PROFILE = {
+  name: "Ahmad Byagowi",
+  role: "Demo operator",
+  avatar: "assets/ahmad-byagowi-profile.png?v=profile-20260617"
+};
 
-  const user = document.createElement("div");
-  user.className = "topbar-user";
-  user.setAttribute("aria-label", "Signed in user");
-  user.innerHTML = `
-    <span class="topbar-user-copy">
-      <span class="topbar-user-name">Ahmad Byagowi</span>
-      <span class="topbar-user-role">Demo operator</span>
-    </span>
-    <img class="topbar-user-avatar" src="assets/ahmad-byagowi-profile.png?v=profile-20260617" alt="Ahmad Byagowi">
-  `;
-  topbar.append(user);
+function normalizeTopbarUserProfile(profile = {}) {
+  return {
+    name: String(profile.name || profile.displayName || DEFAULT_TOPBAR_USER_PROFILE.name),
+    role: String(profile.role || profile.subtitle || DEFAULT_TOPBAR_USER_PROFILE.role),
+    avatar: String(profile.avatar || profile.avatarUrl || profile.photoUrl || DEFAULT_TOPBAR_USER_PROFILE.avatar)
+  };
+}
+
+function currentTopbarUserProfile() {
+  let storedProfile = {};
+  try {
+    storedProfile = JSON.parse(window.localStorage.getItem("turba.analytics.userProfile.v1") || "{}");
+  } catch {
+    storedProfile = {};
+  }
+  return normalizeTopbarUserProfile({
+    ...storedProfile,
+    ...(window.TURBALANCE_USER_PROFILE || {})
+  });
+}
+
+function renderTopbarUserProfile(profile = currentTopbarUserProfile()) {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar) return;
+
+  let user = topbar.querySelector(".topbar-user");
+  if (!user) {
+    user = document.createElement("div");
+    user.className = "topbar-user";
+    user.setAttribute("aria-label", "Signed in user");
+    user.innerHTML = `
+      <span class="topbar-user-copy">
+        <span class="topbar-user-name"></span>
+        <span class="topbar-user-role"></span>
+      </span>
+      <img class="topbar-user-avatar" alt="">
+    `;
+    topbar.append(user);
+  }
+
+  user.querySelector(".topbar-user-name").textContent = profile.name;
+  user.querySelector(".topbar-user-role").textContent = profile.role;
+  const avatar = user.querySelector(".topbar-user-avatar");
+  avatar.src = profile.avatar;
+  avatar.alt = profile.name;
 
   if (document.getElementById("topbarUserFallbackStyle")) return;
   const style = document.createElement("style");
@@ -431,8 +467,18 @@ function ensureTopbarUserProfile() {
   document.head.append(style);
 }
 
+async function hydrateTopbarUserProfile() {
+  try {
+    const response = await window.fetch(cacheBustUrl("user-profile.json"));
+    if (response.ok) renderTopbarUserProfile(normalizeTopbarUserProfile(await response.json()));
+  } catch {
+    // Static deployments can omit user-profile.json; the local/default profile remains in place.
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  ensureTopbarUserProfile();
+  renderTopbarUserProfile();
+  hydrateTopbarUserProfile();
   initThemeMode();
   bindEvents();
   initPanelPopouts();
@@ -849,7 +895,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
 
 
 
