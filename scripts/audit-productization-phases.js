@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = path.join(__dirname, "..");
+const LIVE_SECRET_HISTORY_FILE = "build/lakehouse-secrets-live.yaml";
+const LEAKED_LIVE_SECRET_VALUE_SHA256 = new Set([
+  "77d0d05e32e4fc3fc75c48ffdd70fe2fff1715e58122ae478c846633db7d243b",
+  "9a5eeca39e25ad725610ff870e0b57c24c2c846261c9f2c2861c3eb91f26f1c6",
+  "0d3ec953fc95e176eb22ddabf33c9b2d136e9f51d25b2edd8a0092887657a6d4",
+  "15a1df7faf3d709b936f80d8ef3be07456f183d0d9f74402a031e78ca00f385e",
+  "b90f0019303ad12f42dc09a4d06a108283ee019a7208bb390ea24c051bf46312"
+]);
 
 function parseArgs(argv) {
   const args = { out: "" };
@@ -92,6 +101,45 @@ function noGitHistoryMatch(parts) {
   return !result.stdout.trim();
 }
 
+function noGitPathHistoryMatch(relativePath) {
+  const result = gitOptional(["log", "--all", "--format=%H", "--", relativePath]);
+  if (result.status !== 0) throw new Error(`git log failed\n${result.stderr}`);
+  return !result.stdout.trim();
+}
+
+function noGitHistorySecretHashMatch(secretHashes) {
+  const revs = git(["rev-list", "--all"])
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+  if (!revs.length) return true;
+
+  const result = gitOptional([
+    "grep",
+    "-I",
+    "-h",
+    "-E",
+    "(bearer-token|hmac-secret|enrollment-token|api-tokens):|\\b(collector|hmac|queue|enroll)_[A-Za-z0-9_+/=-]{12,}",
+    ...revs,
+    "--"
+  ]);
+  if (result.status === 1) return true;
+  if (result.status !== 0) throw new Error(`git grep failed\n${result.stderr}`);
+
+  const candidates = new Set();
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const keyValue = line.match(/\b(?:bearer-token|hmac-secret|enrollment-token|api-tokens):\s*["']?([^"'\r\n]+)/);
+    if (keyValue) candidates.add(keyValue[1].trim());
+    for (const token of line.matchAll(/\b(?:collector|hmac|queue|enroll)_[A-Za-z0-9_+/=-]{12,}/g)) {
+      candidates.add(token[0]);
+    }
+  }
+
+  return !Array.from(candidates).some((candidate) => (
+    secretHashes.has(crypto.createHash("sha256").update(candidate).digest("hex"))
+  ));
+}
+
 function check(name, passed, detail, severity = "error") {
   return {
     name,
@@ -132,6 +180,9 @@ function buildReport() {
       check("scrubbed_hmac_head", noGitGrepMatch(leakedHmac), "leaked collector HMAC marker is absent from tracked files"),
       check("scrubbed_token_history", noGitHistoryMatch(leakedToken), "leaked collector bearer-token marker is absent from local git history"),
       check("scrubbed_hmac_history", noGitHistoryMatch(leakedHmac), "leaked collector HMAC marker is absent from local git history"),
+      check("scrubbed_live_secrets_file_head", !files.includes(LIVE_SECRET_HISTORY_FILE), "live generated secrets file is absent from tracked files"),
+      check("scrubbed_live_secrets_file_history", noGitPathHistoryMatch(LIVE_SECRET_HISTORY_FILE), "live generated secrets file is absent from local git history"),
+      check("scrubbed_live_secret_values_history", noGitHistorySecretHashMatch(LEAKED_LIVE_SECRET_VALUE_SHA256), "known leaked live credential hashes are absent from local git history"),
       check("demo_data_boundary_ui", includes("index.html", "dataBoundaryBanner"), "dashboard renders a demo-data boundary"),
       check("demo_data_boundary_state", includes("app-state.js", "demoDataBoundary") && includes("app-render.js", "renderDataBoundary"), "workspace state and render path carry the demo-data boundary"),
       check("demo_data_boundary_schema", includes("schemas/turba-workspace.v2.schema.json", "\"dataBoundary\""), "workspace exports declare dataBoundary"),

@@ -21,6 +21,8 @@ const checks = new Set(report.phases.flatMap((phase) => phase.checks.map((check)
 [
   "no_tracked_build_artifacts",
   "scrubbed_token_history",
+  "scrubbed_live_secrets_file_history",
+  "scrubbed_live_secret_values_history",
   "demo_data_boundary_ui",
   "collector_tenant_credentials",
   "object_store_required",
