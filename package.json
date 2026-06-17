@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Operator cockpit for AI infrastructure: live telemetry, lakehouse pipeline, alerting, and product appliance tooling.",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE.md",
   "engines": {
     "node": ">=22"
   },
@@ -12,7 +12,10 @@
     "lint": "make lint",
     "validate": "node scripts/validate-source-bundle.js --require-source-export",
     "screenshot-qa": "node scripts/run-screenshot-qa.js",
-    "productization:audit": "node scripts/audit-productization-phases.js"
+    "productization:audit": "node scripts/audit-productization-phases.js",
+    "commercial:validate": "node scripts/validate-commercial-readiness.js",
+    "process:validate": "node scripts/validate-engineering-process.js",
+    "performance:budgets": "node scripts/validate-performance-budgets.js"
   },
   "devDependencies": {
     "playwright": "^1.44.0"

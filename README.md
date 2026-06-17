@@ -535,6 +535,14 @@ The README intentionally references these files and tests because they are part 
 - `docs/e2e-data-platform.md`
 - `docs/customer-productization.md`
 - `docs/security-compliance-posture.md`
+- `docs/commercial-gtm.md`
+- `docs/support-sla.md`
+- `docs/status-page.md`
+- `docs/design-partner-validation.md`
+- `docs/billing-usage-integration.md`
+- `docs/engineering-process.md`
+- `LICENSE.md`
+- `CHANGELOG.md`
 - `schemas/turba-ingestion.v1.schema.json`
 - `schemas/turba-source-bundle.v1.schema.json`
 - `schemas/turba-workspace.v2.schema.json`
@@ -623,6 +631,10 @@ The README intentionally references these files and tests because they are part 
 - `scripts/validate-ebpf-agent-host.js`
 - `scripts/validate-lakehouse-security.js`
 - `scripts/validate-lakehouse-alerts-dashboards.js`
+- `scripts/validate-commercial-readiness.js`
+- `scripts/validate-engineering-process.js`
+- `scripts/validate-performance-budgets.js`
+- `scripts/validate-conventional-commit.js`
 - `scripts/generate-telemetry-protos.sh`
 - `services/platform_common/platform_common/observability.py`
 - `services/raw-writer/raw_writer/writer.py`
@@ -681,6 +693,13 @@ The README intentionally references these files and tests because they are part 
 - `ops/pilot-provider.sandbox.json`
 - `ops/source-contracts.sandbox.json`
 - `ops/source-approvals.sandbox.json`
+- `ops/commercial-metering.example.json`
+- `ops/design-partner-pilots.example.json`
+- `ops/performance-budgets.example.json`
+- `ops/github/branch-protection.json`
+- `.github/CODEOWNERS`
+- `.github/pull_request_template.md`
+- `.github/workflows/release-governance.yml`
 - `grafana/turbalance-lakehouse-virtual-sensors.json`
 - `grafana/turbalance-provider-overview.json`
 - `server/ingestion-oidc.js`
@@ -725,15 +744,24 @@ The README intentionally references these files and tests because they are part 
 - `tests/lakehouse-production-readiness.test.js`
 - `tests/repo-hygiene.test.js`
 - `tests/productization-phases.test.js`
+- `tests/commercial-process.test.js`
 
 Run `node tests/run-all.js` before sharing a customer build. The last full local run passed after the Redfish bridge, product edge, and mTLS work, including screenshot QA for desktop and mobile.
 
 ## Productization Phase Audit
 
-Run `npm run productization:audit` or `node scripts/audit-productization-phases.js` to verify the four productization phases: repo hygiene and demo-data boundaries, tenant-aware identity controls, managed lakehouse infrastructure gates, and reliability/security/compliance posture. The audit passes on repo-owned controls and reports the remaining operational handoffs separately: rotate any live credentials that matched scrubbed history, coordinate any remote history rewrite, and run go-live against customer-managed IdP, registry, certificate authority, object store, metadata DB, and queue.
+Run `npm run productization:audit` or `node scripts/audit-productization-phases.js` to verify the six productization phases: repo hygiene and demo-data boundaries, tenant-aware identity controls, managed lakehouse infrastructure gates, reliability/security/compliance posture, commercial/GTM readiness, and engineering process. The audit passes on repo-owned controls and reports the remaining operational handoffs separately: rotate any live credentials that matched scrubbed history, coordinate any remote history rewrite, run go-live against customer-managed IdP, registry, certificate authority, object store, metadata DB, and queue, complete real design-partner ROI pilots, and apply branch protection in the remote repository settings.
+
+Commercial and process gates can also be run directly:
+
+```sh
+npm run commercial:validate
+npm run process:validate
+npm run performance:budgets
+```
 
 ## Deployment Boundary
 
-This repo is now productized enough for friendly pilot delivery on a single controller and has hardened gates for managed lakehouse rollout: tenant-aware auth, OIDC/JWKS hooks, tenant-scoped collector credentials, HTTPS/mTLS edge, customer-managed certificate modes, Prometheus/Grafana, fleet rollout, Redfish source integration, source-owner approvals, doctor checks, support bundles, checksummed release packages, install/update/rollback, SLO/security/compliance posture docs, and customer-facing docs are implemented.
+This repo is now productized enough for friendly pilot delivery on a single controller and has hardened gates for managed lakehouse rollout: tenant-aware auth, OIDC/JWKS hooks, tenant-scoped collector credentials, HTTPS/mTLS edge, customer-managed certificate modes, Prometheus/Grafana, fleet rollout, Redfish source integration, source-owner approvals, doctor checks, support bundles, checksummed release packages, install/update/rollback, SLO/security/compliance posture docs, commercial packaging and metering docs, support/status-page docs, engineering process gates, and customer-facing docs are implemented.
 
-Before broader customer rollout, run the phase audit and lakehouse production go-live lane with real customer values, not example placeholders. A production deployment still needs customer-owned credential rotation, protected remote-history coordination after any scrub, IdP metadata, registry access, certificate authority selection, object storage, metadata DB, queue, backup/restore evidence, and on-call ownership in the target environment.
+Before broader customer rollout, run the phase audit and lakehouse production go-live lane with real customer values, not example placeholders. A production deployment still needs customer-owned credential rotation, protected remote-history coordination after any scrub, IdP metadata, registry access, certificate authority selection, object storage, metadata DB, queue, backup/restore evidence, on-call ownership, completed design-partner ROI evidence, billing-system activation for SaaS, and remote branch protection in the target environment.

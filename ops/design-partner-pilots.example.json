@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "turba.design_partner_pilots.v1",
+  "minimumCompletedPilotsBeforeExternalRoiClaims": 2,
+  "requiresCustomerSignoff": true,
+  "requiresRealCustomerData": true,
+  "forbidsDemoDataForRoiClaims": true,
+  "pilots": [
+    {
+      "id": "design-partner-a",
+      "status": "planned",
+      "scope": "single provider fleet or appliance pilot",
+      "requiredEvidence": ["baseline_gpu_hours", "baseline_wasted_gpu_hours", "recommended_action", "post_action_wasted_gpu_hours", "recovered_gpu_hours", "evidence_pack", "customer_signoff"]
+    },
+    {
+      "id": "design-partner-b",
+      "status": "planned",
+      "scope": "second customer or separate fleet segment",
+      "requiredEvidence": ["baseline_gpu_hours", "baseline_wasted_gpu_hours", "recommended_action", "post_action_wasted_gpu_hours", "recovered_gpu_hours", "evidence_pack", "customer_signoff"]
+    },
+    {
+      "id": "design-partner-c",
+      "status": "optional",
+      "scope": "third validation or vertical-specific proof point",
+      "requiredEvidence": ["baseline_gpu_hours", "baseline_wasted_gpu_hours", "recommended_action", "post_action_wasted_gpu_hours", "recovered_gpu_hours", "evidence_pack", "customer_signoff"]
+    }
+  ]
+}
+

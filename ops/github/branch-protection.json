@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "turba.github_branch_protection.v1",
+  "branch": "main",
+  "requiredPullRequestReviews": {
+    "requiredApprovingReviewCount": 1,
+    "requireCodeOwnerReviews": true,
+    "dismissStaleReviews": true
+  },
+  "requiredStatusChecks": [
+    "Verify static prototype",
+    "Release Governance"
+  ],
+  "enforceAdmins": true,
+  "requireLinearHistory": true,
+  "allowForcePushes": false,
+  "allowDeletions": false
+}
+

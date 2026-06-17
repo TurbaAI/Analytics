@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "turba.commercial_metering.v1",
+  "license": {
+    "model": "proprietary-subscription",
+    "licenseFile": "LICENSE.md"
+  },
+  "editions": [
+    {
+      "id": "appliance",
+      "description": "Customer-operated appliance with local usage reporting",
+      "meters": ["fleet_count", "active_hosts", "active_gpus", "retention_gb_days"]
+    },
+    {
+      "id": "managed-saas",
+      "description": "Turbalance-operated control plane with billing export",
+      "meters": ["fleet_count", "active_hosts", "active_gpus", "billable_gpu_hours", "source_bundles_ingested", "evidence_packs_exported", "retention_gb_days"]
+    }
+  ],
+  "meters": [
+    { "name": "fleet_count", "unit": "fleet", "source": "tenant registry" },
+    { "name": "active_hosts", "unit": "host", "source": "collector/API audit" },
+    { "name": "active_gpus", "unit": "gpu", "source": "source bundle telemetry" },
+    { "name": "billable_gpu_hours", "unit": "gpu_hour", "source": "provider commercial overlay or SaaS usage event" },
+    { "name": "recovered_gpu_hours", "unit": "gpu_hour", "source": "signed design-partner ROI evidence" },
+    { "name": "source_bundles_ingested", "unit": "bundle", "source": "controlled ingestion audit" },
+    { "name": "evidence_packs_exported", "unit": "export", "source": "dashboard/API export audit" },
+    { "name": "retention_gb_days", "unit": "gb_day", "source": "object-store usage report" }
+  ],
+  "billingExport": {
+    "requiredFor": ["managed-saas"],
+    "recordSchema": "tenant,periodStart,periodEnd,meter,quantity,unit,source,evidenceRef",
+    "redaction": "tenant identifiers may be replaced with customer-approved billing surrogates"
+  }
+}
+

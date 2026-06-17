@@ -71,6 +71,7 @@ const checks = [
   { label: "lakehouse production smoke", args: ["scripts/run-lakehouse-production-smoke.js"] },
   { label: "repo hygiene", args: ["tests/repo-hygiene.test.js"] },
   { label: "productization phase audit", args: ["tests/productization-phases.test.js"] },
+  { label: "commercial and engineering process", args: ["tests/commercial-process.test.js"] },
   { label: "static page wiring", args: ["tests/static-page-wiring.test.js"] },
   { label: "docs and workflows", args: ["tests/docs-and-workflows.test.js"] },
   { label: "screenshot QA", args: ["scripts/run-screenshot-qa.js"] }

@@ -1,0 +1,35 @@
+name: Release Governance
+
+on:
+  pull_request:
+
+jobs:
+  governance:
+    name: Release Governance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Validate pull request title
+        env:
+          TURBALANCE_COMMIT_MESSAGE: ${{ github.event.pull_request.title }}
+        run: node scripts/validate-conventional-commit.js
+
+      - name: Validate commercial readiness
+        run: node scripts/validate-commercial-readiness.js
+
+      - name: Validate engineering process
+        run: node scripts/validate-engineering-process.js
+
+      - name: Validate performance budgets
+        run: node scripts/validate-performance-budgets.js
+
+      - name: Validate productization phases
+        run: node scripts/audit-productization-phases.js
+

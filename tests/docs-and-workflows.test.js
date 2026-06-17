@@ -9,6 +9,8 @@ const readme = read("README.md");
 
 assert.ok(readme.includes("docs/customer-productization.md"));
 assert.ok(readme.includes("docs/security-compliance-posture.md"));
+assert.ok(readme.includes("docs/commercial-gtm.md"));
+assert.ok(readme.includes("docs/engineering-process.md"));
 
 [
   "docs/data-contract.md",
@@ -17,6 +19,12 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "docs/lakehouse-operations.md",
   "docs/customer-productization.md",
   "docs/security-compliance-posture.md",
+  "docs/commercial-gtm.md",
+  "docs/support-sla.md",
+  "docs/status-page.md",
+  "docs/design-partner-validation.md",
+  "docs/billing-usage-integration.md",
+  "docs/engineering-process.md",
   "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
@@ -52,6 +60,10 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "ops/turbalance-product.example.json",
   "ops/lakehouse-ebpf-hosts.example.json",
   "ops/lakehouse-slo-policy.example.json",
+  "ops/commercial-metering.example.json",
+  "ops/design-partner-pilots.example.json",
+  "ops/performance-budgets.example.json",
+  "ops/github/branch-protection.json",
   "ops/kubernetes/ingestion-configmap.yaml",
   "ops/kubernetes/ingestion-secret.example.yaml",
   "ops/kubernetes/ingestion-serviceaccount.yaml",
@@ -151,6 +163,10 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "scripts/validate-ebpf-agent-host.js",
   "scripts/validate-lakehouse-security.js",
   "scripts/validate-lakehouse-alerts-dashboards.js",
+  "scripts/validate-commercial-readiness.js",
+  "scripts/validate-engineering-process.js",
+  "scripts/validate-performance-budgets.js",
+  "scripts/validate-conventional-commit.js",
   "scripts/generate-telemetry-protos.sh",
   "proto/telemetry/v1/telemetry_batch.proto",
   "services/platform_common/platform_common/contracts.py",
@@ -267,10 +283,15 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "fixtures/scheduler-export-inputs/scheduler-events.json",
   "fixtures/ebpf-export-inputs/host-samples.json",
   "fixtures/provider-export-inputs/kubernetes-jobs.json",
+  "LICENSE.md",
+  "CHANGELOG.md",
+  ".github/CODEOWNERS",
+  ".github/pull_request_template.md",
   ".github/workflows/ci.yml",
   ".github/workflows/pages.yml",
   ".github/workflows/provider-image.yml",
   ".github/workflows/lakehouse-platform.yml",
+  ".github/workflows/release-governance.yml",
   ".github/workflows/sandbox-go-live.yml",
   ".github/workflows/visual-qa.yml"
 ].forEach((relativePath) => {
@@ -283,6 +304,12 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "docs/e2e-data-platform.md",
   "docs/lakehouse-operations.md",
   "docs/security-compliance-posture.md",
+  "docs/commercial-gtm.md",
+  "docs/support-sla.md",
+  "docs/status-page.md",
+  "docs/design-partner-validation.md",
+  "docs/billing-usage-integration.md",
+  "docs/engineering-process.md",
   "docs/backend-ingestion.md",
   "docs/operator-walkthrough.md",
   "docs/neo-cloud-provider-fit.md",
@@ -373,12 +400,17 @@ assert.ok(readme.includes("docs/security-compliance-posture.md"));
   "scripts/validate-ebpf-agent-host.js",
   "scripts/validate-lakehouse-security.js",
   "scripts/validate-lakehouse-alerts-dashboards.js",
+  "scripts/validate-commercial-readiness.js",
+  "scripts/validate-engineering-process.js",
+  "scripts/validate-performance-budgets.js",
+  "scripts/validate-conventional-commit.js",
   "scripts/generate-telemetry-protos.sh",
   "tests/platform-lakehouse.test.js",
   "tests/lakehouse-go-live.test.js",
   "tests/lakehouse-production-readiness.test.js",
   "tests/repo-hygiene.test.js",
   "tests/productization-phases.test.js",
+  "tests/commercial-process.test.js",
   "services/platform_common/platform_common/observability.py",
   "services/raw-writer/raw_writer/writer.py",
   "services/raw-writer/raw_writer/storage.py",
@@ -481,6 +513,7 @@ const pages = read(".github/workflows/pages.yml");
 const visualQaWorkflow = read(".github/workflows/visual-qa.yml");
 const providerImageWorkflow = read(".github/workflows/provider-image.yml");
 const lakehousePlatformWorkflow = read(".github/workflows/lakehouse-platform.yml");
+const releaseGovernanceWorkflow = read(".github/workflows/release-governance.yml");
 const sandboxGoLiveWorkflow = read(".github/workflows/sandbox-go-live.yml");
 
 assert.ok(ci.includes("node tests/run-all.js"));
@@ -519,6 +552,11 @@ assert.ok(lakehousePlatformWorkflow.includes("queue_broker_url"));
 assert.ok(lakehousePlatformWorkflow.includes("raw-writer"));
 assert.ok(lakehousePlatformWorkflow.includes("transform-runner"));
 assert.ok(lakehousePlatformWorkflow.includes("actions/upload-artifact"));
+assert.ok(releaseGovernanceWorkflow.includes("validate-conventional-commit.js"));
+assert.ok(releaseGovernanceWorkflow.includes("validate-commercial-readiness.js"));
+assert.ok(releaseGovernanceWorkflow.includes("validate-engineering-process.js"));
+assert.ok(releaseGovernanceWorkflow.includes("validate-performance-budgets.js"));
+assert.ok(releaseGovernanceWorkflow.includes("audit-productization-phases.js"));
 assert.ok(sandboxGoLiveWorkflow.includes("scripts/run-sandbox-go-live.js"));
 assert.ok(sandboxGoLiveWorkflow.includes("docker/setup-buildx-action"));
 assert.ok(sandboxGoLiveWorkflow.includes("actions/upload-artifact"));
@@ -625,6 +663,44 @@ assert.ok(securityCompliancePosture.includes("Demo data"));
 assert.ok(securityCompliancePosture.includes("Rotate live collector bearer tokens and HMAC secrets"));
 assert.ok(readme.includes("scripts/audit-productization-phases.js"));
 assert.ok(readme.includes("npm run productization:audit"));
+
+const commercialGtm = read("docs/commercial-gtm.md");
+assert.ok(commercialGtm.includes("Appliance"));
+assert.ok(commercialGtm.includes("Managed SaaS"));
+assert.ok(commercialGtm.includes("active_gpus"));
+assert.ok(commercialGtm.includes("Do not use seeded demo data"));
+const supportSla = read("docs/support-sla.md");
+assert.ok(supportSla.includes("P1"));
+assert.ok(supportSla.includes("Initial Response"));
+assert.ok(/support bundle/i.test(supportSla));
+const statusPage = read("docs/status-page.md");
+assert.ok(statusPage.includes("Incident States"));
+assert.ok(statusPage.includes("Billing usage export"));
+const designPartnerValidation = read("docs/design-partner-validation.md");
+assert.ok(designPartnerValidation.includes("Recovered GPU-hours"));
+assert.ok(designPartnerValidation.includes("2-3 pilots"));
+const billingUsageIntegration = read("docs/billing-usage-integration.md");
+assert.ok(billingUsageIntegration.includes("Usage Record"));
+assert.ok(billingUsageIntegration.includes("tenant-scoped API"));
+const engineeringProcess = read("docs/engineering-process.md");
+assert.ok(engineeringProcess.includes("Branch Protection"));
+assert.ok(engineeringProcess.includes("Conventional Commits"));
+assert.ok(engineeringProcess.includes("Performance Budgets"));
+const branchProtection = read("ops/github/branch-protection.json");
+assert.ok(branchProtection.includes("Release Governance"));
+assert.ok(branchProtection.includes("allowForcePushes"));
+const performanceBudgets = read("ops/performance-budgets.example.json");
+assert.ok(performanceBudgets.includes("run-lakehouse-load-test.js"));
+assert.ok(performanceBudgets.includes("predictive-prescriptive.test.js"));
+const commercialMetering = read("ops/commercial-metering.example.json");
+assert.ok(commercialMetering.includes("billable_gpu_hours"));
+assert.ok(commercialMetering.includes("billingExport"));
+const designPartnerPilots = read("ops/design-partner-pilots.example.json");
+assert.ok(designPartnerPilots.includes("minimumCompletedPilotsBeforeExternalRoiClaims"));
+assert.ok(designPartnerPilots.includes("requiresRealCustomerData"));
+assert.ok(read("LICENSE.md").includes("Proprietary License"));
+assert.ok(read("CHANGELOG.md").includes("## [0.1.0]"));
+assert.ok(read("package.json").includes("SEE LICENSE IN LICENSE.md"));
 
 const lakehouseCompose = read("deploy/docker/lakehouse-compose.yml");
 assert.ok(lakehouseCompose.includes("transform-runner"));

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "turba.performance_budgets.v1",
+  "dashboard": {
+    "maxAppBundleKb": 1200,
+    "screenshotQaRequired": true,
+    "desktopScreenshotMaxMs": 5000,
+    "mobileScreenshotMaxMs": 5000
+  },
+  "ingestion": {
+    "loadTestScript": "scripts/run-lakehouse-load-test.js",
+    "defaultRequests": 1000,
+    "defaultConcurrency": 32,
+    "p95MsBudget": 750,
+    "maxErrorRatePct": 1
+  },
+  "lakehouse": {
+    "burnInScript": "scripts/run-lakehouse-burn-in.js",
+    "clusterSmokeScript": "scripts/run-lakehouse-cluster-smoke.js",
+    "productionSmokeScript": "scripts/run-lakehouse-production-smoke.js"
+  },
+  "regression": {
+    "requiredTests": [
+      "tests/predictive-prescriptive.test.js",
+      "tests/predictive-python.test.js",
+      "tests/platform-lakehouse.test.js",
+      "tests/lakehouse-production-readiness.test.js"
+    ]
+  }
+}
+

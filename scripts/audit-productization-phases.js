@@ -31,7 +31,7 @@ function requireValue(flag, value) {
 function printHelp() {
   console.log(`Usage: scripts/audit-productization-phases.js [--out <file>]
 
-Audits the four productization phases: repo debt, tenancy and identity, production infrastructure, and reliability/security/compliance posture.`);
+Audits the productization phases: repo debt, tenancy and identity, production infrastructure, reliability/security/compliance, commercial GTM, and engineering process.`);
 }
 
 function read(relativePath) {
@@ -166,6 +166,24 @@ function buildReport() {
       check("compliance_posture", includes("docs/security-compliance-posture.md", "SOC 2 Type II") && includes("docs/security-compliance-posture.md", "penetration test") && includes("docs/security-compliance-posture.md", "vulnerability"), "compliance posture documents SOC 2, pen test, and vulnerability-management expectations"),
       check("data_governance", includes("docs/security-compliance-posture.md", "right-to-be-forgotten") && matches("docs/security-compliance-posture.md", /data residency/i) && exists("scripts/run-retention-job.js") && exists("ops/kubernetes/ingestion-retention-cronjob.yaml"), "data residency, deletion, and retention controls are documented and wired"),
       check("privacy_demo_boundary", includes("docs/security-compliance-posture.md", "Demo data") && includes("README.md", "Demo Data Boundary"), "privacy posture preserves a demo-data boundary")
+    ]),
+    phase("phase-4", "Commercial and GTM", [
+      check("proprietary_license", exists("LICENSE.md") && includes("LICENSE.md", "Proprietary License") && includes("package.json", "SEE LICENSE IN LICENSE.md"), "proprietary license is formalized"),
+      check("packaging_pricing", includes("docs/commercial-gtm.md", "Appliance") && includes("docs/commercial-gtm.md", "Managed SaaS") && includes("ops/commercial-metering.example.json", "active_gpus"), "appliance/SaaS packaging and metering are documented"),
+      check("support_sla", includes("docs/support-sla.md", "P1") && includes("docs/support-sla.md", "Initial Response"), "support SLA is documented"),
+      check("status_page", includes("docs/status-page.md", "Incident States") && includes("docs/status-page.md", "Billing usage export"), "status page model is documented"),
+      check("design_partner_roi", includes("ops/design-partner-pilots.example.json", "minimumCompletedPilotsBeforeExternalRoiClaims") && includes("docs/design-partner-validation.md", "Recovered GPU-hours") && exists("tests/evidence-pack-export.test.js"), "design-partner ROI validation plan and evidence machinery exist"),
+      check("billing_usage_integration", includes("docs/billing-usage-integration.md", "Usage Record") && includes("ops/commercial-metering.example.json", "billingExport"), "billing usage integration is specified"),
+      check("commercial_validator", exists("scripts/validate-commercial-readiness.js") && includes("package.json", "commercial:validate"), "commercial readiness validator is wired")
+    ]),
+    phase("phase-5", "Engineering Org and Process", [
+      check("branch_protection", exists("ops/github/branch-protection.json") && includes("ops/github/branch-protection.json", "Release Governance") && includes("ops/github/branch-protection.json", "allowForcePushes"), "branch protection desired state is documented"),
+      check("code_review", exists(".github/CODEOWNERS") && exists(".github/pull_request_template.md"), "code-owner review and PR template are present"),
+      check("conventional_commits_enforced", includes("CONTRIBUTING.md", "Conventional Commits") && exists("scripts/validate-conventional-commit.js") && includes(".github/workflows/release-governance.yml", "validate-conventional-commit.js"), "Conventional Commit PR-title gate is wired"),
+      check("release_process_changelog", exists("CHANGELOG.md") && includes("docs/engineering-process.md", "Release Process"), "release process and changelog are documented"),
+      check("performance_budgets", exists("ops/performance-budgets.example.json") && exists("scripts/validate-performance-budgets.js"), "performance budget validator is present"),
+      check("load_regression_suite", exists("scripts/run-lakehouse-load-test.js") && exists("scripts/run-lakehouse-burn-in.js") && includes("tests/run-all.js", "predictive + prescriptive core") && includes("tests/run-all.js", "commercial and engineering process"), "load and regression lanes are wired"),
+      check("process_validator", exists("scripts/validate-engineering-process.js") && includes("package.json", "process:validate"), "engineering process validator is wired")
     ])
   ];
 
@@ -177,7 +195,9 @@ function buildReport() {
     requiredOperationalActions: [
       "Rotate any live collector credentials that ever matched the historical leaked values in the customer secret manager.",
       "Force-update protected remotes only after the rewritten local history is reviewed and coordinated with collaborators.",
-      "Run live go-live gates against customer-managed object storage, metadata DB, queue, certificate authority, registry, and IdP before external rollout."
+      "Run live go-live gates against customer-managed object storage, metadata DB, queue, certificate authority, registry, and IdP before external rollout.",
+      "Complete 2-3 real design-partner pilots with signed ROI evidence before making external recovered-GPU-hour claims.",
+      "Apply branch protection, CODEOWNERS, and required status checks in the remote GitHub repository settings."
     ]
   };
 }

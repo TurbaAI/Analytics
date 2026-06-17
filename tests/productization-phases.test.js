@@ -14,7 +14,7 @@ assert.equal(result.status, 0, `phase audit should pass\nstdout:\n${result.stdou
 
 const report = JSON.parse(result.stdout);
 assert.equal(report.status, "ok");
-assert.deepEqual(report.phases.map((phase) => phase.id), ["phase-0", "phase-1", "phase-2", "phase-3"]);
+assert.deepEqual(report.phases.map((phase) => phase.id), ["phase-0", "phase-1", "phase-2", "phase-3", "phase-4", "phase-5"]);
 assert.ok(report.phases.every((phase) => phase.status === "ok"));
 
 const checks = new Set(report.phases.flatMap((phase) => phase.checks.map((check) => check.name)));
@@ -28,11 +28,19 @@ const checks = new Set(report.phases.flatMap((phase) => phase.checks.map((check)
   "managed_queue",
   "slo_policy",
   "compliance_posture",
-  "data_governance"
+  "data_governance",
+  "packaging_pricing",
+  "design_partner_roi",
+  "billing_usage_integration",
+  "branch_protection",
+  "conventional_commits_enforced",
+  "performance_budgets"
 ].forEach((name) => {
   assert.ok(checks.has(name), `phase audit should include ${name}`);
 });
 
 assert.ok(report.requiredOperationalActions.some((action) => action.includes("Rotate any live collector credentials")));
+assert.ok(report.requiredOperationalActions.some((action) => action.includes("design-partner pilots")));
+assert.ok(report.requiredOperationalActions.some((action) => action.includes("branch protection")));
 
 console.log("productization phase audit tests passed");
