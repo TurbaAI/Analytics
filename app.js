@@ -399,7 +399,40 @@ const TREND_METRIC_DEFS = {
   }
 };
 
+function ensureTopbarUserProfile() {
+  const topbar = document.querySelector(".topbar");
+  if (!topbar || topbar.querySelector(".topbar-user")) return;
+
+  const user = document.createElement("div");
+  user.className = "topbar-user";
+  user.setAttribute("aria-label", "Signed in user");
+  user.innerHTML = `
+    <span class="topbar-user-copy">
+      <span class="topbar-user-name">Ahmad Byagowi</span>
+      <span class="topbar-user-role">Demo operator</span>
+    </span>
+    <img class="topbar-user-avatar" src="assets/ahmad-byagowi-profile.png?v=profile-20260617" alt="Ahmad Byagowi">
+  `;
+  topbar.append(user);
+
+  if (document.getElementById("topbarUserFallbackStyle")) return;
+  const style = document.createElement("style");
+  style.id = "topbarUserFallbackStyle";
+  style.textContent = `
+    .topbar-user{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0;margin-left:auto;color:#f8fbfb}
+    .topbar-user-copy{display:grid;gap:2px;min-width:0;text-align:right}
+    .topbar-user-name,.topbar-user-role{display:block;overflow:hidden;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
+    .topbar-user-name{font-size:.92rem;font-weight:800}
+    .topbar-user-role{color:rgba(230,238,239,.72);font-size:.72rem;font-weight:700}
+    .topbar-user-avatar{width:48px;height:48px;flex:0 0 auto;border:2px solid rgba(126,236,212,.74);border-radius:50%;background:#fff;box-shadow:0 10px 24px rgba(0,0,0,.24);object-fit:cover;object-position:center}
+    @media (max-width:900px){.topbar-user{align-self:stretch;justify-content:flex-start;margin-left:0}.topbar-user-copy{text-align:left}}
+    @media (max-width:680px){.topbar-user-avatar{width:44px;height:44px}.topbar-user-name{font-size:.88rem}}
+  `;
+  document.head.append(style);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  ensureTopbarUserProfile();
   initThemeMode();
   bindEvents();
   initPanelPopouts();
@@ -816,8 +849,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
-
 
 
 
