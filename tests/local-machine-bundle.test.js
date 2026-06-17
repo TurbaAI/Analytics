@@ -69,6 +69,23 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleCached, "boo
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuSampleAgeMs, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuBackendRequested, "string");
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.gpuAttemptedSources));
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuProcessInspector, "object");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuProcessInspectorStatus, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuProcessInspectorSummary, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuProcessCount, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuProcessMemoryMiB, "number");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.gpuProcessOwners));
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuThermalQualification, "object");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuThermalQualificationStatus, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuThermalQualificationSummary, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuThermalQualificationComparable, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuThermalThrottleActive, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuTopology, "object");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuTopologyStatus, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuTopologyFingerprint, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuTopologySummary, "string");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.gpuTopologyDeviceCount, "number");
+assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.gpuTopologyMatrix));
 assert.ok(Array.isArray(bundle.ingestion.runs[0].sourceContext.ollamaRunningModels));
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTelemetryStatus, "string");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.ollamaTokensPerSecond, "number");
@@ -171,6 +188,13 @@ assert.ok(localCollectorSource.includes("fan.speed"));
 assert.ok(localCollectorSource.includes("clocks.current.graphics"));
 assert.ok(localCollectorSource.includes("clocks.current.sm"));
 assert.ok(localCollectorSource.includes("clocks.current.memory"));
+assert.ok(localCollectorSource.includes("gpu-process-inspector"));
+assert.ok(localCollectorSource.includes("gpu-thermal-qualification"));
+assert.ok(localCollectorSource.includes("gpu-topology"));
+assert.ok(localCollectorSource.includes("nvidia-smi topo -m"));
+assert.ok(localCollectorSource.includes("TEMPERATURE,PERFORMANCE,POWER"));
+assert.ok(localCollectorSource.includes("gpuThermalQualificationComparable"));
+assert.ok(localCollectorSource.includes("gpuTopologyFingerprint"));
 assert.ok(localCollectorSource.includes("linux-uma-memory"));
 assert.ok(localCollectorSource.includes("app-metrics"));
 assert.ok(localCollectorSource.includes("nsight-cupti-profiling"));
@@ -298,6 +322,108 @@ assert.equal(gpustatContext.gpuComputeProcesses[0].processName, "python");
 assert.equal(gpustatContext.gpuComputeProcesses[0].usedMemoryMiB, 256);
 assert.ok(gpustatBundle.ingestion.sourceAdapters.includes("gpustat"));
 assert.ok(!gpustatBundle.ingestion.sourceAdapters.includes("nvidia-smi"));
+
+const fakeNvidiaSmiPath = path.join(fakeBinDir, "nvidia-smi");
+fs.writeFileSync(fakeNvidiaSmiPath, `#!/usr/bin/env node
+const args = process.argv.slice(2);
+const joined = args.join(" ");
+if (args[0] === "topo" && args[1] === "-m") {
+  console.log("        GPU0    GPU1    CPU Affinity    NUMA Affinity");
+  console.log("GPU0    X       NV4     0-31            0");
+  console.log("GPU1    NV4     X       0-31            0");
+  console.log("");
+  console.log("Legend:");
+  console.log("  NV4 = bonded NVLink");
+} else if (joined.includes("--query-compute-apps=")) {
+  console.log("GPU-fake-smi-0,4321,python-train,1024");
+} else if (joined.includes("--query-gpu=")) {
+  console.log("NVIDIA H100,0,GPU-fake-smi-0,76,44,20480,81920,312.5,47,5,16,62,1785,1710,2619");
+  console.log("NVIDIA H100,1,GPU-fake-smi-1,73,41,19800,81920,301.2,48,5,16,60,1770,1700,2619");
+} else if (args[0] === "-q") {
+  console.log("GPU 00000000:01:00.0");
+  console.log("    Product Name                    : NVIDIA H100");
+  console.log("    Temperature");
+  console.log("        GPU Current Temp            : 47 C");
+  console.log("        GPU Slowdown Temp           : 87 C");
+  console.log("        GPU Shutdown Temp           : 95 C");
+  console.log("        GPU Max Operating Temp      : 83 C");
+  console.log("        Memory Current Temp         : 55 C");
+  console.log("        Memory Max Operating Temp   : 95 C");
+  console.log("    Performance State               : P0");
+  console.log("    Clocks Throttle Reasons");
+  console.log("        Active                      : None");
+  console.log("        HW Slowdown                 : Not Active");
+  console.log("        HW Thermal Slowdown         : Not Active");
+  console.log("    Power Readings");
+  console.log("        Power Draw                  : 312.5 W");
+  console.log("        Power Limit                 : 700.0 W");
+} else {
+  process.exit(1);
+}
+`);
+fs.chmodSync(fakeNvidiaSmiPath, 0o755);
+
+const nvidiaSmiOutPath = path.join(tempDir, "live-machine-bundle-nvidia-smi.json");
+const nvidiaSmiResult = spawnSync(process.execPath, [
+  "scripts/collect-local-machine-bundle.js",
+  "--out",
+  nvidiaSmiOutPath,
+  "--host-url",
+  "http://192.168.10.30:8000",
+  "--run-id",
+  "machine-demo-nvidia-smi-test",
+  "--gpu-backend",
+  "nvidia-smi",
+  "--ollama-probe",
+  "0",
+  "--lake-root",
+  lakehousePath
+], {
+  cwd: root,
+  encoding: "utf8",
+  env: {
+    ...process.env,
+    PATH: `${fakeBinDir}${path.delimiter}${process.env.PATH || ""}`
+  },
+  maxBuffer: 20 * 1024 * 1024
+});
+assert.equal(nvidiaSmiResult.status, 0, nvidiaSmiResult.stderr);
+const nvidiaSmiBundle = JSON.parse(fs.readFileSync(nvidiaSmiOutPath, "utf8"));
+const nvidiaSmiContext = nvidiaSmiBundle.ingestion.runs[0].sourceContext;
+assert.equal(nvidiaSmiContext.gpuSource, "nvidia-smi");
+assert.equal(nvidiaSmiContext.gpuName, "NVIDIA H100");
+assert.equal(nvidiaSmiContext.gpuComputeProcesses[0].gpuUuid, "GPU-fake-smi-0");
+assert.equal(nvidiaSmiContext.gpuComputeProcesses[0].processName, "python-train");
+assert.equal(nvidiaSmiContext.gpuProcessInspectorStatus, "observed");
+assert.equal(nvidiaSmiContext.gpuProcessCount, 1);
+assert.equal(nvidiaSmiContext.gpuProcessMemoryMiB, 1024);
+assert.equal(nvidiaSmiContext.gpuThermalQualificationStatus, "pass");
+assert.equal(nvidiaSmiContext.gpuThermalQualificationComparable, true);
+assert.equal(nvidiaSmiContext.gpuThermalMarginToSlowdownC, 40);
+assert.equal(nvidiaSmiContext.gpuPowerLimitWatts, 700);
+assert.equal(nvidiaSmiContext.gpuTopologyStatus, "observed");
+assert.equal(nvidiaSmiContext.gpuTopologyDeviceCount, 2);
+assert.equal(nvidiaSmiContext.gpuTopologyNvlinkLinks, 1);
+assert.ok(nvidiaSmiContext.gpuTopologyFingerprint);
+assert.ok(nvidiaSmiBundle.ingestion.sourceAdapters.includes("nvidia-smi"));
+assert.ok(nvidiaSmiBundle.ingestion.sourceAdapters.includes("gpu-process-inspector"));
+assert.ok(nvidiaSmiBundle.ingestion.sourceAdapters.includes("gpu-thermal-qualification"));
+assert.ok(nvidiaSmiBundle.ingestion.sourceAdapters.includes("gpu-topology"));
+
+const gpuTopResult = spawnSync(process.execPath, [
+  "scripts/turbalance-gpu-top.js",
+  "--bundle",
+  nvidiaSmiOutPath
+], {
+  cwd: root,
+  encoding: "utf8",
+  maxBuffer: 2 * 1024 * 1024
+});
+assert.equal(gpuTopResult.status, 0, gpuTopResult.stderr);
+assert.ok(gpuTopResult.stdout.includes("GPU Process Inspector"));
+assert.ok(gpuTopResult.stdout.includes("Thermal Qualification"));
+assert.ok(gpuTopResult.stdout.includes("Topology Fingerprint"));
+assert.ok(gpuTopResult.stdout.includes("python-train"));
 
 const benchmarkResult = spawnSync(process.execPath, [
   "scripts/collect-local-machine-bundle.js",

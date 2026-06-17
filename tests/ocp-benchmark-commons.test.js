@@ -25,6 +25,26 @@ const sourceBundle = {
           gpuPresent: true,
           gpuName: "NVIDIA GB10",
           gpuMemoryTotalMiB: 131072,
+          gpuPowerWatts: 45,
+          gpuPcie: "gen5 x16",
+          gpuProcessInspectorStatus: "observed",
+          gpuProcessCount: 1,
+          gpuProcessMemoryMiB: 256,
+          gpuThermalQualificationStatus: "pass",
+          gpuThermalQualificationComparable: true,
+          gpuThermalQualificationSummary: "pass: max GPU 47 C with 40 C slowdown margin",
+          gpuThermalMarginToSlowdownC: 40,
+          gpuThermalMarginToMaxOperatingC: 36,
+          gpuThermalThrottleActive: false,
+          gpuPowerLimitWatts: 80,
+          gpuTopologyStatus: "observed",
+          gpuTopologyFingerprint: "topology-private-fingerprint",
+          gpuTopologySummary: "1 GPU, 0 NVLink peer links, 0 PCIe/host peer links",
+          gpuTopologyPeerLinkCount: 0,
+          gpuTopologyNvlinkLinks: 0,
+          gpuTopologyPcieLinks: 0,
+          hardwareFaultLevel: "healthy",
+          hardwareGpuXidCount: 0,
           networkLinkSpeedMbps: 10000,
           benchmarkSuiteName: "pi-light-v1",
           benchmarkSuiteStatus: "fresh",
@@ -75,6 +95,16 @@ assert.equal(exported.records.length, 1);
 assert.equal(exported.records[0].dataset, "ocp-design-partner-corpus");
 assert.equal(exported.records[0].hardware.class, "NVIDIA GB10 host");
 assert.equal(exported.records[0].hardware.gpuModel, "NVIDIA GB10");
+assert.equal(exported.records[0].hardware.gpuPcie, "gen5 x16");
+assert.equal(exported.records[0].hardware.topologyFingerprint, "topology-private-fingerprint");
+assert.equal(exported.records[0].qualification.comparable, true);
+assert.equal(exported.records[0].qualification.status, "qualified");
+assert.equal(exported.records[0].qualification.thermalStatus, "pass");
+assert.equal(exported.records[0].qualification.thermalMarginToSlowdownC, 40);
+assert.equal(exported.records[0].qualification.topologyStatus, "observed");
+assert.equal(exported.records[0].qualification.processInspectorStatus, "observed");
+assert.equal(exported.records[0].qualification.requiredEvidence.thermal, true);
+assert.equal(exported.records[0].qualification.requiredEvidence.topology, true);
 assert.equal(exported.records[0].metrics.cpuOpsPerSecond.value, 4200000);
 assert.equal(exported.records[0].metrics.memoryMiBps.unit, "MiB/s");
 assert.equal(exported.records[0].corpusComparison.peerCount, 128);

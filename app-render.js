@@ -532,6 +532,22 @@ function renderLiveResources(summary) {
   const gpuMemoryClockAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuMemoryClockMHz);
   const gpuMemoryAllocationAvailable = machineContext.gpuPresent && machineContext.gpuMemoryTotalMiB > 0;
   const gpuMemoryUtilizationAvailable = machineContext.gpuPresent && Number.isFinite(machineContext.gpuMemoryUtilizationPct);
+  const gpuProcessCount = Number.isFinite(machineContext.gpuProcessCount) ? machineContext.gpuProcessCount : machineContext.gpuProcesses.length;
+  const gpuProcessMemoryMiB = Number.isFinite(machineContext.gpuProcessMemoryMiB)
+    ? machineContext.gpuProcessMemoryMiB
+    : machineContext.gpuProcesses.reduce((total, row) => total + numeric(row.usedMemoryMiB), 0);
+  const gpuProcessOwnerText = machineContext.gpuProcessOwners.length
+    ? `${machineContext.gpuProcessOwners.length} owner${machineContext.gpuProcessOwners.length === 1 ? "" : "s"}`
+    : machineContext.gpuProcessQuerySkipped ? "process lookup skipped" : "no owners observed";
+  const gpuThermalStatus = machineContext.gpuThermalQualificationStatus || "unknown";
+  const gpuThermalTone = gpuThermalStatus === "pass" ? "good" : gpuThermalStatus === "fail" ? "poor" : "watch";
+  const gpuThermalValue = machineContext.gpuThermalQualificationComparable
+    ? "qualified"
+    : gpuThermalStatus === "fail" ? "blocked" : gpuThermalStatus === "warn" ? "review" : "unknown";
+  const gpuTopologyValue = Number.isFinite(machineContext.gpuTopologyDeviceCount) && machineContext.gpuTopologyDeviceCount > 0
+    ? `${round(machineContext.gpuTopologyDeviceCount)} GPU${round(machineContext.gpuTopologyDeviceCount) === 1 ? "" : "s"}`
+    : machineContext.gpuPresent ? "pending" : gpuMissingValue;
+  const gpuTopologyNote = machineContext.gpuTopologySummary || (machineContext.gpuPresent ? "nvidia-smi topo -m unavailable" : gpuMissingNote);
   const pcie = context.gpuPcie ? ` | ${context.gpuPcie}` : "";
   const gpuSampleNote = machineContext.gpuSampleCached
     ? `nvidia-smi cached ${Math.max(1, Math.round(machineContext.gpuSampleAgeMs / 1000))}s`
@@ -625,6 +641,13 @@ function renderLiveResources(summary) {
       tone: machineContext.driverUnavailable || machineContext.noGpu ? "poor" : machineContext.gpuUtilizationPct > 0 ? grade(machineContext.gpuUtilizationPct, 30, 70).key : "watch"
     }),
     liveResourceCard({
+      label: "GPU process inspector",
+      value: machineContext.gpuProcessQuerySkipped ? "skipped" : `${round(gpuProcessCount)}`,
+      note: machineContext.gpuProcessInspectorSummary || `${formatBytes(gpuProcessMemoryMiB * 1024 * 1024)} GPU memory | ${gpuProcessOwnerText}`,
+      percent: null,
+      tone: machineContext.gpuProcessQuerySkipped ? "watch" : gpuProcessCount > 0 ? "good" : "watch"
+    }),
+    liveResourceCard({
       label: "Power Draw",
       value: gpuPowerAvailable ? `${round(machineContext.gpuPowerWatts)} W` : gpuMissingValue,
       note: gpuPowerAvailable ? gpuSampleNote : gpuMissingNote,
@@ -644,6 +667,20 @@ function renderLiveResources(summary) {
       note: gpuTemperatureAvailable ? `${gpuSampleNote}${pcie}` : gpuMissingNote,
       percent: gpuTemperatureAvailable ? clamp((machineContext.gpuTemperatureC / 95) * 100) : null,
       tone: gpuTemperatureAvailable ? inverseGrade(machineContext.gpuTemperatureC, 75, 86).key : "watch"
+    }),
+    liveResourceCard({
+      label: "Thermal qualification",
+      value: gpuThermalValue,
+      note: machineContext.gpuThermalQualificationSummary || "benchmark thermal gate",
+      percent: Number.isFinite(machineContext.gpuThermalMarginToSlowdownC) ? clamp((machineContext.gpuThermalMarginToSlowdownC / 20) * 100) : null,
+      tone: gpuThermalTone
+    }),
+    liveResourceCard({
+      label: "Topology fingerprint",
+      value: gpuTopologyValue,
+      note: gpuTopologyNote,
+      percent: null,
+      tone: machineContext.gpuTopologyStatus === "observed" ? "good" : "watch"
     }),
     liveResourceCard({
       label: "GPU Clock Speed",

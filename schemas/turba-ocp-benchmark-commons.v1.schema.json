@@ -73,6 +73,24 @@
           "type": "object",
           "additionalProperties": true
         },
+        "qualification": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["comparable", "status", "requiredEvidence"],
+          "properties": {
+            "comparable": { "type": "boolean" },
+            "status": { "type": "string" },
+            "thermalStatus": { "type": "string" },
+            "thermalSummary": { "type": "string" },
+            "topologyStatus": { "type": "string" },
+            "topologyFingerprint": { "type": "string" },
+            "processInspectorStatus": { "type": "string" },
+            "requiredEvidence": {
+              "type": "object",
+              "additionalProperties": { "type": "boolean" }
+            }
+          }
+        },
         "metrics": {
           "type": "object",
           "minProperties": 1,

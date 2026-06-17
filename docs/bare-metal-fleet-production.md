@@ -159,6 +159,21 @@ The source-bundle agent uses `TURBALANCE_GPU_BACKEND=auto` by default. In auto m
 
 Use `nvtop` and `nvitop` for operator SSH sessions, not as ingestion dependencies. They are useful live terminal dashboards, but they are interactive tools rather than stable collector inputs. Use DCGM/DCGM Exporter for the production GPU sidecar path on SPARK or datacenter GPU hosts.
 
+The collector also emits a GPU diagnostic envelope when NVIDIA telemetry is available:
+
+- `gpuProcessInspector` summarizes PID, command, user, GPU UUID/index, and GPU memory from `gpustat`, `nvidia-smi --query-compute-apps`, and local `ps` enrichment.
+- `gpuThermalQualification` gates benchmark comparison with temperature, slowdown margin, throttle state, power draw, and power-limit context from `nvidia-smi -q -d TEMPERATURE,PERFORMANCE,POWER`.
+- `gpuTopology` records a salted-safe topology fingerprint and peer-link summary from `nvidia-smi topo -m`.
+
+For a terminal operator view:
+
+```sh
+node scripts/turbalance-gpu-top.js --bundle build/demo/live-machine-bundle.json
+npm run gpu:top -- --watch 5000
+```
+
+For notebook workflows, copy `notebooks/turbalance_gpu_monitor.py` onto the notebook path and call `display_gpu_monitor("build/demo/live-machine-bundle.json")`. The helper is read-only and renders the same source-bundle fields used by the dashboard and OCP export.
+
 ## Verification
 
 On each machine:

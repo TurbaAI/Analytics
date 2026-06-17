@@ -4,6 +4,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { execFileSync, spawn, spawnSync } = require("node:child_process");
 const { assertValidSourceBundle } = require("../lib/source-bundle-validator.js");
 
@@ -16,6 +17,8 @@ const loopMs = numberArg(args["loop-ms"], 0);
 const gpuSampleMs = numberArg(args["gpu-sample-ms"], fastRefresh ? 2000 : 0);
 const gpuBackend = (args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "auto").toLowerCase();
 const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "gpustat";
+const gpuDiagnosticsEnabled = args["gpu-diagnostics"] !== "0" && process.env.TURBALANCE_GPU_DIAGNOSTICS !== "0";
+const gpuDiagnosticsTtlMs = numberArg(args["gpu-diagnostics-ttl-ms"] || process.env.TURBALANCE_GPU_DIAGNOSTICS_TTL_MS, fastRefresh ? 30000 : 10000);
 const ollamaProbeEnabled = args["ollama-probe"] !== "0";
 const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
@@ -62,6 +65,7 @@ const networkRateCachePath = args["network-rate-cache"]
   || defaultNetworkRateCachePath();
 const delegatedFleetRemotes = localFleetRemotes();
 let previousGpu = null;
+let previousGpuDiagnostics = null;
 let previousOllamaTelemetry = null;
 let previousNetwork = null;
 
@@ -422,10 +426,10 @@ function collectGpuByBackend({ includeProcesses = true } = {}) {
   for (const backend of gpuBackendOrder()) {
     const sample = collectGpuFromBackend(backend, { includeProcesses });
     if (sample.present) {
-      return {
+      return attachGpuDiagnostics({
         ...sample,
         requestedSource: gpuBackend
-      };
+      }, { includeProcesses });
     }
     failures.push(sample);
     if (gpuBackend !== "auto") break;
@@ -435,12 +439,12 @@ function collectGpuByBackend({ includeProcesses = true } = {}) {
     error: "No GPU telemetry backend attempted",
     includeProcesses
   });
-  return {
+  return attachGpuDiagnostics({
     ...fallback,
     requestedSource: gpuBackend,
     attemptedSources: failures.map((failure) => failure.source).filter(Boolean),
     error: compactWhitespace(failures.map((failure) => failure.error).filter(Boolean).join("; ") || fallback.error)
-  };
+  }, { includeProcesses });
 }
 
 async function collectGpuByBackendAsync({ includeProcesses = true } = {}) {
@@ -448,10 +452,10 @@ async function collectGpuByBackendAsync({ includeProcesses = true } = {}) {
   for (const backend of gpuBackendOrder()) {
     const sample = await collectGpuFromBackendAsync(backend, { includeProcesses });
     if (sample.present) {
-      return {
+      return attachGpuDiagnostics({
         ...sample,
         requestedSource: gpuBackend
-      };
+      }, { includeProcesses });
     }
     failures.push(sample);
     if (gpuBackend !== "auto") break;
@@ -461,11 +465,394 @@ async function collectGpuByBackendAsync({ includeProcesses = true } = {}) {
     error: "No GPU telemetry backend attempted",
     includeProcesses
   });
-  return {
+  return attachGpuDiagnostics({
     ...fallback,
     requestedSource: gpuBackend,
     attemptedSources: failures.map((failure) => failure.source).filter(Boolean),
     error: compactWhitespace(failures.map((failure) => failure.error).filter(Boolean).join("; ") || fallback.error)
+  }, { includeProcesses });
+}
+
+function attachGpuDiagnostics(sample, { includeProcesses = true } = {}) {
+  const normalized = {
+    ...sample,
+    processes: normalizeGpuProcesses(sample.processes || [], sample.gpus || [])
+  };
+  const processInspector = buildGpuProcessInspector(normalized, { includeProcesses });
+  const diagnostics = gpuDiagnosticsEnabled
+    ? collectGpuDiagnostics(normalized)
+    : emptyGpuDiagnostics("disabled");
+  return {
+    ...normalized,
+    processInspector,
+    topology: diagnostics.topology,
+    thermalQualification: diagnostics.thermalQualification,
+    diagnosticsCollectedAtMs: diagnostics.collectedAtMs,
+    diagnosticsSampleCached: diagnostics.sampleCached,
+    diagnosticsError: diagnostics.error || ""
+  };
+}
+
+function collectGpuDiagnostics(sample) {
+  const nowMs = Date.now();
+  const cacheKey = gpuDiagnosticsCacheKey(sample);
+  if (
+    previousGpuDiagnostics
+    && previousGpuDiagnostics.cacheKey === cacheKey
+    && nowMs - previousGpuDiagnostics.collectedAtMs >= 0
+    && nowMs - previousGpuDiagnostics.collectedAtMs < gpuDiagnosticsTtlMs
+  ) {
+    return {
+      ...previousGpuDiagnostics,
+      sampleCached: true
+    };
+  }
+
+  const diagnostics = {
+    cacheKey,
+    collectedAtMs: nowMs,
+    sampleCached: false,
+    topology: collectGpuTopologyFingerprint(sample),
+    thermalQualification: collectGpuThermalQualification(sample),
+    error: ""
+  };
+  previousGpuDiagnostics = diagnostics;
+  return diagnostics;
+}
+
+function emptyGpuDiagnostics(status) {
+  return {
+    collectedAtMs: Date.now(),
+    sampleCached: false,
+    topology: emptyGpuTopology(status),
+    thermalQualification: emptyGpuThermalQualification(status),
+    error: ""
+  };
+}
+
+function gpuDiagnosticsCacheKey(sample) {
+  const ids = (sample.gpus || [])
+    .map((gpu) => gpu.uuid || `${gpu.index}:${gpu.name}`)
+    .filter(Boolean)
+    .join("|");
+  return `${sample.source || ""}:${ids || "no-gpu"}`;
+}
+
+function normalizeGpuProcesses(processes, gpus) {
+  const gpuByUuid = new Map((gpus || []).map((gpu) => [String(gpu.uuid || ""), gpu]));
+  const gpuByIndex = new Map((gpus || []).map((gpu) => [String(gpu.index), gpu]));
+  return enrichGpuProcessesWithPs((processes || []).map((entry) => {
+    const gpu = gpuByUuid.get(String(entry.gpuUuid || "")) || gpuByIndex.get(String(entry.gpuIndex));
+    return {
+      pid: Number(entry.pid),
+      processName: String(entry.processName || entry.command || entry.name || ""),
+      command: String(entry.command || entry.processName || entry.name || ""),
+      username: String(entry.username || ""),
+      gpuUuid: String(entry.gpuUuid || gpu?.uuid || ""),
+      gpuIndex: Number.isFinite(Number(entry.gpuIndex)) ? Number(entry.gpuIndex) : finite(gpu?.index),
+      gpuName: String(entry.gpuName || gpu?.name || ""),
+      usedMemoryMiB: finite(entry.usedMemoryMiB, finite(entry.gpuMemoryUsageMiB, 0))
+    };
+  }).filter((entry) => Number.isFinite(entry.pid)));
+}
+
+function enrichGpuProcessesWithPs(processes) {
+  const missing = processes.filter((processEntry) => !processEntry.username || !processEntry.command);
+  if (missing.length === 0) return processes;
+  const pids = [...new Set(missing.map((processEntry) => processEntry.pid).filter(Number.isFinite))].slice(0, 64);
+  if (pids.length === 0) return processes;
+  const psText = command("ps", ["-o", "pid=,user=,comm=,args=", "-p", pids.join(",")]);
+  const psByPid = new Map(psText.split("\n").map((line) => {
+    const match = line.trim().match(/^(\d+)\s+(\S+)\s+(\S+)\s*(.*)$/);
+    return match ? [Number(match[1]), { username: match[2], processName: match[3], command: match[4] || match[3] }] : null;
+  }).filter(Boolean));
+  return processes.map((processEntry) => {
+    const ps = psByPid.get(processEntry.pid) || {};
+    return {
+      ...processEntry,
+      username: processEntry.username || ps.username || "",
+      processName: processEntry.processName || ps.processName || "",
+      command: processEntry.command || ps.command || processEntry.processName || ""
+    };
+  });
+}
+
+function buildGpuProcessInspector(sample, { includeProcesses = true } = {}) {
+  const processes = sample.processes || [];
+  const totalMemoryMiB = processes.reduce((total, processEntry) => total + finite(processEntry.usedMemoryMiB, 0), 0);
+  const byGpu = Array.from(groupBy(processes, (processEntry) => processEntry.gpuUuid || String(processEntry.gpuIndex ?? "unknown")).entries())
+    .map(([gpuKey, rows]) => ({
+      gpuKey,
+      gpuIndex: firstFiniteNumber(...rows.map((row) => row.gpuIndex)),
+      gpuUuid: rows.find((row) => row.gpuUuid)?.gpuUuid || "",
+      gpuName: rows.find((row) => row.gpuName)?.gpuName || "",
+      processCount: rows.length,
+      usedMemoryMiB: round(rows.reduce((total, row) => total + finite(row.usedMemoryMiB, 0), 0), 2)
+    }))
+    .sort((left, right) => finite(left.gpuIndex, 999) - finite(right.gpuIndex, 999));
+  const ownerNames = [...new Set(processes.map((processEntry) => processEntry.username).filter(Boolean))].sort();
+  const topProcesses = [...processes]
+    .sort((left, right) => finite(right.usedMemoryMiB, 0) - finite(left.usedMemoryMiB, 0))
+    .slice(0, 8);
+  const largest = topProcesses[0] || null;
+  return {
+    status: sample.present
+      ? sample.processesSkipped || !includeProcesses ? "skipped"
+        : processes.length > 0 ? "observed" : "empty"
+      : "unavailable",
+    source: sample.source || "",
+    processCount: processes.length,
+    totalUsedMemoryMiB: round(totalMemoryMiB, 2),
+    ownerCount: ownerNames.length,
+    ownerNames,
+    byGpu,
+    topProcesses,
+    largestProcess: largest ? {
+      pid: largest.pid,
+      processName: largest.processName,
+      username: largest.username || "",
+      gpuIndex: largest.gpuIndex,
+      gpuUuid: largest.gpuUuid || "",
+      usedMemoryMiB: round(finite(largest.usedMemoryMiB, 0), 2)
+    } : null,
+    summary: sample.present
+      ? sample.processesSkipped || !includeProcesses ? "GPU process query skipped"
+        : processes.length > 0 ? `${processes.length} GPU compute process${processes.length === 1 ? "" : "es"} using ${round(totalMemoryMiB, 1)} MiB`
+        : "No GPU compute processes observed"
+      : sample.error || "GPU process inspector unavailable"
+  };
+}
+
+function collectGpuTopologyFingerprint(sample) {
+  if (!sample.present) return emptyGpuTopology("unavailable", sample.error || "No GPU telemetry");
+  const result = commandResult("nvidia-smi", ["topo", "-m"], { timeout: 3000 });
+  if (result.status !== 0 || !result.stdout.trim()) {
+    return emptyGpuTopology(result.errorCode === "ENOENT" ? "nvidia-smi-not-found" : "unavailable", compactWhitespace(result.stderr || result.errorMessage || "nvidia-smi topo -m returned no topology"));
+  }
+  return parseNvidiaSmiTopology(result.stdout);
+}
+
+function parseNvidiaSmiTopology(text) {
+  const lines = String(text || "").split("\n").map((line) => line.trimEnd()).filter(Boolean);
+  const headerLine = lines.find((line) => /\bGPU\d+\b/.test(line) && !line.startsWith("GPU"));
+  const headers = headerLine ? headerLine.trim().split(/\s+/) : [];
+  const peerHeaders = headers.filter((token) => /^(GPU\d+|MIG\d+|NIC\d+|mlx\d+)/i.test(token));
+  const rows = lines
+    .filter((line) => line !== headerLine)
+    .map((line) => line.trim())
+    .filter((line) => /^(GPU\d+|MIG\d+|NIC\d+|mlx\d+)\b/i.test(line))
+    .map((line) => {
+      const parts = line.split(/\s+/);
+      const label = parts.shift();
+      const links = {};
+      peerHeaders.forEach((header, index) => {
+        links[header] = parts[index] || "";
+      });
+      return { label, links };
+    });
+  const gpuRows = rows.filter((row) => /^GPU\d+$/i.test(row.label));
+  const linkCounts = {};
+  const peerLinks = [];
+  gpuRows.forEach((row) => {
+    Object.entries(row.links).forEach(([peer, link]) => {
+      if (!/^GPU\d+$/i.test(peer) || peer <= row.label || !link || link === "X") return;
+      linkCounts[link] = (linkCounts[link] || 0) + 1;
+      peerLinks.push({ from: row.label, to: peer, link });
+    });
+  });
+  const nvlinkLinks = peerLinks.filter((link) => /^NV/i.test(link.link)).length;
+  const pcieLinks = peerLinks.filter((link) => !/^NV/i.test(link.link)).length;
+  const normalized = {
+    devices: gpuRows.map((row) => row.label),
+    peerLinks,
+    linkCounts
+  };
+  return {
+    status: gpuRows.length > 0 ? "observed" : "unavailable",
+    source: "nvidia-smi topo -m",
+    deviceCount: gpuRows.length,
+    peerLinkCount: peerLinks.length,
+    nvlinkLinks,
+    pcieLinks,
+    linkCounts,
+    matrix: rows,
+    fingerprint: stableLocalHash(JSON.stringify(normalized)),
+    rawDigest: stableLocalHash(lines.join("\n")),
+    summary: gpuRows.length > 0
+      ? `${gpuRows.length} GPU${gpuRows.length === 1 ? "" : "s"}, ${nvlinkLinks} NVLink peer link${nvlinkLinks === 1 ? "" : "s"}, ${pcieLinks} PCIe/host peer link${pcieLinks === 1 ? "" : "s"}`
+      : "GPU topology table did not include GPU rows",
+    error: ""
+  };
+}
+
+function emptyGpuTopology(status, error = "") {
+  return {
+    status,
+    source: "",
+    deviceCount: 0,
+    peerLinkCount: 0,
+    nvlinkLinks: 0,
+    pcieLinks: 0,
+    linkCounts: {},
+    matrix: [],
+    fingerprint: "",
+    rawDigest: "",
+    summary: error || "GPU topology unavailable",
+    error
+  };
+}
+
+function collectGpuThermalQualification(sample) {
+  if (!sample.present) return emptyGpuThermalQualification("unavailable", sample.error || "No GPU telemetry");
+  const result = commandResult("nvidia-smi", ["-q", "-d", "TEMPERATURE,PERFORMANCE,POWER"], { timeout: 3000 });
+  const details = result.status === 0 && result.stdout.trim()
+    ? parseNvidiaSmiThermalPerformance(result.stdout)
+    : {};
+  const error = result.status === 0 ? "" : compactWhitespace(result.stderr || result.errorMessage || "nvidia-smi -q returned no thermal/performance output");
+  return qualifyGpuThermal(sample, details, error);
+}
+
+function parseNvidiaSmiThermalPerformance(text) {
+  const gpuSections = splitNvidiaSmiQuerySections(text);
+  const devices = gpuSections.map((section) => {
+    const field = (label) => nvidiaSmiQueryField(section, label);
+    const throttleValues = [
+      field("Clocks Throttle Reasons Active"),
+      field("Active"),
+      field("HW Slowdown"),
+      field("HW Thermal Slowdown"),
+      field("SW Thermal Slowdown"),
+      field("HW Power Brake Slowdown")
+    ].filter(Boolean);
+    return {
+      productName: field("Product Name"),
+      gpuCurrentTempC: optionalFinite(field("GPU Current Temp")),
+      memoryCurrentTempC: optionalFinite(field("Memory Current Temp")),
+      gpuSlowdownTempC: optionalFinite(field("GPU Slowdown Temp")),
+      gpuShutdownTempC: optionalFinite(field("GPU Shutdown Temp")),
+      gpuMaxOperatingTempC: optionalFinite(field("GPU Max Operating Temp")),
+      memoryMaxOperatingTempC: optionalFinite(field("Memory Max Operating Temp")),
+      powerDrawWatts: optionalFinite(field("Power Draw")),
+      powerLimitWatts: optionalFinite(field("Power Limit")),
+      throttleActive: throttleValues.some((value) => /active|yes/i.test(value) && !/not active|no/i.test(value)),
+      throttleReasons: throttleValues
+    };
+  }).filter((device) => Object.values(device).some((value) => value !== undefined && value !== "" && (!Array.isArray(value) || value.length > 0)));
+  return { devices };
+}
+
+function splitNvidiaSmiQuerySections(text) {
+  const lines = String(text || "").split("\n");
+  const sections = [];
+  let current = [];
+  lines.forEach((line) => {
+    if (/^GPU\s+\d+\s*:/.test(line) && current.length > 0) {
+      sections.push(current.join("\n"));
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  });
+  if (current.length > 0) sections.push(current.join("\n"));
+  return sections.length > 1 ? sections : [String(text || "")];
+}
+
+function nvidiaSmiQueryField(section, label) {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = String(section || "").match(new RegExp(`^\\s*${escaped}\\s*:\\s*(.+?)\\s*$`, "mi"));
+  return match ? match[1].trim() : "";
+}
+
+function qualifyGpuThermal(sample, details = {}, error = "") {
+  const devices = Array.isArray(details.devices) && details.devices.length > 0
+    ? details.devices
+    : (sample.gpus || []).map((gpu) => ({
+      productName: gpu.name || "",
+      gpuCurrentTempC: optionalFinite(gpu.temperatureC),
+      powerDrawWatts: optionalFinite(gpu.powerDrawWatts)
+    }));
+  const currentTemps = devices.map((device) => device.gpuCurrentTempC).filter(Number.isFinite);
+  const memoryTemps = devices.map((device) => device.memoryCurrentTempC).filter(Number.isFinite);
+  const slowdownTemps = devices.map((device) => device.gpuSlowdownTempC).filter(Number.isFinite);
+  const maxOperatingTemps = devices.map((device) => device.gpuMaxOperatingTempC).filter(Number.isFinite);
+  const powerDraws = devices.map((device) => device.powerDrawWatts).filter(Number.isFinite);
+  const powerLimits = devices.map((device) => device.powerLimitWatts).filter(Number.isFinite);
+  const maxTemp = currentTemps.length ? Math.max(...currentTemps) : undefined;
+  const maxMemoryTemp = memoryTemps.length ? Math.max(...memoryTemps) : undefined;
+  const slowdownTemp = slowdownTemps.length ? Math.min(...slowdownTemps) : undefined;
+  const maxOperatingTemp = maxOperatingTemps.length ? Math.min(...maxOperatingTemps) : undefined;
+  const marginToSlowdownC = Number.isFinite(maxTemp) && Number.isFinite(slowdownTemp) ? slowdownTemp - maxTemp : undefined;
+  const marginToMaxOperatingC = Number.isFinite(maxTemp) && Number.isFinite(maxOperatingTemp) ? maxOperatingTemp - maxTemp : undefined;
+  const throttleActive = devices.some((device) => Boolean(device.throttleActive));
+  const hasThresholdEvidence = Number.isFinite(slowdownTemp) || Number.isFinite(maxOperatingTemp);
+  const checks = [
+    qualificationCheck("gpu-temperature", Number.isFinite(maxTemp), Number.isFinite(maxTemp) ? `max GPU ${round(maxTemp, 1)} C` : "GPU temperature unavailable"),
+    qualificationCheck("threshold-evidence", hasThresholdEvidence, hasThresholdEvidence ? "thermal thresholds observed" : "thermal threshold evidence unavailable"),
+    qualificationCheck("thermal-throttle", !throttleActive, throttleActive ? "thermal/performance slowdown active" : "no active slowdown observed"),
+    qualificationCheck("margin-to-slowdown", !Number.isFinite(marginToSlowdownC) || marginToSlowdownC >= 8, Number.isFinite(marginToSlowdownC) ? `${round(marginToSlowdownC, 1)} C to slowdown` : "slowdown margin unavailable"),
+    qualificationCheck("power-limit", powerLimits.length > 0, powerLimits.length > 0 ? `power limit ${round(Math.min(...powerLimits), 1)} W` : "power limit unavailable")
+  ];
+  const hardFail = throttleActive
+    || (Number.isFinite(marginToSlowdownC) && marginToSlowdownC <= 0)
+    || (Number.isFinite(maxTemp) && maxTemp >= 92);
+  const warning = !hardFail && (
+    !hasThresholdEvidence
+    || (Number.isFinite(marginToSlowdownC) && marginToSlowdownC < 8)
+    || (Number.isFinite(maxTemp) && maxTemp >= 82)
+    || Boolean(error)
+  );
+  const status = hardFail ? "fail" : warning ? "warn" : "pass";
+  return {
+    status,
+    source: details.devices?.length ? "nvidia-smi -q" : sample.source || "gpu-sample",
+    benchmarkComparable: status === "pass",
+    requiredForBenchmark: true,
+    throttleActive,
+    maxGpuTemperatureC: roundOptional(maxTemp, 2),
+    maxMemoryTemperatureC: roundOptional(maxMemoryTemp, 2),
+    gpuSlowdownTemperatureC: roundOptional(slowdownTemp, 2),
+    gpuMaxOperatingTemperatureC: roundOptional(maxOperatingTemp, 2),
+    marginToSlowdownC: roundOptional(marginToSlowdownC, 2),
+    marginToMaxOperatingC: roundOptional(marginToMaxOperatingC, 2),
+    maxPowerDrawWatts: roundOptional(powerDraws.length ? Math.max(...powerDraws) : undefined, 2),
+    powerLimitWatts: roundOptional(powerLimits.length ? Math.min(...powerLimits) : undefined, 2),
+    checks,
+    deviceCount: devices.length,
+    summary: thermalQualificationSummary(status, {
+      maxTemp,
+      marginToSlowdownC,
+      throttleActive,
+      hasThresholdEvidence,
+      error
+    }),
+    error
+  };
+}
+
+function qualificationCheck(id, passed, detail) {
+  return { id, passed: Boolean(passed), detail };
+}
+
+function thermalQualificationSummary(status, { maxTemp, marginToSlowdownC, throttleActive, hasThresholdEvidence, error }) {
+  if (status === "pass") return `pass: max GPU ${round(maxTemp, 1)} C with ${round(marginToSlowdownC, 1)} C slowdown margin`;
+  if (throttleActive) return "fail: GPU slowdown/throttle is active";
+  if (error) return `warn: ${error}`;
+  if (!hasThresholdEvidence) return "warn: thermal thresholds unavailable";
+  if (Number.isFinite(marginToSlowdownC)) return `${status}: ${round(marginToSlowdownC, 1)} C slowdown margin`;
+  return `${status}: GPU thermal qualification incomplete`;
+}
+
+function emptyGpuThermalQualification(status, error = "") {
+  return {
+    status,
+    source: "",
+    benchmarkComparable: false,
+    requiredForBenchmark: true,
+    throttleActive: false,
+    checks: [],
+    deviceCount: 0,
+    summary: error || "GPU thermal qualification unavailable",
+    error
   };
 }
 
@@ -489,9 +876,7 @@ function collectGpuFromNvidiaSmi({ includeProcesses = true } = {}) {
     });
   }
 
-  const processesText = includeProcesses
-    ? command("nvidia-smi", nvidiaSmiProcessQueryArgs())
-    : "";
+  const processesText = includeProcesses ? collectNvidiaSmiProcessesText() : "";
   return parseNvidiaSmiGpuQuery(queryResult.stdout, { includeProcesses, processesText });
 }
 
@@ -508,12 +893,12 @@ async function collectGpuFromNvidiaSmiAsync({ includeProcesses = true } = {}) {
   }
 
   const processResult = includeProcesses
-    ? await commandResultAsync("nvidia-smi", nvidiaSmiProcessQueryArgs())
-    : { stdout: "" };
+    ? await collectNvidiaSmiProcessesTextAsync()
+    : "";
 
   return parseNvidiaSmiGpuQuery(queryResult.stdout, {
     includeProcesses,
-    processesText: processResult.stdout || ""
+    processesText: processResult || ""
   });
 }
 
@@ -575,8 +960,12 @@ function parseGpustatJson(text, { includeProcesses }) {
       .map((processEntry) => ({
         pid: Number(processEntry.pid),
         processName: processEntry.command || processEntry.process_name || processEntry.name || "",
+        command: processEntry.command || processEntry.process_name || processEntry.name || "",
         usedMemoryMiB: finite(processEntry.gpu_memory_usage ?? processEntry["gpu_memory_usage"] ?? processEntry.used_memory),
-        username: processEntry.username || ""
+        username: processEntry.username || "",
+        gpuIndex: finite(gpuEntry.index),
+        gpuUuid: String(gpuEntry.uuid || ""),
+        gpuName: String(gpuEntry.name || "")
       }))
       .filter((entry) => Number.isFinite(entry.pid)))
     : [];
@@ -640,11 +1029,19 @@ function parseNvidiaSmiGpuQuery(query, { includeProcesses, processesText }) {
       .map((line) => line.trim())
       .filter(Boolean)
       .map((line) => {
-        const [pid, processName, usedMemoryMiB] = line.split(",").map((item) => item.trim());
+        const parts = line.split(",").map((item) => item.trim());
+        const [gpuUuid, pid, processName, usedMemoryMiB] = parts.length >= 4
+          ? parts
+          : ["", ...parts];
+        const gpu = gpus.find((entry) => entry.uuid === gpuUuid) || {};
         return {
           pid: Number(pid),
           processName,
-          usedMemoryMiB: finite(usedMemoryMiB)
+          command: processName,
+          usedMemoryMiB: finite(usedMemoryMiB),
+          gpuUuid,
+          gpuIndex: finite(gpu.index),
+          gpuName: gpu.name || ""
         };
       })
       .filter((entry) => Number.isFinite(entry.pid))
@@ -674,9 +1071,29 @@ function nvidiaSmiGpuQueryArgs() {
 
 function nvidiaSmiProcessQueryArgs() {
   return [
+    "--query-compute-apps=gpu_uuid,pid,process_name,used_memory",
+    "--format=csv,noheader,nounits"
+  ];
+}
+
+function nvidiaSmiLegacyProcessQueryArgs() {
+  return [
     "--query-compute-apps=pid,process_name,used_memory",
     "--format=csv,noheader,nounits"
   ];
+}
+
+function collectNvidiaSmiProcessesText() {
+  const result = commandResult("nvidia-smi", nvidiaSmiProcessQueryArgs());
+  if (result.status === 0) return result.stdout || "";
+  return command("nvidia-smi", nvidiaSmiLegacyProcessQueryArgs());
+}
+
+async function collectNvidiaSmiProcessesTextAsync() {
+  const result = await commandResultAsync("nvidia-smi", nvidiaSmiProcessQueryArgs());
+  if (result.status === 0) return result.stdout || "";
+  const fallback = await commandResultAsync("nvidia-smi", nvidiaSmiLegacyProcessQueryArgs());
+  return fallback.stdout || "";
 }
 
 function nvidiaSmiUnavailable(result) {
@@ -955,6 +1372,17 @@ function collectHardwareHealth({ host, gpu, docker, services, benchmark }) {
       suggestedAction: "inspect-cooling-power"
     }));
   }
+  if (["fail", "warn"].includes(gpu.thermalQualification?.status)) {
+    faults.push(hardwareFault({
+      id: "gpu-thermal-qualification",
+      category: "gpu",
+      severity: gpu.thermalQualification.status === "fail" ? "critical" : "medium",
+      source: gpu.thermalQualification.source || "gpu-thermal-qualification",
+      count: 1,
+      detail: gpu.thermalQualification.summary || "GPU thermal benchmark qualification needs operator review.",
+      suggestedAction: "inspect-cooling-power"
+    }));
+  }
   if (hostRole !== "pi" && !gpu.present && /nvidia|gpu/i.test(`${gpu.source || ""} ${gpu.error || ""}`)) {
     faults.push(hardwareFault({
       id: "gpu-telemetry-unavailable",
@@ -1109,7 +1537,7 @@ function hardwareSeverityScore(severity) {
 function recommendedHardwareAction(faults) {
   const top = [...faults].sort((left, right) => hardwareSeverityScore(right.severity) - hardwareSeverityScore(left.severity))[0];
   if (!top) return { id: "observe", confidence: 0.5, requiresApproval: false };
-  if (["machine-check", "storage-error", "gpu-xid", "gpu-thermal", "thermal-throttle"].includes(top.id)) {
+  if (["machine-check", "storage-error", "gpu-xid", "gpu-thermal", "gpu-thermal-qualification", "thermal-throttle"].includes(top.id)) {
     return { id: top.suggestedAction, confidence: top.severity === "critical" ? 0.9 : 0.78, requiresApproval: true };
   }
   if (["failed-systemd-units", "gpu-telemetry-unavailable", "clock-sync-not-synchronized"].includes(top.id)) {
@@ -1204,6 +1632,9 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   const runningOllamaModels = ollamaRunningModelNames(services.ollamaRunning);
   const ollamaTelemetry = services.ollamaTelemetry || {};
   const sourceAdapters = machineSourceAdapters(gpu, services, ncclRuntime, benchmark, host.clock);
+  const gpuProcessInspector = gpu.processInspector || buildGpuProcessInspector(gpu, { includeProcesses: !gpu.processesSkipped });
+  const gpuTopology = gpu.topology || emptyGpuTopology("unavailable");
+  const gpuThermalQualification = gpu.thermalQualification || emptyGpuThermalQualification("unavailable");
 
   return {
       metadata: {
@@ -1485,10 +1916,38 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpuSmClockMHz: roundOptional(primaryGpu.gpuSmClockMHz, 2),
             gpuMemoryClockMHz: roundOptional(primaryGpu.gpuMemoryClockMHz, 2),
             gpuComputeProcesses: gpu.processes || [],
+            gpuProcessInspector,
+            gpuProcessInspectorStatus: gpuProcessInspector.status,
+            gpuProcessInspectorSummary: gpuProcessInspector.summary,
+            gpuProcessCount: round(finite(gpuProcessInspector.processCount, 0), 0),
+            gpuProcessMemoryMiB: round(finite(gpuProcessInspector.totalUsedMemoryMiB, 0), 2),
+            gpuProcessOwners: gpuProcessInspector.ownerNames || [],
             gpuComputeProcessQuerySkipped: Boolean(gpu.processesSkipped),
             gpuSampleCached: Boolean(gpu.sampleCached),
             gpuSampleAgeMs: round(finite(gpu.sampleAgeMs, 0), 0),
             gpuPcie: primaryGpu.pcieGen ? `gen${primaryGpu.pcieGen} x${primaryGpu.pcieWidth || "?"}` : "",
+            gpuDiagnosticsCollectedAtMs: round(finite(gpu.diagnosticsCollectedAtMs, 0), 0),
+            gpuDiagnosticsSampleCached: Boolean(gpu.diagnosticsSampleCached),
+            gpuDiagnosticsError: gpu.diagnosticsError || "",
+            gpuThermalQualification,
+            gpuThermalQualificationStatus: gpuThermalQualification.status,
+            gpuThermalQualificationSummary: gpuThermalQualification.summary,
+            gpuThermalQualificationComparable: Boolean(gpuThermalQualification.benchmarkComparable),
+            gpuThermalThrottleActive: Boolean(gpuThermalQualification.throttleActive),
+            gpuThermalMarginToSlowdownC: roundOptional(gpuThermalQualification.marginToSlowdownC, 2),
+            gpuThermalMarginToMaxOperatingC: roundOptional(gpuThermalQualification.marginToMaxOperatingC, 2),
+            gpuMemoryTemperatureC: roundOptional(gpuThermalQualification.maxMemoryTemperatureC, 2),
+            gpuSlowdownTemperatureC: roundOptional(gpuThermalQualification.gpuSlowdownTemperatureC, 2),
+            gpuPowerLimitWatts: roundOptional(gpuThermalQualification.powerLimitWatts, 2),
+            gpuTopology,
+            gpuTopologyStatus: gpuTopology.status,
+            gpuTopologyFingerprint: gpuTopology.fingerprint || "",
+            gpuTopologySummary: gpuTopology.summary || "",
+            gpuTopologyDeviceCount: round(finite(gpuTopology.deviceCount, 0), 0),
+            gpuTopologyPeerLinkCount: round(finite(gpuTopology.peerLinkCount, 0), 0),
+            gpuTopologyNvlinkLinks: round(finite(gpuTopology.nvlinkLinks, 0), 0),
+            gpuTopologyPcieLinks: round(finite(gpuTopology.pcieLinks, 0), 0),
+            gpuTopologyMatrix: gpuTopology.matrix || [],
             gb10Present,
             gb10MonitoringList,
             gb10MonitoringSummary: gb10MonitoringList.map((item) => `${item.label}: ${item.status}`).join("; "),
@@ -1551,6 +2010,9 @@ function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, 
     gb10Present ? "gb10" : null,
     gpu.present && gpu.source === "gpustat" ? "gpustat" : null,
     gpu.present && gpu.source === "nvidia-smi" ? "nvidia-smi" : null,
+    gpu.processInspector?.status && gpu.processInspector.status !== "unavailable" ? "gpu-process-inspector" : null,
+    gpu.thermalQualification?.status && !["disabled", "unavailable"].includes(gpu.thermalQualification.status) ? "gpu-thermal-qualification" : null,
+    gpu.topology?.status === "observed" ? "gpu-topology" : null,
     !gpu.present && /nvidia-smi-unavailable|gpustat-unavailable|gpu-telemetry-unavailable/.test(gpu.source || "") ? "gpu-telemetry-unavailable" : null,
     hostCounters,
     gb10Present ? "linux-uma-memory" : null,
@@ -2517,7 +2979,23 @@ function cloneGpuSample(gpu) {
   return {
     ...gpu,
     gpus: (gpu.gpus || []).map((entry) => ({ ...entry })),
-    processes: (gpu.processes || []).map((entry) => ({ ...entry }))
+    processes: (gpu.processes || []).map((entry) => ({ ...entry })),
+    processInspector: gpu.processInspector ? {
+      ...gpu.processInspector,
+      ownerNames: [...(gpu.processInspector.ownerNames || [])],
+      byGpu: (gpu.processInspector.byGpu || []).map((entry) => ({ ...entry })),
+      topProcesses: (gpu.processInspector.topProcesses || []).map((entry) => ({ ...entry })),
+      largestProcess: gpu.processInspector.largestProcess ? { ...gpu.processInspector.largestProcess } : null
+    } : undefined,
+    topology: gpu.topology ? {
+      ...gpu.topology,
+      linkCounts: { ...(gpu.topology.linkCounts || {}) },
+      matrix: (gpu.topology.matrix || []).map((entry) => ({ ...entry, links: { ...(entry.links || {}) } }))
+    } : undefined,
+    thermalQualification: gpu.thermalQualification ? {
+      ...gpu.thermalQualification,
+      checks: (gpu.thermalQualification.checks || []).map((entry) => ({ ...entry }))
+    } : undefined
   };
 }
 
@@ -2555,6 +3033,24 @@ function firstFiniteNumber(...values) {
     if (Number.isFinite(parsed)) return parsed;
   }
   return undefined;
+}
+
+function groupBy(values, keyFn) {
+  const map = new Map();
+  (values || []).forEach((value) => {
+    const key = keyFn(value);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(value);
+  });
+  return map;
+}
+
+function stableLocalHash(value) {
+  return crypto
+    .createHash("sha256")
+    .update(String(value || ""))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 function optionalFinite(value) {

@@ -889,7 +889,31 @@ function redactSourceContext(context, plan) {
     redfishChassis: redactValueList(plan.redfishChassis, context.redfishChassis, "redfish-chassis"),
     redfishManagers: redactValueList(plan.redfishManagers, context.redfishManagers, "redfish-manager"),
     redfishFirmwareInventory: redactValueList(plan.redfishFirmwareInventory, context.redfishFirmwareInventory, "redfish-firmware"),
-    redfishWarnings: Array.isArray(context.redfishWarnings) ? context.redfishWarnings.map((_warning, index) => `redfish-warning-${index + 1}`) : undefined
+    redfishWarnings: Array.isArray(context.redfishWarnings) ? context.redfishWarnings.map((_warning, index) => `redfish-warning-${index + 1}`) : undefined,
+    gpuComputeProcesses: redactGpuProcesses(context.gpuComputeProcesses, plan),
+    gpuProcessOwners: redactValueList(plan.gpuProcessUsers, context.gpuProcessOwners, "gpu-user"),
+    gpuProcessInspector: redactGpuProcessInspector(context.gpuProcessInspector, plan)
+  });
+}
+
+function redactGpuProcesses(processes, plan) {
+  return Array.isArray(processes)
+    ? processes.map((processEntry) => compactObject({
+      ...processEntry,
+      username: mappedValue(plan.gpuProcessUsers, processEntry?.username, "gpu-user"),
+      processName: mappedValue(plan.gpuProcessCommands, processEntry?.processName, "gpu-process"),
+      command: mappedValue(plan.gpuProcessCommands, processEntry?.command, "gpu-process")
+    }))
+    : undefined;
+}
+
+function redactGpuProcessInspector(inspector, plan) {
+  if (!isPlainObject(inspector)) return undefined;
+  return compactObject({
+    ...inspector,
+    ownerNames: redactValueList(plan.gpuProcessUsers, inspector.ownerNames, "gpu-user"),
+    topProcesses: redactGpuProcesses(inspector.topProcesses, plan),
+    largestProcess: redactGpuProcesses(inspector.largestProcess ? [inspector.largestProcess] : [], plan)?.[0] || null
   });
 }
 
@@ -1201,9 +1225,33 @@ function machineDemoContext(summary) {
     gpuSmClockMHz: optionalMetric(context, "gpuSmClockMHz"),
     gpuMemoryClockMHz: optionalMetric(context, "gpuMemoryClockMHz"),
     gpuProcesses: Array.isArray(context.gpuComputeProcesses) ? context.gpuComputeProcesses : [],
+    gpuProcessInspector: isPlainObject(context.gpuProcessInspector) ? context.gpuProcessInspector : {},
+    gpuProcessInspectorStatus: String(context.gpuProcessInspectorStatus || context.gpuProcessInspector?.status || ""),
+    gpuProcessInspectorSummary: String(context.gpuProcessInspectorSummary || context.gpuProcessInspector?.summary || ""),
+    gpuProcessCount: optionalMetric(context, "gpuProcessCount"),
+    gpuProcessMemoryMiB: optionalMetric(context, "gpuProcessMemoryMiB"),
+    gpuProcessOwners: Array.isArray(context.gpuProcessOwners) ? context.gpuProcessOwners : [],
     gpuProcessQuerySkipped: Boolean(context.gpuComputeProcessQuerySkipped),
     gpuSampleCached: Boolean(context.gpuSampleCached),
     gpuSampleAgeMs: numeric(context.gpuSampleAgeMs),
+    gpuDiagnosticsSampleCached: Boolean(context.gpuDiagnosticsSampleCached),
+    gpuThermalQualification: isPlainObject(context.gpuThermalQualification) ? context.gpuThermalQualification : {},
+    gpuThermalQualificationStatus: String(context.gpuThermalQualificationStatus || context.gpuThermalQualification?.status || ""),
+    gpuThermalQualificationSummary: String(context.gpuThermalQualificationSummary || context.gpuThermalQualification?.summary || ""),
+    gpuThermalQualificationComparable: Boolean(context.gpuThermalQualificationComparable),
+    gpuThermalThrottleActive: Boolean(context.gpuThermalThrottleActive),
+    gpuThermalMarginToSlowdownC: optionalMetric(context, "gpuThermalMarginToSlowdownC"),
+    gpuThermalMarginToMaxOperatingC: optionalMetric(context, "gpuThermalMarginToMaxOperatingC"),
+    gpuMemoryTemperatureC: optionalMetric(context, "gpuMemoryTemperatureC"),
+    gpuPowerLimitWatts: optionalMetric(context, "gpuPowerLimitWatts"),
+    gpuTopology: isPlainObject(context.gpuTopology) ? context.gpuTopology : {},
+    gpuTopologyStatus: String(context.gpuTopologyStatus || context.gpuTopology?.status || ""),
+    gpuTopologyFingerprint: String(context.gpuTopologyFingerprint || context.gpuTopology?.fingerprint || ""),
+    gpuTopologySummary: String(context.gpuTopologySummary || context.gpuTopology?.summary || ""),
+    gpuTopologyDeviceCount: optionalMetric(context, "gpuTopologyDeviceCount"),
+    gpuTopologyPeerLinkCount: optionalMetric(context, "gpuTopologyPeerLinkCount"),
+    gpuTopologyNvlinkLinks: optionalMetric(context, "gpuTopologyNvlinkLinks"),
+    gpuTopologyPcieLinks: optionalMetric(context, "gpuTopologyPcieLinks"),
     cpuUsagePct: numeric(context.cpuUsagePct),
     cpuTemperatureC: optionalMetric(context, "cpuTemperatureC"),
     memoryUsedPct: numeric(context.memoryUsedPct),

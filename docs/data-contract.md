@@ -279,9 +279,19 @@ Prefer summary values by `runId`, pod, container, or cgroup. Do not import raw e
 
 Live machine bundles may also include `sourceContext.networkInterface`, `networkLinkSpeedMbps`, `networkRxBytes`, `networkTxBytes`, `networkRxBytesPerSecond`, `networkTxBytesPerSecond`, `networkUtilizationPct`, `networkRxDrops`, `networkTxDrops`, `networkRxErrors`, and `networkTxErrors`. Byte counters are cumulative; bytes-per-second and utilization are only present after the collector has two samples for the same interface.
 
+GPU diagnostics from the local collector are grouped under:
+
+- `gpuProcessInspector`, `gpuProcessInspectorStatus`, `gpuProcessInspectorSummary`, `gpuProcessCount`, `gpuProcessMemoryMiB`, and `gpuProcessOwners` for process-level attribution from `gpustat --json`, `nvidia-smi --query-compute-apps`, and local `ps` enrichment.
+- `gpuThermalQualification`, `gpuThermalQualificationStatus`, `gpuThermalQualificationComparable`, `gpuThermalMarginToSlowdownC`, `gpuThermalMarginToMaxOperatingC`, `gpuThermalThrottleActive`, `gpuPowerLimitWatts`, and `gpuMemoryTemperatureC` for benchmark gating from `nvidia-smi -q -d TEMPERATURE,PERFORMANCE,POWER` plus observed GPU samples.
+- `gpuTopology`, `gpuTopologyStatus`, `gpuTopologyFingerprint`, `gpuTopologySummary`, `gpuTopologyDeviceCount`, `gpuTopologyPeerLinkCount`, `gpuTopologyNvlinkLinks`, `gpuTopologyPcieLinks`, and `gpuTopologyMatrix` for `nvidia-smi topo -m` evidence.
+
+Use `node scripts/turbalance-gpu-top.js --bundle live-machine-bundle.json` for a terminal view of the same diagnostics. In notebooks, import `notebooks/turbalance_gpu_monitor.py` and call `display_gpu_monitor("live-machine-bundle.json")` for a read-only Jupyter table.
+
 ## OCP Benchmark Commons Export
 
 Benchmark Ladder L6 uses an OCP Benchmark Commons boundary. Local machine bundles can carry optional corpus metadata in `sourceContext.benchmarkOcpCommonsDataset`, `benchmarkOcpCommonsPeerCount`, `benchmarkOcpCommonsPercentile`, `benchmarkOcpCommonsScore`, `benchmarkOcpCommonsHardwareClass`, `benchmarkOcpCommonsConfigHash`, `benchmarkOcpCommonsBinning`, `benchmarkOcpCommonsUrl`, and `benchmarkOcpCommonsPolicy`.
+
+The OCP export includes a `qualification` block derived from thermal, topology, power, process-attribution, and RAS context. Records with `qualification.status = "qualified"` are suitable for apples-to-apples member comparison; `needs-review` records should stay visible but should not be used for binning without operator review.
 
 Use `scripts/export-ocp-benchmark-commons.js` to convert a validated source bundle into a redacted `turba.ocp_benchmark_commons.v1` payload. The exporter hashes member, host, and run identity with a caller-provided salt and excludes hostnames, IP addresses, tenant IDs, account IDs, and billing account IDs. The schema lives in `schemas/turba-ocp-benchmark-commons.v1.schema.json`; an example payload lives in `fixtures/ocp-benchmark-commons.example.json`.
 

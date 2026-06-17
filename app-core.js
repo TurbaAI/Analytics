@@ -2926,6 +2926,7 @@ function benchmarkOcpCommonsProfile(target, metrics) {
     context.benchmarkOcpCommonsConfigHash,
     benchmarkOcpConfigFingerprint(target)
   ]);
+  const qualification = benchmarkOcpQualificationProfile(target, context);
 
   return {
     available: hasImportedScore || available.length > 0,
@@ -2940,13 +2941,15 @@ function benchmarkOcpCommonsProfile(target, metrics) {
     configHash,
     binning: firstString([target.benchmarkOcpCommonsBinning, context.benchmarkOcpCommonsBinning]) || (hasImportedScore ? "reported bin" : "pending corpus bin"),
     policy: firstString([target.benchmarkOcpCommonsPolicy, context.benchmarkOcpCommonsPolicy]) || "aggregate-anonymized",
+    qualification,
     metricCount: available.length,
     measuredMetricCount: measured.length,
     record: benchmarkOcpCommonsRecord(target, metrics, {
       dataset,
       hardwareClass,
       configHash,
-      policy: firstString([target.benchmarkOcpCommonsPolicy, context.benchmarkOcpCommonsPolicy]) || "aggregate-anonymized"
+      policy: firstString([target.benchmarkOcpCommonsPolicy, context.benchmarkOcpCommonsPolicy]) || "aggregate-anonymized",
+      qualification
     })
   };
 }
@@ -2955,9 +2958,57 @@ function benchmarkOcpCommonsLevelDetail(commons) {
   const peerText = Number.isFinite(commons.peerCount) && commons.peerCount > 0
     ? `${round(commons.peerCount)} peer records`
     : "";
-  return [peerText, commons.binning, commons.url ? "external result linked" : "member corpus imported"]
+  const qualificationText = commons.qualification?.status
+    ? `qualification ${commons.qualification.status}`
+    : "";
+  return [peerText, commons.binning, qualificationText, commons.url ? "external result linked" : "member corpus imported"]
     .filter(Boolean)
     .join(" | ");
+}
+
+function benchmarkOcpQualificationProfile(target, context = {}) {
+  const thermalStatus = firstString([
+    target.gpuThermalQualificationStatus,
+    context.gpuThermalQualificationStatus,
+    context.gpuThermalQualification?.status
+  ]) || "unknown";
+  const topologyStatus = firstString([
+    target.gpuTopologyStatus,
+    context.gpuTopologyStatus,
+    context.gpuTopology?.status
+  ]) || "unknown";
+  const processStatus = firstString([
+    target.gpuProcessInspectorStatus,
+    context.gpuProcessInspectorStatus,
+    context.gpuProcessInspector?.status
+  ]) || "unknown";
+  const thermalComparable = Boolean(
+    target.gpuThermalQualificationComparable
+    || context.gpuThermalQualificationComparable
+    || context.gpuThermalQualification?.benchmarkComparable
+  );
+  const topologyObserved = topologyStatus === "observed";
+  const processObserved = processStatus === "observed" || processStatus === "empty";
+  const comparable = !target.gpuPresent || (thermalComparable && topologyObserved && processObserved);
+  return {
+    comparable,
+    status: comparable ? "qualified" : "needs-review",
+    thermalStatus,
+    thermalSummary: firstString([context.gpuThermalQualificationSummary, context.gpuThermalQualification?.summary]) || "",
+    topologyStatus,
+    topologyFingerprint: firstString([context.gpuTopologyFingerprint, context.gpuTopology?.fingerprint]) || "",
+    topologySummary: firstString([context.gpuTopologySummary, context.gpuTopology?.summary]) || "",
+    processInspectorStatus: processStatus,
+    processCount: firstFinite(target.gpuProcessCount, context.gpuProcessCount),
+    processMemoryMiB: firstFinite(target.gpuProcessMemoryMiB, context.gpuProcessMemoryMiB),
+    requiredEvidence: {
+      thermal: thermalStatus !== "unknown" && thermalStatus !== "unavailable",
+      topology: topologyObserved,
+      processAttribution: processObserved,
+      power: Number.isFinite(firstFinite(target.gpuPowerWatts, context.gpuPowerWatts)),
+      ras: Number.isFinite(firstFinite(context.hardwareGpuXidCount, target.hardwareGpuXidCount))
+    }
+  };
 }
 
 function benchmarkOcpHardwareClass(target) {
@@ -3001,6 +3052,7 @@ function benchmarkOcpCommonsRecord(target, metrics, profile) {
       gpuPresent: Boolean(target.gpuPresent)
     },
     metrics: benchmarkOcpCommonsMetricPayload(metrics),
+    qualification: profile.qualification || benchmarkOcpQualificationProfile(target, context),
     policy: {
       visibility: profile.policy || "aggregate-anonymized",
       containsHostIdentity: false,
@@ -4277,6 +4329,7 @@ function benchmarkOcpCommonsPanel(profile = {}) {
     head,
     benchmarkOcpCommonsItem("Corpus", profile.dataset || "proposed OCP corpus", Number.isFinite(profile.peerCount) ? `${round(profile.peerCount)} peer records` : "member aggregate"),
     benchmarkOcpCommonsItem("Hardware", profile.hardwareClass || "unclassified hardware", profile.configHash || "fingerprint pending"),
+    benchmarkOcpCommonsItem("Qualification", profile.qualification?.status || "needs-review", profile.qualification?.thermalSummary || profile.qualification?.topologySummary || "thermal, topology, and process evidence gate"),
     benchmarkOcpCommonsItem("Binning", profile.binning || "pending corpus bin", `${profile.measuredMetricCount || 0}/${profile.metricCount || 0} measured metrics`),
     benchmarkOcpCommonsItem("Policy", profile.policy || "aggregate-anonymized", "no host identity in export record")
   );

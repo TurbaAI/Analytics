@@ -74,7 +74,20 @@ const store = {
           grafanaInstance: "secret-grafana-instance",
           grafanaDashboardUid: "secret-dashboard-uid",
           grafanaDatasourceUid: "secret-datasource-uid",
-          grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
+          grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run",
+          gpuProcessOwners: ["secret-gpu-user"],
+          gpuComputeProcesses: [
+            { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+          ],
+          gpuProcessInspector: {
+            status: "observed",
+            processCount: 1,
+            ownerNames: ["secret-gpu-user"],
+            topProcesses: [
+              { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+            ],
+            largestProcess: { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+          }
         },
         grafanaContext: {
           grafanaBaseUrl: "https://secret-grafana.example",
@@ -103,6 +116,11 @@ const store = {
 };
 
 const plan = context.buildRedactionPlan(store);
+const redactedGpuContext = context.redactSourceContext(store.ingestion.runs[0].sourceContext, plan);
+assert.equal(redactedGpuContext.gpuProcessOwners[0], "gpu-user-1");
+assert.equal(redactedGpuContext.gpuComputeProcesses[0].username, "gpu-user-1");
+assert.equal(redactedGpuContext.gpuComputeProcesses[0].processName, "gpu-process-1");
+assert.equal(redactedGpuContext.gpuProcessInspector.topProcesses[0].command, "gpu-process-2");
 const markdown = context.buildEvidencePackMarkdown({
   summary: {
     scope: "job",
@@ -141,7 +159,20 @@ const markdown = context.buildEvidencePackMarkdown({
             grafanaInstance: "secret-grafana-instance",
             grafanaDashboardUid: "secret-dashboard-uid",
             grafanaDatasourceUid: "secret-datasource-uid",
-            grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run"
+            grafanaDashboardUrl: "https://secret-grafana.example/d/secret-dashboard-uid/secret-run?var-run=secret-run",
+            gpuProcessOwners: ["secret-gpu-user"],
+            gpuComputeProcesses: [
+              { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+            ],
+            gpuProcessInspector: {
+              status: "observed",
+              processCount: 1,
+              ownerNames: ["secret-gpu-user"],
+              topProcesses: [
+                { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+              ],
+              largestProcess: { pid: 4242, username: "secret-gpu-user", processName: "secret-python", command: "secret-python train.py", usedMemoryMiB: 1024 }
+            }
           }
         },
         grafanaContext: {
@@ -233,6 +264,7 @@ assert.ok(markdown.includes("scheduler-export-1"));
 assert.ok(markdown.includes("queue-1"));
 assert.ok(markdown.includes("grafana-base-1"));
 assert.ok(markdown.includes("grafana-dashboard-1"));
+assert.ok(markdown.includes("gpu-user-1"));
 
 [
   "secret-run",
@@ -254,7 +286,9 @@ assert.ok(markdown.includes("grafana-dashboard-1"));
   "secret-dashboard-uid",
   "Secret Dashboard",
   "secret-datasource-uid",
-  "Secret Prometheus"
+  "Secret Prometheus",
+  "secret-gpu-user",
+  "secret-python"
 ].forEach((secret) => {
   assert.ok(!markdown.includes(secret), `${secret} should not appear in evidence pack`);
 });

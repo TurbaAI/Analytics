@@ -1193,6 +1193,17 @@ function buildRedactionPlan(store) {
     podNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.podName), "pod"),
     containerNames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.containerName), "container"),
     cgroupPaths: buildValueMap(sourceRuns.map((run) => run.sourceContext?.cgroupPath), "cgroup"),
+    gpuProcessUsers: buildValueMap(flattenRunValues(sourceRuns, (run) => [
+      ...(run.sourceContext?.gpuProcessOwners || []),
+      ...((run.sourceContext?.gpuComputeProcesses || []).map((processEntry) => processEntry?.username)),
+      ...((run.sourceContext?.gpuProcessInspector?.topProcesses || []).map((processEntry) => processEntry?.username)),
+      run.sourceContext?.gpuProcessInspector?.largestProcess?.username
+    ]), "gpu-user"),
+    gpuProcessCommands: buildValueMap(flattenRunValues(sourceRuns, (run) => [
+      ...((run.sourceContext?.gpuComputeProcesses || []).flatMap((processEntry) => [processEntry?.processName, processEntry?.command])),
+      ...((run.sourceContext?.gpuProcessInspector?.topProcesses || []).flatMap((processEntry) => [processEntry?.processName, processEntry?.command])),
+      run.sourceContext?.gpuProcessInspector?.largestProcess?.processName
+    ]), "gpu-process"),
     providerExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.providerExportId), "provider-export"),
     billingAccounts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.billingAccountId), "billing-account"),
     reservationWindows: buildValueMap(sourceRuns.map((run) => run.sourceContext?.reservationWindow), "reservation-window"),

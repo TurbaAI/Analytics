@@ -85,8 +85,12 @@ function ocpBenchmarkRecord(run, options) {
       gpuModel: context.gpuName || "",
       gpuPresent: Boolean(context.gpuPresent || context.gpuName),
       gpuMemoryMiB: finiteOrUndefined(context.gpuMemoryTotalMiB),
-      networkLinkSpeedMbps: finiteOrUndefined(context.networkLinkSpeedMbps)
+      networkLinkSpeedMbps: finiteOrUndefined(context.networkLinkSpeedMbps),
+      gpuPcie: context.gpuPcie || "",
+      topologyFingerprint: context.gpuTopologyFingerprint || "",
+      topologySummary: context.gpuTopologySummary || ""
     },
+    qualification: benchmarkQualification(context),
     corpusComparison: {
       peerCount: finiteOrUndefined(context.benchmarkOcpCommonsPeerCount),
       percentile: finiteOrUndefined(context.benchmarkOcpCommonsPercentile),
@@ -100,6 +104,47 @@ function ocpBenchmarkRecord(run, options) {
       sourceAdapters: Array.isArray(run.importedSources) ? run.importedSources : [],
       dataBoundary: "member-submitted benchmark evidence"
     }
+  };
+}
+
+function benchmarkQualification(context) {
+  const thermalStatus = context.gpuThermalQualificationStatus || context.gpuThermalQualification?.status || "";
+  const topologyStatus = context.gpuTopologyStatus || context.gpuTopology?.status || "";
+  const processStatus = context.gpuProcessInspectorStatus || context.gpuProcessInspector?.status || "";
+  const thermalComparable = context.gpuThermalQualificationComparable === true
+    || context.gpuThermalQualification?.benchmarkComparable === true;
+  const requiredEvidence = {
+    thermal: Boolean(thermalStatus && thermalStatus !== "unavailable" && thermalStatus !== "disabled"),
+    topology: Boolean(topologyStatus && topologyStatus !== "unavailable" && topologyStatus !== "disabled"),
+    processAttribution: Boolean(processStatus && processStatus !== "unavailable" && processStatus !== "skipped"),
+    power: Number.isFinite(finiteOrUndefined(context.gpuPowerWatts)),
+    ras: Number.isFinite(finiteOrUndefined(context.hardwareGpuXidCount)) || Array.isArray(context.hardwareFaults)
+  };
+  const comparable = thermalComparable
+    && requiredEvidence.topology
+    && requiredEvidence.power
+    && !Boolean(context.hardwareThermalThrottleActive)
+    && String(context.hardwareFaultLevel || "").toLowerCase() !== "critical";
+
+  return {
+    comparable,
+    status: comparable ? "qualified" : "needs-review",
+    thermalStatus,
+    thermalSummary: context.gpuThermalQualificationSummary || context.gpuThermalQualification?.summary || "",
+    thermalMarginToSlowdownC: finiteOrUndefined(context.gpuThermalMarginToSlowdownC),
+    thermalMarginToMaxOperatingC: finiteOrUndefined(context.gpuThermalMarginToMaxOperatingC),
+    thermalThrottleActive: Boolean(context.gpuThermalThrottleActive || context.hardwareThermalThrottleActive),
+    powerLimitWatts: finiteOrUndefined(context.gpuPowerLimitWatts),
+    topologyStatus,
+    topologyFingerprint: context.gpuTopologyFingerprint || context.gpuTopology?.fingerprint || "",
+    topologySummary: context.gpuTopologySummary || context.gpuTopology?.summary || "",
+    topologyPeerLinkCount: finiteOrUndefined(context.gpuTopologyPeerLinkCount),
+    topologyNvlinkLinks: finiteOrUndefined(context.gpuTopologyNvlinkLinks),
+    topologyPcieLinks: finiteOrUndefined(context.gpuTopologyPcieLinks),
+    processInspectorStatus: processStatus,
+    processCount: finiteOrUndefined(context.gpuProcessCount),
+    processMemoryMiB: finiteOrUndefined(context.gpuProcessMemoryMiB),
+    requiredEvidence
   };
 }
 

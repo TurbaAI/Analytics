@@ -35,7 +35,36 @@
         "gpuModel": "NVIDIA GB10",
         "gpuPresent": true,
         "gpuMemoryMiB": 131072,
-        "networkLinkSpeedMbps": 10000
+        "networkLinkSpeedMbps": 10000,
+        "gpuPcie": "gen5 x16",
+        "topologyFingerprint": "43d4beef1b4e48c4267b551c",
+        "topologySummary": "1 GPU, 0 NVLink peer links, 0 PCIe/host peer links"
+      },
+      "qualification": {
+        "comparable": true,
+        "status": "qualified",
+        "thermalStatus": "pass",
+        "thermalSummary": "pass: max GPU 47 C with 40 C slowdown margin",
+        "thermalMarginToSlowdownC": 40,
+        "thermalMarginToMaxOperatingC": 36,
+        "thermalThrottleActive": false,
+        "powerLimitWatts": 80,
+        "topologyStatus": "observed",
+        "topologyFingerprint": "43d4beef1b4e48c4267b551c",
+        "topologySummary": "1 GPU, 0 NVLink peer links, 0 PCIe/host peer links",
+        "topologyPeerLinkCount": 0,
+        "topologyNvlinkLinks": 0,
+        "topologyPcieLinks": 0,
+        "processInspectorStatus": "observed",
+        "processCount": 1,
+        "processMemoryMiB": 256,
+        "requiredEvidence": {
+          "thermal": true,
+          "topology": true,
+          "processAttribution": true,
+          "power": true,
+          "ras": true
+        }
       },
       "corpusComparison": {
         "peerCount": 128,

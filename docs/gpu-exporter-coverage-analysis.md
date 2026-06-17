@@ -19,6 +19,8 @@ AMD Device Metrics Exporter is the cross-vendor unlock. It exposes Prometheus-fo
 - The execution-idle detector now accepts AMD DME fields alongside NVIDIA/DCGM/NVML fields. AMD PCIe bandwidth is converted from Mbps to bytes/s, and AMD bidirectional PCIe GB/s is converted to bytes/s.
 - `fixtures/prometheus-collector-queries.json` and the Prometheus exporter defaults now include normalized cross-vendor query recipes for GPU power, activity, memory, temperature, interconnect throughput, ECC errors, and clocks.
 - `metrics/gpu-exporter-cross-vendor-map.json` defines the shared ontology and comparison gates so future collectors, dashboards, benchmark ladders, and support bundles use the same field families.
+- Lambda-style operator diagnostics are now productized as `gpuProcessInspector`, `gpuThermalQualification`, and `gpuTopology` source-context fields, plus the `scripts/turbalance-gpu-top.js` terminal view and `notebooks/turbalance_gpu_monitor.py` Jupyter helper.
+- Benchmark Ladder L6 and `scripts/export-ocp-benchmark-commons.js` now carry a `qualification` block so OCP member comparisons can gate on thermal, topology, power, process-attribution, and RAS evidence before using a record for binning.
 
 ## Product Ideas To Build Next
 
