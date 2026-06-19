@@ -389,6 +389,109 @@ raise SystemExit(turbatop.run_live(args, client))
         raise AssertionError(f"report G hotkey smoke exited {proc.returncode}")
 
 
+def assert_api_client_prefers_live_bundle_fast() -> None:
+    api_hits: list[str] = []
+    bundle_payload = json.loads((ROOT / "fixtures" / "turbatop-live-bundle.json").read_text())
+
+    class SlowApiHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            api_hits.append(self.path)
+            time.sleep(1.5)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *_args: object) -> None:
+            return
+
+    class BundleHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            body = json.dumps(bundle_payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return
+
+    api_server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), SlowApiHandler)
+    bundle_server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), BundleHandler)
+    api_thread = threading.Thread(target=api_server.serve_forever, daemon=True)
+    bundle_thread = threading.Thread(target=bundle_server.serve_forever, daemon=True)
+    api_thread.start()
+    bundle_thread.start()
+    try:
+        client = turbatop.ApiClient(
+            f"http://127.0.0.1:{api_server.server_port}",
+            timeout=0.4,
+            bundle_url=f"http://127.0.0.1:{bundle_server.server_port}/bundle.json",
+            prefer_bundle=True,
+        )
+        started = time.perf_counter()
+        payload, errors = client.fetch("tenant")
+        elapsed = time.perf_counter() - started
+    finally:
+        api_server.shutdown()
+        bundle_server.shutdown()
+        api_server.server_close()
+        bundle_server.server_close()
+        api_thread.join(timeout=2)
+        bundle_thread.join(timeout=2)
+    if errors:
+        raise AssertionError(f"bundle-first fetch should not report errors: {errors}")
+    if elapsed > 0.8:
+        raise AssertionError(f"bundle-first fetch waited too long: {elapsed:.3f}s")
+    if api_hits:
+        raise AssertionError(f"bundle-first fetch should not call slow API endpoints: {api_hits}")
+    frame = turbatop.normalize_payload(payload, errors, api_url="fixture")
+    host_ids = [host.host_id for host in frame.hosts]
+    assert_equal(host_ids, ["SPARK1", "pi1"], "bundle-first fetch should render live bundle hosts")
+    if not any("fast path" in notice for notice in payload.get("notices", [])):
+        raise AssertionError("bundle-first fetch should label the fast path in notices")
+
+
+def assert_bundle_http_cache_uses_conditional_get() -> None:
+    requests: list[str] = []
+    last_modified = "Fri, 19 Jun 2026 13:30:00 GMT"
+    bundle_payload = json.loads((ROOT / "fixtures" / "turbatop-live-bundle.json").read_text())
+
+    class CacheHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            requests.append(self.headers.get("If-Modified-Since", ""))
+            if self.headers.get("If-Modified-Since") == last_modified:
+                self.send_response(304)
+                self.end_headers()
+                return
+            body = json.dumps(bundle_payload).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Last-Modified", last_modified)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args: object) -> None:
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CacheHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        client = turbatop.ApiClient("http://127.0.0.1:9", timeout=0.5)
+        url = f"http://127.0.0.1:{server.server_port}/bundle.json"
+        first = client.get_url_json(url)
+        second = client.get_url_json(url)
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+    assert_equal(first, second, "304 bundle cache should return the cached JSON payload")
+    assert_equal(requests, ["", last_modified], "second bundle request should use If-Modified-Since")
+
+
 def main() -> None:
     assert_equal(turbatop.sparkline([], 4), "▕    ▏", "empty sparkline")
     assert_equal(turbatop.sparkline([7], 4), "▕▁▁▁▁▏", "single-value sparkline")
@@ -402,6 +505,8 @@ def main() -> None:
         "http://192.168.10.30:8000/build/demo/live-machine-bundle.json",
         "API URL should derive the same-appliance bundle fallback",
     )
+    assert_api_client_prefers_live_bundle_fast()
+    assert_bundle_http_cache_uses_conditional_get()
     with tempfile.TemporaryDirectory() as temp_dir:
         token_file = pathlib.Path(temp_dir) / "api-viewer-token"
         token_file.write_text("viewer-from-file\n")

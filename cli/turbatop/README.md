@@ -8,8 +8,8 @@ The backlog recommends Go + Bubbletea for a single static binary, with Python as
 
 The client remains a thin renderer:
 
-- It reads the configured product API first.
-- If the API has no host rows, it can fall back to the same appliance's `build/demo/live-machine-bundle.json`.
+- It reads the same appliance's `build/demo/live-machine-bundle.json` first for snappy live SSH sessions.
+- If `--api-first` is set, it queries the configured product API before using the bundle fallback.
 - It keeps the last frame interactive while API refreshes run in a background worker.
 - It naturally orders fleet hosts, scrolls long host lists, and can sort by pressure, GPU, CPU, RAM, network, or status.
 - It has six operator pages: overview, expanded hosts, signal center, ops/session context, machine L1-L6 comparison, and customer report.
@@ -31,10 +31,14 @@ python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --page host
 python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --page compare
 python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --page report --llm-url http://localhost:11434/v1 --llm-model llama3.1
 python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --bundle-url http://192.168.10.30:8000/build/demo/live-machine-bundle.json
+python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --api-first
+python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --refresh 1 --timeout 0.8
 python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --snapshot-file /tmp/turbatop-frame.txt
 python3 cli/turbatop/turbatop.py --api-url http://192.168.10.30:8080 --no-mouse
 python3 cli/turbatop/turbatop.py --once --fixture fixtures/turbatop-api.json --no-color
 ```
+
+By default, live appliance sessions render from the same `build/demo/live-machine-bundle.json` path as the browser dashboard before touching the API. Use `--api-first` when you want the richer API merge and can tolerate slower endpoint fan-out.
 
 Build the zipapp:
 

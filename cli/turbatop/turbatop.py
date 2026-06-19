@@ -133,6 +133,13 @@ class LayoutState:
     status_y: int
 
 
+@dataclass
+class UrlJsonCacheEntry:
+    payload: Any
+    etag: str = ""
+    last_modified: str = ""
+
+
 class ApiClient:
     def __init__(
         self,
@@ -141,17 +148,25 @@ class ApiClient:
         insecure: bool = False,
         timeout: float = 4.0,
         bundle_url: str = "",
+        prefer_bundle: bool = True,
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.token = token
         self.timeout = timeout
         self.context = ssl._create_unverified_context() if insecure else None
         self.bundle_url = bundle_url
+        self.prefer_bundle = prefer_bundle
+        self._url_json_cache: dict[str, UrlJsonCacheEntry] = {}
 
     def fetch(self, scope: str = "tenant") -> tuple[dict[str, Any], list[str]]:
         payload: dict[str, Any] = {}
         errors: list[str] = []
         notices: list[str] = []
+
+        if self.bundle_url and self.prefer_bundle:
+            bundle_payload = self.fetch_bundle_payload(scope, notices, "showing live bundle fast path")
+            if bundle_payload is not None:
+                return bundle_payload, []
 
         def get_optional(name: str, path: str, *, required: bool = False) -> Any:
             try:
@@ -180,7 +195,7 @@ class ApiClient:
         payload["resources"] = resources
         payload["scope"] = scope
         api_host_ids = normalize_host_ids(payload.get("hosts"))
-        if self.bundle_url:
+        if self.bundle_url and not self.prefer_bundle:
             try:
                 fallback = payload_from_source_bundle(self.get_url_json(self.bundle_url), self.bundle_url)
                 if not api_host_ids and normalize_host_ids(fallback.get("hosts")):
@@ -205,6 +220,23 @@ class ApiClient:
         payload["notices"] = notices
         return payload, errors
 
+    def fetch_bundle_payload(self, scope: str, notices: list[str], label: str) -> dict[str, Any] | None:
+        try:
+            fallback = payload_from_source_bundle(self.get_url_json(self.bundle_url), self.bundle_url)
+        except Exception as exc:
+            notices.append(f"bundle: {compact_error(exc)}")
+            return None
+        if not normalize_host_ids(fallback.get("hosts")):
+            notices.append(f"bundle: no host rows in {url_label(self.bundle_url)}")
+            return None
+        fallback["scope"] = scope
+        fallback["notices"] = dedupe([
+            f"{label}: {url_label(self.bundle_url)}",
+            *[str(item) for item in fallback.get("notices", []) if item],
+            *notices,
+        ])
+        return fallback
+
     def get_json(self, path: str) -> Any:
         target = urllib.parse.urljoin(self.api_url + "/", path.lstrip("/"))
         request = urllib.request.Request(target, headers={"Accept": "application/json"})
@@ -216,9 +248,26 @@ class ApiClient:
 
     def get_url_json(self, target: str) -> Any:
         request = urllib.request.Request(target, headers={"Accept": "application/json"})
-        with urllib.request.urlopen(request, timeout=self.timeout, context=self.context) as response:
-            body = response.read().decode("utf-8")
-        return json.loads(body)
+        cached = self._url_json_cache.get(target)
+        if cached:
+            if cached.etag:
+                request.add_header("If-None-Match", cached.etag)
+            if cached.last_modified:
+                request.add_header("If-Modified-Since", cached.last_modified)
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout, context=self.context) as response:
+                body = response.read().decode("utf-8")
+                payload = json.loads(body)
+                self._url_json_cache[target] = UrlJsonCacheEntry(
+                    payload=payload,
+                    etag=response.headers.get("ETag", ""),
+                    last_modified=response.headers.get("Last-Modified", ""),
+                )
+                return payload
+        except urllib.error.HTTPError as exc:
+            if exc.code == 304 and cached:
+                return cached.payload
+            raise
 
 
 class FixtureClient:
@@ -3022,6 +3071,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--token-file", default=os.environ.get("TURBA_TOKEN_FILE", ""), help="read bearer token from a file")
     parser.add_argument("--bundle-url", default=os.environ.get("TURBA_BUNDLE_URL", ""), help="live-machine bundle fallback URL")
     parser.add_argument("--no-bundle-fallback", action="store_true", help="disable live-machine bundle fallback")
+    parser.add_argument("--api-first", action="store_true", default=os.environ.get("TURBA_API_FIRST", "") == "1", help="query the product API before using the live bundle")
+    parser.add_argument("--timeout", type=float, default=float(os.environ.get("TURBA_TIMEOUT", "1.2")), help="HTTP timeout in seconds")
     parser.add_argument("--refresh", type=float, default=float(os.environ.get("TURBA_REFRESH", "2")))
     parser.add_argument("--scope", default=os.environ.get("TURBA_SCOPE", "tenant"))
     parser.add_argument("--sort", default=os.environ.get("TURBA_SORT", "fleet"), choices=SORT_MODES, help="host sort mode")
@@ -3690,7 +3741,14 @@ def main(argv: list[str] | None = None) -> int:
     client: ApiClient | FixtureClient
     bundle_url = "" if args.no_bundle_fallback else (args.bundle_url or default_bundle_url(args.api_url))
     token = resolve_token(args.token, args.token_file)
-    client = FixtureClient(args.fixture) if args.fixture else ApiClient(args.api_url, token, args.insecure, bundle_url=bundle_url)
+    client = FixtureClient(args.fixture) if args.fixture else ApiClient(
+        args.api_url,
+        token,
+        args.insecure,
+        timeout=max(0.1, args.timeout),
+        bundle_url=bundle_url,
+        prefer_bundle=not args.api_first,
+    )
     if args.once or not sys.stdin.isatty():
         return run_once(args, client)
     return run_live(args, client)

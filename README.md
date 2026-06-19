@@ -188,14 +188,16 @@ Run the terminal operator UI:
 
 ```sh
 make turbatop
-./build/turbatop/turbatop --api-url http://192.168.10.30:8080 --sort pressure
+./build/turbatop/turbatop --api-url http://192.168.10.30:8080 --sort pressure --refresh 1
 ```
+
+Live appliance sessions default to the fast bundle path used by the browser dashboard, then use conditional HTTP caching between polls. Add `--api-first` when you want the older API-first merge path.
 
 Useful `turbatop` controls:
 
 - Keyboard: `q` quit, `r` refresh, `p` pause/resume, `h`/`?` help, `w` snapshot, `←/→` switch pages, `↑/↓` move inside the focused panel, `1-4` page tabs, `Tab` next panel, `Shift-Tab` previous panel, `]` next page, `[` previous page, `k/J` select, hosts page `j/k` navigate, `PageUp/PageDown` jump, `g/G` edge, `s` sort, `enter` drill-in, `/` filter, `j/m/t/T/c` scope outside the hosts page.
 - Mouse: click a bottom page tab, click a host to select, click again or right-click to drill in, wheel through hosts, click sort/scope/filter/pause/snapshot/help/footer controls.
-- Flags: `--page overview|hosts|signals|ops`, `--token-file build/product-secrets/api-viewer-token`, `--bundle-url .../live-machine-bundle.json`, `--snapshot-file build/turbatop/snapshot.txt`, `--no-mouse`, `--no-color`, `--once`.
+- Flags: `--page overview|hosts|signals|ops`, `--token-file build/product-secrets/api-viewer-token`, `--bundle-url .../live-machine-bundle.json`, `--api-first`, `--refresh`, `--timeout`, `--snapshot-file build/turbatop/snapshot.txt`, `--no-mouse`, `--no-color`, `--once`.
 
 ## Mobile App Support
 
