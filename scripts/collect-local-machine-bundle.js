@@ -22,6 +22,7 @@ const gpuDiagnosticsTtlMs = numberArg(args["gpu-diagnostics-ttl-ms"] || process.
 const ollamaProbeEnabled = args["ollama-probe"] !== "0";
 const ollamaProbeMs = numberArg(args["ollama-probe-ms"], 30000);
 const skipValidation = args["skip-validation"] === "1";
+const compactOutput = args.compact === true || process.env.TURBALANCE_COMPACT_BUNDLE === "1";
 const benchmarkEnabled = args["benchmark-suite"] === "1"
   || process.env.TURBALANCE_MACHINE_BENCHMARKS === "1"
   || process.env.TURBALANCE_PI_BENCHMARKS === "1";
@@ -168,7 +169,7 @@ function collectAndWrite({ gpuOverride = null } = {}) {
     assertValidSourceBundle(bundle);
   }
 
-  const output = `${JSON.stringify(bundle, null, 2)}\n`;
+  const output = `${compactOutput ? JSON.stringify(bundle) : JSON.stringify(bundle, null, 2)}\n`;
   if (outPath) {
     const fullPath = path.resolve(outPath);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });

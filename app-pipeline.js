@@ -1000,7 +1000,7 @@ function normalizePlacement(placement) {
   return makePlacement(placement?.nodes || [], placement?.partialNodes || []);
 }
 
-async function ingestJsonPayload(payload, sourceLabel) {
+async function ingestJsonPayload(payload, sourceLabel, options = {}) {
   validateImportPayloadRoot(payload);
 
   if (isValidWorkspaceStore(payload)) {
@@ -1009,7 +1009,7 @@ async function ingestJsonPayload(payload, sourceLabel) {
   }
 
   const nextIngestion = buildIngestionFromExternalPayload(payload);
-  replaceActiveIngestion(nextIngestion, sourceLabel, dataBoundaryForSourceLabel(sourceLabel, payload));
+  replaceActiveIngestion(nextIngestion, sourceLabel, dataBoundaryForSourceLabel(sourceLabel, payload), options);
 }
 
 function buildIngestionFromExternalPayload(payload) {

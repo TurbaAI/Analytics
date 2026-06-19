@@ -16,7 +16,9 @@ const hostId = args["host-id"] || process.env.TURBALANCE_HOST_ID || "dgx-spark-f
 const agentId = args["agent-id"] || process.env.TURBALANCE_AGENT_ID || "live-lakehouse-fleet";
 const hostUrl = args["host-url"] || process.env.TURBALANCE_MACHINE_DEMO_URL || "http://192.168.10.30:8000";
 const loopMs = numberArg(args["loop-ms"], 1000);
+const lakehouseIntervalMs = numberArg(args["lakehouse-interval-ms"] || process.env.TURBALANCE_LAKEHOUSE_WRITE_INTERVAL_MS, 10000);
 const transformIntervalMs = numberArg(args["transform-interval-ms"], 10000);
+const collectionTimeoutMs = numberArg(args["collection-timeout-ms"] || process.env.TURBALANCE_FLEET_COLLECTION_TIMEOUT_MS, 8000);
 const skipLakehouse = args["skip-lakehouse"] === true || process.env.TURBALANCE_SKIP_LAKEHOUSE_WRITE === "1";
 const skipTransform = args["skip-transform"] === true || process.env.TURBALANCE_SKIP_TRANSFORM === "1";
 const includeLocal = args["include-local"] === true || process.env.TURBALANCE_INCLUDE_LOCAL_FLEET_HOST === "1";
@@ -29,6 +31,10 @@ const dgxInterconnectInterface = args["dgx-interconnect-interface"] || process.e
 const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"] || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX || "192.168.100.";
 const gpuBackend = args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "";
 const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "";
+const fastRefresh = args["fast-refresh"] === undefined ? true : flagValue(args["fast-refresh"]);
+const ollamaProbe = args["ollama-probe"] === undefined ? !fastRefresh : flagValue(args["ollama-probe"]);
+const compactBundle = args.compact === undefined ? true : flagValue(args.compact);
+let lastLakehouseAt = 0;
 let lastTransformAt = 0;
 
 if (loopMs > 0) {
@@ -49,8 +55,9 @@ function runOnce() {
   collectFleetBundle();
   let lakehouse = null;
   let transform = null;
-  if (!skipLakehouse) {
+  if (!skipLakehouse && Date.now() - lastLakehouseAt >= lakehouseIntervalMs) {
     lakehouse = writeLakehouse();
+    lastLakehouseAt = Date.now();
     if (!skipTransform && Date.now() - lastTransformAt >= transformIntervalMs) {
       transform = materializeTransforms();
       lastTransformAt = Date.now();
@@ -78,7 +85,11 @@ function collectFleetBundle() {
     dgxInterconnectInterface,
     "--dgx-interconnect-subnet-prefix",
     dgxInterconnectSubnetPrefix,
+    "--collection-timeout-ms",
+    String(collectionTimeoutMs),
     ...gpuArgs(),
+    ...collectorRuntimeArgs(),
+    ...(compactBundle ? ["--compact"] : []),
     ...(includePiFleet ? ["--pi-fleet"] : []),
     ...(includePiBenchmarks ? ["--pi-benchmarks"] : []),
     ...remotes.flatMap((remote) => ["--remote", remote])
@@ -153,6 +164,14 @@ function gpuArgs() {
   return values;
 }
 
+function collectorRuntimeArgs() {
+  return [
+    ...(fastRefresh ? ["--fast-refresh", "1"] : []),
+    "--ollama-probe",
+    ollamaProbe ? "1" : "0"
+  ];
+}
+
 function pythonEnv(paths) {
   return {
     ...process.env,
@@ -198,6 +217,10 @@ function sleep(ms) {
 function numberArg(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function flagValue(value) {
+  return value === true || ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
 function parseArgs(argv) {

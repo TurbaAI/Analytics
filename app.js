@@ -104,6 +104,8 @@ const SNAPSHOT_SCOPES = ["job", "model", "user", "team", "cluster", "tenant", "a
 const SNAPSHOT_LIMIT = 360;
 const TASK_HISTORY_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
+const MACHINE_DEMO_WORKSPACE_COMMIT_MS = 30000;
+const MACHINE_DEMO_UNCHANGED_RENDER_MS = 5000;
 const MACHINE_DEMO_FRESH_SECONDS = 30;
 const MACHINE_DEMO_FRESH_MS = MACHINE_DEMO_FRESH_SECONDS * 1000;
 const PI_FLEET_HOSTNAMES = Array.from({ length: 12 }, (_unused, index) => `pi${index + 1}`);
@@ -278,10 +280,15 @@ let platformVirtualSensorCache = {
 };
 let machineDemoRefreshTimer = null;
 let machineDemoLoadInFlight = false;
+let machineDemoLastPayloadText = "";
+let machineDemoLastWorkspaceCommitAt = 0;
+let machineDemoLastUnchangedRenderAt = 0;
 let sparkPairClockRefreshTimer = null;
 let sparkPairClockLoadInFlight = false;
 let latestSparkPairComparison = null;
 let operatorLaunchpadSignature = "";
+let dashboardRenderFrame = null;
+let dashboardRenderMode = "";
 
 const state = {
   page: "cockpit",
@@ -923,8 +930,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
-
 
 
 

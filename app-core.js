@@ -61,7 +61,35 @@ function writeThemeMode(theme) {
   }
 }
 
-function replaceActiveIngestion(nextIngestion, label, dataBoundary = null) {
+function requestDashboardRender(mode = "full") {
+  dashboardRenderMode = mode === "live" && dashboardRenderMode !== "full" ? "live" : "full";
+  if (dashboardRenderFrame) return;
+  const requestFrame = window.requestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
+  dashboardRenderFrame = requestFrame(() => {
+    const nextMode = dashboardRenderMode || "full";
+    dashboardRenderFrame = null;
+    dashboardRenderMode = "";
+    if (nextMode === "live" && typeof renderLiveRefresh === "function") renderLiveRefresh();
+    else render();
+  });
+}
+
+function maybeCommitMachineDemoWorkspace(nowMs = Date.now()) {
+  if (!machineDemoLastWorkspaceCommitAt || nowMs - machineDemoLastWorkspaceCommitAt >= MACHINE_DEMO_WORKSPACE_COMMIT_MS) {
+    machineDemoLastWorkspaceCommitAt = nowMs;
+    return true;
+  }
+  return false;
+}
+
+function replaceActiveIngestion(nextIngestion, label, dataBoundary = null, options = {}) {
+  const {
+    captureSnapshot = true,
+    persist = true,
+    renderDashboard = true,
+    scheduledRender = false,
+    renderMode = "full"
+  } = options;
   const previousKey = state.selectedKey;
   const previousIdentity = state.scope === "job" ? jobSelectionIdentity(jobs.find((job) => job.id === previousKey)) : "";
   const retainedIngestion = reconcileMachineInventory(nextIngestion);
@@ -73,9 +101,17 @@ function replaceActiveIngestion(nextIngestion, label, dataBoundary = null) {
   state.ingestTone = "good";
   state.dataBoundary = normalizeDataBoundary(dataBoundary || dataBoundaryForSourceLabel(label), activeIngestion);
   state.lastAnalysis = new Date();
-  captureAnalysisSnapshot(label, state.lastAnalysis);
-  persistWorkspaceStore();
-  render();
+  if (captureSnapshot) captureAnalysisSnapshot(label, state.lastAnalysis);
+  if (persist) {
+    persistWorkspaceStore();
+  } else {
+    state.storageLabel = "Live session";
+    state.storageTone = "good";
+  }
+  if (renderDashboard) {
+    if (scheduledRender) requestDashboardRender(renderMode);
+    else render();
+  }
 }
 
 function resolveJobSelectionKey(previousKey, previousIdentity) {
@@ -769,10 +805,28 @@ async function loadMachineDemoBundle({ quiet = false } = {}) {
     if (!response.ok) {
       throw new Error(`Machine demo ${response.status}`);
     }
+    const responseText = await response.text();
+    const nowMs = Date.now();
+    if (quiet && responseText === machineDemoLastPayloadText) {
+      if (nowMs - machineDemoLastUnchangedRenderAt >= MACHINE_DEMO_UNCHANGED_RENDER_MS) {
+        machineDemoLastUnchangedRenderAt = nowMs;
+        requestDashboardRender("live");
+      }
+      return;
+    }
+    machineDemoLastPayloadText = responseText;
+    const commitWorkspace = !quiet || maybeCommitMachineDemoWorkspace(nowMs);
+    if (!quiet) machineDemoLastWorkspaceCommitAt = nowMs;
     const loadedAt = new Date();
     await ingestJsonPayload(
-      parseImportJson(await response.text(), "Machine demo did not return valid JSON."),
-      `Live machine telemetry ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
+      parseImportJson(responseText, "Machine demo did not return valid JSON."),
+      `Live machine telemetry ${loadedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`,
+      {
+        captureSnapshot: commitWorkspace,
+        persist: commitWorkspace,
+        scheduledRender: quiet,
+        renderMode: quiet && !commitWorkspace ? "live" : "full"
+      }
     );
   } catch (error) {
     setIngestStatus(importErrorMessage(error, "Machine demo fetch failed"), "poor");

@@ -3,7 +3,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const { execFile } = require("node:child_process");
 const { assertValidSourceBundle } = require("../lib/source-bundle-validator.js");
 
 const PI_FLEET_REMOTES = Array.from({ length: 12 }, (_unused, index) => `pi@pi${index + 1}`);
@@ -28,21 +28,32 @@ const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"] || pr
 const gpuBackend = args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "";
 const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "";
 const collectionTimeoutMs = numberArg(args["collection-timeout-ms"] || process.env.TURBALANCE_FLEET_COLLECTION_TIMEOUT_MS, 120000);
+const fastRefresh = flagValue(args["fast-refresh"] || process.env.TURBALANCE_FAST_REFRESH);
+const ollamaProbeArg = args["ollama-probe"] ?? process.env.TURBALANCE_OLLAMA_PROBE;
+const compactOutput = args.compact === true || process.env.TURBALANCE_COMPACT_BUNDLE === "1";
 
-const bundles = [];
-if (includeLocal) bundles.push(collectLocalBundle());
-remotes.forEach((remote) => bundles.push(collectRemoteBundle(remote)));
+main().catch((error) => {
+  console.error(error?.stack || error);
+  process.exitCode = 1;
+});
 
-const bundle = combineBundles(bundles);
-assertValidSourceBundle(bundle);
+async function main() {
+  const collectors = [
+    ...(includeLocal ? [collectLocalBundle()] : []),
+    ...remotes.map((remote) => collectRemoteBundle(remote))
+  ];
+  const bundles = await Promise.all(collectors);
+  const bundle = combineBundles(bundles);
+  assertValidSourceBundle(bundle);
 
-const output = `${JSON.stringify(bundle, null, 2)}\n`;
-if (outPath) {
-  const fullPath = path.resolve(outPath);
-  fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-  fs.writeFileSync(fullPath, output);
-} else {
-  process.stdout.write(output);
+  const output = `${compactOutput ? JSON.stringify(bundle) : JSON.stringify(bundle, null, 2)}\n`;
+  if (outPath) {
+    const fullPath = path.resolve(outPath);
+    fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+    fs.writeFileSync(fullPath, output);
+  } else {
+    process.stdout.write(output);
+  }
 }
 
 function collectLocalBundle() {
@@ -51,6 +62,8 @@ function collectLocalBundle() {
     "--host-url",
     hostUrl,
     ...gpuArgs(),
+    ...collectorRuntimeArgs(),
+    ...collectorOutputArgs(),
     ...networkArgs()
   ], {
     TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION: "1"
@@ -59,37 +72,49 @@ function collectLocalBundle() {
 
 function collectRemoteBundle(remote) {
   const command = remoteCollectorCommand(remote);
-  try {
-    return runJson("ssh", [
-      "-o",
-      "BatchMode=yes",
-      "-o",
-      "ConnectTimeout=8",
-      "-o",
-      "StrictHostKeyChecking=accept-new",
-      remote,
-      command
-    ]);
-  } catch (error) {
+  return runJson("ssh", [
+    "-o",
+    "BatchMode=yes",
+    "-o",
+    "ConnectTimeout=8",
+    "-o",
+    "StrictHostKeyChecking=accept-new",
+    remote,
+    command
+  ]).catch((error) => {
     if (strictRemotes) throw error;
     return buildRemoteUnavailableBundle(remote, error);
-  }
+  });
 }
 
 function runJson(bin, commandArgs, env = {}) {
-  const output = execFileSync(bin, commandArgs, {
-    cwd: root,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    env: {
-      ...process.env,
-      ...env
-    },
-    timeout: collectionTimeoutMs,
-    maxBuffer: 50 * 1024 * 1024
-  });
+  return new Promise((resolve, reject) => {
+    execFile(bin, commandArgs, {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ...env
+      },
+      timeout: collectionTimeoutMs,
+      maxBuffer: 50 * 1024 * 1024
+    }, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+        return;
+      }
 
-  return JSON.parse(output);
+      try {
+        resolve(JSON.parse(stdout));
+      } catch (parseError) {
+        parseError.stdout = stdout;
+        parseError.stderr = stderr;
+        reject(parseError);
+      }
+    });
+  });
 }
 
 function combineBundles(bundles) {
@@ -188,7 +213,7 @@ function remoteCollectorCommand(remote) {
     `for root in ${roots.join(" ")}; do`,
     "if [ -f \"$root/scripts/collect-local-machine-bundle.js\" ]; then",
     "cd \"$root\";",
-    `${collectorEnv ? `${collectorEnv} ` : ""}TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION=1 exec node scripts/collect-local-machine-bundle.js --host-url ${shellQuote(hostUrl)};`,
+    `${collectorEnv ? `${collectorEnv} ` : ""}TURBALANCE_DISABLE_LOCAL_FLEET_DELEGATION=1 exec node scripts/collect-local-machine-bundle.js --host-url ${shellQuote(hostUrl)} ${collectorRuntimeShellArgs().join(" ")};`,
     "fi;",
     "done;",
     "printf '%s\\n' 'collect-local-machine-bundle.js not found in expected roots' >&2;",
@@ -214,6 +239,24 @@ function gpuArgs() {
   if (gpuBackend) values.push("--gpu-backend", gpuBackend);
   if (gpustatBin) values.push("--gpustat-bin", gpustatBin);
   return values;
+}
+
+function collectorRuntimeArgs() {
+  return [
+    ...(fastRefresh ? ["--fast-refresh", "1"] : []),
+    ...(ollamaProbeArg !== undefined ? ["--ollama-probe", flagValue(ollamaProbeArg) ? "1" : "0"] : [])
+  ];
+}
+
+function collectorRuntimeShellArgs() {
+  return [
+    ...collectorRuntimeArgs(),
+    ...collectorOutputArgs()
+  ].map(shellQuote);
+}
+
+function collectorOutputArgs() {
+  return compactOutput ? ["--compact"] : [];
 }
 
 function buildRemoteUnavailableBundle(remote, error) {
@@ -440,6 +483,10 @@ function unique(values) {
 function numberArg(value, fallback) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function flagValue(value) {
+  return value === true || ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 }
 
 function shellQuote(value) {

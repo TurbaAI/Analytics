@@ -56,6 +56,22 @@ function render() {
   applyDashboardBlockVisibility();
 }
 
+function renderLiveRefresh() {
+  renderAnalysisStamp();
+  renderIngestState();
+
+  const entries = buildEntries(state.scope);
+  if (!entries.length) return;
+  if (!entries.some((entry) => entry.key === state.selectedKey)) {
+    state.selectedKey = entries[0].key;
+  }
+
+  const activeEntry = entries.find((entry) => entry.key === state.selectedKey) || entries[0];
+  const summary = displaySummary(activeEntry);
+  renderLiveResources(summary);
+  applyDashboardBlockVisibility();
+}
+
 function renderPageControls() {
   const activePage = state.page || "cockpit";
   document.querySelectorAll("#pageControls button").forEach((button) => {
@@ -413,6 +429,17 @@ function renderDashboardSettingsPanel() {
     badge.dataset.tone = atDefault ? "good" : enabledCount <= defaultCount ? "good" : "watch";
   }
 
+  const renderSignature = JSON.stringify({
+    blocks: DASHBOARD_BLOCKS.map((block) => [block.id, dashboardBlockEnabled(block.id)]),
+    benchmarkOptIn: Boolean(state.benchmarkOptIn),
+    apiTokenSaved: Boolean(platformApiAuthToken())
+  });
+  if (controls.dataset.renderSignature === renderSignature && controls.children.length > 0) {
+    panel.hidden = false;
+    return;
+  }
+  controls.dataset.renderSignature = renderSignature;
+
   const actions = document.createElement("div");
   actions.className = "dashboard-settings-actions";
   const reset = document.createElement("button");
@@ -698,6 +725,14 @@ function renderLiveResources(summary) {
   const observationLog = document.querySelector("#liveObservationLog");
   const graphs = document.querySelector("#liveTelemetryGraphs");
   if (!panel || !title || !badge || !grid || !alerts || !observationLog || !graphs) return;
+  if (!dashboardBlockEnabled("liveResources")) {
+    panel.hidden = true;
+    grid.replaceChildren();
+    alerts.replaceChildren();
+    observationLog.replaceChildren();
+    graphs.replaceChildren();
+    return;
+  }
 
   const machineContext = machineDemoContext(summary);
   if (summary.isFleetAggregate) {
@@ -711,6 +746,9 @@ function renderLiveResources(summary) {
   }
 
   const context = machineContext.context || {};
+  const showAlerts = dashboardBlockEnabled("liveAlerts");
+  const showObservationLog = dashboardBlockEnabled("liveObservationLog");
+  const showGraphs = dashboardBlockEnabled("liveTelemetryGraphs");
   const generatedAt = context.generatedAt ? safeDate(context.generatedAt, new Date(0)) : null;
   const telemetry = recordLiveTelemetrySample(machineContext, generatedAt);
   const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
@@ -971,10 +1009,15 @@ function renderLiveResources(summary) {
     })
   );
 
-  const analysis = analyzeLiveTelemetryRelationships(telemetry, machineContext);
-  renderLiveTelemetryAlerts(alerts, analysis);
-  renderLiveObservationLog(observationLog, analysis, machineContext, telemetry);
-  renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
+  const analysis = showAlerts || showObservationLog
+    ? analyzeLiveTelemetryRelationships(telemetry, machineContext)
+    : null;
+  if (showAlerts) renderLiveTelemetryAlerts(alerts, analysis);
+  else alerts.replaceChildren();
+  if (showObservationLog) renderLiveObservationLog(observationLog, analysis, machineContext, telemetry);
+  else observationLog.replaceChildren();
+  if (showGraphs) renderLiveTelemetryGraphs(graphs, machineContext, telemetry);
+  else graphs.replaceChildren();
 }
 
 function renderAnalysisResourceFallback(summary, nodes) {
@@ -1080,6 +1123,9 @@ function renderLiveResourceHeartbeatBadge(badge, ageSeconds) {
 function renderFleetAggregateResources(summary, nodes) {
   const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
   const overview = fleetAggregateOverview(summary);
+  const showAlerts = dashboardBlockEnabled("liveAlerts");
+  const showObservationLog = dashboardBlockEnabled("liveObservationLog");
+  const showGraphs = dashboardBlockEnabled("liveTelemetryGraphs");
   const ageSeconds = Number.isFinite(overview.maxAgeMs) ? Math.max(0, Math.round(overview.maxAgeMs / 1000)) : null;
   const freshPct = overview.hostCount ? (overview.freshCount / overview.hostCount) * 100 : 0;
   const outlierPct = overview.hostCount ? (overview.outlierCount / overview.hostCount) * 100 : 0;
@@ -1180,10 +1226,14 @@ function renderFleetAggregateResources(summary, nodes) {
     })
   );
 
-  const analysis = fleetAggregateAnalysis(overview);
-  renderLiveTelemetryAlerts(alerts, analysis);
-  renderLiveObservationLog(observationLog, analysis, null, fleetAggregateGraphRows(overview));
-  renderFleetAggregateGraphs(graphs, overview);
+  const graphRows = showObservationLog ? fleetAggregateGraphRows(overview) : [];
+  const analysis = showAlerts || showObservationLog ? fleetAggregateAnalysis(overview) : null;
+  if (showAlerts) renderLiveTelemetryAlerts(alerts, analysis);
+  else alerts.replaceChildren();
+  if (showObservationLog) renderLiveObservationLog(observationLog, analysis, null, graphRows);
+  else observationLog.replaceChildren();
+  if (showGraphs) renderFleetAggregateGraphs(graphs, overview);
+  else graphs.replaceChildren();
 }
 
 function renderFleetAggregateGraphs(container, overview) {
@@ -1398,25 +1448,47 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   }
   updateSystemCharacterizationBadge(characterizationBadge, platformVirtualSensorCache.systemIdentification);
 
-  heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
-  timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
-  renderOperatorLaunchpad(launchpad, cockpit.commands);
-  autoDiscoveryDeploymentPanel.replaceChildren(...operatorAutoDiscoveryDeploymentNodes(cockpit.autoDiscovery));
-  executionIdleEnergyPanel.replaceChildren(...operatorExecutionIdleNodes(cockpit.executionIdle));
-  gpuExporterCoveragePanel.replaceChildren(...operatorGpuExporterCoverageNodes(cockpit.gpuExporterCoverage));
-  backgroundTasksPanel.replaceChildren(...operatorBackgroundTasksNodes(cockpit.backgroundTasks));
-  kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
-  confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
-  replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
-  grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
-  productReadinessPanel.replaceChildren(...operatorProductReadinessNodes(cockpit.productReadiness));
-  fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
-  renderUnitEconomicsPanel(unitEconomicsPanel, cockpit.unitEconomics);
-  latestSparkPairComparison = cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
-  renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
-  renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
-  renderBenchmarkLadderPanel(benchmarkLadderPanel, cockpit.benchmarkLadder);
-  renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
+  if (dashboardBlockEnabled("sourceHeartbeat")) heartbeatStrip.replaceChildren(...cockpit.heartbeats.map(operatorHeartbeatCard));
+  else heartbeatStrip.replaceChildren();
+  if (dashboardBlockEnabled("eventTimeline")) timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
+  else timeline.replaceChildren();
+  if (dashboardBlockEnabled("demoLaunchpad")) {
+    renderOperatorLaunchpad(launchpad, cockpit.commands);
+  } else {
+    operatorLaunchpadSignature = "";
+    launchpad.replaceChildren();
+  }
+  if (dashboardBlockEnabled("autoDiscoveryDeployment")) autoDiscoveryDeploymentPanel.replaceChildren(...operatorAutoDiscoveryDeploymentNodes(cockpit.autoDiscovery));
+  else autoDiscoveryDeploymentPanel.replaceChildren();
+  if (dashboardBlockEnabled("executionIdleEnergy")) executionIdleEnergyPanel.replaceChildren(...operatorExecutionIdleNodes(cockpit.executionIdle));
+  else executionIdleEnergyPanel.replaceChildren();
+  if (dashboardBlockEnabled("gpuExporterCoverage")) gpuExporterCoveragePanel.replaceChildren(...operatorGpuExporterCoverageNodes(cockpit.gpuExporterCoverage));
+  else gpuExporterCoveragePanel.replaceChildren();
+  if (dashboardBlockEnabled("backgroundTasks")) backgroundTasksPanel.replaceChildren(...operatorBackgroundTasksNodes(cockpit.backgroundTasks));
+  else backgroundTasksPanel.replaceChildren();
+  if (dashboardBlockEnabled("kafkaStream")) kafkaPanel.replaceChildren(...operatorKafkaNodes(cockpit.kafka));
+  else kafkaPanel.replaceChildren();
+  if (dashboardBlockEnabled("dataConfidence")) confidencePanel.replaceChildren(...operatorConfidenceNodes(cockpit.confidence));
+  else confidencePanel.replaceChildren();
+  if (dashboardBlockEnabled("replayMode")) replayPanel.replaceChildren(...operatorReplayNodes(cockpit));
+  else replayPanel.replaceChildren();
+  if (dashboardBlockEnabled("grafanaMini")) grafanaPanel.replaceChildren(...operatorGrafanaNodes(cockpit.grafana));
+  else grafanaPanel.replaceChildren();
+  if (dashboardBlockEnabled("productReadiness")) productReadinessPanel.replaceChildren(...operatorProductReadinessNodes(cockpit.productReadiness));
+  else productReadinessPanel.replaceChildren();
+  if (dashboardBlockEnabled("fleetTiles")) fleetTiles.replaceChildren(...cockpit.fleet.map(operatorFleetTile));
+  else fleetTiles.replaceChildren();
+  if (dashboardBlockEnabled("unitEconomics")) renderUnitEconomicsPanel(unitEconomicsPanel, cockpit.unitEconomics);
+  else unitEconomicsPanel.replaceChildren();
+  latestSparkPairComparison = dashboardBlockEnabled("sparkPair") && cockpit.sparkComparison.available ? cockpit.sparkComparison : null;
+  if (dashboardBlockEnabled("sparkPair")) renderSparkPairComparisonPanel(sparkPairComparePanel, cockpit.sparkComparison);
+  else sparkPairComparePanel.replaceChildren();
+  if (dashboardBlockEnabled("fleetComparison")) renderFleetComparisonPanel(fleetComparisonPanel, cockpit.fleetComparison);
+  else fleetComparisonPanel.replaceChildren();
+  if (dashboardBlockEnabled("benchmarkLadder")) renderBenchmarkLadderPanel(benchmarkLadderPanel, cockpit.benchmarkLadder);
+  else benchmarkLadderPanel.replaceChildren();
+  if (dashboardBlockEnabled("systemCharacterization")) renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
+  else characterizationPanel.replaceChildren();
 }
 
 function operatorSourceLabel(id) {
