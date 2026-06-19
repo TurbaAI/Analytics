@@ -914,6 +914,40 @@ function writePlatformApiAuthToken(token) {
   }
 }
 
+function loadLlmReportConfig() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LLM_REPORT_CONFIG_STORAGE_KEY) || "{}");
+    return normalizeLlmReportConfig(parsed);
+  } catch {
+    return normalizeLlmReportConfig({});
+  }
+}
+
+function normalizeLlmReportConfig(config = {}) {
+  return {
+    baseUrl: String(config.baseUrl || ""),
+    model: String(config.model || ""),
+    apiKey: String(config.apiKey || "")
+  };
+}
+
+function writeLlmReportConfig(config) {
+  try {
+    window.localStorage.setItem(LLM_REPORT_CONFIG_STORAGE_KEY, JSON.stringify(normalizeLlmReportConfig(config)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function updateLlmReportConfig(partial) {
+  state.llmReportConfig = normalizeLlmReportConfig({
+    ...state.llmReportConfig,
+    ...partial
+  });
+  writeLlmReportConfig(state.llmReportConfig);
+}
+
 function platformApiFetch(path) {
   const url = platformApiUrl(path);
   const token = platformApiAuthToken();
@@ -1018,6 +1052,8 @@ function resetWorkspace() {
   activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = [];
+  savingsLedger = [];
+  actionExecutionHistory = [];
   state.scope = "job";
   state.selectedKey = jobs.find((job) => job.id === "run-7421")?.id || jobs[0]?.id || "";
   state.samePod = false;
@@ -1040,6 +1076,13 @@ function captureManualAnalysisSnapshot() {
 }
 
 function bindEvents() {
+  document.querySelectorAll("#pageControls button").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.page = button.dataset.page || "cockpit";
+      render();
+    });
+  });
+
   document.querySelectorAll("#scopeControls button").forEach((button) => {
     button.addEventListener("click", () => {
       state.scope = button.dataset.scope;
@@ -1079,6 +1122,21 @@ function bindEvents() {
 
   document.querySelector("#captureSnapshotButton").addEventListener("click", captureManualAnalysisSnapshot);
   document.querySelector("#copyReport").addEventListener("click", copyReport);
+  document.querySelector("#copyLlmReport").addEventListener("click", copyLlmReport);
+  document.querySelector("#copyLlmPrompt").addEventListener("click", copyLlmPrompt);
+  document.querySelector("#generateLlmReport").addEventListener("click", generateLlmReport);
+  document.querySelector("#llmApiUrl").addEventListener("input", (event) => {
+    updateLlmReportConfig({ baseUrl: event.target.value });
+    render();
+  });
+  document.querySelector("#llmModelInput").addEventListener("input", (event) => {
+    updateLlmReportConfig({ model: event.target.value });
+    render();
+  });
+  document.querySelector("#llmApiKey").addEventListener("input", (event) => {
+    updateLlmReportConfig({ apiKey: event.target.value });
+    render();
+  });
   document.querySelector("#ingestFile").addEventListener("change", handleFileIngest);
   document.querySelector("#fetchApiButton").addEventListener("click", handleApiIngest);
   document.querySelector("#exportWorkspaceButton").addEventListener("click", exportWorkspace);
@@ -1222,6 +1280,33 @@ function fleetAggregateSourceItems(items) {
 
 function displaySummary(entry) {
   return finalizeSummary(applyPlacementWhatIf(summarizeEntry(entry)));
+}
+
+function benchmarkPercentileContext(summary, k = 5) {
+  if (!state.benchmarkOptIn) {
+    return { status: "off", text: "" };
+  }
+  const current = numeric(summary.mfuPct, Number.NaN);
+  if (!Number.isFinite(current)) {
+    return { status: "unknown", text: "Benchmark opt-in enabled; MFU needs model specs before percentile context." };
+  }
+  const values = snapshotHistory
+    .map((record) => numeric(record.metrics?.mfuPct, Number.NaN))
+    .filter(Number.isFinite);
+  if (!values.some((value) => Math.abs(value - current) < 0.0001)) {
+    values.push(current);
+  }
+  if (values.length < k) {
+    return { status: "suppressed", text: `Benchmark aggregate suppressed until ${k} opted-in comparable samples are available.` };
+  }
+  const below = values.filter((value) => value < current).length;
+  const equal = values.filter((value) => value === current).length;
+  const percentile = Math.round(((below + equal * 0.5) / values.length) * 100);
+  return {
+    status: "ready",
+    percentile,
+    text: `Opted-in benchmark context: MFU is at the ${percentile}th percentile across ${values.length} k-anonymous comparable samples.`
+  };
 }
 
 function removeMachineInventoryEntry(key) {
@@ -7105,6 +7190,149 @@ async function copyReport() {
 
   button.classList.add("copy-flash");
   window.setTimeout(() => button.classList.remove("copy-flash"), 900);
+}
+
+async function copyLlmReport() {
+  const report = document.querySelector("#llmCustomerReport").textContent;
+  const button = document.querySelector("#copyLlmReport");
+
+  await copyTextToClipboard(report);
+
+  button.classList.add("copy-flash");
+  window.setTimeout(() => button.classList.remove("copy-flash"), 900);
+}
+
+async function copyLlmPrompt() {
+  const prompt = document.querySelector("#llmReportPrompt").textContent;
+  const button = document.querySelector("#copyLlmPrompt");
+
+  await copyTextToClipboard(prompt);
+
+  button.classList.add("copy-flash");
+  window.setTimeout(() => button.classList.remove("copy-flash"), 900);
+}
+
+async function generateLlmReport() {
+  const analysis = currentAnalysis();
+  if (!analysis) return;
+
+  const config = normalizeLlmReportConfig(state.llmReportConfig);
+  if (!config.baseUrl || !config.model) {
+    state.llmReportGeneration = {
+      status: "error",
+      promptFingerprint: "",
+      text: "",
+      model: config.model,
+      generatedAt: "",
+      error: "Configure an API URL and model before generation."
+    };
+    render();
+    return;
+  }
+
+  const machine = buildMachineL1L6State(analysis.summary);
+  const packet = buildLlmReportContextPacket(
+    analysis.summary,
+    analysis.classifier,
+    analysis.provider,
+    analysis.opportunityEngine,
+    analysis.schedulerSimulator,
+    machine
+  );
+  const prompt = buildLlmCustomerReportPrompt(packet);
+  const promptFingerprint = llmReportContextFingerprint(packet);
+  state.llmReportGeneration = {
+    status: "working",
+    promptFingerprint,
+    text: "",
+    model: config.model,
+    generatedAt: "",
+    error: ""
+  };
+  render();
+
+  try {
+    const text = await callLlmReportEndpoint(config, prompt);
+    state.llmReportGeneration = {
+      status: "complete",
+      promptFingerprint,
+      text,
+      model: config.model,
+      generatedAt: dateIso(new Date()),
+      error: ""
+    };
+  } catch (error) {
+    state.llmReportGeneration = {
+      status: "error",
+      promptFingerprint,
+      text: "",
+      model: config.model,
+      generatedAt: "",
+      error: error?.message || "LLM generation failed."
+    };
+  }
+  render();
+}
+
+async function callLlmReportEndpoint(config, prompt) {
+  const url = llmChatCompletionsUrl(config.baseUrl);
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+  const response = await window.fetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: config.model,
+      messages: [
+        {
+          role: "system",
+          content: "You write concise customer-facing infrastructure reports from supplied telemetry context only."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 1400
+    })
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = payload.error?.message || payload.message || `${response.status} ${response.statusText}`;
+    throw new Error(`LLM endpoint returned ${detail}`);
+  }
+
+  const text = extractLlmReportText(payload);
+  if (!text) throw new Error("LLM endpoint returned no report text.");
+  return text;
+}
+
+function llmChatCompletionsUrl(baseUrl) {
+  const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  if (/\/chat\/completions$/i.test(trimmed)) return trimmed;
+  if (/\/v1$/i.test(trimmed)) return `${trimmed}/chat/completions`;
+  return `${trimmed}/v1/chat/completions`;
+}
+
+function extractLlmReportText(payload) {
+  const choiceText = payload?.choices?.[0]?.message?.content
+    || payload?.choices?.[0]?.text
+    || "";
+  if (choiceText) return String(choiceText).trim();
+  if (payload?.output_text) return String(payload.output_text).trim();
+  if (Array.isArray(payload?.output)) {
+    return payload.output
+      .flatMap((item) => item?.content || [])
+      .map((part) => part?.text || part?.content || "")
+      .join("\n")
+      .trim();
+  }
+  return "";
 }
 
 async function copyTextToClipboard(text) {

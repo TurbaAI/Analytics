@@ -5,22 +5,25 @@ import os
 import sys
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
+import uuid
 
-from fastapi import Depends, FastAPI, Header, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 ROOT = Path(__file__).resolve().parents[3]
-for relative in ("services/duckdb-query-service", "services/alert-engine", "services/platform_common"):
+for relative in ("services/duckdb-query-service", "services/alert-engine", "services/platform_common", "services/raw-writer"):
     path = ROOT / relative
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
 from duckdb_query_service import LakeQuery  # noqa: E402
 from platform_common import HttpRequestMetrics, install_request_observability  # noqa: E402
+from raw_writer import LakeStorage  # noqa: E402
 from .auth import ApiAuthenticator, Principal, load_jwt_verifier, load_token_rules  # noqa: E402
 
 try:
@@ -103,6 +106,7 @@ class ApiSettings:
 def create_app(settings: ApiSettings | None = None) -> FastAPI:
     settings = settings or ApiSettings.from_env()
     lake = LakeQuery(settings.lake_root, max_rows=settings.max_rows)
+    ledger_storage = LakeStorage(settings.lake_root)
     auth = ApiAuthenticator(
         require_auth=settings.require_auth,
         token_rules=load_token_rules(",".join(settings.api_tokens), settings.api_tokens_file),
@@ -328,6 +332,34 @@ def create_app(settings: ApiSettings | None = None) -> FastAPI:
         rows = lake.fleet_rca(tenant_id=tenant_id, limit=settings.max_rows)
         return {"rows": rows, "count": len(rows)}
 
+    @app.get("/v1/savings-ledger")
+    async def savings_ledger(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(viewer_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id)
+        rows = lake.savings_ledger(tenant_id=tenant_id, limit=settings.max_rows)
+        entries = [_ledger_row_to_entry(row) for row in rows]
+        return {"entries": entries, "count": len(entries)}
+
+    @app.post("/v1/savings-ledger")
+    async def write_savings_ledger(
+        payload: dict[str, Any],
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        principal: Principal = Depends(operator_dependency),
+    ) -> dict[str, Any]:
+        tenant_id = auth.scoped_tenant(principal, tenant_id or str(payload.get("tenantId") or ""))
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenantId is required for savings ledger writes")
+        row = _normalize_savings_ledger_payload(payload, tenant_id=tenant_id, principal=principal)
+        path = _write_savings_ledger_entry(ledger_storage, row)
+        return {
+            "status": "written",
+            "tenantId": tenant_id,
+            "path": str(path),
+            "entry": _ledger_row_to_entry(row),
+        }
+
     @app.get("/v1/alerts")
     async def alerts(
         tenant_id: str | None = Query(default=None, alias="tenantId"),
@@ -404,9 +436,129 @@ def _fetch_discovery_json(url: str) -> dict[str, Any]:
 
 
 def _utc_iso() -> str:
-    from datetime import datetime, timezone
-
     return datetime.now(timezone.utc).isoformat()
+
+
+def _normalize_savings_ledger_payload(payload: dict[str, Any], *, tenant_id: str, principal: Principal) -> dict[str, Any]:
+    scope = _dict_value(payload.get("scope"))
+    baseline = _dict_value(payload.get("baseline"))
+    result = _dict_value(payload.get("result"))
+    status = str(payload.get("status") or "verified")
+    attribution = str(payload.get("attribution") or "measured")
+    if status not in {"proposed", "accepted", "applied", "verified", "rejected", "expired"}:
+        raise HTTPException(status_code=400, detail=f"invalid ledger status: {status}")
+    if attribution not in {"measured", "modeled"}:
+        raise HTTPException(status_code=400, detail=f"invalid ledger attribution: {attribution}")
+
+    ledger_id = str(payload.get("id") or f"ledger-{uuid.uuid4().hex[:16]}")
+    action_id = str(payload.get("actionId") or payload.get("action_id") or "")
+    if not action_id:
+        raise HTTPException(status_code=400, detail="actionId is required")
+
+    written_at = _utc_iso()
+    return {
+        "tenant_id": tenant_id,
+        "ledger_id": ledger_id,
+        "action_id": action_id,
+        "action_title": str(payload.get("actionTitle") or payload.get("title") or ""),
+        "category": str(payload.get("category") or ""),
+        "scope_type": str(scope.get("type") or "tenant"),
+        "scope_key": str(scope.get("key") or tenant_id),
+        "status": status,
+        "metric": str(payload.get("metric") or "wastedGpuHours"),
+        "baseline_value": _optional_float(baseline.get("value")),
+        "baseline_window": str(baseline.get("window") or ""),
+        "baseline_snapshot_id": str(baseline.get("snapshotId") or baseline.get("snapshot_id") or ""),
+        "result_value": _optional_float(result.get("value")),
+        "result_window": str(result.get("window") or ""),
+        "result_snapshot_id": str(result.get("snapshotId") or result.get("snapshot_id") or ""),
+        "delta_gpu_hours": _optional_float(payload.get("deltaGpuHours") if "deltaGpuHours" in payload else payload.get("delta_gpu_hours")),
+        "delta_dollars": _optional_float(payload.get("deltaDollars") if "deltaDollars" in payload else payload.get("delta_dollars")),
+        "predicted_gpu_hours": _optional_float(payload.get("predictedGpuHours") if "predictedGpuHours" in payload else payload.get("predicted_gpu_hours")),
+        "predicted_dollars": _optional_float(payload.get("predictedDollars") if "predictedDollars" in payload else payload.get("predicted_dollars")),
+        "confidence": _optional_float(payload.get("confidence")),
+        "attribution": attribution,
+        "applied_at": str(payload.get("appliedAt") or payload.get("applied_at") or ""),
+        "verified_at": str(payload.get("verifiedAt") or payload.get("verified_at") or ""),
+        "evidence_ref": str(payload.get("evidenceRef") or payload.get("evidence_ref") or ""),
+        "written_at": written_at,
+        "written_by": principal.subject,
+    }
+
+
+def _write_savings_ledger_entry(storage: LakeStorage, row: dict[str, Any]) -> Path:
+    written_at = _parse_iso(row.get("written_at")) or datetime.now(timezone.utc)
+    relative_path = (
+        Path("raw")
+        / "savings_ledger"
+        / f"tenant_id={_path_part(str(row['tenant_id']))}"
+        / f"dt={written_at.strftime('%Y-%m-%d')}"
+        / f"part-{_path_part(str(row['ledger_id']))}-{uuid.uuid4().hex[:8]}.parquet"
+    )
+    storage.write_parquet_rows([row], relative_path)
+    return relative_path
+
+
+def _ledger_row_to_entry(row: dict[str, Any]) -> dict[str, Any]:
+    scope = row.get("scope") if isinstance(row.get("scope"), dict) else {}
+    scope_type = str(row.get("scope_type") or scope.get("type") or "tenant")
+    scope_key = str(row.get("scope_key") or scope.get("key") or row.get("tenant_id") or "")
+    return {
+        "id": str(row.get("ledger_id") or row.get("id") or ""),
+        "actionId": str(row.get("action_id") or row.get("actionId") or ""),
+        "actionTitle": str(row.get("action_title") or row.get("actionTitle") or ""),
+        "category": str(row.get("category") or ""),
+        "scope": {"type": scope_type, "key": scope_key},
+        "status": str(row.get("status") or "proposed"),
+        "metric": str(row.get("metric") or "wastedGpuHours"),
+        "baseline": {
+            "value": _optional_float(row.get("baseline_value")),
+            "window": str(row.get("baseline_window") or ""),
+            "snapshotId": str(row.get("baseline_snapshot_id") or ""),
+        },
+        "result": {
+            "value": _optional_float(row.get("result_value")),
+            "window": str(row.get("result_window") or ""),
+            "snapshotId": str(row.get("result_snapshot_id") or ""),
+        },
+        "deltaGpuHours": _optional_float(row.get("delta_gpu_hours")),
+        "deltaDollars": _optional_float(row.get("delta_dollars")),
+        "predictedGpuHours": _optional_float(row.get("predicted_gpu_hours")),
+        "predictedDollars": _optional_float(row.get("predicted_dollars")),
+        "confidence": _optional_float(row.get("confidence")),
+        "attribution": str(row.get("attribution") or "modeled"),
+        "appliedAt": str(row.get("applied_at") or ""),
+        "verifiedAt": str(row.get("verified_at") or ""),
+        "evidenceRef": str(row.get("evidence_ref") or ""),
+        "tenantId": str(row.get("tenant_id") or ""),
+    }
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _optional_float(value: Any) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and number not in (float("inf"), float("-inf")) else None
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _path_part(value: str) -> str:
+    return "".join(char if char.isalnum() or char in ("-", "_", ".") else "_" for char in value)
 
 
 app = create_app()

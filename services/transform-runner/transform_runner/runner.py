@@ -71,6 +71,7 @@ class TransformRunner:
             ("vs_host_hardware_health", self.query.hardware_health(tenant_id=tenant_id)),
             ("vs_repair_candidates", self.query.repair_candidates(tenant_id=tenant_id)),
             ("vs_fleet_rca", self.query.fleet_rca(tenant_id=tenant_id)),
+            ("vs_savings_ledger", self.query.savings_ledger(tenant_id=tenant_id)),
             ("vs_alert_candidates", self.query.alert_candidates(tenant_id=tenant_id)),
         ):
             if rows:

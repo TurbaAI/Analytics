@@ -16,7 +16,8 @@
     "commercial:validate": "node scripts/validate-commercial-readiness.js",
     "process:validate": "node scripts/validate-engineering-process.js",
     "performance:budgets": "node scripts/validate-performance-budgets.js",
-    "gpu:top": "node scripts/turbalance-gpu-top.js"
+    "gpu:top": "node scripts/turbalance-gpu-top.js",
+    "turbatop": "python3 cli/turbatop/turbatop.py"
   },
   "devDependencies": {
     "playwright": "^1.44.0"

@@ -1,0 +1,69 @@
+{
+  "generatedAt": "2026-06-18T05:55:00Z",
+  "ready": { "status": "ready", "version": "0.1.0" },
+  "me": { "tenantId": "prod-a", "role": "viewer" },
+  "scope": "tenant",
+  "summary": {
+    "fleet": "prod-a",
+    "gpuUtilPct": 62,
+    "usefulComputePct": 41,
+    "wastedGpuHours": 8146,
+    "costPerUsefulGpuHour": 15,
+    "dominantBottleneck": "Communication",
+    "history": {
+      "gpuUtilPct": [54, 61, 58, 64, 69, 63, 62, 57],
+      "usefulComputePct": [31, 34, 37, 35, 40, 38, 41]
+    }
+  },
+  "hosts": {
+    "hosts": [
+      { "hostId": "spark1" },
+      { "hostId": "spark2" },
+      { "hostId": "pi1..12" }
+    ]
+  },
+  "resources": {
+    "spark1": {
+      "rows": [
+        { "host_id": "spark1", "event_ts": "2026-06-18T05:54:58Z", "accelerator": true, "gpuName": "NVIDIA GB10", "gpu": 91, "hbm": 88, "ram": 64, "cpu": 42, "network": 29, "status": "ok" }
+      ]
+    },
+    "spark2": {
+      "rows": [
+        { "host_id": "spark2", "event_ts": "2026-06-18T05:54:58Z", "accelerator": true, "gpuName": "NVIDIA GB10", "gpu": 73, "hbm": 61, "ram": 58, "cpu": 51, "network": 22, "status": "ok" }
+      ]
+    },
+    "pi1..12": {
+      "rows": [
+        { "host_id": "pi1..12", "event_ts": "2026-06-18T05:54:58Z", "accelerator": false, "gpuSource": "nvidia-smi-not-found", "ram": 44, "cpu": 58, "network": 36, "status": "watch", "detail": "Raspberry Pi CPU-only edge hosts" }
+      ]
+    }
+  },
+  "bottlenecks": [
+    { "label": "Communication", "score": 78 },
+    { "label": "Input", "score": 54 },
+    { "label": "Memory", "score": 41 },
+    { "label": "Placement", "score": 33 }
+  ],
+  "alerts": {
+    "alerts": [
+      { "severity": "warning", "title": "HBM capacity", "detail": "crosses 100 in ~2d" },
+      { "severity": "warning", "title": "queue wait", "detail": "12m, rising" }
+    ]
+  },
+  "predictiveWarnings": [
+    { "severity": "warning", "title": "gpuUtil regression risk", "detail": "elevated" }
+  ],
+  "actions": [
+    { "title": "Recover wasted spend", "value": 12000, "gpuHours": 3060, "confidence": 0.80, "detail": "compare NCCL trace before/after" },
+    { "title": "Repack topology", "value": 8300, "gpuHours": 690, "confidence": 0.74 },
+    { "title": "Remove storage stalls", "value": 4800, "gpuHours": 540, "confidence": 0.71 }
+  ],
+  "savings": {
+    "entries": [
+      { "status": "verified", "attribution": "measured", "deltaDollars": 42000, "deltaGpuHours": 11200, "predictedDollars": 60000 },
+      { "status": "verified", "attribution": "measured", "deltaDollars": 100000, "deltaGpuHours": 27000, "predictedDollars": 140000 },
+      { "status": "applied", "attribution": "measured", "deltaDollars": 9000, "deltaGpuHours": 1400, "predictedDollars": 10000 }
+    ]
+  }
+}

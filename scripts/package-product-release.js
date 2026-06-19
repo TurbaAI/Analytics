@@ -73,6 +73,7 @@ function main() {
       observability: `node scripts/manage-product-observability.js --config ${configPath} --action up --secure auto --apply`,
       productEdge: `node scripts/manage-product-edge.js --config ${configPath} --action up --apply`,
       controllerServices: `node scripts/manage-product-controller-services.js --config ${configPath} --action install --mode user --apply`,
+      turbatop: "make turbatop",
       install: `node scripts/manage-product-release.js --action install --source ${packageName}.tar.gz --install-root /opt/turbalance/product --apply`,
       update: `node scripts/manage-product-release.js --action update --source ${packageName}.tar.gz --install-root /opt/turbalance/product --apply`,
       rollback: "node scripts/manage-product-release.js --action rollback --install-root /opt/turbalance/product --apply",

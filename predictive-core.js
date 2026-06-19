@@ -477,6 +477,7 @@
     "Scheduler + Capacity": 3,
     "Provider SLO + Escalation": 2,
     "Inference Economics": 3,
+    "inference-serving": 3,
     "Host Kernel + eBPF": 4,
     "Fleet Reliability": 4,
     "Energy + Carbon": 1,
@@ -488,7 +489,7 @@
     hbmCapacity: "Memory",
     hbmBandwidth: "Memory",
     memoryFragmentation: "Memory",
-    kvCachePressure: "Inference Economics",
+    kvCachePressure: "inference-serving",
     queueWaitMinutes: "Scheduler + Capacity",
     idleGpus: "Scheduler + Capacity",
     partialNodes: "Scheduler + Capacity",
@@ -499,7 +500,7 @@
     storageWait: "Data Pipeline",
     wastedGpuHours: "Useful Compute FinOps",
     costPerUsefulGpuHour: "Useful Compute FinOps",
-    latencyTail: "Inference Economics"
+    latencyTail: "inference-serving"
   };
 
   function effortFor(opportunity) {
@@ -674,6 +675,8 @@
 
     const steps = ordered.map((action, index) => ({
       step: index + 1,
+      actionId: action.id,
+      metric: action.metric || "wastedGpuHours",
       action: action.title,
       category: action.category,
       owner: action.owner,
@@ -793,6 +796,232 @@
     };
   }
 
+  const LEDGER_STATUSES = ["proposed", "accepted", "applied", "verified", "rejected", "expired"];
+  const LEDGER_TERMINAL_STATUSES = new Set(["verified", "rejected", "expired"]);
+  const LEDGER_EVENTS = {
+    accept: "accepted",
+    accepted: "accepted",
+    apply: "applied",
+    applied: "applied",
+    verify: "verified",
+    verified: "verified",
+    reject: "rejected",
+    rejected: "rejected",
+    expire: "expired",
+    expired: "expired"
+  };
+  const LEDGER_TRANSITIONS = {
+    proposed: new Set(["accepted", "rejected", "expired"]),
+    accepted: new Set(["applied", "rejected", "expired"]),
+    applied: new Set(["verified", "rejected", "expired"]),
+    verified: new Set(),
+    rejected: new Set(),
+    expired: new Set()
+  };
+  const HIGHER_IS_BETTER_LEDGER_METRICS = new Set(["usefulCompute", "usefulGpuHours", "gpuUtil", "grossMarginPct"]);
+
+  function recordOutcome(action = {}, baselineSnapshot = null, resultSnapshot = null, opts = {}) {
+    const metric = String(opts.metric || action.metric || "wastedGpuHours");
+    const scope = normalizeLedgerScope(opts.scope || action.scope || baselineSnapshot || resultSnapshot);
+    const baselineValue = snapshotMetricValue(baselineSnapshot, metric);
+    const resultValue = snapshotMetricValue(resultSnapshot, metric);
+    const hasMeasuredSnapshots = Boolean(baselineSnapshot && resultSnapshot && Number.isFinite(baselineValue) && Number.isFinite(resultValue));
+    const direction = opts.direction || action.direction || (HIGHER_IS_BETTER_LEDGER_METRICS.has(metric) ? "higherIsBetter" : "lowerIsBetter");
+    const signedDelta = hasMeasuredSnapshots
+      ? (direction === "higherIsBetter" ? resultValue - baselineValue : baselineValue - resultValue)
+      : numeric(opts.deltaGpuHours ?? action.expectedGpuHours ?? action.impactGpuHours, 0);
+    const dollarsPerGpuHour = ledgerDollarsPerGpuHour(action, baselineSnapshot, opts);
+    const deltaGpuHours = round(signedDelta, 3);
+    const deltaDollars = round(
+      Number.isFinite(numeric(opts.deltaDollars, Number.NaN))
+        ? numeric(opts.deltaDollars)
+        : deltaGpuHours * dollarsPerGpuHour,
+      2
+    );
+    const predictedGpuHours = round(numeric(action.expectedGpuHours ?? action.impactGpuHours ?? opts.predictedGpuHours, Math.abs(deltaGpuHours)), 3);
+    const predictedDollars = round(numeric(action.expectedDollars ?? action.impactDollars ?? opts.predictedDollars, Math.abs(deltaDollars)), 2);
+    const status = normalizeLedgerStatus(opts.status || (hasMeasuredSnapshots ? "verified" : "proposed"));
+    const category = String(action.category || opts.category || "Uncategorized");
+    const appliedAt = validLedgerIso(opts.appliedAt || action.appliedAt);
+    const verifiedAt = validLedgerIso(opts.verifiedAt || (status === "verified" ? (resultSnapshot?.capturedAt || opts.now) : ""));
+    const evidenceRef = String(opts.evidenceRef || action.evidenceRef || evidenceRefForSnapshots(baselineSnapshot, resultSnapshot));
+    const entrySeed = [
+      action.id || action.actionId || action.title || "action",
+      scope.type,
+      scope.key,
+      metric,
+      baselineSnapshot?.capturedAt || "modeled",
+      resultSnapshot?.capturedAt || "pending"
+    ].join("|");
+
+    return {
+      id: String(opts.id || action.ledgerId || `ledger-${hashString(entrySeed)}`),
+      actionId: String(action.id || action.actionId || opts.actionId || "unknown-action"),
+      actionTitle: String(action.title || action.name || opts.actionTitle || ""),
+      category,
+      scope,
+      status,
+      metric,
+      baseline: ledgerSnapshotRef(baselineSnapshot, metric, baselineValue, opts.baseline),
+      result: ledgerSnapshotRef(resultSnapshot, metric, resultValue, opts.result),
+      deltaGpuHours,
+      deltaDollars,
+      predictedGpuHours,
+      predictedDollars,
+      confidence: round(clamp(numeric(action.confidence, numeric(opts.confidence, 50)) * clamp(numeric(opts.fitQuality, 1), 0, 1), 0, 100)),
+      attribution: hasMeasuredSnapshots ? "measured" : "modeled",
+      appliedAt: appliedAt || "",
+      verifiedAt: verifiedAt || "",
+      evidenceRef
+    };
+  }
+
+  function advanceLedgerStatus(entry, event) {
+    const current = normalizeLedgerStatus(entry?.status || "proposed");
+    const target = ledgerTargetStatus(event);
+    if (!target) throw new Error(`unknown ledger event: ${String(event?.type || event)}`);
+    if (target === current) return { ...entry, status: current };
+    if (LEDGER_TERMINAL_STATUSES.has(current) || !LEDGER_TRANSITIONS[current].has(target)) {
+      throw new Error(`illegal ledger transition: ${current} -> ${target}`);
+    }
+    const at = validLedgerIso(event?.at || event?.time || event?.timestamp || "");
+    return {
+      ...entry,
+      status: target,
+      appliedAt: target === "applied" ? (at || entry?.appliedAt || "") : (entry?.appliedAt || ""),
+      verifiedAt: target === "verified" ? (at || entry?.verifiedAt || "") : (entry?.verifiedAt || "")
+    };
+  }
+
+  function rollupLedger(entries = [], options = {}) {
+    const filtered = (Array.isArray(entries) ? entries : [])
+      .filter((entry) => ledgerEntryInScope(entry, options.scope))
+      .filter((entry) => ledgerEntryInWindow(entry, options.window));
+    const measuredVerified = filtered.filter((entry) => entry.status === "verified" && entry.attribution === "measured");
+    const verifiedDollars = round(measuredVerified.reduce((total, entry) => total + numeric(entry.deltaDollars), 0), 2);
+    const verifiedGpuHours = round(measuredVerified.reduce((total, entry) => total + numeric(entry.deltaGpuHours), 0), 3);
+    const predictedDollars = round(filtered.reduce((total, entry) => total + Math.max(0, numeric(entry.predictedDollars)), 0), 2);
+    const predictedGpuHours = round(filtered.reduce((total, entry) => total + Math.max(0, numeric(entry.predictedGpuHours)), 0), 3);
+
+    return {
+      entryCount: filtered.length,
+      verifiedCount: measuredVerified.length,
+      modeledCount: filtered.filter((entry) => entry.attribution === "modeled").length,
+      verifiedDollars,
+      verifiedGpuHours,
+      predictedDollars,
+      predictedGpuHours,
+      byScope: ledgerGroupRollup(measuredVerified, (entry) => `${entry.scope?.type || "unknown"}:${entry.scope?.key || "unknown"}`),
+      byCategory: ledgerGroupRollup(measuredVerified, (entry) => entry.category || "Uncategorized"),
+      realizationRate: predictedDollars > 0 ? round((verifiedDollars / predictedDollars) * 100, 1) : 0
+    };
+  }
+
+  function normalizeLedgerScope(value = {}) {
+    const source = value && typeof value === "object" ? value : {};
+    const raw = source.scope && typeof source.scope === "object" ? source.scope : source;
+    return {
+      type: String(raw.type || raw.scope || "tenant"),
+      key: String(raw.key || raw.id || raw.tenantId || raw.tenant || raw.label || "unknown")
+    };
+  }
+
+  function snapshotMetricValue(snapshot, metric) {
+    if (!snapshot || typeof snapshot !== "object") return Number.NaN;
+    return numeric(snapshot.metrics?.[metric] ?? snapshot[metric] ?? snapshot.value, Number.NaN);
+  }
+
+  function ledgerDollarsPerGpuHour(action = {}, snapshot = null, opts = {}) {
+    const explicit = numeric(opts.dollarsPerGpuHour ?? opts.rate ?? action.rate, Number.NaN);
+    if (Number.isFinite(explicit) && explicit > 0) return explicit;
+    const snapshotRate = numeric(snapshot?.rate, Number.NaN);
+    if (Number.isFinite(snapshotRate) && snapshotRate > 0) return snapshotRate;
+    const predictedDollars = numeric(action.expectedDollars ?? action.impactDollars, Number.NaN);
+    const predictedGpuHours = numeric(action.expectedGpuHours ?? action.impactGpuHours, Number.NaN);
+    if (Number.isFinite(predictedDollars) && Number.isFinite(predictedGpuHours) && predictedGpuHours !== 0) {
+      return Math.abs(predictedDollars / predictedGpuHours);
+    }
+    return 0;
+  }
+
+  function ledgerSnapshotRef(snapshot, metric, value, fallback = {}) {
+    const source = snapshot && typeof snapshot === "object" ? snapshot : {};
+    return {
+      value: Number.isFinite(value) ? round(value, 3) : numeric(fallback.value, 0),
+      window: String(source.window || fallback.window || ""),
+      snapshotId: String(source.id || source.snapshotId || fallback.snapshotId || "")
+    };
+  }
+
+  function normalizeLedgerStatus(status) {
+    const value = String(status || "proposed");
+    return LEDGER_STATUSES.includes(value) ? value : "proposed";
+  }
+
+  function ledgerTargetStatus(event) {
+    const value = typeof event === "string" ? event : event?.type || event?.event || event?.status;
+    return LEDGER_EVENTS[String(value || "").toLowerCase()] || "";
+  }
+
+  function ledgerEntryInScope(entry, scope) {
+    if (!scope) return true;
+    const expected = normalizeLedgerScope(scope);
+    return String(entry?.scope?.type || "") === expected.type && String(entry?.scope?.key || "") === expected.key;
+  }
+
+  function ledgerEntryInWindow(entry, window) {
+    const parsed = parseLedgerWindow(window);
+    if (!parsed) return true;
+    const at = toEpoch(entry?.verifiedAt || entry?.appliedAt || entry?.result?.window?.split("/")?.[1] || "");
+    if (!Number.isFinite(at)) return false;
+    return at >= parsed.start && at <= parsed.end;
+  }
+
+  function parseLedgerWindow(window) {
+    if (!window) return null;
+    const parts = String(window).split("/");
+    if (parts.length !== 2) return null;
+    const start = toEpoch(parts[0]);
+    const end = toEpoch(parts[1]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+    return { start, end };
+  }
+
+  function ledgerGroupRollup(entries, keyFn) {
+    const groups = {};
+    entries.forEach((entry) => {
+      const key = keyFn(entry);
+      const current = groups[key] || { verifiedDollars: 0, verifiedGpuHours: 0, count: 0 };
+      current.verifiedDollars = round(current.verifiedDollars + numeric(entry.deltaDollars), 2);
+      current.verifiedGpuHours = round(current.verifiedGpuHours + numeric(entry.deltaGpuHours), 3);
+      current.count += 1;
+      groups[key] = current;
+    });
+    return groups;
+  }
+
+  function validLedgerIso(value) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+  }
+
+  function evidenceRefForSnapshots(baselineSnapshot, resultSnapshot) {
+    return [baselineSnapshot?.snapshotId || baselineSnapshot?.id, resultSnapshot?.snapshotId || resultSnapshot?.id]
+      .filter(Boolean)
+      .join("..");
+  }
+
+  function hashString(value) {
+    let hash = 2166136261;
+    const text = String(value);
+    for (let index = 0; index < text.length; index += 1) {
+      hash ^= text.charCodeAt(index);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  }
+
   function formatDollars(value) {
     const n = numeric(value);
     if (n >= 1000) return `$${round(n / 1000, 1)}k`;
@@ -821,8 +1050,12 @@
     buildActionPlan,
     forecastDrivenActions,
     analyzePrescriptive,
+    recordOutcome,
+    advanceLedgerStatus,
+    rollupLedger,
     // metadata
     EFFORT_BY_CATEGORY,
-    METRIC_TO_CATEGORY
+    METRIC_TO_CATEGORY,
+    LEDGER_STATUSES
   };
 });

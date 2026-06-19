@@ -141,6 +141,7 @@ const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "turba-live-push-"));
   assert.ok(JSON.stringify(rolloutPlan).includes("turbalance-live-machine-agent.service"));
   assert.ok(JSON.stringify(rolloutPlan).includes("fleet-observability-compose.yml"));
   assert.ok(JSON.stringify(rolloutPlan).includes("[REDACTED]"));
+  assert.ok(JSON.stringify(rolloutPlan).includes("[REDACTED: install-agent-env]"));
   assert.ok(!JSON.stringify(rolloutPlan).includes("rollout-token"));
   assert.ok(!JSON.stringify(rolloutPlan).includes("rollout-secret"));
 

@@ -771,6 +771,7 @@ function normalizeRun(run, entities) {
     account: entityLabel(entities.accounts, refs.account),
     reservation: entityLabel(entities.reservations, refs.reservation),
     gpuModel: allocation.gpuModel || cluster.gpuModel || "Unknown GPU",
+    modelSpec: normalizeModelSpec(run, allocation, cluster),
     status: run.status,
     durationHours: numeric(allocation.durationHours),
     gpus: numeric(allocation.gpus),
@@ -821,6 +822,36 @@ function normalizeSchedulerEvidence(evidence = {}) {
       gpusPerNode: optionalMetric(evidence, "gpusPerNode")
     })
   });
+}
+
+function normalizeModelSpec(run = {}, allocation = {}, cluster = {}) {
+  const explicit = isPlainObject(run.modelSpec)
+    ? run.modelSpec
+    : isPlainObject(run.work?.modelSpec) ? run.work.modelSpec : {};
+  const context = isPlainObject(run.sourceContext) ? run.sourceContext : {};
+
+  return compactObject({
+    gpuModel: String(explicit.gpuModel || allocation.gpuModel || cluster.gpuModel || context.gpuName || ""),
+    precision: String(explicit.precision || explicit.dtype || run.configuration?.precision || context.precision || ""),
+    paramsB: modelSpecNumber(explicit, run.work, context, "paramsB", "parametersB", "modelParamsB"),
+    sequenceLength: modelSpecNumber(explicit, run.work, context, "sequenceLength", "seqLen", "contextLength"),
+    batchSize: modelSpecNumber(explicit, run.work, context, "batchSize", "globalBatchSize"),
+    peakTflops: modelSpecNumber(explicit, run.work, context, "peakTflops", "devicePeakTflops"),
+    trainingFlopMultiplier: modelSpecNumber(explicit, run.work, context, "trainingFlopMultiplier", "flopsPerTokenMultiplier"),
+    hardwareFlopMultiplier: modelSpecNumber(explicit, run.work, context, "hardwareFlopMultiplier", "recomputeMultiplier")
+  });
+}
+
+function modelSpecNumber(...groupsAndKeys) {
+  const keys = groupsAndKeys.filter((value) => typeof value === "string");
+  const groups = groupsAndKeys.filter((value) => isPlainObject(value));
+  for (const group of groups) {
+    for (const key of keys) {
+      const value = optionalMetric(group, key);
+      if (Number.isFinite(value)) return value;
+    }
+  }
+  return undefined;
 }
 
 function normalizeGrafanaContext(context = {}) {
@@ -1031,6 +1062,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
   const schedulerEvidence = schedulerEvidenceSummaryLine(summary);
   const grafanaRows = redactedGrafanaRows(summary, plan).slice(0, 6);
   const sourceRows = redactedSourceRows(summary, plan).slice(0, 10);
+  const savingsLedgerEvidence = buildSavingsLedgerEvidence(summary, plan);
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   const cockpitHeartbeats = cockpit.heartbeats || [];
   const cockpitTimeline = cockpit.timeline || [];
@@ -1052,6 +1084,7 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
     `- Provider context: tenant ${providerContext.tenant}, account ${providerContext.account}, reservation ${providerContext.reservation}.`,
     `- Provider impact: ${currency.format(provider.sellableWasteValue)} sellable waste value; ${queueSloNote(provider)}.`,
     `- Opportunity upside: ${currency.format(opportunityEngine.totalImpactDollars)} and ${number.format(opportunityEngine.totalImpactGpuHours)} GPU-hours across ${opportunityRows.length} ranked actions.`,
+    `- Savings ledger: ${currency.format(savingsLedgerEvidence.rollup.verifiedDollars)} and ${number.format(savingsLedgerEvidence.rollup.verifiedGpuHours)} GPU-hours verified recovered; realization ${savingsLedgerEvidence.rollup.realizationRate}%.`,
     recommendedScenario ? `- Scheduler what-if: ${recommendedScenario.label} projects ${currency.format(recommendedScenario.dollarUpside)} upside and ${number.format(recommendedScenario.recoveredGpuHours)} recovered GPU-hours.` : "",
     "",
     "## Top Opportunities",
@@ -1095,6 +1128,25 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
       markdownCell(`${pct(scenario.projected.usefulCompute)} (${signedNumber(scenario.deltas.usefulCompute)} pts)`),
       markdownCell(scenario.action)
     ].join(" | ").replace(/^/, "| ").replace(/$/, " |")),
+    "",
+    "## Verified Savings Ledger",
+    "",
+    savingsLedgerEvidence.rows.length > 0 ? `Rollup: ${currency.format(savingsLedgerEvidence.rollup.verifiedDollars)} / ${number.format(savingsLedgerEvidence.rollup.verifiedGpuHours)} GPU-hours verified recovered from ${savingsLedgerEvidence.rollup.verifiedCount} measured entries.` : "No savings-ledger entries attached for this selection.",
+    "",
+    ...(savingsLedgerEvidence.rows.length > 0 ? [
+      "| Status | Attribution | Action | Category | Before | After | Delta | Evidence |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- |",
+      ...savingsLedgerEvidence.rows.map((row) => [
+        markdownCell(row.status),
+        markdownCell(row.attribution),
+        markdownCell(row.action),
+        markdownCell(row.category),
+        markdownCell(row.before),
+        markdownCell(row.after),
+        markdownCell(row.delta),
+        markdownCell(row.evidence)
+      ].join(" | ").replace(/^/, "| ").replace(/$/, " |"))
+    ] : []),
     "",
     "## Grafana Handoff",
     "",
@@ -1157,6 +1209,31 @@ function buildEvidencePackMarkdown({ summary, classifier, provider, opportunityE
   ];
 
   return `${lines.join("\n")}`;
+}
+
+function buildSavingsLedgerEvidence(summary, plan) {
+  const emptyRollup = { verifiedDollars: 0, verifiedGpuHours: 0, verifiedCount: 0, modeledCount: 0, realizationRate: 0 };
+  const ledger = Array.isArray(savingsLedger) ? savingsLedger : [];
+  const scope = { type: summary.scope, key: summary.key };
+  const rollup = typeof TurbaPredictive !== "undefined"
+    ? TurbaPredictive.rollupLedger(ledger, { scope })
+    : emptyRollup;
+  const rows = ledger
+    .filter((entry) => entry.scope?.type === scope.type && entry.scope?.key === scope.key)
+    .slice()
+    .sort((left, right) => new Date(right.verifiedAt || right.appliedAt || 0) - new Date(left.verifiedAt || left.appliedAt || 0))
+    .slice(0, 8)
+    .map((entry) => ({
+      status: titleCase(entry.status),
+      attribution: titleCase(entry.attribution),
+      action: entry.actionTitle || entry.actionId,
+      category: entry.category,
+      before: `${entry.metric}: ${number.format(entry.baseline?.value || 0)}`,
+      after: `${entry.metric}: ${number.format(entry.result?.value || 0)}`,
+      delta: `${currency.format(entry.deltaDollars)} / ${number.format(entry.deltaGpuHours)} GPU-hours`,
+      evidence: entry.evidenceRef ? "attached" : "n/a"
+    }));
+  return { rollup, rows };
 }
 
 function buildRedactionPlan(store) {
@@ -1382,6 +1459,7 @@ function summarizeEntry(entry) {
     accounts: knownLabels(items.map((job) => job.account), "Unassigned account"),
     reservations: knownLabels(items.map((job) => job.reservation), "No reservation"),
     gpuModels: unique(items.map((job) => job.gpuModel)),
+    modelSpec: summarizeModelSpecFields(items),
     gpus: sum(items, "gpus"),
     allocatedGpuHours,
     gpuUtil: weighted("gpuUtil"),
@@ -2421,6 +2499,480 @@ function buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison
   };
 }
 
+function buildMachineL1L6State(summary) {
+  const machineContext = machineDemoContext(summary);
+  const fleetComparison = buildFleetComparison(summary, machineContext, platformVirtualSensorCache.systemIdentification);
+  const ladder = buildBenchmarkComparisonLadder(summary, machineContext, fleetComparison);
+  const rows = ladder.rows || benchmarkComparisonRows(summary, machineContext, fleetComparison);
+  const target = ladder.target || benchmarkTargetRow(rows, machineContext);
+
+  if (!target) {
+    return {
+      available: false,
+      badge: "Waiting",
+      focusBadge: "No host",
+      focusTitle: "Waiting for machine telemetry",
+      tone: "watch",
+      emptyText: "Waiting for live machine telemetry before building the L1-L6 comparison."
+    };
+  }
+
+  const levels = ladder.levels || [
+    benchmarkSelfLevel(target, rows, benchmarkMetricConfigs().map((config) => benchmarkMetricState(target, rows, config))),
+    benchmarkWaitingLevel("peer", "2", "1:1", "Need another machine"),
+    benchmarkWaitingLevel("rack", "3", "Rack", "Need peers in scope"),
+    benchmarkWaitingLevel("cluster", "4", "Cluster", "Need peers in scope"),
+    benchmarkWaitingLevel("fleet", "5", "Fleet", "Need peers in scope"),
+    benchmarkGlobalLevel(target, benchmarkMetricConfigs().map((config) => benchmarkMetricState(target, rows, config)))
+  ];
+  const readyLevels = levels.filter((level) => level.status === "ready").length;
+  const pressurePct = Math.max(
+    numeric(target.cpuUsagePct, 0),
+    numeric(target.memoryUsedPct, 0),
+    numeric(target.diskUsedPct, 0),
+    target.gpuPresent ? numeric(target.gpuUtilizationPct, 0) : 0
+  );
+  const gpuLabel = target.gpuPresent
+    ? pct(target.gpuUtilizationPct)
+    : "host only";
+  const gpuDetail = target.gpuPresent
+    ? firstString([target.machineContext?.gpuModel, target.machineContext?.context?.gpuName, "GPU telemetry"])
+    : firstString([target.machineContext?.gpuModel, target.machineContext?.context?.gpuName, "No GPU counters"]);
+  const focusTitle = `${target.host} L1-L6 comparison`;
+  const tone = ladder.tone || target.tone || (readyLevels >= 4 ? "good" : readyLevels >= 2 ? "watch" : "poor");
+
+  return {
+    available: true,
+    badge: `${readyLevels}/6 ready`,
+    focusBadge: target.rank ? `Rank #${target.rank}` : "Single host",
+    focusTitle,
+    tone,
+    target,
+    rows,
+    levels,
+    readyLevels,
+    ladder,
+    fleetComparison,
+    summaryCards: [
+      {
+        label: "Comparison",
+        value: `${readyLevels}/6`,
+        note: `${ladder.availableMetricCount || 0}/5 machine metrics available`,
+        tone
+      },
+      {
+        label: "Composite",
+        value: `${round(target.score)}`,
+        note: target.rank ? `rank #${target.rank} of ${rows.length}` : "single host baseline",
+        tone: target.tone || tone
+      },
+      {
+        label: "Pressure",
+        value: pct(pressurePct),
+        note: `${pct(target.cpuUsagePct)} CPU | ${pct(target.memoryUsedPct)} RAM | ${pct(target.diskUsedPct)} disk`,
+        tone: inverseGrade(pressurePct, 72, 88).key
+      },
+      {
+        label: "Accelerator",
+        value: gpuLabel,
+        note: gpuDetail,
+        tone: target.gpuPresent ? grade(target.gpuUtilizationPct, 30, 70).key : "watch"
+      },
+      {
+        label: "Network",
+        value: fleetMbpsLabel(target.networkLinkSpeedMbps),
+        note: `${formatBytesPerSecond(target.networkThroughputBps)} | ${number.format(target.networkIssueCount)} issues`,
+        tone: target.networkIssueCount ? "watch" : "good"
+      },
+      {
+        label: "Signature",
+        value: fleetSignatureLabel(target.signatureDelta),
+        note: target.signatureMetricCount ? `${target.signatureMetricCount} system-ID features` : "learning",
+        tone: Number.isFinite(target.signatureDelta) ? inverseGrade(target.signatureDelta, 1.3, 2.5).key : "watch"
+      }
+    ]
+  };
+}
+
+function buildLlmCustomerReportState(summary, classifier, opportunityEngine, schedulerSimulator) {
+  const provider = providerEconomics(summary);
+  const machine = buildMachineL1L6State(summary);
+  const contextPacket = buildLlmReportContextPacket(summary, classifier, provider, opportunityEngine, schedulerSimulator, machine);
+  const prompt = buildLlmCustomerReportPrompt(contextPacket);
+  const promptFingerprint = llmReportContextFingerprint(contextPacket);
+  const generation = state.llmReportGeneration || {};
+  const generatedCurrent = generation.status === "complete"
+    && generation.promptFingerprint === promptFingerprint
+    && generation.text;
+  const sections = generatedCurrent
+    ? llmGeneratedReportSections(generation.text)
+    : buildLlmCustomerReportSections(summary, classifier, provider, opportunityEngine, schedulerSimulator, machine);
+  const evidence = buildLlmReportEvidence(summary, provider, opportunityEngine, machine, contextPacket);
+  const confidence = llmReportConfidence(summary, machine, evidence);
+  const generationMatches = generation.promptFingerprint === promptFingerprint;
+  const tone = generation.status === "error" && generationMatches
+    ? "poor"
+    : generatedCurrent || confidence >= 78 ? "good" : confidence >= 55 ? "watch" : "poor";
+  const badge = generation.status === "working" && generationMatches
+    ? "Generating"
+    : generation.status === "error" && generationMatches
+      ? "LLM error"
+      : generatedCurrent ? "LLM ready" : tone === "good" ? "Ready" : tone === "watch" ? "Review" : "Needs data";
+
+  return {
+    title: generatedCurrent && generation.model ? `${summary.label} customer report (${generation.model})` : `${summary.label} customer report`,
+    badge,
+    tone,
+    confidence,
+    sections,
+    evidence,
+    prompt,
+    promptFingerprint,
+    tokenEstimate: Math.ceil(prompt.length / 4),
+    contextPacket,
+    generation: {
+      ...generation,
+      current: Boolean(generationMatches)
+    }
+  };
+}
+
+function buildLlmReportContextPacket(summary, classifier, provider, opportunityEngine, schedulerSimulator, machine) {
+  const normalizedRuns = jobs.map((job) => ({
+    id: job.id,
+    name: job.name,
+    status: job.status,
+    model: job.model,
+    team: job.team,
+    tenant: job.tenant,
+    account: job.account,
+    reservation: job.reservation,
+    cluster: job.cluster,
+    gpuModel: job.gpuModel,
+    gpus: job.gpus,
+    allocatedGpuHours: round(job.allocatedGpuHours),
+    usefulCompute: round(job.usefulCompute),
+    gpuUtil: round(job.gpuUtil),
+    primaryContext: compactObject({
+      hostname: job.source?.context?.hostname,
+      node: job.source?.context?.node,
+      generatedAt: job.source?.context?.generatedAt,
+      gpuPresent: job.source?.context?.gpuPresent,
+      gpuName: job.source?.context?.gpuName,
+      cpuUsagePct: job.source?.context?.cpuUsagePct,
+      memoryUsedPct: job.source?.context?.memoryUsedPct,
+      networkUtilizationPct: job.source?.context?.networkUtilizationPct
+    })
+  }));
+  const machinePayload = machine.available
+    ? {
+        focusHost: machine.target.host,
+        readyLevels: machine.readyLevels,
+        levels: machine.levels.map((level) => ({
+          level: `L${level.level}`,
+          label: level.label,
+          scope: level.scope,
+          value: level.value,
+          status: level.status,
+          signal: level.detail
+        })),
+        fleetRows: machine.rows.map((row) => ({
+          host: row.host,
+          rank: row.rank,
+          score: round(row.score),
+          tone: row.tone,
+          outliers: row.outlierLabels,
+          cpuUsagePct: round(row.cpuUsagePct),
+          memoryUsedPct: round(row.memoryUsedPct),
+          diskUsedPct: round(row.diskUsedPct),
+          gpuPresent: row.gpuPresent,
+          gpuUtilizationPct: round(row.gpuUtilizationPct),
+          networkLinkSpeedMbps: round(row.networkLinkSpeedMbps),
+          signatureDelta: Number.isFinite(row.signatureDelta) ? Number(formatDecimal(row.signatureDelta, 2)) : null
+        }))
+      }
+    : { status: "waiting", detail: machine.emptyText };
+
+  return {
+    generatedAt: dateIso(state.lastAnalysis || new Date()),
+    pageScope: {
+      scope: summary.scope,
+      key: summary.key,
+      label: summary.label,
+      window: state.window,
+      dataBoundary: normalizeDataBoundary(state.dataBoundary, activeIngestion)
+    },
+    summary: {
+      count: summary.count,
+      teams: summary.teams,
+      tenants: summary.tenants,
+      accounts: summary.accounts,
+      reservations: summary.reservations,
+      clusters: summary.clusters,
+      gpuModels: summary.gpuModels,
+      gpus: round(summary.gpus),
+      allocatedGpuHours: round(summary.allocatedGpuHours),
+      usefulGpuHours: round(summary.usefulGpuHours),
+      wastedGpuHours: round(summary.wastedGpuHours),
+      wasteDollars: round(summary.wasteDollars),
+      usefulCompute: round(summary.usefulCompute),
+      gpuUtil: round(summary.gpuUtil),
+      mfuPct: round(summary.mfuPct),
+      hfuPct: round(summary.hfuPct),
+      costPerUsefulGpuHour: round(summary.costPerUsefulGpuHour),
+      queueWaitMinutes: round(summary.queueWaitMinutes),
+      placementQuality: round(summary.placementQuality),
+      networkUtilization: round(summary.networkUtilization),
+      ncclTime: round(summary.ncclTime),
+      hbmCapacity: round(summary.hbmCapacity)
+    },
+    bottlenecks: {
+      primary: classifier.primary,
+      secondary: classifier.secondary,
+      scores: classifier.scores
+    },
+    provider: {
+      sellableWasteValue: round(provider.sellableWasteValue),
+      queueSloPct: round(provider.queueSloPct),
+      queueSloGapMinutes: round(provider.queueSloGapMinutes),
+      grossMarginPct: round(provider.grossMarginPct),
+      grossMargin: round(provider.grossMargin),
+      reservationBurnPct: round(provider.reservationBurnPct),
+      billingModels: provider.billingModels
+    },
+    opportunities: {
+      totalImpactDollars: round(opportunityEngine.totalImpactDollars),
+      totalImpactGpuHours: round(opportunityEngine.totalImpactGpuHours),
+      openCount: opportunityEngine.opportunities.length,
+      top: opportunityEngine.opportunities.slice(0, 5).map((opportunity) => ({
+        title: opportunity.title,
+        category: opportunity.category,
+        impactDollars: round(opportunity.impactDollars),
+        impactGpuHours: round(opportunity.impactGpuHours),
+        confidence: round(opportunity.confidence),
+        recommendation: opportunity.recommendation
+      }))
+    },
+    scheduler: {
+      recommendedScenario: schedulerSimulator.recommended?.label || "",
+      scenarios: (schedulerSimulator.scenarios || []).slice(0, 4).map((scenario) => ({
+        label: scenario.label,
+        confidence: round(scenario.confidence),
+        dollarUpside: round(scenario.dollarUpside),
+        evidence: scenario.evidence
+      }))
+    },
+    machine: machinePayload,
+    history: {
+      snapshots: snapshotHistory.slice(-12),
+      taskRecords: taskHistory.slice(-12),
+      savingsLedger: savingsLedger.slice(-12),
+      actionExecutions: actionExecutionHistory.slice(-12)
+    },
+    normalizedRuns
+  };
+}
+
+function buildLlmCustomerReportPrompt(packet) {
+  const contextJson = JSON.stringify(packet, null, 2);
+  const boundedContext = contextJson.length <= LLM_REPORT_MAX_CONTEXT_CHARS
+    ? contextJson
+    : `${contextJson.slice(0, LLM_REPORT_MAX_CONTEXT_CHARS)}\n...TRUNCATED_FOR_CONTEXT_WINDOW...`;
+  return [
+    "You are the turbalance customer report analyst.",
+    "Use only the facts in CONTEXT_JSON. Do not invent hardware, customer names, savings, or remediation status.",
+    "Write a concise customer-facing report with: executive summary, observed evidence, business impact, machine comparison, and next actions.",
+    "Separate demo/sample data caveats from live/imported evidence.",
+    "CONTEXT_JSON:",
+    boundedContext
+  ].join("\n");
+}
+
+function llmPromptFingerprint(value) {
+  const text = String(value || "");
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+function llmReportContextFingerprint(packet) {
+  return llmPromptFingerprint(JSON.stringify(stableLlmReportFingerprintValue(packet)));
+}
+
+function stableLlmReportFingerprintValue(value, key = "") {
+  if (isVolatileLlmReportFingerprintKey(key)) return undefined;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => stableLlmReportFingerprintValue(item))
+      .filter((item) => item !== undefined);
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((stable, childKey) => {
+        const childValue = stableLlmReportFingerprintValue(value[childKey], childKey);
+        if (childValue !== undefined) stable[childKey] = childValue;
+        return stable;
+      }, {});
+  }
+  return value;
+}
+
+function isVolatileLlmReportFingerprintKey(key) {
+  return [
+    "age",
+    "ageSeconds",
+    "capturedAt",
+    "generatedAt",
+    "lastAnalysisAt",
+    "lastSeenAt",
+    "savedAt",
+    "timestamp",
+    "timestampMs",
+    "updatedAt"
+  ].includes(key);
+}
+
+function llmGeneratedReportSections(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const sections = [];
+  let current = { title: "LLM Report", body: [] };
+
+  lines.forEach((line) => {
+    const heading = line.match(/^#{1,3}\s+(.+)$/);
+    if (heading) {
+      if (current.body.join("\n").trim()) sections.push(current);
+      current = { title: heading[1].replace(/\*+/g, "").trim() || "LLM Report", body: [] };
+      return;
+    }
+    current.body.push(line);
+  });
+  if (current.body.join("\n").trim()) sections.push(current);
+
+  return (sections.length ? sections : [{ title: "LLM Report", body: [String(text || "").trim()] }])
+    .map((section) => ({
+      title: section.title,
+      body: section.body.join("\n").trim().replace(/\n{3,}/g, "\n\n"),
+      tone: "good"
+    }));
+}
+
+function buildLlmCustomerReportSections(summary, classifier, provider, opportunityEngine, schedulerSimulator, machine) {
+  const primary = classifier.primary.name.replace("-bound", "").toLowerCase();
+  const secondary = classifier.secondary.name.replace("-bound", "").toLowerCase();
+  const topOpportunity = opportunityEngine.opportunities[0];
+  const machineSentence = machine.available
+    ? `${machine.target.host} is the focus host for L1-L6 comparison with ${machine.readyLevels}/6 levels ready and a composite score of ${round(machine.target.score)}.`
+    : "Machine-level comparison is waiting for live machine telemetry or a fleet bundle.";
+  const providerSentence = hasProviderContext(summary)
+    ? `The provider view estimates ${currency.format(provider.sellableWasteValue)} of sellable waste value, ${pct(provider.queueSloPct)} queue SLO attainment, and ${pct(provider.grossMarginPct)} gross margin.`
+    : "Provider commercial context is not fully attached, so financial framing uses the current list-rate input.";
+
+  return [
+    {
+      title: "Executive Summary",
+      tone: grade(summary.usefulCompute, 55, 72).key,
+      body: `${summary.label} is operating at ${pct(summary.usefulCompute)} useful accelerator efficiency over ${state.window.toLowerCase()}, using ${number.format(summary.allocatedGpuHours)} allocated GPU-hours and ${number.format(summary.usefulGpuHours)} useful GPU-hours. The dominant constraint is ${primary}, with ${secondary} as the next limiting factor.`
+    },
+    {
+      title: "Customer Impact",
+      tone: provider.sellableWasteValue > 0 || summary.wasteDollars > 0 ? "watch" : "good",
+      body: `${number.format(summary.wastedGpuHours)} GPU-hours are currently classified as waste, worth about ${currency.format(summary.wasteDollars)} at the active rate. ${providerSentence}`
+    },
+    {
+      title: "Machine L1-L6",
+      tone: machine.tone,
+      body: machineSentence
+    },
+    {
+      title: "Recommended Action",
+      tone: topOpportunity ? (topOpportunity.confidence >= 75 ? "good" : "watch") : "watch",
+      body: topOpportunity
+        ? `${topOpportunity.title}: ${topOpportunity.recommendation} Expected modeled impact is ${currency.format(topOpportunity.impactDollars)} and ${number.format(topOpportunity.impactGpuHours)} GPU-hours.`
+        : recommendationFor(summary, classifier)
+    },
+    {
+      title: "Operating Plan",
+      tone: schedulerSimulator.recommended ? "good" : "watch",
+      body: schedulerSimulator.recommended
+        ? `${schedulerSimulator.recommended.label} is the current scheduler scenario, with ${pct(schedulerSimulator.recommended.confidence)} confidence and ${currency.format(schedulerSimulator.recommended.dollarUpside)} modeled upside.`
+        : "Scheduler what-if data is still learning for this scope."
+    }
+  ];
+}
+
+function buildLlmReportEvidence(summary, provider, opportunityEngine, machine, packet) {
+  return [
+    {
+      label: "Scope",
+      value: scopeLabel(summary.scope),
+      note: `${summary.label} | ${summary.count} ${summary.count === 1 ? "record" : "records"}`,
+      tone: "good"
+    },
+    {
+      label: "Efficiency",
+      value: pct(summary.usefulCompute),
+      note: `${pct(summary.gpuUtil)} GPU util | ${pct(summary.mfuPct)} MFU`,
+      tone: grade(summary.usefulCompute, 55, 72).key
+    },
+    {
+      label: "Waste",
+      value: currency.format(summary.wasteDollars),
+      note: `${number.format(summary.wastedGpuHours)} GPU-hours`,
+      tone: summary.wastedGpuHours > 0 ? "watch" : "good"
+    },
+    {
+      label: "Provider",
+      value: currency.format(provider.sellableWasteValue),
+      note: `${pct(provider.queueSloPct)} queue SLO | ${pct(provider.reservationBurnPct)} reservation burn`,
+      tone: hasProviderContext(summary) ? "good" : "watch"
+    },
+    {
+      label: "Machine",
+      value: machine.available ? `${machine.readyLevels}/6` : "waiting",
+      note: machine.available ? `${machine.target.host} | ${machine.rows.length} hosts` : "no live fleet bundle",
+      tone: machine.tone
+    },
+    {
+      label: "Actions",
+      value: `${opportunityEngine.opportunities.length}`,
+      note: `${currency.format(opportunityEngine.totalImpactDollars)} modeled impact`,
+      tone: opportunityEngine.opportunities.length ? "watch" : "good"
+    },
+    {
+      label: "History",
+      value: `${packet.history.snapshots.length}`,
+      note: `${packet.history.taskRecords.length} task records | ${packet.history.savingsLedger.length} ledger entries`,
+      tone: packet.history.snapshots.length >= 2 ? "good" : "watch"
+    },
+    {
+      label: "Sources",
+      value: `${packet.normalizedRuns.length}`,
+      note: listLabel(unique(packet.normalizedRuns.flatMap((run) => Object.keys(run.primaryContext || {}))), 2),
+      tone: packet.normalizedRuns.length ? "good" : "watch"
+    }
+  ];
+}
+
+function llmReportConfidence(summary, machine, evidence) {
+  const sourceScore = Math.min(100, Math.max(20, (summary.sourceItems?.length || 0) * 16));
+  const historyScore = Math.min(100, snapshotHistory.length * 18 + taskHistory.length * 8);
+  const machineScore = machine.available ? Math.min(100, 35 + machine.readyLevels * 11) : 35;
+  const providerScore = hasProviderContext(summary) ? 84 : 48;
+  const evidenceScore = Math.min(100, evidence.filter((item) => item.tone !== "poor").length * 12);
+
+  return clamp(
+    sourceScore * 0.24
+    + historyScore * 0.18
+    + machineScore * 0.22
+    + providerScore * 0.18
+    + evidenceScore * 0.18
+  );
+}
+
 function buildFleetMachineContexts(summary, machineContext) {
   const items = operatorFleetSourceItems(summary);
   const contexts = items
@@ -3184,6 +3736,32 @@ function summarizeProviderFields(items) {
     billableGpuHours: sumCommercialHours(items, "billableGpuHours"),
     sellableGpuHours: sumCommercialHours(items, "sellableGpuHours")
   };
+}
+
+function summarizeModelSpecFields(items) {
+  const specs = items.map((job) => job.modelSpec).filter(isPlainObject);
+  if (specs.length === 0) return {};
+
+  const weightedSpec = (key) => weightedOptionalAverage(
+    items,
+    (job) => job.modelSpec?.[key],
+    "allocatedGpuHours"
+  );
+
+  return compactObject({
+    gpuModel: firstString(specs.map((spec) => spec.gpuModel)),
+    precision: firstString(specs.map((spec) => spec.precision)) || "bf16",
+    paramsB: finiteModelSpecValue(weightedSpec("paramsB")),
+    sequenceLength: finiteModelSpecValue(weightedSpec("sequenceLength")),
+    batchSize: finiteModelSpecValue(weightedSpec("batchSize")),
+    peakTflops: finiteModelSpecValue(weightedSpec("peakTflops")),
+    trainingFlopMultiplier: finiteModelSpecValue(weightedSpec("trainingFlopMultiplier")),
+    hardwareFlopMultiplier: finiteModelSpecValue(weightedSpec("hardwareFlopMultiplier"))
+  });
+}
+
+function finiteModelSpecValue(value) {
+  return Number.isFinite(value) ? value : undefined;
 }
 
 function summarizeSloFields(items) {

@@ -60,6 +60,8 @@ const STORAGE_SCHEMA = {
 
 const THEME_STORAGE_KEY = "turba.analytics.theme";
 const PLATFORM_API_TOKEN_STORAGE_KEY = "turba.analytics.platformApiToken.v1";
+const LLM_REPORT_CONFIG_STORAGE_KEY = "turba.analytics.llmReport.config.v1";
+const LLM_REPORT_MAX_CONTEXT_CHARS = 64000;
 const PANEL_POPOUT_SELECTOR = [
   ".diagnosis-band",
   ".dashboard-settings-panel",
@@ -228,9 +230,11 @@ const DASHBOARD_BLOCKS = [
   { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
   { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
   { id: "unitEconomics", label: "Unit economics cards", note: "CAPEX, depreciation, OPEX, utilization, and profit/loss by host", defaultOn: true },
+  { id: "inferenceEconomics", label: "Inference economics", note: "Cost per token/request, KV-cache pressure, batch efficiency, and latency/cost tradeoff", defaultOn: true },
   { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
   { id: "predictiveAnalytics", label: "Predictive analytics", note: "Metric forecasts, saturation ETAs, anomaly detection, and regression-risk early warning", defaultOn: true },
   { id: "prescriptiveActions", label: "Prescriptive actions", note: "Ranked remediation plan and forecast-driven operational directives", defaultOn: true },
+  { id: "savingsLedger", label: "Verified savings ledger", note: "Banked before/after recovered dollars and GPU-hours", defaultOn: true },
   { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
   { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
   { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
@@ -259,6 +263,8 @@ let activeIngestion = applyPersistedBaselines(reconcileMachineInventory(workspac
 let jobs = normalizeIngestion(activeIngestion);
 let snapshotHistory = normalizeSnapshotStore(workspaceStore.snapshots);
 let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
+let savingsLedger = normalizeSavingsLedgerStore(workspaceStore.savingsLedger);
+let actionExecutionHistory = normalizeActionExecutionStore(workspaceStore.actionExecutions);
 const initialDataBoundary = normalizeDataBoundary(workspaceStore.dataBoundary, activeIngestion);
 let liveTelemetryHistory = [];
 let sparkPairClockHistory = [];
@@ -278,6 +284,7 @@ let latestSparkPairComparison = null;
 let operatorLaunchpadSignature = "";
 
 const state = {
+  page: "cockpit",
   scope: "job",
   selectedKey: "run-7421",
   window: "Last 24 hours",
@@ -285,8 +292,18 @@ const state = {
   samePod: false,
   trendMetric: "usefulCompute",
   schedulerScenario: "recommended",
+  benchmarkOptIn: loadBenchmarkOptIn(),
   operatorReplay: false,
   operatorReplayStartedAt: null,
+  llmReportConfig: loadLlmReportConfig(),
+  llmReportGeneration: {
+    status: "idle",
+    promptFingerprint: "",
+    text: "",
+    model: "",
+    generatedAt: "",
+    error: ""
+  },
   dashboardBlocks: dashboardBlockPreferences,
   lastAnalysis: safeDate(workspaceStore.lastAnalysisAt, new Date("2026-05-30T22:01:00-07:00")),
   storageLabel: workspaceStore.storageLabel,
@@ -329,6 +346,13 @@ const number = new Intl.NumberFormat("en-US", {
 const TREND_METRIC_DEFS = {
   usefulCompute: {
     label: "Useful compute",
+    unit: "points",
+    higherIsBetter: true,
+    format: (value) => pct(value),
+    formatDelta: (value) => `${signedNumber(value)} pts`
+  },
+  mfuPct: {
+    label: "MFU",
     unit: "points",
     higherIsBetter: true,
     format: (value) => pct(value),
@@ -884,9 +908,13 @@ const REF_COLLECTIONS = {
 // forecast, whether higher is better, and the saturation threshold (if any).
 const PREDICTIVE_METRIC_CONFIG = {
   usefulCompute: { higherIsBetter: true, label: "Useful compute", threshold: null },
+  mfuPct: { higherIsBetter: true, label: "MFU", threshold: null },
   gpuUtil: { higherIsBetter: true, label: "GPU utilization", threshold: null },
   wastedGpuHours: { higherIsBetter: false, label: "Wasted GPU-hours", threshold: null },
   costPerUsefulGpuHour: { higherIsBetter: false, label: "Cost / useful GPU-hour", threshold: null },
+  costPerMillionRequests: { higherIsBetter: false, label: "Cost / 1M requests", threshold: null },
+  kvCachePressure: { higherIsBetter: false, label: "KV-cache pressure", threshold: 82, direction: "above" },
+  latencyTail: { higherIsBetter: false, label: "Latency tail", threshold: 80, direction: "above" },
   queueWaitMinutes: { higherIsBetter: false, label: "Queue wait (min)", direction: "above" }
 };
 
@@ -895,12 +923,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
-
-
-
-
-
 
 
 

@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "generatedAt": "2026-06-18T06:00:00.000Z",
+    "source": "live-machine-bundle",
+    "remoteCollectionFailures": [
+      {
+        "remote": "pi3",
+        "error": "ssh timeout"
+      }
+    ]
+  },
+  "ingestion": {
+    "runs": [
+      {
+        "id": "machine-pi1-20260618t060000z",
+        "name": "pi1 current host window",
+        "status": "Live host observation",
+        "refs": {
+          "model": "no-nvidia-gpu-telemetry",
+          "cluster": "pi1",
+          "tenant": "local-lab"
+        },
+        "utilization": {
+          "gpuUtil": 0,
+          "usefulCompute": 0
+        },
+        "communication": {
+          "networkUtilization": 0.03
+        },
+        "inputPipeline": {
+          "cpuPrep": 24
+        },
+        "memory": {
+          "hbmCapacity": 0
+        },
+        "sourceContext": {
+          "hostname": "pi1",
+          "cpuUsagePct": 24,
+          "memoryUsedPct": 33,
+          "networkUtilizationPct": 3,
+          "gpuSource": "nvidia-smi-not-found",
+          "gpuError": "nvidia-smi not installed",
+          "networkLinkRole": "Primary interface"
+        }
+      },
+      {
+        "id": "machine-spark1-20260618t060000z",
+        "name": "SPARK1 current NVIDIA GB10 window",
+        "status": "Live host observation",
+        "refs": {
+          "model": "nvidia-gb10",
+          "cluster": "spark1",
+          "tenant": "local-lab"
+        },
+        "utilization": {
+          "gpuUtil": 42,
+          "usefulCompute": 37
+        },
+        "communication": {
+          "networkUtilization": 0.05
+        },
+        "inputPipeline": {
+          "cpuPrep": 9
+        },
+        "memory": {
+          "hbmCapacity": 18
+        },
+        "sourceContext": {
+          "hostname": "SPARK1",
+          "gpuUtilizationPct": 42,
+          "gpuMemoryUsedPct": 18,
+          "cpuUsagePct": 9,
+          "memoryUsedPct": 7,
+          "networkUtilizationPct": 5,
+          "gpuName": "NVIDIA GB10",
+          "gpuSource": "gpustat",
+          "networkLinkRole": "DGX interconnect"
+        }
+      }
+    ]
+  }
+}

@@ -297,7 +297,7 @@ function remotePrepareCommand() {
   const parent = path.posix.dirname(options.remoteRoot);
   return [
     "set -e",
-    `sudo -n mkdir -p ${quote(options.remoteRoot)} ${quote(path.posix.join(options.remoteRoot, "build"))} /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage`,
+    `sudo -n mkdir -p ${quote(options.remoteRoot)} ${quote(path.posix.join(options.remoteRoot, "build"))} ${quote(path.posix.join(options.remoteRoot, "build/product-tls"))} /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage`,
     `sudo -n chown -R "$USER":"$USER" ${quote(parent)}`,
     "sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent"
   ].join("; ");
@@ -308,7 +308,7 @@ function remoteUserPrepareCommand(target) {
   const stateDir = path.posix.dirname(env.TURBALANCE_AGENT_SEQUENCE_PATH);
   return [
     "set -e",
-    `mkdir -p ${quote(options.remoteRoot)} ${quote(path.posix.join(options.remoteRoot, "build"))} ${quote(path.posix.dirname(agentEnvPath(target)))} ${quote(userUnitDir(target))} ${quote(stateDir)} ${quote(env.TURBALANCE_AGENT_SPOOL_DIR)} ${quote(env.TURBALANCE_OTEL_FILE_STORAGE_DIR)} ${quote(path.posix.join(targetHome(target), ".local/share/turbalance/node-exporter-textfile"))}`,
+    `mkdir -p ${quote(options.remoteRoot)} ${quote(path.posix.join(options.remoteRoot, "build"))} ${quote(path.posix.join(options.remoteRoot, "build/product-tls"))} ${quote(path.posix.dirname(agentEnvPath(target)))} ${quote(userUnitDir(target))} ${quote(stateDir)} ${quote(env.TURBALANCE_AGENT_SPOOL_DIR)} ${quote(env.TURBALANCE_OTEL_FILE_STORAGE_DIR)} ${quote(path.posix.join(targetHome(target), ".local/share/turbalance/node-exporter-textfile"))}`,
     `chmod 700 ${quote(stateDir)} ${quote(env.TURBALANCE_AGENT_SPOOL_DIR)}`
   ].join("; ");
 }
@@ -318,7 +318,7 @@ function localPrepareCommand(target) {
     return remoteUserPrepareCommand(target);
   }
   return [
-    `sudo -n mkdir -p ${quote(path.join(options.remoteRoot, "build"))} /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage`,
+    `sudo -n mkdir -p ${quote(path.join(options.remoteRoot, "build"))} ${quote(path.join(options.remoteRoot, "build/product-tls"))} /etc/turbalance /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent /var/lib/node_exporter/textfile_collector /var/lib/turbalance/otelcol/file_storage`,
     "sudo -n chmod 700 /var/lib/turbalance/live-machine-agent /var/spool/turbalance/live-machine-agent"
   ].join(" && ");
 }
@@ -470,7 +470,7 @@ function redactTargetPlan(plan) {
     env: redactEnv(plan.env),
     commands: plan.commands.map((command) => ({
       ...command,
-      command: redactSecrets(command.command)
+      command: redactCommand(command)
     }))
   };
 }
@@ -490,6 +490,13 @@ function redactSecrets(value) {
     text = text.split(Buffer.from(secret, "utf8").toString("base64")).join("[REDACTED]");
   }
   return text;
+}
+
+function redactCommand(command) {
+  if (["install-agent-env", "install-agent-tls-material"].includes(command.step)) {
+    return `[REDACTED: ${command.step}]`;
+  }
+  return redactSecrets(command.command);
 }
 
 function writeReport(report) {

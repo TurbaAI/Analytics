@@ -63,15 +63,28 @@ class LakeQuery:
         return sorted(tables)
 
     def read_table(self, table_name: str, *, tenant_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        return self._read_partitioned_table("raw", table_name, tenant_id=tenant_id, limit=limit)
+
+    def read_derived_table(self, table_name: str, *, tenant_id: str | None = None, limit: int = 500) -> list[dict[str, Any]]:
+        return self._read_partitioned_table("derived", table_name, tenant_id=tenant_id, limit=limit)
+
+    def _read_partitioned_table(
+        self,
+        namespace: str,
+        table_name: str,
+        *,
+        tenant_id: str | None = None,
+        limit: int = 500,
+    ) -> list[dict[str, Any]]:
         limit = max(1, min(limit, self.max_rows))
-        table_path = self.lake_root / "raw" / table_name
+        table_path = self.lake_root / namespace / table_name
         if self.storage.local_root is not None and not table_path.exists():
             return []
         if self.storage.local_root is not None and duckdb is not None and self.local_engine in {"duckdb", "duckdb-glob"}:
-            return self._read_table_duckdb(table_name, tenant_id=tenant_id, limit=limit)
+            return self._read_table_duckdb(namespace, table_name, tenant_id=tenant_id, limit=limit)
         if self.storage.local_root is not None:
-            return self._read_table_local_stream(table_name, tenant_id=tenant_id, limit=limit)
-        return self._read_table_pyarrow(table_name, tenant_id=tenant_id, limit=limit)
+            return self._read_table_local_stream(namespace, table_name, tenant_id=tenant_id, limit=limit)
+        return self._read_table_pyarrow(namespace, table_name, tenant_id=tenant_id, limit=limit)
 
     def metric_rows(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
@@ -114,12 +127,15 @@ class LakeQuery:
     def fleet_rca(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         return fleet_rca_rows(self.metric_rows(tenant_id=tenant_id, limit=limit))
 
+    def savings_ledger(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
+        return self.read_table("savings_ledger", tenant_id=tenant_id, limit=limit)
+
     def system_identification(self, *, tenant_id: str | None = None, limit: int = 5000) -> list[dict[str, Any]]:
         return system_identification_signature_rows(self.read_table("raw_system_identification", tenant_id=tenant_id, limit=limit))
 
-    def _read_table_pyarrow(self, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
+    def _read_table_pyarrow(self, namespace: str, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        for file_path in self.storage.list_files(Path("raw") / table_name):
+        for file_path in self.storage.list_files(Path(namespace) / table_name):
             partitions = _hive_partitions(file_path)
             if tenant_id is not None and partitions.get("tenant_id") != tenant_id:
                 continue
@@ -129,9 +145,9 @@ class LakeQuery:
                     return rows
         return rows
 
-    def _read_table_local_stream(self, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
+    def _read_table_local_stream(self, namespace: str, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
-        table_path = self.lake_root / "raw" / table_name
+        table_path = self.lake_root / namespace / table_name
         scanned_files = 0
         for file_path in table_path.rglob("*.parquet"):
             scanned_files += 1
@@ -148,9 +164,9 @@ class LakeQuery:
                     return rows
         return rows
 
-    def _read_table_duckdb(self, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
+    def _read_table_duckdb(self, namespace: str, table_name: str, *, tenant_id: str | None, limit: int) -> list[dict[str, Any]]:
         assert duckdb is not None
-        pattern = str(self.lake_root / "raw" / table_name / "**" / "*.parquet")
+        pattern = str(self.lake_root / namespace / table_name / "**" / "*.parquet")
         connection = duckdb.connect(":memory:")
         where = " where tenant_id = ?" if tenant_id else ""
         params = [tenant_id, limit] if tenant_id else [limit]

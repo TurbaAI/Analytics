@@ -8,6 +8,10 @@ Live NUC14E desktop view with the profile-aware topbar, live telemetry, machine 
 
 Live NUC15/Tailscale desktop view showing the same current-user profile treatment against a different machine bundle.
 
+![turbatop mouse-enabled terminal operator UI](assets/turbatop-runtime-mouse.png)
+
+Mouse-enabled `turbatop` terminal view showing the same live fleet pressure, warnings, and prescribed actions over SSH without a browser.
+
 turbalance Analytics is an operator cockpit for AI infrastructure. It combines live machine telemetry, durable lakehouse telemetry, scheduler/source overlays, GPU observability, Redfish/BMC evidence, system identification, product packaging, and production runbooks into one workflow for finding wasted accelerator time, explaining why it is happening, and proving a change before a customer sees it.
 
 The repo now supports two connected delivery lanes:
@@ -23,6 +27,7 @@ The fastest orientation path is:
 - Bare-metal fleet production notes: `docs/bare-metal-fleet-production.md`
 - Redfish/BMC hardware-management bridge: `docs/redfish-integration.md`
 - Visual QA checklist: `docs/visual-qa.md`
+- Current product appliance deck: `outputs/turbalance-product-current-state.pptx`
 
 ## What This Is Now
 
@@ -30,6 +35,7 @@ This repository has moved from a static analytics prototype into a friendly-pilo
 
 - **Pilot appliance**: a single NUC14E controller for SPARK1, SPARK2, and `pi@pi1` through `pi@pi12`, with HTTPS, mTLS collector edge, API auth, Grafana, Prometheus, live agents, periodic benchmarks, support bundles, releases, rollback, and doctor checks.
 - **Analytics cockpit**: static/live dashboard with a profile-aware topbar, host-specific live bundle bootstrap, live resource tiles, SPARK pair comparison, Pi fleet histograms, PTP/NTP/chrony clock offset tracking, system characterization, opportunity analysis, provider lens, evidence packs, dark mode, and block settings.
+- **Terminal operator UI**: `turbatop` is a dependency-free Python zipapp for SSH sessions. It renders fleet efficiency, host pressure, forecast warnings, bottlenecks, prescribed actions, recovered savings, multi-page operator panels, a compact efficiency-score rail, btop-style neon terminal chrome, natural host sorting, live-bundle fallback, token-file auth, non-blocking background refresh, help, pause/resume, snapshots, and keyboard plus mouse controls.
 - **Source-bundle bridge**: import and backend ingest for Prometheus, DCGM, Kubernetes, scheduler/admission, Grafana, eBPF, Redfish, provider billing/SLO, opportunity exports, OCP Benchmark Commons exports, GPU process/thermal/topology diagnostics, and NCCL traces.
 - **Lakehouse platform**: collector gateway, queue/spool handling, raw writer, Parquet lake, DuckDB query service, transforms, alert engine, API, OpenTelemetry, Kubernetes overlays, managed storage, security manifests, and release/go-live gates.
 
@@ -41,6 +47,8 @@ It is pilot-ready for controlled customer evaluation. It is not yet a turnkey mu
 - **Live host bootstrap**: known desktop hosts such as `192.168.10.30` and `100.95.183.13` load `build/demo/live-machine-bundle.json` before the app scripts run, so the desktop view starts from live machine telemetry instead of stale fixture data.
 - **Machine and GPU updates**: the local bundle now captures GPU process ownership, thermal qualification, topology fingerprints, backend provenance, Docker/Ollama/procfs context, and unsupported-metric status rather than inventing missing counters.
 - **Operator views**: dashboard panels cover source heartbeat, fleet tiles, unit economics, product readiness, predictive/prescriptive guidance, resource alerts, rolling graphs, GPU exporter coverage, execution-idle proof, SPARK pair comparison, fleet comparison, System ID, and Benchmark Ladder evidence.
+- **Mouse-enabled `turbatop`**: terminal operators can click bottom page tabs, click hosts, right-click or double-select for drill-in, use the mouse wheel for host selection, click footer/header controls for scope/sort/filter/pause/snapshot/help, and opt out with `--no-mouse` on terminals that do not support SGR mouse reporting.
+- **Fleet-aware terminal rendering**: `turbatop` now shows a web-cockpit-style text aggregate panel, pressure/GPU/CPU/RAM/network/status sort modes, scroll-aware host ranges, per-host trend sparklines, score-orbit and fleet-heat graphics, gradient gauges, colored signal severity, and live API plus bundle-fallback source labeling.
 - **OCP Benchmark Commons lane**: Benchmark Ladder L6 can export redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison, with proposal, Innovation Village, and internal presentation docs in `docs/`.
 - **Commercial and engineering process**: licensing, GTM packaging, support SLA, status page, design-partner validation, billing/usage integration, branch protection, release process, changelog, performance budgets, and load/regression test gates are documented and validated by repository scripts.
 
@@ -58,6 +66,7 @@ The active lab/pilot deployment is centered on NUC14E:
 | mTLS collector edge | `https://192.168.10.30:9443/v1/source-bundles` | Requires generated client certificate |
 | Prometheus | `http://192.168.10.30:9091` | Authenticated API metrics scrape is configured |
 | Grafana | `https://192.168.10.30:8443/grafana/` and `http://192.168.10.30:3001` | Runtime dashboard stack; handoff links use the HTTPS edge path when `observability.grafanaPublicUrl` is set |
+| Terminal operator UI | `/home/user/turbalance-analytics/build/turbatop/turbatop` | Mouse-enabled `turbatop` zipapp rebuilt on NUC14E/NUC15 and synced to SPARK/Pi checkouts |
 | Release bundle | `/home/user/turbalance-analytics/build/releases/turbalance-product-0.1.0-redfish-20260610.tar.gz` | Checksummed customer release package including the Redfish bridge |
 | Support bundles | `/home/user/turbalance-analytics/build/support/turbalance-support-*.tar.gz` | Redacted diagnostic archives with remote checks, rebuilt on demand |
 
@@ -174,6 +183,19 @@ Run the full validation suite:
 ```sh
 node tests/run-all.js
 ```
+
+Run the terminal operator UI:
+
+```sh
+make turbatop
+./build/turbatop/turbatop --api-url http://192.168.10.30:8080 --sort pressure
+```
+
+Useful `turbatop` controls:
+
+- Keyboard: `q` quit, `r` refresh, `p` pause/resume, `h`/`?` help, `w` snapshot, `←/→` switch pages, `↑/↓` move inside the focused panel, `1-4` page tabs, `Tab` next panel, `Shift-Tab` previous panel, `]` next page, `[` previous page, `k/J` select, hosts page `j/k` navigate, `PageUp/PageDown` jump, `g/G` edge, `s` sort, `enter` drill-in, `/` filter, `j/m/t/T/c` scope outside the hosts page.
+- Mouse: click a bottom page tab, click a host to select, click again or right-click to drill in, wheel through hosts, click sort/scope/filter/pause/snapshot/help/footer controls.
+- Flags: `--page overview|hosts|signals|ops`, `--token-file build/product-secrets/api-viewer-token`, `--bundle-url .../live-machine-bundle.json`, `--snapshot-file build/turbatop/snapshot.txt`, `--no-mouse`, `--no-color`, `--once`.
 
 ## Mobile App Support
 
@@ -533,6 +555,7 @@ For customer exposure, replace the generated self-signed/local CA material with 
 - `analytics-core.js`: scoring, bottlenecks, provider economics, scheduler simulation, opportunities
 - `nccl-trace-parser.js`, `nccl-trace-fixtures.js`: NCCL parser and fixtures
 - `assets/`: turbalance logo, profile images, UI assets, and README screenshots
+- `cli/turbatop/`: read-only terminal operator UI and zipapp entry point
 - `docs/`: operator, productization, deployment, provider, telemetry, demo, and QA docs
 - `fixtures/`: sample source bundles and provider/scheduler/eBPF/Redfish inputs
 - `frontend/react/`: React dashboard surface aligned with the static cockpit header and profile treatment
@@ -554,6 +577,7 @@ The README intentionally references these files and tests because they are part 
 - `assets/ahmad-byagowi-profile.png`
 - `assets/turbalance-live-nuc14e-profile.png`
 - `assets/turbalance-live-nuc15-profile.png`
+- `assets/turbatop-runtime-mouse.png`
 - `user-profile.json`
 - `docs/visual-qa.md`
 - `docs/data-contract.md`
@@ -582,6 +606,10 @@ The README intentionally references these files and tests because they are part 
 - `docs/ocp-benchmark-commons-proposal.md`
 - `docs/ocp-innovation-village-submission.md`
 - `docs/turbalance-internal-ocp-benchmark-commons.md`
+- `docs/turbatop.md`
+- `cli/turbatop/README.md`
+- `cli/turbatop/turbatop.py`
+- `outputs/turbalance-product-current-state.pptx`
 - `LICENSE.md`
 - `CHANGELOG.md`
 - `schemas/turba-ingestion.v1.schema.json`

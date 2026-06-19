@@ -72,6 +72,29 @@
         },
         "additionalProperties": true
       }
+    },
+    "savingsLedger": {
+      "type": "array",
+      "items": {
+        "$ref": "./turba-savings-ledger.v1.schema.json"
+      }
+    },
+    "actionExecutions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "actionId", "connectorId", "status"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "planId": { "type": "string" },
+          "actionId": { "type": "string", "minLength": 1 },
+          "connectorId": { "type": "string", "minLength": 1 },
+          "status": { "enum": ["planned", "applied", "reverted", "refused"] },
+          "externalRef": { "type": "string" },
+          "approvedBy": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
     }
   },
   "additionalProperties": true

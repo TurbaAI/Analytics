@@ -27,6 +27,7 @@ const dgxInterconnectInterface = args["dgx-interconnect-interface"] || process.e
 const dgxInterconnectSubnetPrefix = args["dgx-interconnect-subnet-prefix"] || process.env.TURBALANCE_DGX_INTERCONNECT_SUBNET_PREFIX || "";
 const gpuBackend = args["gpu-backend"] || process.env.TURBALANCE_GPU_BACKEND || "";
 const gpustatBin = args["gpustat-bin"] || process.env.TURBALANCE_GPUSTAT_BIN || "";
+const collectionTimeoutMs = numberArg(args["collection-timeout-ms"] || process.env.TURBALANCE_FLEET_COLLECTION_TIMEOUT_MS, 120000);
 
 const bundles = [];
 if (includeLocal) bundles.push(collectLocalBundle());
@@ -84,7 +85,7 @@ function runJson(bin, commandArgs, env = {}) {
       ...process.env,
       ...env
     },
-    timeout: 30000,
+    timeout: collectionTimeoutMs,
     maxBuffer: 50 * 1024 * 1024
   });
 
@@ -434,6 +435,11 @@ function arrayArg(value) {
 
 function unique(values) {
   return [...new Set(values.filter(Boolean))];
+}
+
+function numberArg(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 function shellQuote(value) {

@@ -120,6 +120,14 @@ def create_app(settings: QuerySettings | None = None) -> FastAPI:
         rows = lake.fleet_rca(tenant_id=tenant_id, limit=limit)
         return {"count": len(rows), "rows": rows}
 
+    @app.get("/v1/virtual-sensors/savings-ledger")
+    async def savings_ledger(
+        tenant_id: str | None = Query(default=None, alias="tenantId"),
+        limit: int = Query(default=5000, ge=1, le=5000),
+    ) -> dict[str, Any]:
+        rows = lake.savings_ledger(tenant_id=tenant_id, limit=limit)
+        return {"count": len(rows), "rows": rows}
+
     return app
 
 

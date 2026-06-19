@@ -28,3 +28,9 @@ This posture is the operating boundary for taking Turbalance Analytics from pilo
 - Support bundles and release artifacts must keep secret-like values redacted and must not include generated `build/` material unless the operator intentionally attaches a regenerated artifact.
 - Demo data must remain labelled as demo data. A production deployment should clear the demo boundary by importing a real source bundle, connecting the controlled ingestion API, or using a live feed before any customer-facing screenshots or dashboards are shared.
 
+## Cross-Fleet Benchmark Governance
+
+- Benchmarking is off by default and requires an explicit operator opt-in before percentile context is shown or contribution payloads are prepared.
+- Contributions use `schemas/turba-benchmark-contribution.v1.schema.json`, which permits only coarse GPU model, workload class, region class, MFU bucket, and bounded aggregate metrics. Tenant, host, run, user, account, namespace, pod, container, IP, and support identifiers are outside the schema.
+- `services/benchmark-commons` suppresses percentile output until the comparison bucket reaches the configured k-anonymity threshold. Buckets below k return only a suppressed status and count.
+- Redacted workspaces remain the safe sharing path for support/QBR workflows; benchmark contributions are a separate opt-in aggregate lane and must not be used to reconstruct customer topology or workload identity.

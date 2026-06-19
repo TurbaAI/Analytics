@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://turba.analytics/schemas/turba-benchmark-contribution.v1.schema.json",
+  "title": "turbalance privacy-safe benchmark contribution",
+  "type": "object",
+  "required": ["schemaVersion", "benchmarkOptIn", "features", "metrics"],
+  "properties": {
+    "schemaVersion": { "const": "turba.benchmark_contribution.v1" },
+    "benchmarkOptIn": { "const": true },
+    "features": {
+      "type": "object",
+      "required": ["gpuModel", "workloadClass", "regionClass"],
+      "properties": {
+        "gpuModel": { "type": "string", "minLength": 1 },
+        "workloadClass": {
+          "enum": ["llm-training", "fine-tuning", "inference-serving", "evaluation", "moe-training", "other"]
+        },
+        "regionClass": {
+          "enum": ["us", "eu", "apac", "global", "other"]
+        },
+        "mfuBucket": { "type": "string", "pattern": "^[0-9]{1,3}-[0-9]{1,3}$" }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "required": ["mfuPct"],
+      "properties": {
+        "mfuPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "hfuPct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "costPerUsefulGpuHourBucket": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

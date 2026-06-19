@@ -6,6 +6,60 @@ from collections import defaultdict
 from typing import Any
 
 RESOURCE_KEYS = ("cpu", "gpu", "ram", "network")
+DEVICE_PEAK_TFLOPS = {
+    "H100 SXM": {"fp16": 989.0, "bf16": 989.0, "fp8": 1979.0},
+    "H100 PCIe": {"fp16": 756.0, "bf16": 756.0, "fp8": 1513.0},
+    "H200 SXM": {"fp16": 989.0, "bf16": 989.0, "fp8": 1979.0},
+    "B200": {"fp16": 2250.0, "bf16": 2250.0, "fp8": 4500.0},
+    "A100 80GB": {"fp16": 312.0, "bf16": 312.0},
+    "MI300X": {"fp16": 1307.0, "bf16": 1307.0, "fp8": 2614.0},
+    "Gaudi3": {"bf16": 1835.0, "fp8": 1835.0},
+    "TPU v5p": {"bf16": 459.0},
+}
+
+
+def model_flops_utilization(summary: dict[str, Any] | None = None, model_spec: dict[str, Any] | None = None) -> dict[str, Any]:
+    summary = summary or {}
+    spec = {**(summary.get("modelSpec") if isinstance(summary.get("modelSpec"), dict) else {}), **(model_spec or {})}
+    params_b = _first_positive(spec.get("paramsB"), spec.get("parametersB"), spec.get("parameterCountB"), summary.get("paramsB"))
+    tokens_m = _first_positive(spec.get("tokensM"), summary.get("tokensM"))
+    allocated_gpu_hours = _first_positive(spec.get("allocatedGpuHours"), summary.get("allocatedGpuHours"))
+    precision = str(spec.get("precision") or spec.get("dtype") or "bf16").lower()
+    gpu_model = _first_string(spec.get("gpuModel"), summary.get("gpuModel"), _first_array_value(summary.get("gpuModels")))
+    peak_tflops = _first_positive(
+        spec.get("peakTflops"),
+        spec.get("devicePeakTflops"),
+        spec.get("deviceFlopsTflops"),
+        _device_peak_tflops(gpu_model, precision, spec.get("deviceFlops")),
+    )
+    multiplier = _first_positive(spec.get("trainingFlopMultiplier"), spec.get("flopsPerTokenMultiplier"), 6)
+    if not (params_b > 0 and tokens_m > 0 and allocated_gpu_hours > 0 and peak_tflops > 0):
+        return {
+            "status": "unknown",
+            "reason": "model params, tokens, allocated GPU-hours, and device peak FLOPs are required",
+            "mfuPct": None,
+            "hfuPct": None,
+            "gpuModel": gpu_model,
+            "precision": precision,
+        }
+    model_flops = tokens_m * 1e6 * params_b * 1e9 * multiplier
+    peak_flops = allocated_gpu_hours * 3600 * peak_tflops * 1e12
+    mfu_pct = _clamp((model_flops / peak_flops) * 100)
+    hardware_multiplier = _first_positive(spec.get("hardwareFlopMultiplier"), spec.get("recomputeMultiplier"), 1)
+    hfu_pct = _clamp(mfu_pct * hardware_multiplier)
+    return {
+        "status": "measured",
+        "mfuPct": mfu_pct,
+        "hfuPct": hfu_pct,
+        "paramsB": params_b,
+        "tokensM": tokens_m,
+        "allocatedGpuHours": allocated_gpu_hours,
+        "peakTflops": peak_tflops,
+        "precision": precision,
+        "gpuModel": gpu_model,
+        "modelFlops": model_flops,
+        "peakFlops": peak_flops,
+    }
 
 
 def resource_samples_from_metric_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -556,6 +610,64 @@ def _number(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _first_positive(*values: Any) -> float:
+    for value in values:
+        number = _number(value)
+        if number is not None and number > 0:
+            return number
+    return 0.0
+
+
+def _first_string(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _first_array_value(value: Any) -> str:
+    if not isinstance(value, list):
+        return ""
+    for item in value:
+        text = str(item or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def _clamp(value: Any, low: float = 0.0, high: float = 100.0) -> float:
+    number = _number(value)
+    if number is None:
+        number = 0.0
+    return min(high, max(low, number))
+
+
+def _device_peak_tflops(gpu_model: str, precision: str = "bf16", overrides: Any = None) -> float:
+    normalized_model = str(gpu_model or "").lower()
+    if not normalized_model:
+        return 0.0
+    normalized_precision = str(precision or "bf16").lower()
+    tables = []
+    if isinstance(overrides, dict):
+        tables.append(overrides)
+    tables.append(DEVICE_PEAK_TFLOPS)
+    for table in tables:
+        for model, values in table.items():
+            model_text = str(model).lower()
+            model_token = model_text.split()[0] if model_text.split() else model_text
+            if model_token not in normalized_model and normalized_model not in model_text:
+                continue
+            if isinstance(values, (int, float)):
+                return float(values)
+            if not isinstance(values, dict):
+                continue
+            value = _first_positive(values.get(normalized_precision), values.get("bf16"), values.get("fp16"), values.get("peakTflops"))
+            if value > 0:
+                return value
+    return 0.0
 
 
 def _is_number(value: Any) -> bool:

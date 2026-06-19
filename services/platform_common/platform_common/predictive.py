@@ -585,6 +585,8 @@ def build_action_plan(selected: Sequence[dict[str, Any]], *, title: str = "Presc
     for index, action in enumerate(ordered):
         steps.append({
             "step": index + 1,
+            "actionId": action.get("id"),
+            "metric": action.get("metric") or "wastedGpuHours",
             "action": action.get("title"),
             "category": action.get("category"),
             "owner": action.get("owner"),
@@ -678,3 +680,262 @@ def analyze_prescriptive(opportunities: Sequence[dict[str, Any]], *, predictive:
         "remediation": remediation,
         "directives": directives,
     }
+
+
+LEDGER_STATUSES = ("proposed", "accepted", "applied", "verified", "rejected", "expired")
+_LEDGER_TERMINAL_STATUSES = {"verified", "rejected", "expired"}
+_LEDGER_EVENTS = {
+    "accept": "accepted",
+    "accepted": "accepted",
+    "apply": "applied",
+    "applied": "applied",
+    "verify": "verified",
+    "verified": "verified",
+    "reject": "rejected",
+    "rejected": "rejected",
+    "expire": "expired",
+    "expired": "expired",
+}
+_LEDGER_TRANSITIONS = {
+    "proposed": {"accepted", "rejected", "expired"},
+    "accepted": {"applied", "rejected", "expired"},
+    "applied": {"verified", "rejected", "expired"},
+    "verified": set(),
+    "rejected": set(),
+    "expired": set(),
+}
+_HIGHER_IS_BETTER_LEDGER_METRICS = {"usefulCompute", "usefulGpuHours", "gpuUtil", "grossMarginPct"}
+
+
+def record_outcome(action: dict[str, Any] | None = None, baseline_snapshot: dict[str, Any] | None = None,
+                   result_snapshot: dict[str, Any] | None = None, **opts: Any) -> dict[str, Any]:
+    action = action or {}
+    metric = str(opts.get("metric") or action.get("metric") or "wastedGpuHours")
+    scope = _normalize_ledger_scope(opts.get("scope") or action.get("scope") or baseline_snapshot or result_snapshot or {})
+    baseline_value = _snapshot_metric_value(baseline_snapshot, metric)
+    result_value = _snapshot_metric_value(result_snapshot, metric)
+    has_measured = bool(
+        baseline_snapshot is not None
+        and result_snapshot is not None
+        and math.isfinite(baseline_value)
+        and math.isfinite(result_value)
+    )
+    direction = opts.get("direction") or action.get("direction") or ("higherIsBetter" if metric in _HIGHER_IS_BETTER_LEDGER_METRICS else "lowerIsBetter")
+    if has_measured:
+        signed_delta = result_value - baseline_value if direction == "higherIsBetter" else baseline_value - result_value
+    else:
+        signed_delta = _numeric(opts.get("deltaGpuHours", action.get("expectedGpuHours", action.get("impactGpuHours", 0))))
+    dollars_per_gpu_hour = _ledger_dollars_per_gpu_hour(action, baseline_snapshot, opts)
+    delta_gpu_hours = _round(signed_delta, 3)
+    explicit_delta_dollars = _numeric(opts.get("deltaDollars"), math.nan)
+    delta_dollars = _round(explicit_delta_dollars if math.isfinite(explicit_delta_dollars) else delta_gpu_hours * dollars_per_gpu_hour, 2)
+    predicted_gpu_hours = _round(_numeric(action.get("expectedGpuHours", action.get("impactGpuHours", opts.get("predictedGpuHours", abs(delta_gpu_hours))))), 3)
+    predicted_dollars = _round(_numeric(action.get("expectedDollars", action.get("impactDollars", opts.get("predictedDollars", abs(delta_dollars))))), 2)
+    status = _normalize_ledger_status(opts.get("status") or ("verified" if has_measured else "proposed"))
+    category = str(action.get("category") or opts.get("category") or "Uncategorized")
+    applied_at = _valid_ledger_iso(opts.get("appliedAt") or action.get("appliedAt"))
+    verified_at = _valid_ledger_iso(opts.get("verifiedAt") or ((result_snapshot or {}).get("capturedAt") if status == "verified" else ""))
+    evidence_ref = str(opts.get("evidenceRef") or action.get("evidenceRef") or _evidence_ref_for_snapshots(baseline_snapshot, result_snapshot))
+    seed = "|".join([
+        str(action.get("id") or action.get("actionId") or action.get("title") or "action"),
+        scope["type"],
+        scope["key"],
+        metric,
+        str((baseline_snapshot or {}).get("capturedAt") or "modeled"),
+        str((result_snapshot or {}).get("capturedAt") or "pending"),
+    ])
+
+    return {
+        "id": str(opts.get("id") or action.get("ledgerId") or f"ledger-{_hash_string(seed)}"),
+        "actionId": str(action.get("id") or action.get("actionId") or opts.get("actionId") or "unknown-action"),
+        "actionTitle": str(action.get("title") or action.get("name") or opts.get("actionTitle") or ""),
+        "category": category,
+        "scope": scope,
+        "status": status,
+        "metric": metric,
+        "baseline": _ledger_snapshot_ref(baseline_snapshot, metric, baseline_value, opts.get("baseline") or {}),
+        "result": _ledger_snapshot_ref(result_snapshot, metric, result_value, opts.get("result") or {}),
+        "deltaGpuHours": delta_gpu_hours,
+        "deltaDollars": delta_dollars,
+        "predictedGpuHours": predicted_gpu_hours,
+        "predictedDollars": predicted_dollars,
+        "confidence": _round(_clamp(_numeric(action.get("confidence"), _numeric(opts.get("confidence"), 50)) * _clamp(_numeric(opts.get("fitQuality"), 1), 0, 1), 0, 100)),
+        "attribution": "measured" if has_measured else "modeled",
+        "appliedAt": applied_at or "",
+        "verifiedAt": verified_at or "",
+        "evidenceRef": evidence_ref,
+    }
+
+
+def advance_ledger_status(entry: dict[str, Any], event: str | dict[str, Any]) -> dict[str, Any]:
+    current = _normalize_ledger_status((entry or {}).get("status", "proposed"))
+    target = _ledger_target_status(event)
+    if not target:
+        raise ValueError(f"unknown ledger event: {event}")
+    if target == current:
+        next_entry = dict(entry)
+        next_entry["status"] = current
+        return next_entry
+    if current in _LEDGER_TERMINAL_STATUSES or target not in _LEDGER_TRANSITIONS[current]:
+        raise ValueError(f"illegal ledger transition: {current} -> {target}")
+    at = ""
+    if isinstance(event, dict):
+        at = _valid_ledger_iso(event.get("at") or event.get("time") or event.get("timestamp"))
+    next_entry = dict(entry)
+    next_entry["status"] = target
+    if target == "applied":
+        next_entry["appliedAt"] = at or next_entry.get("appliedAt", "")
+    if target == "verified":
+        next_entry["verifiedAt"] = at or next_entry.get("verifiedAt", "")
+    return next_entry
+
+
+def rollup_ledger(entries: Sequence[dict[str, Any]], *, scope: dict[str, Any] | None = None,
+                  window: str | None = None) -> dict[str, Any]:
+    filtered = [
+        entry for entry in list(entries or [])
+        if _ledger_entry_in_scope(entry, scope)
+        and _ledger_entry_in_window(entry, window)
+    ]
+    measured_verified = [entry for entry in filtered if entry.get("status") == "verified" and entry.get("attribution") == "measured"]
+    verified_dollars = _round(sum(_numeric(entry.get("deltaDollars")) for entry in measured_verified), 2)
+    verified_gpu_hours = _round(sum(_numeric(entry.get("deltaGpuHours")) for entry in measured_verified), 3)
+    predicted_dollars = _round(sum(max(0, _numeric(entry.get("predictedDollars"))) for entry in filtered), 2)
+    predicted_gpu_hours = _round(sum(max(0, _numeric(entry.get("predictedGpuHours"))) for entry in filtered), 3)
+    return {
+        "entryCount": len(filtered),
+        "verifiedCount": len(measured_verified),
+        "modeledCount": sum(1 for entry in filtered if entry.get("attribution") == "modeled"),
+        "verifiedDollars": verified_dollars,
+        "verifiedGpuHours": verified_gpu_hours,
+        "predictedDollars": predicted_dollars,
+        "predictedGpuHours": predicted_gpu_hours,
+        "byScope": _ledger_group_rollup(measured_verified, lambda entry: f"{entry.get('scope', {}).get('type', 'unknown')}:{entry.get('scope', {}).get('key', 'unknown')}"),
+        "byCategory": _ledger_group_rollup(measured_verified, lambda entry: entry.get("category") or "Uncategorized"),
+        "realizationRate": _round((verified_dollars / predicted_dollars) * 100, 1) if predicted_dollars > 0 else 0,
+    }
+
+
+def _normalize_ledger_scope(value: dict[str, Any]) -> dict[str, str]:
+    raw = value.get("scope") if isinstance(value.get("scope"), dict) else value
+    return {
+        "type": str(raw.get("type") or raw.get("scope") or "tenant"),
+        "key": str(raw.get("key") or raw.get("id") or raw.get("tenantId") or raw.get("tenant") or raw.get("label") or "unknown"),
+    }
+
+
+def _snapshot_metric_value(snapshot: dict[str, Any] | None, metric: str) -> float:
+    if not isinstance(snapshot, dict):
+        return math.nan
+    metrics = snapshot.get("metrics") if isinstance(snapshot.get("metrics"), dict) else {}
+    return _numeric(metrics.get(metric, snapshot.get(metric, snapshot.get("value"))), math.nan)
+
+
+def _ledger_dollars_per_gpu_hour(action: dict[str, Any], snapshot: dict[str, Any] | None, opts: dict[str, Any]) -> float:
+    explicit = _numeric(opts.get("dollarsPerGpuHour", opts.get("rate", action.get("rate"))), math.nan)
+    if math.isfinite(explicit) and explicit > 0:
+        return explicit
+    snapshot_rate = _numeric((snapshot or {}).get("rate"), math.nan)
+    if math.isfinite(snapshot_rate) and snapshot_rate > 0:
+        return snapshot_rate
+    predicted_dollars = _numeric(action.get("expectedDollars", action.get("impactDollars")), math.nan)
+    predicted_gpu_hours = _numeric(action.get("expectedGpuHours", action.get("impactGpuHours")), math.nan)
+    if math.isfinite(predicted_dollars) and math.isfinite(predicted_gpu_hours) and predicted_gpu_hours != 0:
+        return abs(predicted_dollars / predicted_gpu_hours)
+    return 0.0
+
+
+def _ledger_snapshot_ref(snapshot: dict[str, Any] | None, metric: str, value: float, fallback: dict[str, Any]) -> dict[str, Any]:
+    source = snapshot if isinstance(snapshot, dict) else {}
+    return {
+        "value": _round(value, 3) if math.isfinite(value) else _numeric(fallback.get("value"), 0),
+        "window": str(source.get("window") or fallback.get("window") or ""),
+        "snapshotId": str(source.get("id") or source.get("snapshotId") or fallback.get("snapshotId") or ""),
+    }
+
+
+def _normalize_ledger_status(status: Any) -> str:
+    value = str(status or "proposed")
+    return value if value in LEDGER_STATUSES else "proposed"
+
+
+def _ledger_target_status(event: str | dict[str, Any]) -> str:
+    if isinstance(event, dict):
+        value = event.get("type") or event.get("event") or event.get("status")
+    else:
+        value = event
+    return _LEDGER_EVENTS.get(str(value or "").lower(), "")
+
+
+def _ledger_entry_in_scope(entry: dict[str, Any], scope: dict[str, Any] | None) -> bool:
+    if not scope:
+        return True
+    expected = _normalize_ledger_scope(scope)
+    actual = entry.get("scope") or {}
+    return str(actual.get("type") or "") == expected["type"] and str(actual.get("key") or "") == expected["key"]
+
+
+def _ledger_entry_in_window(entry: dict[str, Any], window: str | None) -> bool:
+    parsed = _parse_ledger_window(window)
+    if parsed is None:
+        return True
+    at = _to_epoch_ms(entry.get("verifiedAt") or entry.get("appliedAt") or "")
+    if at is None:
+        return False
+    return parsed[0] <= at <= parsed[1]
+
+
+def _parse_ledger_window(window: str | None) -> tuple[float, float] | None:
+    if not window:
+        return None
+    parts = str(window).split("/")
+    if len(parts) != 2:
+        return None
+    start = _to_epoch_ms(parts[0])
+    end = _to_epoch_ms(parts[1])
+    if start is None or end is None:
+        return None
+    return start, end
+
+
+def _ledger_group_rollup(entries: Sequence[dict[str, Any]], key_fn: Any) -> dict[str, dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        key = key_fn(entry)
+        current = groups.get(key, {"verifiedDollars": 0, "verifiedGpuHours": 0, "count": 0})
+        current["verifiedDollars"] = _round(current["verifiedDollars"] + _numeric(entry.get("deltaDollars")), 2)
+        current["verifiedGpuHours"] = _round(current["verifiedGpuHours"] + _numeric(entry.get("deltaGpuHours")), 3)
+        current["count"] += 1
+        groups[key] = current
+    return groups
+
+
+def _valid_ledger_iso(value: Any) -> str:
+    if not value:
+        return ""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        except ValueError:
+            return ""
+    return ""
+
+
+def _evidence_ref_for_snapshots(baseline_snapshot: dict[str, Any] | None, result_snapshot: dict[str, Any] | None) -> str:
+    refs = []
+    for snapshot in (baseline_snapshot, result_snapshot):
+        if isinstance(snapshot, dict):
+            ref = snapshot.get("snapshotId") or snapshot.get("id")
+            if ref:
+                refs.append(str(ref))
+    return "..".join(refs)
+
+
+def _hash_string(value: str) -> str:
+    hash_value = 2166136261
+    for char in str(value):
+        hash_value ^= ord(char)
+        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+    return format(hash_value, "08x")

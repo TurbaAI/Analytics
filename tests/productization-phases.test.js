@@ -33,6 +33,7 @@ const checks = new Set(report.phases.flatMap((phase) => phase.checks.map((check)
   "data_governance",
   "packaging_pricing",
   "design_partner_roi",
+  "turbatop_operator_tui",
   "billing_usage_integration",
   "branch_protection",
   "conventional_commits_enforced",

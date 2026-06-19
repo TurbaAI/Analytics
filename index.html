@@ -38,7 +38,7 @@
         });
       }());
     </script>
-    <link rel="stylesheet" href="styles.css?v=live-profile-20260617-2">
+    <link rel="stylesheet" href="styles.css?v=tui-page-style-20260618-1">
   </head>
   <body>
     <header class="topbar">
@@ -60,6 +60,14 @@
     </header>
 
     <main class="shell">
+      <section class="page-strip" aria-label="Analytics pages">
+        <div class="segmented page-tabs" id="pageControls" role="tablist">
+          <button type="button" data-page="cockpit" aria-selected="true">Cockpit</button>
+          <button type="button" data-page="machine-l1-l6" aria-selected="false">Machine L1-L6</button>
+          <button type="button" data-page="llm-report" aria-selected="false">LLM report</button>
+        </div>
+      </section>
+
       <section class="scope-strip" aria-label="Analysis scope">
         <div class="segmented" id="scopeControls" role="tablist">
           <button type="button" data-scope="job" aria-selected="true">Job</button>
@@ -142,7 +150,148 @@
         <span id="dataBoundaryMessage">Sample figures only. Connect an imported, API, or live feed before deployment.</span>
       </div>
 
-      <div class="workspace">
+      <section id="machineL1L6Page" class="report-page machine-ladder-page" data-page-panel="machine-l1-l6" hidden>
+        <div class="page-heading">
+          <div>
+            <p>Machine Comparison</p>
+            <h1>L1-L6 ladder</h1>
+          </div>
+          <span id="machineL1L6Badge" data-tone="watch">Waiting</span>
+        </div>
+
+        <section class="panel machine-ladder-focus-panel">
+          <div class="panel-heading">
+            <div>
+              <p>Focus Machine</p>
+              <h2 id="machineL1L6FocusTitle">Waiting for machine telemetry</h2>
+            </div>
+            <span id="machineL1L6FocusBadge" data-tone="watch">No host</span>
+          </div>
+          <div id="machineL1L6Summary" class="machine-ladder-summary"></div>
+        </section>
+
+        <section class="panel machine-ladder-levels-panel">
+          <div class="panel-heading">
+            <div>
+              <p>Comparison Levels</p>
+              <h2>Machine L1 to L6</h2>
+            </div>
+            <span id="machineL1L6Coverage">0/6</span>
+          </div>
+          <div id="machineL1L6Levels" class="machine-ladder-levels"></div>
+        </section>
+
+        <section class="panel machine-ladder-detail-panel">
+          <div class="panel-heading">
+            <div>
+              <p>Host Rank</p>
+              <h2>Fleet rows</h2>
+            </div>
+            <span id="machineL1L6FleetBadge">0 hosts</span>
+          </div>
+          <div id="machineL1L6FleetRows" class="machine-ladder-fleet-rows"></div>
+        </section>
+      </section>
+
+      <section id="llmReportPage" class="report-page llm-report-page" data-page-panel="llm-report" hidden>
+        <div class="page-heading">
+          <div>
+            <p>Customer Report</p>
+            <h1>LLM synthesis</h1>
+          </div>
+          <div class="page-heading-actions">
+            <span id="llmReportBadge" data-tone="watch">Draft</span>
+            <button id="copyLlmReport" class="icon-button" type="button" title="Copy LLM customer report" aria-label="Copy LLM customer report">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="9" y="9" width="10" height="10" rx="2"></rect>
+                <path d="M5 15V7a2 2 0 0 1 2-2h8"></path>
+              </svg>
+            </button>
+            <button id="copyLlmPrompt" class="icon-button" type="button" title="Copy LLM context prompt" aria-label="Copy LLM context prompt">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M14 3v4a2 2 0 0 0 2 2h4"></path>
+                <path d="M5 21h14a1 1 0 0 0 1-1V8l-5-5H5a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1z"></path>
+                <path d="M8 13h8"></path>
+                <path d="M8 17h5"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <section class="panel llm-runtime-panel">
+          <div class="panel-heading">
+            <div>
+              <p>LLM Runtime</p>
+              <h2>OpenAI-compatible endpoint</h2>
+            </div>
+            <span id="llmRuntimeStatus" data-tone="watch">Not configured</span>
+          </div>
+          <div class="llm-runtime-controls">
+            <label class="api-label" for="llmApiUrl">
+              API URL
+              <input id="llmApiUrl" type="url" placeholder="http://localhost:11434/v1">
+            </label>
+            <label class="api-label" for="llmModelInput">
+              Model
+              <input id="llmModelInput" type="text" placeholder="llama3.1">
+            </label>
+            <label class="api-label" for="llmApiKey">
+              API key
+              <input id="llmApiKey" type="password" autocomplete="off" placeholder="Optional">
+            </label>
+            <button id="generateLlmReport" class="secondary-button" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v3"></path>
+                <path d="M12 18v3"></path>
+                <path d="M3 12h3"></path>
+                <path d="M18 12h3"></path>
+                <path d="m5.6 5.6 2.1 2.1"></path>
+                <path d="m16.3 16.3 2.1 2.1"></path>
+                <path d="m18.4 5.6-2.1 2.1"></path>
+                <path d="m7.7 16.3-2.1 2.1"></path>
+              </svg>
+              <span>Generate</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel llm-report-output-panel">
+          <div class="panel-heading">
+            <div>
+              <p>Executive Narrative</p>
+              <h2 id="llmReportTitle">Customer-ready report</h2>
+            </div>
+            <span id="llmReportConfidence" data-tone="watch">Confidence 0%</span>
+          </div>
+          <article id="llmCustomerReport" class="llm-customer-report"></article>
+        </section>
+
+        <div class="llm-report-grid">
+          <section class="panel llm-report-evidence-panel">
+            <div class="panel-heading">
+              <div>
+                <p>Evidence</p>
+                <h2>Signals ingested</h2>
+              </div>
+              <span id="llmReportEvidenceBadge">0 signals</span>
+            </div>
+            <div id="llmReportEvidence" class="llm-report-evidence"></div>
+          </section>
+
+          <section class="panel llm-report-prompt-panel">
+            <div class="panel-heading">
+              <div>
+                <p>LLM Input</p>
+                <h2>Context packet</h2>
+              </div>
+              <span id="llmReportTokenEstimate">0 tokens</span>
+            </div>
+            <pre id="llmReportPrompt" class="llm-report-prompt"></pre>
+          </section>
+        </div>
+      </section>
+
+      <div class="workspace" data-page-panel="cockpit">
         <aside class="inventory" aria-label="Job inventory">
           <div class="section-heading">
             <div>
@@ -372,6 +521,10 @@
               <strong id="usefulGpuHours">0</strong>
             </div>
             <div>
+              <span>MFU / HFU</span>
+              <strong id="mfuHfu">Unknown</strong>
+            </div>
+            <div>
               <span>Wasted GPU-hours</span>
               <strong id="wastedGpuHours">0</strong>
             </div>
@@ -389,6 +542,17 @@
                 <input id="rateInput" type="number" min="0" step="0.1" value="6.20">
               </label>
             </div>
+          </section>
+
+          <section class="panel inference-economics-panel" data-dashboard-block="inferenceEconomics" aria-label="Inference economics">
+            <div class="panel-heading">
+              <div>
+                <p>Inference</p>
+                <h2>Serving economics</h2>
+              </div>
+              <span id="inferenceEconomicsBadge" data-tone="watch">Learning</span>
+            </div>
+            <div id="inferenceEconomicsPanel" class="inference-economics-content"></div>
           </section>
 
           <section class="panel unit-economics-standalone-panel" data-dashboard-block="unitEconomics" aria-label="Unit economics profitability">
@@ -478,6 +642,17 @@
               <div id="prescriptiveActionsPanel" class="predictive-prescriptive-content prescriptive-content"></div>
             </section>
 
+            <section class="panel savings-ledger-panel" data-dashboard-block="savingsLedger" aria-label="Verified savings ledger">
+              <div class="panel-heading">
+                <div>
+                  <p>Recovered</p>
+                  <h2>Savings ledger</h2>
+                </div>
+                <span id="savingsLedgerBadge" data-tone="watch">No verified</span>
+              </div>
+              <div id="savingsLedgerPanel" class="savings-ledger-content"></div>
+            </section>
+
             <section id="taskMemoryPanel" class="panel task-memory-panel" aria-label="Task utilization memory">
               <div class="panel-heading">
                 <div>
@@ -512,6 +687,7 @@
                 <div class="trend-toolbar">
                   <div class="segmented trend-metrics" id="trendMetricControls" role="tablist" aria-label="Trend metric">
                     <button type="button" data-trend-metric="usefulCompute" aria-selected="true">Efficiency</button>
+                    <button type="button" data-trend-metric="mfuPct" aria-selected="false">MFU</button>
                     <button type="button" data-trend-metric="wastedGpuHours" aria-selected="false">Waste</button>
                     <button type="button" data-trend-metric="ncclTime" aria-selected="false">NCCL</button>
                     <button type="button" data-trend-metric="networkUtilization" aria-selected="false">Network</button>
@@ -685,10 +861,10 @@
     <script src="nccl-trace-parser.js?v=live-profile-20260617-2"></script>
     <script src="nccl-trace-fixtures.js?v=live-profile-20260617-2"></script>
     <script src="app-data.js?v=live-profile-20260617-2"></script>
-    <script src="app-core.js?v=live-profile-20260617-2"></script>
-    <script src="app-pipeline.js?v=live-profile-20260617-3"></script>
+    <script src="app-core.js?v=llm-report-20260618-2"></script>
+    <script src="app-pipeline.js?v=llm-report-20260618-3"></script>
     <script src="app-state.js?v=live-profile-20260617-2"></script>
-    <script src="app-render.js?v=live-profile-20260617-2"></script>
-    <script src="app.js?v=live-profile-20260617-2"></script>
+    <script src="app-render.js?v=llm-report-20260618-3"></script>
+    <script src="app.js?v=llm-report-20260618-1"></script>
   </body>
 </html>

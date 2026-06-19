@@ -18,6 +18,8 @@ function loadWorkspaceStore(defaultIngestion) {
       machineInventory: normalizeMachineInventoryArchive(persisted.machineInventory),
       snapshots: normalizeSnapshotStore(persisted.snapshots),
       taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
+      savingsLedger: normalizeSavingsLedgerStore(persisted.savingsLedger),
+      actionExecutions: normalizeActionExecutionStore(persisted.actionExecutions),
       storageLabel: "Loaded locally",
       storageTone: dataBoundary.kind === "demo" ? "watch" : "good"
     };
@@ -43,6 +45,8 @@ function persistWorkspaceStore() {
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
     taskHistory,
+    savingsLedger,
+    actionExecutions: actionExecutionHistory,
     machineInventory: machineInventoryArchive,
     dataBoundary: state.dataBoundary
   });
@@ -258,6 +262,8 @@ function restoreWorkspaceStore(store, label) {
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = normalizeSnapshotStore(store.snapshots);
   taskHistory = normalizeTaskHistoryStore(store.taskHistory);
+  savingsLedger = normalizeSavingsLedgerStore(store.savingsLedger);
+  actionExecutionHistory = normalizeActionExecutionStore(store.actionExecutions);
   state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
   state.ingestLabel = label;
@@ -273,7 +279,7 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], machineInventory = [], dataBoundary = null }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], savingsLedger = [], actionExecutions = [], machineInventory = [], dataBoundary = null }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
@@ -284,7 +290,9 @@ function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = 
     baselines: buildBaselineStore(ingestion.runs),
     machineInventory: normalizeMachineInventoryArchive(machineInventory),
     snapshots: normalizeSnapshotStore(snapshots),
-    taskHistory: normalizeTaskHistoryStore(taskHistory)
+    taskHistory: normalizeTaskHistoryStore(taskHistory),
+    savingsLedger: normalizeSavingsLedgerStore(savingsLedger),
+    actionExecutions: normalizeActionExecutionStore(actionExecutions)
   };
 }
 
@@ -427,6 +435,24 @@ function dashboardBlockEnabled(id) {
   return state.dashboardBlocks?.[id] !== false;
 }
 
+function loadBenchmarkOptIn() {
+  try {
+    return window.localStorage.getItem("turba.benchmark.opt_in.v1") === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function setBenchmarkOptIn(value) {
+  state.benchmarkOptIn = Boolean(value);
+  try {
+    window.localStorage.setItem("turba.benchmark.opt_in.v1", String(state.benchmarkOptIn));
+  } catch (error) {
+    // Local opt-in persistence is best-effort in locked-down browsers.
+  }
+  render();
+}
+
 function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
   const provider = providerEconomics(summary);
   const opportunityEngine = generateOpportunities(summary, classifier, provider);
@@ -442,12 +468,15 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
     primaryBottleneck: classifier.primary.short,
     metrics: {
       usefulCompute: summary.usefulCompute,
+      mfuPct: summary.mfuPct,
+      hfuPct: summary.hfuPct,
       gpuUtil: summary.gpuUtil,
       allocatedGpuHours: summary.allocatedGpuHours,
       usefulGpuHours: summary.usefulGpuHours,
       wastedGpuHours: summary.wastedGpuHours,
       wasteDollars: summary.wasteDollars,
       costPerUsefulGpuHour: summary.costPerUsefulGpuHour,
+      costPerMillionRequests: summary.costPerMillionRequests,
       sellableWasteValue: provider.sellableWasteValue,
       opportunityImpactDollars: opportunityEngine.totalImpactDollars,
       opportunityGpuHours: opportunityEngine.totalImpactGpuHours,
@@ -458,6 +487,8 @@ function snapshotFromSummary(summary, classifier, sourceLabel, capturedAt) {
       ncclTime: summary.ncclTime,
       networkWait: summary.networkWait,
       networkUtilization: summary.networkUtilization,
+      kvCachePressure: summary.kvCachePressure,
+      latencyTail: summary.latencyTail,
       placementQuality: summary.placementQuality,
       crossPodTraffic: summary.crossPodTraffic,
       queueWaitMinutes: summary.queueWaitMinutes
@@ -515,6 +546,301 @@ function normalizeTaskHistoryStore(records = []) {
     .slice(-TASK_HISTORY_LIMIT);
 }
 
+function normalizeSavingsLedgerStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map(normalizeSavingsLedgerEntry)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.verifiedAt || a.appliedAt || 0) - new Date(b.verifiedAt || b.appliedAt || 0))
+    .slice(-SNAPSHOT_LIMIT);
+}
+
+function normalizeSavingsLedgerEntry(entry) {
+  if (!isPlainObject(entry) || !entry.id || !entry.actionId) return null;
+  const status = ["proposed", "accepted", "applied", "verified", "rejected", "expired"].includes(entry.status)
+    ? entry.status
+    : "proposed";
+  const attribution = entry.attribution === "measured" ? "measured" : "modeled";
+  const scope = isPlainObject(entry.scope) ? entry.scope : {};
+
+  return {
+    id: String(entry.id),
+    actionId: String(entry.actionId),
+    actionTitle: String(entry.actionTitle || ""),
+    category: String(entry.category || "Uncategorized"),
+    scope: {
+      type: String(scope.type || "tenant"),
+      key: String(scope.key || "unknown")
+    },
+    status,
+    metric: String(entry.metric || "wastedGpuHours"),
+    baseline: normalizeLedgerSnapshotMetric(entry.baseline),
+    result: normalizeLedgerSnapshotMetric(entry.result),
+    deltaGpuHours: numeric(entry.deltaGpuHours),
+    deltaDollars: numeric(entry.deltaDollars),
+    predictedGpuHours: numeric(entry.predictedGpuHours),
+    predictedDollars: numeric(entry.predictedDollars),
+    confidence: clamp(numeric(entry.confidence), 0, 100),
+    attribution,
+    appliedAt: validDateIso(entry.appliedAt) || "",
+    verifiedAt: validDateIso(entry.verifiedAt) || "",
+    evidenceRef: String(entry.evidenceRef || "")
+  };
+}
+
+function normalizeLedgerSnapshotMetric(value = {}) {
+  return {
+    value: numeric(value.value),
+    window: String(value.window || ""),
+    snapshotId: String(value.snapshotId || "")
+  };
+}
+
+function normalizeActionExecutionStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  return records
+    .map(normalizeActionExecutionRecord)
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.updatedAt || a.createdAt || 0) - new Date(b.updatedAt || b.createdAt || 0))
+    .slice(-SNAPSHOT_LIMIT);
+}
+
+function normalizeActionExecutionRecord(record) {
+  if (!isPlainObject(record) || !record.id || !record.actionId) return null;
+  const status = ["planned", "applied", "reverted", "refused"].includes(record.status) ? record.status : "planned";
+  const scope = isPlainObject(record.scope) ? record.scope : {};
+
+  return {
+    id: String(record.id),
+    planId: String(record.planId || record.id),
+    actionId: String(record.actionId),
+    actionTitle: String(record.actionTitle || ""),
+    connectorId: String(record.connectorId || "ticketing"),
+    status,
+    risk: String(record.risk || "low"),
+    reversible: record.reversible !== false,
+    scope: {
+      type: String(scope.type || "tenant"),
+      key: String(scope.key || "unknown")
+    },
+    changes: normalizeActionExecutionSteps(record.changes),
+    revert: normalizeActionExecutionSteps(record.revert),
+    externalRef: String(record.externalRef || ""),
+    approvedBy: String(record.approvedBy || ""),
+    createdAt: validDateIso(record.createdAt) || "",
+    appliedAt: validDateIso(record.appliedAt) || "",
+    revertedAt: validDateIso(record.revertedAt) || "",
+    updatedAt: validDateIso(record.updatedAt || record.revertedAt || record.appliedAt || record.createdAt) || ""
+  };
+}
+
+function normalizeActionExecutionSteps(steps = []) {
+  if (!Array.isArray(steps)) return [];
+  return steps
+    .filter(isPlainObject)
+    .map((step) => ({
+      kind: String(step.kind || "change"),
+      operation: String(step.operation || step.title || "dry-run-change"),
+      target: String(step.target || ""),
+      dryRun: step.dryRun !== false
+    }));
+}
+
+function currentActionExecution(action, summary) {
+  if (!action || !summary) return null;
+  const scope = { type: summary.scope, key: summary.key };
+  return actionExecutionHistory.find((record) => (
+    record.actionId === action.id
+    && record.scope.type === scope.type
+    && record.scope.key === scope.key
+  )) || null;
+}
+
+function previewActionWriteback(action, summary) {
+  if (!action || !summary) return;
+  const record = buildLocalActionWritebackPlan(action, summary);
+  actionExecutionHistory = upsertActionExecutionRecord(actionExecutionHistory, record);
+  persistWorkspaceStore();
+  setIngestStatus("Dry-run change previewed", "good");
+  render();
+}
+
+function applyActionWriteback(action, summary) {
+  if (!action || !summary) return;
+  const existing = currentActionExecution(action, summary);
+  const plan = existing || buildLocalActionWritebackPlan(action, summary);
+  const approvedBy = window.prompt ? window.prompt("Approval record for this change", "operator-approved") : "operator-approved";
+  if (!approvedBy) {
+    actionExecutionHistory = upsertActionExecutionRecord(actionExecutionHistory, {
+      ...plan,
+      status: "refused",
+      updatedAt: dateIso(new Date())
+    });
+    persistWorkspaceStore();
+    setIngestStatus("Approval required", "watch");
+    render();
+    return;
+  }
+  const appliedAt = dateIso(new Date());
+  const applied = {
+    ...plan,
+    status: "applied",
+    approvedBy,
+    appliedAt,
+    updatedAt: appliedAt,
+    externalRef: plan.externalRef || `${plan.connectorId}://turba/${safeFileSlug(plan.actionId)}-${Date.now().toString(36)}`
+  };
+  actionExecutionHistory = upsertActionExecutionRecord(actionExecutionHistory, applied);
+  persistWorkspaceStore();
+  markSavingsLedgerActionApplied(action, summary);
+  setIngestStatus("Approved action applied", "good");
+  render();
+}
+
+function revertActionWriteback(action, summary) {
+  const existing = currentActionExecution(action, summary);
+  if (!existing || existing.status !== "applied") {
+    setIngestStatus("No applied change to revert", "watch");
+    return;
+  }
+  const revertedAt = dateIso(new Date());
+  actionExecutionHistory = upsertActionExecutionRecord(actionExecutionHistory, {
+    ...existing,
+    status: "reverted",
+    revertedAt,
+    updatedAt: revertedAt
+  });
+  persistWorkspaceStore();
+  setIngestStatus("Revert recorded", "good");
+  render();
+}
+
+function buildLocalActionWritebackPlan(action, summary) {
+  const connectorId = actionConnectorFor(action);
+  const scope = { type: summary.scope, key: summary.key };
+  const actionId = String(action.id || action.actionId || action.title || "action");
+  const planId = `plan-${safeFileSlug(actionId)}-${safeFileSlug(scope.type)}-${safeFileSlug(scope.key)}`;
+  const target = scope.key;
+  const operation = connectorId === "ticketing"
+    ? "open-approval-request"
+    : connectorId === "slurm"
+      ? "scontrol-requeue-with-placement-hint"
+      : connectorId === "runai"
+        ? "update-project-quota-or-placement-hint"
+        : "label-nodepool-for-repack";
+
+  return {
+    id: planId,
+    planId,
+    actionId,
+    actionTitle: String(action.title || action.name || actionId),
+    connectorId,
+    status: "planned",
+    risk: connectorId === "ticketing" ? "low" : "medium",
+    reversible: true,
+    scope,
+    changes: [{ kind: connectorId, operation, target, dryRun: true }],
+    revert: [{ kind: connectorId, operation: `revert-${operation}`, target, dryRun: true }],
+    createdAt: dateIso(new Date()),
+    updatedAt: dateIso(new Date())
+  };
+}
+
+function actionConnectorFor(action = {}) {
+  const requested = action.connectorId || action.connector;
+  if (requested) return String(requested);
+  const category = String(action.category || "").toLowerCase();
+  if (category.includes("slurm")) return "slurm";
+  if (category.includes("run:ai") || category.includes("runai")) return "runai";
+  if (category.includes("scheduler") || category.includes("placement")) return "kubernetes-karpenter";
+  return "ticketing";
+}
+
+function upsertActionExecutionRecord(records = [], record) {
+  const normalized = normalizeActionExecutionRecord(record);
+  if (!normalized) return normalizeActionExecutionStore(records);
+  const next = normalizeActionExecutionStore(records).filter((item) => item.id !== normalized.id);
+  next.push(normalized);
+  return normalizeActionExecutionStore(next);
+}
+
+function markSavingsLedgerActionApplied(action, summary) {
+  if (typeof TurbaPredictive === "undefined" || !action || !summary) {
+    setIngestStatus("Ledger unavailable", "poor");
+    return;
+  }
+  const now = new Date();
+  const baseline = ledgerSnapshotFromSummary(summary, "Applied action baseline", now);
+  const entry = TurbaPredictive.recordOutcome(action, baseline, null, {
+    status: "applied",
+    appliedAt: now,
+    scope: { type: summary.scope, key: summary.key },
+    metric: action.metric || "wastedGpuHours",
+    evidenceRef: baseline.id
+  });
+  savingsLedger = upsertSavingsLedgerEntry(savingsLedger, entry);
+  persistWorkspaceStore();
+  setIngestStatus("Action applied in ledger", "good");
+  render();
+}
+
+function verifySavingsLedgerEntry(entry, summary) {
+  if (typeof TurbaPredictive === "undefined" || !entry || !summary) {
+    setIngestStatus("Ledger unavailable", "poor");
+    return;
+  }
+  const now = new Date();
+  const metric = entry.metric || "wastedGpuHours";
+  const baseline = {
+    id: entry.baseline?.snapshotId || `${entry.id}-baseline`,
+    capturedAt: entry.appliedAt || now.toISOString(),
+    scope: entry.scope?.type || summary.scope,
+    key: entry.scope?.key || summary.key,
+    window: entry.baseline?.window || state.window,
+    rate: state.rate,
+    metrics: { [metric]: numeric(entry.baseline?.value) }
+  };
+  const result = ledgerSnapshotFromSummary(summary, "Verified action result", now);
+  const nextEntry = TurbaPredictive.recordOutcome({
+    id: entry.actionId,
+    title: entry.actionTitle,
+    category: entry.category,
+    expectedDollars: entry.predictedDollars,
+    expectedGpuHours: entry.predictedGpuHours,
+    confidence: entry.confidence,
+    metric
+  }, baseline, result, {
+    id: entry.id,
+    status: "verified",
+    appliedAt: entry.appliedAt,
+    verifiedAt: now,
+    scope: entry.scope,
+    metric,
+    evidenceRef: [entry.evidenceRef, result.id].filter(Boolean).join("..")
+  });
+  savingsLedger = upsertSavingsLedgerEntry(savingsLedger, nextEntry);
+  persistWorkspaceStore();
+  setIngestStatus("Savings verified", "good");
+  render();
+}
+
+function ledgerSnapshotFromSummary(summary, sourceLabel, capturedAt = new Date()) {
+  const classifier = classifyBottlenecks(summary);
+  const snapshot = snapshotFromSummary(summary, classifier, sourceLabel, capturedAt.toISOString());
+  return {
+    ...snapshot,
+    id: `ledger-${summary.scope}-${safeFileSlug(summary.key)}-${capturedAt.getTime()}`
+  };
+}
+
+function upsertSavingsLedgerEntry(entries = [], entry) {
+  const next = normalizeSavingsLedgerStore(entries).filter((item) => item.id !== entry.id);
+  next.push(entry);
+  return normalizeSavingsLedgerStore(next);
+}
+
 function restoredSourceLabel(sourceLabel) {
   return sourceLabel
     .replace(/^Imported /, "Restored ")
@@ -533,6 +859,8 @@ function exportWorkspace({ redacted = false } = {}) {
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
     taskHistory,
+    savingsLedger,
+    actionExecutions: actionExecutionHistory,
     machineInventory: machineInventoryArchive
   });
   const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
@@ -562,6 +890,8 @@ function exportEvidencePack() {
     lastAnalysisAt: state.lastAnalysis,
     snapshots: snapshotHistory,
     taskHistory,
+    savingsLedger,
+    actionExecutions: actionExecutionHistory,
     machineInventory: machineInventoryArchive
   });
   const plan = buildRedactionPlan(store);
@@ -660,6 +990,8 @@ function redactWorkspaceStore(store) {
   redacted.machineInventory = redactMachineInventoryArchive(redacted.machineInventory, plan);
   redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
   redacted.taskHistory = redactTaskHistory(redacted.taskHistory, plan);
+  redacted.savingsLedger = redactSavingsLedger(redacted.savingsLedger, plan);
+  redacted.actionExecutions = redactActionExecutions(redacted.actionExecutions, plan);
   redacted.redaction = {
     redactedAt: dateIso(new Date()),
     strategy: "deterministic surrogate IDs",
@@ -673,6 +1005,8 @@ function redactWorkspaceStore(store) {
     "Grafana dashboard and Explore links",
     "Redfish management-plane context",
     "machine inventory archive",
+    "savings ledger scope identifiers",
+    "action execution external refs",
     "imported opportunity free text"
     ]
   };
@@ -953,6 +1287,42 @@ function redactTaskHistory(records = [], plan) {
       taskFamily: taskKey,
       runIds: redactValueList(plan.runs, record.runIds, "run"),
       resources: redactTaskResources(record.resources || {}, plan)
+    };
+  });
+}
+
+function redactSavingsLedger(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records.map((entry) => {
+    const scope = isPlainObject(entry.scope) ? entry.scope : {};
+    const scopeKey = redactSnapshotKey(scope.type, scope.key, plan);
+    return {
+      ...entry,
+      actionTitle: entry.actionTitle ? "Redacted ledger action" : "",
+      scope: {
+        type: scope.type || "tenant",
+        key: scopeKey
+      },
+      evidenceRef: entry.evidenceRef ? "redacted-evidence-ref" : ""
+    };
+  });
+}
+
+function redactActionExecutions(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return records.map((record) => {
+    const scope = isPlainObject(record.scope) ? record.scope : {};
+    return {
+      ...record,
+      actionTitle: record.actionTitle ? "Redacted action execution" : "",
+      scope: {
+        type: scope.type || "tenant",
+        key: redactSnapshotKey(scope.type, scope.key, plan)
+      },
+      externalRef: record.externalRef ? "redacted-external-ref" : "",
+      approvedBy: record.approvedBy ? "redacted-approver" : ""
     };
   });
 }

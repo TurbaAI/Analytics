@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "turba.device_flops.v1",
+  "unit": "TFLOP/s per accelerator",
+  "precisionDefaults": ["bf16", "fp16", "fp8"],
+  "devices": {
+    "H100 SXM": { "bf16": 989, "fp16": 989, "fp8": 1979 },
+    "H100 PCIe": { "bf16": 756, "fp16": 756, "fp8": 1513 },
+    "H200 SXM": { "bf16": 989, "fp16": 989, "fp8": 1979 },
+    "B200": { "bf16": 2250, "fp16": 2250, "fp8": 4500 },
+    "A100 80GB": { "bf16": 312, "fp16": 312 },
+    "MI300X": { "bf16": 1307, "fp16": 1307, "fp8": 2614 },
+    "Gaudi3": { "bf16": 1835, "fp8": 1835 },
+    "TPU v5p": { "bf16": 459 }
+  }
+}

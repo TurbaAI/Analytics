@@ -8,6 +8,7 @@
  */
 
 function render() {
+  renderPageControls();
   renderScopeControls();
   renderAnalysisStamp();
   renderIngestState();
@@ -32,6 +33,7 @@ function render() {
   renderLiveResources(summary);
   renderOperatorCockpit(summary, classifier, opportunityEngine, schedulerSimulator);
   renderMetricRibbon(summary);
+  renderInferenceEconomics(summary);
   renderStandaloneUnitEconomics(summary);
   renderSchedulerSimulator(schedulerSimulator, summary);
   renderGrafanaHandoff(summary);
@@ -43,12 +45,25 @@ function render() {
   renderProviderSummaryTables();
   renderOpportunityCenter(opportunityEngine);
   renderPredictivePrescriptive(summary, classifier, opportunityEngine);
+  renderSavingsLedger(summary, opportunityEngine);
   renderComponents(components);
   renderTopology(summary);
   renderFingerprint(fingerprint);
   renderRegression(summary);
   renderReport(summary, classifier);
+  renderMachineL1L6Page(summary);
+  renderLlmReportPage(summary, classifier, opportunityEngine, schedulerSimulator);
   applyDashboardBlockVisibility();
+}
+
+function renderPageControls() {
+  const activePage = state.page || "cockpit";
+  document.querySelectorAll("#pageControls button").forEach((button) => {
+    button.setAttribute("aria-selected", String(button.dataset.page === activePage));
+  });
+  document.querySelectorAll("[data-page-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.pagePanel !== activePage;
+  });
 }
 
 function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
@@ -98,7 +113,7 @@ function renderPredictivePrescriptive(summary, classifier, opportunityEngine) {
 
   if (prescriptivePanel) {
     if (dashboardBlockEnabled("prescriptiveActions")) {
-      const rendered = buildPrescriptivePanelNodes(el, prescriptive);
+      const rendered = buildPrescriptivePanelNodes(el, prescriptive, summary);
       prescriptivePanel.replaceChildren(...rendered.nodes);
       updatePanelBadge("#prescriptiveActionsBadge", rendered.badge, rendered.tone);
     } else {
@@ -161,7 +176,7 @@ function buildPredictivePanelNodes(el, predictive, series) {
   return { nodes, badge: "No signal", tone: "watch" };
 }
 
-function buildPrescriptivePanelNodes(el, prescriptive) {
+function buildPrescriptivePanelNodes(el, prescriptive, summary) {
   const nodes = [];
 
   if (prescriptive.directives.length) {
@@ -189,6 +204,12 @@ function buildPrescriptivePanelNodes(el, prescriptive) {
     plan.steps.forEach((step) => {
       const item = el("li", "prescriptive-step");
       item.dataset.urgency = step.urgency || "standard";
+      const action = prescriptive.actions.find((candidate) => (
+        candidate.id === step.actionId || candidate.title === step.action
+      ));
+      const existing = action
+        ? savingsLedger.find((entry) => entry.actionId === action.id && entry.scope?.type === summary.scope && entry.scope?.key === summary.key && !["rejected", "expired"].includes(entry.status))
+        : null;
       const title = el("div", "prescriptive-step-title");
       title.append(el("span", "prescriptive-step-name", step.action));
       title.append(el("span", "prescriptive-step-owner", step.owner));
@@ -196,6 +217,38 @@ function buildPrescriptivePanelNodes(el, prescriptive) {
       item.append(el("div", "prescriptive-step-do", step.do));
       item.append(el("div", "prescriptive-step-impact", `Expected: ${step.expectedImpact}`));
       item.append(el("div", "prescriptive-step-verify", `Verify: ${step.verify}`));
+      if (action) {
+        const controls = el("div", "prescriptive-step-controls");
+        const execution = currentActionExecution(action, summary);
+        const preview = document.createElement("button");
+        preview.type = "button";
+        preview.textContent = "Preview change";
+        preview.addEventListener("click", () => previewActionWriteback(action, summary));
+        controls.append(preview);
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.textContent = execution?.status === "applied" ? "Applied" : "Apply (requires approval)";
+        apply.disabled = execution?.status === "applied" || existing?.status === "verified";
+        apply.addEventListener("click", () => applyActionWriteback(action, summary));
+        controls.append(apply);
+        const revert = document.createElement("button");
+        revert.type = "button";
+        revert.textContent = "Revert";
+        revert.disabled = execution?.status !== "applied";
+        revert.addEventListener("click", () => revertActionWriteback(action, summary));
+        controls.append(revert);
+        item.append(controls);
+        if (execution) {
+          const detail = el("div", "prescriptive-step-writeback");
+          const change = execution.changes?.[0];
+          detail.textContent = [
+            `${titleCase(execution.status)} via ${execution.connectorId}`,
+            change ? `${change.operation} -> ${change.target || "scope"}` : "",
+            execution.externalRef ? `ref ${execution.externalRef}` : ""
+          ].filter(Boolean).join(" · ");
+          item.append(detail);
+        }
+      }
       list.append(item);
     });
     planWrap.append(list);
@@ -212,6 +265,80 @@ function buildPrescriptivePanelNodes(el, prescriptive) {
   const urgentCount = prescriptive.summary?.urgentDirectives || 0;
   if (urgentCount) return { nodes, badge: countLabel(urgentCount, "urgent"), tone: "poor" };
   return { nodes, badge: countLabel(stepCount, "action"), tone: "watch" };
+}
+
+function renderSavingsLedger(summary) {
+  const panel = document.querySelector("#savingsLedgerPanel");
+  if (!panel) return;
+  if (!dashboardBlockEnabled("savingsLedger")) {
+    panel.replaceChildren();
+    return;
+  }
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  };
+  if (typeof TurbaPredictive === "undefined") {
+    panel.replaceChildren(el("div", "operator-empty savings-ledger-empty", "Savings ledger unavailable."));
+    updatePanelBadge("#savingsLedgerBadge", "Offline", "poor");
+    return;
+  }
+
+  const scope = { type: summary.scope, key: summary.key };
+  const now = new Date();
+  const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+  const rollup = TurbaPredictive.rollupLedger(savingsLedger, { scope, window: `${start.toISOString()}/${now.toISOString()}` });
+  const rows = savingsLedger
+    .filter((entry) => entry.scope?.type === scope.type && entry.scope?.key === scope.key)
+    .slice()
+    .sort((a, b) => new Date(b.verifiedAt || b.appliedAt || 0) - new Date(a.verifiedAt || a.appliedAt || 0))
+    .slice(0, 6);
+
+  const stats = el("div", "savings-ledger-stats");
+  stats.append(savingsLedgerStat("Verified recovered", `${currency.format(rollup.verifiedDollars)} / ${number.format(rollup.verifiedGpuHours)} GPU-hours`));
+  stats.append(savingsLedgerStat("Realization", `${rollup.realizationRate}%`));
+  stats.append(savingsLedgerStat("Entries", `${rollup.verifiedCount} verified · ${rollup.modeledCount} modeled`));
+
+  const table = el("div", "savings-ledger-table");
+  if (rows.length) {
+    rows.forEach((entry) => {
+      const row = el("div", "savings-ledger-row");
+      row.dataset.status = entry.status;
+      row.append(el("span", "savings-ledger-status", titleCase(entry.status)));
+      const copy = el("div", "savings-ledger-copy");
+      copy.append(el("strong", "", entry.actionTitle || entry.actionId));
+      copy.append(el("span", "", `${entry.category} · ${entry.attribution}`));
+      row.append(copy);
+      row.append(el("span", "savings-ledger-impact", `${currency.format(entry.deltaDollars)} / ${number.format(entry.deltaGpuHours)} GPU-hours`));
+      if (entry.status === "applied") {
+        const verify = document.createElement("button");
+        verify.type = "button";
+        verify.textContent = "Verify now";
+        verify.addEventListener("click", () => verifySavingsLedgerEntry(entry, summary));
+        row.append(verify);
+      }
+      table.append(row);
+    });
+  } else {
+    table.append(el("div", "operator-empty savings-ledger-empty", "No ledger entries for this scope yet."));
+  }
+
+  panel.replaceChildren(stats, table);
+  const tone = rollup.verifiedCount > 0 ? "good" : rows.length > 0 ? "watch" : "watch";
+  updatePanelBadge("#savingsLedgerBadge", rollup.verifiedCount > 0 ? `${rollup.verifiedCount} verified` : "No verified", tone);
+}
+
+function savingsLedgerStat(label, value) {
+  const item = document.createElement("div");
+  item.className = "savings-ledger-stat";
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  const span = document.createElement("span");
+  span.textContent = label;
+  item.append(strong, span);
+  return item;
 }
 
 function updatePanelBadge(selector, label, tone) {
@@ -304,8 +431,23 @@ function renderDashboardSettingsPanel() {
     grid.append(dashboardBlockToggle(block));
   });
 
-  controls.replaceChildren(actions, dashboardApiTokenControl(), grid);
+  controls.replaceChildren(actions, dashboardApiTokenControl(), benchmarkOptInControl(), grid);
   panel.hidden = false;
+}
+
+function benchmarkOptInControl() {
+  const wrap = document.createElement("label");
+  wrap.className = "benchmark-opt-in-control";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.checked = Boolean(state.benchmarkOptIn);
+  input.addEventListener("change", () => setBenchmarkOptIn(input.checked));
+  const copy = document.createElement("span");
+  copy.textContent = "Benchmark opt-in";
+  const note = document.createElement("small");
+  note.textContent = state.benchmarkOptIn ? "k-anonymous percentile context enabled" : "off by default";
+  wrap.append(input, copy, note);
+  return wrap;
 }
 
 function renderScopeControls() {
@@ -464,10 +606,11 @@ function renderDiagnosis(summary, classifier) {
     : summary.whatIfActive
     ? `Current evidence points to ${primaryLoss} first and ${secondary.name.replace("-bound", "").toLowerCase()} second. Constraining this work to one pod is estimated to improve runtime by ${classifier.improvementRange}.`
     : `${primary.reason} ${recommendationFor(summary, classifier)}`;
+  const benchmarkContext = benchmarkPercentileContext(summary);
 
   document.querySelector("#selectedMeta").textContent = meta;
   document.querySelector("#diagnosisHeadline").textContent = headline;
-  document.querySelector("#diagnosisNarrative").textContent = narrative;
+  document.querySelector("#diagnosisNarrative").textContent = [narrative, benchmarkContext.text].filter(Boolean).join(" ");
   renderScoreDial(fleetOverview ? fleetOverview.healthScore : summary.usefulCompute);
 }
 
@@ -484,9 +627,66 @@ function renderScoreDial(score) {
 function renderMetricRibbon(summary) {
   document.querySelector("#allocatedGpuHours").textContent = number.format(summary.allocatedGpuHours);
   document.querySelector("#usefulGpuHours").textContent = number.format(summary.usefulGpuHours);
+  document.querySelector("#mfuHfu").textContent = summary.modelFlops?.status === "measured"
+    ? `${pct(summary.mfuPct)} / ${pct(summary.hfuPct)}`
+    : "Unknown";
   document.querySelector("#wastedGpuHours").textContent = number.format(summary.wastedGpuHours);
   document.querySelector("#wasteDollars").textContent = currency.format(summary.wasteDollars);
   document.querySelector("#costPerUseful").textContent = currency.format(summary.costPerUsefulGpuHour);
+}
+
+function renderInferenceEconomics(summary) {
+  const panel = document.querySelector("#inferenceEconomicsPanel");
+  if (!panel) return;
+  if (!dashboardBlockEnabled("inferenceEconomics")) {
+    panel.replaceChildren();
+    return;
+  }
+
+  const active = numeric(summary.inferenceRequestsM) > 0 || numeric(summary.kvCachePressure) > 0 || numeric(summary.latencyTail) > 0;
+  const badge = document.querySelector("#inferenceEconomicsBadge");
+  if (!active) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty inference-economics-empty";
+    empty.textContent = "No inference serving signal in this scope.";
+    panel.replaceChildren(empty);
+    if (badge) {
+      badge.textContent = "No serving";
+      badge.dataset.tone = "watch";
+    }
+    return;
+  }
+
+  const stats = document.createElement("div");
+  stats.className = "inference-economics-stats";
+  stats.append(
+    inferenceEconomicsStat("Cost / 1M requests", summary.inferenceRequestsM > 0 ? currency.format(summary.costPerMillionRequests) : "n/a"),
+    inferenceEconomicsStat("Cost / 1M tokens", summary.tokensM > 0 ? currency.format(summary.costPerMillionTokens) : "n/a"),
+    inferenceEconomicsStat("KV-cache pressure", pct(summary.kvCachePressure)),
+    inferenceEconomicsStat("Batch efficiency", pct(100 - summary.batchInefficiency)),
+    inferenceEconomicsStat("Latency tail", pct(summary.latencyTail)),
+    inferenceEconomicsStat("Requests", `${number.format(summary.inferenceRequestsM)}M`)
+  );
+
+  const note = document.createElement("div");
+  note.className = "inference-economics-note";
+  note.textContent = `${pct(summary.kvCachePressure)} KV-cache pressure with ${pct(summary.batchInefficiency)} batch inefficiency; track against ${currency.format(summary.costPerMillionRequests)} per million requests.`;
+  panel.replaceChildren(stats, note);
+  if (badge) {
+    badge.textContent = summary.costPerMillionRequests > 0 ? currency.format(summary.costPerMillionRequests) : "Serving";
+    badge.dataset.tone = summary.latencyTail > 70 || summary.kvCachePressure > 78 ? "poor" : "good";
+  }
+}
+
+function inferenceEconomicsStat(label, value) {
+  const item = document.createElement("div");
+  item.className = "inference-economics-stat";
+  const span = document.createElement("span");
+  span.textContent = label;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  item.append(span, strong);
+  return item;
 }
 
 function renderLiveResources(summary) {
@@ -3363,6 +3563,173 @@ function renderReport(summary, classifier) {
   ].filter(Boolean).join(" ");
 
   document.querySelector("#customerReport").textContent = report;
+}
+
+function renderMachineL1L6Page(summary) {
+  const page = document.querySelector("#machineL1L6Page");
+  if (!page) return;
+
+  const stateModel = buildMachineL1L6State(summary);
+  const badge = document.querySelector("#machineL1L6Badge");
+  const focusBadge = document.querySelector("#machineL1L6FocusBadge");
+  const focusTitle = document.querySelector("#machineL1L6FocusTitle");
+  const summaryEl = document.querySelector("#machineL1L6Summary");
+  const coverage = document.querySelector("#machineL1L6Coverage");
+  const levels = document.querySelector("#machineL1L6Levels");
+  const fleetBadge = document.querySelector("#machineL1L6FleetBadge");
+  const fleetRows = document.querySelector("#machineL1L6FleetRows");
+
+  if (badge) {
+    badge.textContent = stateModel.badge;
+    badge.dataset.tone = stateModel.tone;
+  }
+  if (focusBadge) {
+    focusBadge.textContent = stateModel.focusBadge;
+    focusBadge.dataset.tone = stateModel.tone;
+  }
+  if (focusTitle) focusTitle.textContent = stateModel.focusTitle;
+
+  if (!stateModel.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty machine-ladder-empty";
+    empty.textContent = stateModel.emptyText;
+    if (summaryEl) summaryEl.replaceChildren(empty);
+    if (levels) levels.replaceChildren();
+    if (coverage) coverage.textContent = "0/6";
+    if (fleetBadge) fleetBadge.textContent = "0 hosts";
+    if (fleetRows) fleetRows.replaceChildren();
+    return;
+  }
+
+  if (summaryEl) {
+    summaryEl.replaceChildren(...stateModel.summaryCards.map(machineLadderSummaryCard));
+  }
+  if (coverage) coverage.textContent = `${stateModel.readyLevels}/6`;
+  if (levels) {
+    levels.replaceChildren(benchmarkLadderHeader(), ...stateModel.levels.map(benchmarkLadderRow));
+  }
+  if (fleetBadge) fleetBadge.textContent = `${stateModel.rows.length} ${stateModel.rows.length === 1 ? "host" : "hosts"}`;
+  if (fleetRows) {
+    const grid = document.createElement("div");
+    grid.className = "fleet-comparison-rank-grid";
+    grid.append(fleetComparisonHeader(["Rank", "Host", "Score", "Pressure", "Capacity", "Network", "Signature"], "fleet-comparison-rank-row"));
+    stateModel.rows.forEach((row) => {
+      grid.append(fleetComparisonRankRow(row));
+    });
+    fleetRows.replaceChildren(grid);
+  }
+}
+
+function machineLadderSummaryCard(item) {
+  const card = document.createElement("div");
+  card.className = "machine-ladder-summary-card";
+  card.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  card.append(label, value, note);
+  return card;
+}
+
+function renderLlmReportPage(summary, classifier, opportunityEngine, schedulerSimulator) {
+  const page = document.querySelector("#llmReportPage");
+  if (!page) return;
+
+  const report = buildLlmCustomerReportState(summary, classifier, opportunityEngine, schedulerSimulator);
+  const badge = document.querySelector("#llmReportBadge");
+  const confidence = document.querySelector("#llmReportConfidence");
+  const title = document.querySelector("#llmReportTitle");
+  const output = document.querySelector("#llmCustomerReport");
+  const evidence = document.querySelector("#llmReportEvidence");
+  const evidenceBadge = document.querySelector("#llmReportEvidenceBadge");
+  const prompt = document.querySelector("#llmReportPrompt");
+  const tokenEstimate = document.querySelector("#llmReportTokenEstimate");
+
+  renderLlmRuntimeControls(report);
+
+  if (badge) {
+    badge.textContent = report.badge;
+    badge.dataset.tone = report.tone;
+  }
+  if (confidence) {
+    confidence.textContent = `Confidence ${pct(report.confidence)}`;
+    confidence.dataset.tone = report.tone;
+  }
+  if (title) title.textContent = report.title;
+  if (output) {
+    output.replaceChildren(...report.sections.map(llmReportSectionNode));
+  }
+  if (evidence) {
+    evidence.replaceChildren(...report.evidence.map(llmReportEvidenceNode));
+  }
+  if (evidenceBadge) evidenceBadge.textContent = countLabel(report.evidence.length, "signal");
+  if (prompt) prompt.textContent = report.prompt;
+  if (tokenEstimate) tokenEstimate.textContent = `~${number.format(report.tokenEstimate)} tokens`;
+}
+
+function renderLlmRuntimeControls(report) {
+  const config = normalizeLlmReportConfig(state.llmReportConfig);
+  const apiUrl = document.querySelector("#llmApiUrl");
+  const model = document.querySelector("#llmModelInput");
+  const apiKey = document.querySelector("#llmApiKey");
+  const status = document.querySelector("#llmRuntimeStatus");
+  const button = document.querySelector("#generateLlmReport");
+  const generation = report.generation || {};
+
+  if (apiUrl && document.activeElement !== apiUrl) apiUrl.value = config.baseUrl;
+  if (model && document.activeElement !== model) model.value = config.model;
+  if (apiKey && document.activeElement !== apiKey) apiKey.value = config.apiKey;
+
+  const configured = Boolean(config.baseUrl && config.model);
+  const working = generation.status === "working" && generation.current;
+  const errored = generation.status === "error" && generation.current;
+  const complete = generation.status === "complete" && generation.current;
+
+  if (status) {
+    status.textContent = working
+      ? "Generating"
+      : errored ? "Error"
+        : complete ? "Generated"
+          : configured ? "Ready" : "Not configured";
+    status.dataset.tone = errored ? "poor" : working || configured || complete ? "good" : "watch";
+    status.title = errored ? generation.error || "LLM generation failed" : "";
+  }
+
+  if (button) {
+    button.disabled = working || !configured;
+    button.dataset.state = working ? "working" : complete ? "done" : errored ? "failed" : "";
+    const label = button.querySelector("span");
+    if (label) label.textContent = working ? "Generating" : complete ? "Regenerate" : "Generate";
+  }
+}
+
+function llmReportSectionNode(section) {
+  const node = document.createElement("section");
+  node.className = "llm-report-section";
+  node.dataset.tone = section.tone;
+  const heading = document.createElement("h3");
+  heading.textContent = section.title;
+  const body = document.createElement("p");
+  body.textContent = section.body;
+  node.append(heading, body);
+  return node;
+}
+
+function llmReportEvidenceNode(item) {
+  const node = document.createElement("div");
+  node.className = "llm-evidence-card";
+  node.dataset.tone = item.tone;
+  const label = document.createElement("span");
+  label.textContent = item.label;
+  const value = document.createElement("strong");
+  value.textContent = item.value;
+  const note = document.createElement("small");
+  note.textContent = item.note;
+  node.append(label, value, note);
+  return node;
 }
 
 function svgNode(name, attributes = {}) {

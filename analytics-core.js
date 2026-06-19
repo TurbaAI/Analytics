@@ -10,6 +10,8 @@
   const TASK_UTILIZATION_SCHEMA_VERSION = "turba.task-utilization.v1";
   const TASK_UTILIZATION_METRICS = [
     { key: "usefulCompute", label: "Useful compute", unit: "points", threshold: 7, higherIsBetter: true },
+    { key: "mfuPct", label: "MFU", unit: "points", threshold: 6, higherIsBetter: true },
+    { key: "hfuPct", label: "HFU", unit: "points", threshold: 6, higherIsBetter: true },
     { key: "gpuUtil", label: "GPU utilization", unit: "points", threshold: 8, higherIsBetter: true },
     { key: "smOccupancy", label: "SM occupancy", unit: "points", threshold: 8, higherIsBetter: true },
     { key: "tensorCoreUtil", label: "Tensor-core use", unit: "points", threshold: 8, higherIsBetter: true },
@@ -32,18 +34,34 @@
     { key: "wastedGpuHours", label: "Wasted GPU-hours", unit: "GPU-hours", threshold: 30, higherIsBetter: false },
     { key: "costPerUsefulGpuHour", label: "Cost per useful GPU-hour", unit: "USD", threshold: 2, higherIsBetter: false }
   ];
+  const DEVICE_PEAK_TFLOPS = {
+    "H100 SXM": { fp16: 989, bf16: 989, fp8: 1979 },
+    "H100 PCIe": { fp16: 756, bf16: 756, fp8: 1513 },
+    "H200 SXM": { fp16: 989, bf16: 989, fp8: 1979 },
+    "B200": { fp16: 2250, bf16: 2250, fp8: 4500 },
+    "A100 80GB": { fp16: 312, bf16: 312 },
+    "MI300X": { fp16: 1307, bf16: 1307, fp8: 2614 },
+    "Gaudi3": { bf16: 1835, fp8: 1835 },
+    "TPU v5p": { bf16: 459 }
+  };
 
   function finalizeSummary(summary, rate = 0) {
     const hourlyRate = numeric(rate);
-    const usefulGpuHours = summary.allocatedGpuHours * (summary.usefulCompute / 100);
-    const activeGpuHours = summary.allocatedGpuHours * (summary.gpuUtil / 100);
-    const wastedGpuHours = Math.max(0, summary.allocatedGpuHours - usefulGpuHours);
+    const allocatedGpuHours = numeric(summary.allocatedGpuHours);
+    const usefulGpuHours = allocatedGpuHours * (summary.usefulCompute / 100);
+    const activeGpuHours = allocatedGpuHours * (summary.gpuUtil / 100);
+    const wastedGpuHours = Math.max(0, allocatedGpuHours - usefulGpuHours);
     const wasteDollars = wastedGpuHours * hourlyRate;
-    const totalCost = summary.allocatedGpuHours * hourlyRate;
+    const totalCost = allocatedGpuHours * hourlyRate;
     const costPerUsefulGpuHour = usefulGpuHours > 0 ? totalCost / usefulGpuHours : 0;
     const costPerMillionTokens = summary.tokensM > 0 ? totalCost / summary.tokensM : 0;
     const costPerMillionRequests = summary.inferenceRequestsM > 0 ? totalCost / summary.inferenceRequestsM : 0;
     const costPerStep = summary.steps > 0 ? totalCost / summary.steps : 0;
+    const flops = modelFlopsUtilization({
+      ...summary,
+      allocatedGpuHours,
+      tokensM: summary.tokensM
+    }, summary.modelSpec || {});
 
     return {
       ...summary,
@@ -55,8 +73,78 @@
       costPerUsefulGpuHour,
       costPerMillionTokens,
       costPerMillionRequests,
-      costPerStep
+      costPerStep,
+      modelFlops: flops,
+      mfuPct: flops.status === "measured" ? flops.mfuPct : null,
+      hfuPct: flops.status === "measured" ? flops.hfuPct : null
     };
+  }
+
+  function modelFlopsUtilization(summary = {}, modelSpec = {}) {
+    const spec = { ...(summary.modelSpec || {}), ...(modelSpec || {}) };
+    const paramsB = firstPositive(spec.paramsB, spec.parametersB, spec.parameterCountB, summary.paramsB);
+    const tokensM = firstPositive(spec.tokensM, summary.tokensM);
+    const allocatedGpuHours = firstPositive(spec.allocatedGpuHours, summary.allocatedGpuHours);
+    const precision = String(spec.precision || spec.dtype || "bf16").toLowerCase();
+    const gpuModel = firstString(spec.gpuModel, summary.gpuModel, firstArrayValue(summary.gpuModels));
+    const peakTflops = firstPositive(
+      spec.peakTflops,
+      spec.devicePeakTflops,
+      spec.deviceFlopsTflops,
+      devicePeakTflops(gpuModel, precision, spec.deviceFlops)
+    );
+    const multiplier = firstPositive(spec.trainingFlopMultiplier, spec.flopsPerTokenMultiplier, 6);
+
+    if (!(paramsB > 0) || !(tokensM > 0) || !(allocatedGpuHours > 0) || !(peakTflops > 0)) {
+      return {
+        status: "unknown",
+        reason: "model params, tokens, allocated GPU-hours, and device peak FLOPs are required",
+        mfuPct: null,
+        hfuPct: null,
+        gpuModel,
+        precision
+      };
+    }
+
+    const modelFlops = tokensM * 1e6 * paramsB * 1e9 * multiplier;
+    const peakFlops = allocatedGpuHours * 3600 * peakTflops * 1e12;
+    const mfuPct = clamp((modelFlops / peakFlops) * 100, 0, 100);
+    const hardwareMultiplier = firstPositive(spec.hardwareFlopMultiplier, spec.recomputeMultiplier, 1);
+    const hfuPct = clamp(mfuPct * hardwareMultiplier, 0, 100);
+
+    return {
+      status: "measured",
+      mfuPct,
+      hfuPct,
+      paramsB,
+      tokensM,
+      allocatedGpuHours,
+      peakTflops,
+      precision,
+      gpuModel,
+      modelFlops,
+      peakFlops
+    };
+  }
+
+  function devicePeakTflops(gpuModel = "", precision = "bf16", overrides = null) {
+    const tables = [overrides, DEVICE_PEAK_TFLOPS].filter((table) => table && typeof table === "object");
+    const normalizedPrecision = String(precision || "bf16").toLowerCase();
+    const normalizedModel = String(gpuModel || "").toLowerCase();
+    if (!normalizedModel) return Number.NaN;
+    for (const table of tables) {
+      for (const [model, values] of Object.entries(table)) {
+        if (!normalizedModel.includes(model.toLowerCase().replace(/\s+/g, " ").split(" ")[0].toLowerCase())
+          && !model.toLowerCase().includes(normalizedModel)) {
+          continue;
+        }
+        const value = typeof values === "number"
+          ? numeric(values, Number.NaN)
+          : numeric(values?.[normalizedPrecision] ?? values?.bf16 ?? values?.fp16 ?? values?.peakTflops, Number.NaN);
+        if (Number.isFinite(value) && value > 0) return value;
+      }
+    }
+    return Number.NaN;
   }
 
   function summarizeProviderEconomics(summary, options = {}) {
@@ -714,6 +802,8 @@
     return normalizeTaskUtilizationMetrics({
       gpuUtil: summary.gpuUtil,
       usefulCompute: summary.usefulCompute,
+      mfuPct: summary.mfuPct,
+      hfuPct: summary.hfuPct,
       smOccupancy: summary.smOccupancy,
       tensorCoreUtil: summary.tensorCoreUtil,
       ncclTime: summary.ncclTime,
@@ -1089,7 +1179,7 @@
     const recoverableGpuHours = numeric(summary.wastedGpuHours) * clamp(tailPressure / 230, 0.08, 0.38);
     return {
       id: "inference-unit-economics",
-      category: "Inference Economics",
+      category: "inference-serving",
       title: "Lower cost per served request",
       impactDollars: recoverableGpuHours * rate,
       impactGpuHours: recoverableGpuHours,
@@ -1352,6 +1442,18 @@
     return value || 0;
   }
 
+  function firstString(...values) {
+    for (const value of values) {
+      const text = String(value || "").trim();
+      if (text) return text;
+    }
+    return "";
+  }
+
+  function firstArrayValue(value) {
+    return Array.isArray(value) ? value.find((item) => String(item || "").trim()) : "";
+  }
+
   function firstFinite(...values) {
     const value = values.map(Number).find((numberValue) => Number.isFinite(numberValue));
     return value === undefined ? Number.NaN : value;
@@ -1454,6 +1556,7 @@
     regressionRows,
     round,
     scoreComponents,
+    modelFlopsUtilization,
     simulateSchedulerScenarios,
     taskUtilizationSnapshot,
     normalizeTaskUtilizationRecord,

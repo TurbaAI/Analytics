@@ -1,4 +1,4 @@
-.PHONY: lint test run-local deploy-k8s validate-gpu package-gb100
+.PHONY: lint test run-local deploy-k8s validate-gpu package-gb100 turbatop
 
 lint:
 	sh -n install.sh
@@ -103,3 +103,8 @@ validate-gpu:
 
 package-gb100:
 	node scripts/package-gb100-telemetry.js
+
+turbatop:
+	mkdir -p build/turbatop
+	python3 -m zipapp cli/turbatop -p "/usr/bin/env python3" -o build/turbatop/turbatop
+	chmod +x build/turbatop/turbatop
