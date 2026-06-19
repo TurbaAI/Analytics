@@ -145,7 +145,7 @@ function runDelegatedFleetOnce(remotes) {
 
 function collectAndWrite({ gpuOverride = null } = {}) {
   const generatedAt = new Date();
-  const host = collectHost({ cpuSampleMs: fastRefresh ? 80 : 250 });
+  const host = collectHost({ cpuSampleMs: fastRefresh ? 80 : 250, fast: fastRefresh });
   host.network = withNetworkRates(host.network, previousNetwork || readNetworkRateCache(host.network));
   previousNetwork = host.network;
   writeNetworkRateCache(host.network);
@@ -156,11 +156,13 @@ function collectAndWrite({ gpuOverride = null } = {}) {
     nowMs: generatedAt.getTime()
   });
   if (!gpuOverride) previousGpu = gpu;
-  const docker = collectDocker();
+  const docker = fastRefresh ? collectDockerFast() : collectDocker();
   const ncclRuntime = detectNcclRuntime({ docker, network: host.network });
   const benchmark = collectBenchmarkSuite({ host });
-  const services = collectServices(hostUrl);
-  const hardware = collectHardwareHealth({ host, gpu, docker, services, benchmark });
+  const services = fastRefresh ? collectServicesFast(hostUrl) : collectServices(hostUrl);
+  const hardware = fastRefresh
+    ? collectHardwareHealthFast({ host, gpu, docker, services, benchmark })
+    : collectHardwareHealth({ host, gpu, docker, services, benchmark });
   const metrics = deriveMetrics({ host, gpu, docker, services, windowMinutes });
   const runId = args["run-id"] || `machine-${safeId(host.hostname)}-${timestampId(generatedAt)}`;
   const bundle = buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, generatedAt, windowMinutes, ncclRuntime, benchmark, hardware });
@@ -179,20 +181,20 @@ function collectAndWrite({ gpuOverride = null } = {}) {
   }
 }
 
-function collectHost({ cpuSampleMs = 250 } = {}) {
+function collectHost({ cpuSampleMs = 250, fast = false } = {}) {
   const meminfo = readMeminfo();
   const disk = diskInfo("/");
-  const lakehouse = lakehouseInfo(lakehouseRoot);
+  const lakehouse = lakehouseInfo(lakehouseRoot, { measureUsage: !fast });
   const cpuSample = cpuUsageSample(cpuSampleMs);
   const net = primaryNetworkStats();
   const load = os.loadavg();
   const cpus = os.cpus();
-  const lscpu = command("lscpu");
+  const lscpu = fast ? "" : command("lscpu");
   const hostname = os.hostname();
   const osRelease = readOsRelease();
   const uptimeSeconds = os.uptime();
-  const cpuTemperatureC = collectCpuTemperatureC();
-  const clock = collectClockSync();
+  const cpuTemperatureC = fast ? undefined : collectCpuTemperatureC();
+  const clock = fast ? collectClockSyncFast() : collectClockSync();
 
   return {
     hostname,
@@ -288,6 +290,30 @@ function collectClockSync() {
     chronyStratum: chrony.stratum,
     services,
     detail: detailParts.join("; ")
+  };
+}
+
+function collectClockSyncFast() {
+  const nowMs = Date.now();
+  return {
+    source: "fast-refresh",
+    synchronized: false,
+    timeUnixMs: nowMs,
+    timeUnixNs: `${Math.round(nowMs)}000000`,
+    timezone: "",
+    localRtc: false,
+    offsetNs: undefined,
+    rmsOffsetNs: undefined,
+    ptpInstalled: false,
+    ptpActive: false,
+    ptp4lActive: false,
+    phc2sysActive: false,
+    ptpPortState: "",
+    ptpGrandmaster: "",
+    chronyReference: "",
+    chronyStratum: undefined,
+    services: [],
+    detail: "Clock diagnostics skipped during fast refresh"
   };
 }
 
@@ -480,9 +506,9 @@ function attachGpuDiagnostics(sample, { includeProcesses = true } = {}) {
     processes: normalizeGpuProcesses(sample.processes || [], sample.gpus || [])
   };
   const processInspector = buildGpuProcessInspector(normalized, { includeProcesses });
-  const diagnostics = gpuDiagnosticsEnabled
+  const diagnostics = gpuDiagnosticsEnabled && !(fastRefresh && !includeProcesses)
     ? collectGpuDiagnostics(normalized)
-    : emptyGpuDiagnostics("disabled");
+    : emptyGpuDiagnostics(fastRefresh && !includeProcesses ? "fast-refresh" : "disabled");
   return {
     ...normalized,
     processInspector,
@@ -1151,6 +1177,22 @@ function collectDocker() {
     });
 }
 
+function collectDockerFast() {
+  const result = commandResult("docker", ["ps", "--format", "{{.Names}}\t{{.Image}}\t{{.Status}}"], { timeout: 1200 });
+  const psText = result.status === 0 ? result.stdout : "";
+  return psText.trim().split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [name, image, status] = line.split("\t");
+      return {
+        name,
+        image,
+        status,
+        stats: {}
+      };
+    });
+}
+
 function collectServices(hostUrl) {
   const grafanaRuntime = collectGrafanaRuntime(hostUrl);
   const netdata = httpJson("http://127.0.0.1:19999/api/v1/info");
@@ -1199,6 +1241,61 @@ function collectServices(hostUrl) {
       kafkaReachable ? "kafka" : null,
       nodeExporter.includes("# HELP") ? "node-exporter" : null
     ].filter(Boolean)
+  };
+}
+
+function collectServicesFast(hostUrl) {
+  const grafanaRuntime = collectGrafanaRuntimeFast(hostUrl);
+  const profilingExporter = collectProfilingExporterFast();
+  return {
+    hostUrl,
+    grafana: null,
+    grafanaRuntime,
+    netdata: null,
+    ollama: null,
+    ollamaRunning: null,
+    ollamaTelemetry: {
+      status: ollamaProbeEnabled ? "skipped-fast-refresh" : "disabled",
+      runningModels: [],
+      probeModel: "",
+      tokensPerSecond: 0,
+      timeToFirstTokenMs: 0,
+      collectedAtMs: Date.now(),
+      sampleCached: false,
+      sampleAgeMs: 0,
+      error: ollamaProbeEnabled
+        ? "Ollama probe skipped during fast refresh"
+        : "Ollama probe disabled with --ollama-probe 0"
+    },
+    appMetricsUp: false,
+    collectorGatewayUp: false,
+    collectorGateway: {
+      reachable: false
+    },
+    collectorReady: null,
+    apiReady: null,
+    profilingExporter,
+    kafka: null,
+    nodeExporterUp: false,
+    observedServices: []
+  };
+}
+
+function collectGrafanaRuntimeFast(hostUrl) {
+  const publicBaseUrl = process.env.TURBALANCE_GRAFANA_PUBLIC_URL
+    || publicServiceUrl(hostUrl, process.env.TURBALANCE_GRAFANA_PUBLIC_PORT || "3001");
+  return {
+    reachable: false,
+    baseUrl: publicBaseUrl,
+    internalBaseUrl: "",
+    health: null,
+    dashboardUid: "turbalance-fleet-runtime",
+    dashboardSlug: "turbalance-fleet-runtime",
+    dashboardTitle: "turbalance Fleet Runtime",
+    datasourceUid: "prometheus",
+    datasourceName: "turbalance Prometheus",
+    dashboardUrl: `${publicBaseUrl}/d/turbalance-fleet-runtime/turbalance-fleet-runtime?orgId=1&from=now-1h&to=now&refresh=5s`,
+    exploreUrl: `${publicBaseUrl}/explore?orgId=1`
   };
 }
 
@@ -1470,6 +1567,86 @@ function collectHardwareHealth({ host, gpu, docker, services, benchmark }) {
   };
 }
 
+function collectHardwareHealthFast({ host, gpu, docker, services, benchmark }) {
+  const hostRole = hardwareHostRole(host);
+  const primaryGpu = gpu.gpus?.[0] || {};
+  const faults = [];
+
+  if (finite(primaryGpu.temperatureC, 0) >= 86) {
+    faults.push(hardwareFault({
+      id: "gpu-thermal",
+      category: "gpu",
+      severity: finite(primaryGpu.temperatureC, 0) >= 92 ? "critical" : "high",
+      source: gpu.source || "gpu",
+      count: 1,
+      detail: `GPU temperature is ${round(primaryGpu.temperatureC, 1)} C.`,
+      suggestedAction: "inspect-cooling-power"
+    }));
+  }
+  if (finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0) > 0) {
+    faults.push(hardwareFault({
+      id: "network-errors",
+      category: "network",
+      severity: "medium",
+      source: "procfs-netdev",
+      count: finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0),
+      detail: `${round(finite(host.network.rxErrors, 0), 0)} RX and ${round(finite(host.network.txErrors, 0), 0)} TX interface errors observed on ${host.network.iface || "primary interface"}.`,
+      suggestedAction: "inspect-network-link"
+    }));
+  }
+  if (finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0) > 0) {
+    faults.push(hardwareFault({
+      id: "network-drops",
+      category: "network",
+      severity: "low",
+      source: "procfs-netdev",
+      count: finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0),
+      detail: `${round(finite(host.network.rxDrops, 0), 0)} RX and ${round(finite(host.network.txDrops, 0), 0)} TX drops observed on ${host.network.iface || "primary interface"}.`,
+      suggestedAction: "inspect-network-link"
+    }));
+  }
+
+  const scoredFaults = faults.slice(0, 12);
+  const faultScore = Math.min(100, scoredFaults.reduce((total, fault) => total + hardwareSeverityScore(fault.severity) * Math.max(1, Math.min(3, finite(fault.count, 1))), 0));
+  const action = recommendedHardwareAction(scoredFaults, { docker, services, benchmark });
+  const level = faultScore >= 80 ? "critical" : faultScore >= 45 ? "high" : faultScore >= 18 ? "watch" : "healthy";
+  const dimensions = {
+    hostRole,
+    platform: host.platform,
+    arch: host.arch,
+    kernel: host.kernel,
+    gpuSource: gpu.source || "",
+    gpuName: primaryGpu.name || "",
+    clockSource: host.clock.source || "",
+    ptpActive: Boolean(host.clock.ptpActive),
+    collectorGateway: Boolean(services.collectorGatewayUp),
+    benchmarkStatus: benchmark.status || "disabled"
+  };
+  return {
+    healthScore: Math.max(0, 100 - faultScore),
+    faultScore,
+    level,
+    faultCount: scoredFaults.length,
+    criticalFaultCount: scoredFaults.filter((fault) => fault.severity === "critical").length,
+    warningFaultCount: scoredFaults.filter((fault) => ["high", "medium"].includes(fault.severity)).length,
+    kernelEventCount: 0,
+    machineCheckCount: 0,
+    gpuXidCount: 0,
+    storageErrorCount: 0,
+    pcieAerCount: 0,
+    oomKillCount: 0,
+    failedUnitCount: 0,
+    thermalThrottleActive: false,
+    thermalThrottleRaw: "",
+    repairAction: action.id,
+    repairConfidence: action.confidence,
+    repairRequiresApproval: action.requiresApproval,
+    rcaFingerprint: hardwareRcaFingerprint(scoredFaults, dimensions),
+    dimensions,
+    faults: scoredFaults
+  };
+}
+
 function collectKernelFaultSignals() {
   const journal = command("journalctl", ["-k", "--since", "-15 minutes", "--no-pager", "-o", "short-iso"]);
   const dmesg = journal ? "" : command("dmesg", ["--level=err,warn"]);
@@ -1632,7 +1809,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
     : [];
   const runningOllamaModels = ollamaRunningModelNames(services.ollamaRunning);
   const ollamaTelemetry = services.ollamaTelemetry || {};
-  const sourceAdapters = machineSourceAdapters(gpu, services, ncclRuntime, benchmark, host.clock);
+  const sourceAdapters = machineSourceAdapters(gpu, services, ncclRuntime, benchmark, host.clock, docker);
   const gpuProcessInspector = gpu.processInspector || buildGpuProcessInspector(gpu, { includeProcesses: !gpu.processesSkipped });
   const gpuTopology = gpu.topology || emptyGpuTopology("unavailable");
   const gpuThermalQualification = gpu.thermalQualification || emptyGpuThermalQualification("unavailable");
@@ -2002,9 +2179,10 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
   };
 }
 
-function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, clock = {}) {
+function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, clock = {}, docker = null) {
   const hostCounters = fs.existsSync("/proc/stat") ? "procfs" : "os-counters";
   const gb10Present = gpu.gpus.some((entry) => isGb10GpuName(entry.name));
+  const dockerObserved = Array.isArray(docker) ? docker.length > 0 : Boolean(command("docker", ["version", "--format", "{{.Server.Version}}"]).trim());
 
   return [...new Set([
     "local-machine",
@@ -2017,7 +2195,7 @@ function machineSourceAdapters(gpu, services, ncclRuntime = {}, benchmark = {}, 
     !gpu.present && /nvidia-smi-unavailable|gpustat-unavailable|gpu-telemetry-unavailable/.test(gpu.source || "") ? "gpu-telemetry-unavailable" : null,
     hostCounters,
     gb10Present ? "linux-uma-memory" : null,
-    command("docker", ["version", "--format", "{{.Server.Version}}"]).trim() ? "docker" : null,
+    dockerObserved ? "docker" : null,
     services.appMetricsUp ? "app-metrics" : null,
     services.collectorGatewayUp ? "collector-gateway" : null,
     gb10Present && services.profilingExporter?.hooksPresent ? "nsight-cupti-profiling" : null,
@@ -2116,6 +2294,22 @@ function collectProfilingExporter() {
   };
 }
 
+function collectProfilingExporterFast() {
+  const scripts = [
+    "collectors/profiling/run-nsight-compute-sample.sh",
+    "collectors/profiling/run-nsight-systems-sample.sh",
+    "collectors/profiling/run-cupti-sample.sh"
+  ].filter((relativePath) => fs.existsSync(path.join(__dirname, "..", relativePath)));
+  return {
+    status: scripts.length ? "hooks-present" : "missing",
+    hooksPresent: scripts.length > 0,
+    scripts,
+    ncuInstalled: false,
+    nsysInstalled: false,
+    cuptiConfigured: Boolean(process.env.CUPTI_LIBRARY_PATH)
+  };
+}
+
 function gpuLabel(primaryGpu, gpu) {
   if (primaryGpu.name) return primaryGpu.name;
   if (gpu.source === "nvidia-smi-unavailable") return "NVIDIA telemetry unavailable";
@@ -2145,17 +2339,18 @@ function diskInfo(targetPath) {
   };
 }
 
-function lakehouseInfo(targetPath) {
+function lakehouseInfo(targetPath, { measureUsage = true } = {}) {
   const root = path.resolve(String(targetPath || path.join("build", "lakehouse")));
   const exists = fs.existsSync(root);
   const disk = diskInfo(existingFilesystemPath(root));
-  const usedBytes = exists ? pathUsageBytes(root) : 0;
+  const usedBytes = exists && measureUsage ? pathUsageBytes(root) : 0;
   const diskUsedPct = disk.totalBytes > 0 ? (disk.usedBytes / disk.totalBytes) * 100 : 0;
   return {
     root,
     exists,
     measuredAt: new Date().toISOString(),
     usedBytes,
+    usageMeasured: Boolean(exists && measureUsage),
     disk,
     diskUsedPct
   };
