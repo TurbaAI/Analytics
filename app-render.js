@@ -522,6 +522,7 @@ function renderInventory(entries) {
     if (summary.isFleetAggregate) row.dataset.aggregate = "true";
     row.setAttribute("aria-selected", String(entry.key === state.selectedKey));
     row.addEventListener("click", () => {
+      lockManualSelection(entry);
       state.selectedKey = entry.key;
       render();
       activateSelectedInventoryPopout(entry.key);
@@ -530,6 +531,7 @@ function renderInventory(entries) {
       row.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
+        lockManualSelection(entry);
         state.selectedKey = entry.key;
         render();
         activateSelectedInventoryPopout(entry.key);
@@ -751,6 +753,8 @@ function renderLiveResources(summary) {
   const showGraphs = dashboardBlockEnabled("liveTelemetryGraphs");
   const generatedAt = context.generatedAt ? safeDate(context.generatedAt, new Date(0)) : null;
   const telemetry = recordLiveTelemetrySample(machineContext, generatedAt);
+  const retainedHostCount = liveTelemetryRetainedHostCount();
+  const retainedSampleCount = liveTelemetryHistory.length;
   const ageSeconds = generatedAt ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : null;
   const memoryTotal = numeric(context.memoryTotalBytes);
   const memoryAvailable = numeric(context.memoryAvailableBytes);
@@ -982,6 +986,13 @@ function renderLiveResources(summary) {
         ? inverseGrade(machineContext.hardwareFaultScore, 35, 70).key
         : "watch"
     }),
+    liveResourceCard({
+      label: "History buffer",
+      value: `${number.format(telemetry.length)}`,
+      note: `${number.format(retainedSampleCount)} retained samples across ${number.format(retainedHostCount)} hosts`,
+      percent: clamp((telemetry.length / LIVE_TELEMETRY_LIMIT) * 100),
+      tone: telemetry.length >= 2 ? "good" : "watch"
+    }),
     ...(machineContext.collectorGatewayReachable ? [
       liveResourceCard({
         label: "Telemetry ingest",
@@ -1128,6 +1139,8 @@ function renderFleetAggregateResources(summary, nodes) {
   const ageSeconds = Number.isFinite(overview.maxAgeMs) ? Math.max(0, Math.round(overview.maxAgeMs / 1000)) : null;
   const freshPct = overview.hostCount ? (overview.freshCount / overview.hostCount) * 100 : 0;
   const outlierPct = overview.hostCount ? (overview.outlierCount / overview.hostCount) * 100 : 0;
+  const retainedHostCount = liveTelemetryRetainedHostCount();
+  const retainedSampleCount = liveTelemetryHistory.length;
   const capacityNote = `${number.format(overview.totalCpuCores)} cores | ${formatBytes(overview.totalMemoryBytes)} RAM | ${formatBytes(overview.totalDiskBytes)} disk`;
   const pressureNote = `${pct(overview.avgCpuUsagePct)} CPU | ${pct(overview.avgMemoryUsedPct)} RAM | ${pct(overview.avgGpuUtilizationPct)} GPU`;
   const lakehouseNote = overview.lakehouseHostCount
@@ -1165,6 +1178,13 @@ function renderFleetAggregateResources(summary, nodes) {
       note: Number.isFinite(overview.maxAgeMs) ? `Oldest sample ${sparkPairAgeLabel(overview.maxAgeMs)}` : "No heartbeat timestamps",
       percent: freshPct,
       tone: grade(freshPct, 75, 100).key
+    }),
+    liveResourceCard({
+      label: "Accumulated history",
+      value: `${number.format(retainedSampleCount)}`,
+      note: `${number.format(retainedHostCount)} retained hosts | colored graph series`,
+      percent: overview.hostCount ? clamp((retainedHostCount / overview.hostCount) * 100) : null,
+      tone: retainedSampleCount ? "good" : "watch"
     }),
     liveResourceCard({
       label: "Outliers",

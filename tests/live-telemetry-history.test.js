@@ -4,6 +4,7 @@ const analytics = require("../analytics-core.js");
 
 const { appBundleSource } = require("./_app-bundle.js");
 const appSource = appBundleSource();
+const storage = new Map();
 const context = {
   console,
   Date,
@@ -25,8 +26,14 @@ const context = {
       hostname: "example.test"
     },
     localStorage: {
-      getItem: () => null,
-      setItem: () => true
+      getItem: (key) => storage.has(key) ? storage.get(key) : null,
+      setItem: (key, value) => {
+        storage.set(key, String(value));
+        return true;
+      },
+      removeItem: (key) => {
+        storage.delete(key);
+      }
     }
   },
   document: {
@@ -78,6 +85,11 @@ let history = vm.runInContext("liveTelemetryHistory", context);
 assert.equal(history.length, 3);
 assert.equal(context.liveTelemetrySamplesForHost("secret-host-a").length, 2);
 assert.equal(context.liveTelemetrySamplesForHost("secret-host-b").length, 1);
+assert.equal(context.liveTelemetryRetainedHostCount(), 2);
+
+let persisted = JSON.parse(storage.get("turba.analytics.workspace.v2"));
+assert.equal(persisted.liveTelemetryHistory.length, 3, "live samples should be saved into the workspace store");
+assert.equal(persisted.liveTelemetryHistory.filter((sample) => sample.host === "secret-host-a").length, 2);
 
 context.recordLiveTelemetrySamplesFromItems([
   machineItem("secret-host-b", "2026-06-24T12:00:01.000Z", 41, 51, 61)
@@ -85,6 +97,9 @@ context.recordLiveTelemetrySamplesFromItems([
 history = vm.runInContext("liveTelemetryHistory", context);
 assert.equal(history.length, 3, "same host/timestamp samples should dedupe");
 assert.equal(context.liveTelemetrySamplesForHost("secret-host-b")[0].cpu, 41);
+persisted = JSON.parse(storage.get("turba.analytics.workspace.v2"));
+assert.equal(persisted.liveTelemetryHistory.length, 3);
+assert.equal(persisted.liveTelemetryHistory.find((sample) => sample.host === "secret-host-b").cpu, 41);
 
 const store = vm.runInContext(`createWorkspaceStore(activeIngestion, {
   savedAt: new Date("2026-06-24T12:00:03.000Z"),

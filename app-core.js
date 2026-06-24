@@ -116,6 +116,8 @@ function replaceActiveIngestion(nextIngestion, label, dataBoundary = null, optio
 }
 
 function resolveJobSelectionKey(previousKey, previousIdentity) {
+  const lockedKey = resolveManualSelectionLock();
+  if (lockedKey) return lockedKey;
   if (previousKey === FLEET_AGGREGATE_KEY && fleetAggregateSourceItems(jobs).length >= 2) {
     return FLEET_AGGREGATE_KEY;
   }
@@ -125,6 +127,34 @@ function resolveJobSelectionKey(previousKey, previousIdentity) {
     if (matched) return matched.id;
   }
   return "";
+}
+
+function resolveManualSelectionLock(nowMs = Date.now()) {
+  if (!manualSelectionLock || manualSelectionLock.untilMs <= nowMs) return "";
+  if (manualSelectionLock.key === FLEET_AGGREGATE_KEY && fleetAggregateSourceItems(jobs).length >= 2) {
+    return FLEET_AGGREGATE_KEY;
+  }
+  if (manualSelectionLock.key && jobs.some((job) => job.id === manualSelectionLock.key)) {
+    return manualSelectionLock.key;
+  }
+  if (manualSelectionLock.identity) {
+    const matched = jobs.find((job) => jobSelectionIdentity(job) === manualSelectionLock.identity);
+    if (matched) return matched.id;
+  }
+  return "";
+}
+
+function lockManualSelection(entry, nowMs = Date.now()) {
+  if (!entry || entry.scope !== "job") {
+    manualSelectionLock = { key: "", identity: "", untilMs: 0 };
+    return;
+  }
+  const item = Array.isArray(entry.items) ? entry.items[0] : null;
+  manualSelectionLock = {
+    key: entry.key || "",
+    identity: entry.isFleetAggregate ? "" : jobSelectionIdentity(item),
+    untilMs: nowMs + MANUAL_SELECTION_LOCK_MS
+  };
 }
 
 function jobSelectionIdentity(job) {
@@ -786,7 +816,7 @@ function prefillMachineDemoUrl() {
 async function maybeAutoLoadMachineDemoBundle() {
   if (!shouldAutoLoadMachineDemoBundle()) return;
 
-  await loadMachineDemoBundle();
+  await loadMachineDemoBundle({ auto: true });
   startMachineDemoRefresh();
 }
 
@@ -796,7 +826,7 @@ function maybeStartSparkPairClockFeed() {
   startSparkPairClockRefresh();
 }
 
-async function loadMachineDemoBundle({ quiet = false } = {}) {
+async function loadMachineDemoBundle({ quiet = false, auto = false } = {}) {
   if (machineDemoLoadInFlight) return;
   machineDemoLoadInFlight = true;
   const requestUrl = machineDemoBundleUrl();
@@ -830,6 +860,11 @@ async function loadMachineDemoBundle({ quiet = false } = {}) {
       }
     );
   } catch (error) {
+    if (quiet) return;
+    if (auto) {
+      setIngestStatus("Live feed unavailable", "watch");
+      return;
+    }
     setIngestStatus(importErrorMessage(error, "Machine demo fetch failed"), "poor");
   } finally {
     machineDemoLoadInFlight = false;
@@ -4820,6 +4855,12 @@ function liveTelemetrySamplesForHost(hostOrContext) {
     .sort((left, right) => left.timestampMs - right.timestampMs);
 }
 
+function liveTelemetryRetainedHostCount(history = liveTelemetryHistory) {
+  return new Set((Array.isArray(history) ? history : [])
+    .map((sample) => sample.hostKey || normalizeFleetHostId(sample.host))
+    .filter(Boolean)).size;
+}
+
 function liveTelemetryHostKey(hostOrContext) {
   if (isPlainObject(hostOrContext)) {
     return fleetHostKey(hostOrContext);
@@ -4843,7 +4884,11 @@ function recordLiveTelemetrySamplesFromItems(items = []) {
     .filter(Boolean);
   if (!samples.length) return;
 
-  liveTelemetryHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, ...samples]);
+  const nextHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, ...samples]);
+  if (!liveTelemetryHistoryMatches(liveTelemetryHistory, nextHistory)) {
+    liveTelemetryHistory = nextHistory;
+    persistLiveTelemetryHistory({ force: true });
+  }
 }
 
 function liveTelemetrySampleFromItem(item) {
@@ -4920,7 +4965,7 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
     return hostSamples;
   }
 
-  liveTelemetryHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, {
+  const nextHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, {
     host,
     hostKey,
     timestampMs,
@@ -4938,7 +4983,39 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
     networkThroughputBps: Number.isFinite(machineContext.networkThroughputBps) ? Math.max(0, machineContext.networkThroughputBps) : null
   }]);
 
+  if (!liveTelemetryHistoryMatches(liveTelemetryHistory, nextHistory)) {
+    liveTelemetryHistory = nextHistory;
+    persistLiveTelemetryHistory({ force: true });
+  }
+
   return liveTelemetrySamplesForHost(hostKey);
+}
+
+function liveTelemetryHistoryMatches(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (liveTelemetrySampleSignature(left[index]) !== liveTelemetrySampleSignature(right[index])) return false;
+  }
+  return true;
+}
+
+function liveTelemetrySampleSignature(sample = {}) {
+  return [
+    sample.hostKey,
+    sample.host,
+    sample.timestampMs,
+    sample.cpu,
+    sample.ram,
+    sample.disk,
+    sample.dockerCpu,
+    sample.gpu,
+    sample.gpuMemory,
+    sample.gpuPower,
+    sample.gpuTemperature,
+    sample.memoryUsedBytes,
+    sample.networkUtilization,
+    sample.networkThroughputBps
+  ].join("|");
 }
 
 function analyzeLiveTelemetryRelationships(history, machineContext) {

@@ -106,6 +106,7 @@ const TASK_HISTORY_LIMIT = 360;
 const MACHINE_DEMO_REFRESH_MS = 1000;
 const MACHINE_DEMO_WORKSPACE_COMMIT_MS = 30000;
 const MACHINE_DEMO_UNCHANGED_RENDER_MS = 5000;
+const MANUAL_SELECTION_LOCK_MS = 5000;
 const MACHINE_DEMO_FRESH_SECONDS = 30;
 const MACHINE_DEMO_FRESH_MS = MACHINE_DEMO_FRESH_SECONDS * 1000;
 const PI_FLEET_HOSTNAMES = Array.from({ length: 12 }, (_unused, index) => `pi${index + 1}`);
@@ -113,6 +114,7 @@ const SPARK_PAIR_CLOCK_HISTORY_LIMIT = 180;
 const SPARK_PAIR_CLOCK_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
 const LIVE_TELEMETRY_HOST_LIMIT = 24;
+const LIVE_TELEMETRY_PERSIST_MS = 5000;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
 const LIVE_TELEMETRY_SERIES_COLORS = [
@@ -282,6 +284,8 @@ let savingsLedger = normalizeSavingsLedgerStore(workspaceStore.savingsLedger);
 let actionExecutionHistory = normalizeActionExecutionStore(workspaceStore.actionExecutions);
 const initialDataBoundary = normalizeDataBoundary(workspaceStore.dataBoundary, activeIngestion);
 let liveTelemetryHistory = normalizeLiveTelemetryStore(workspaceStore.liveTelemetryHistory);
+let liveTelemetryLastPersistAt = 0;
+let manualSelectionLock = { key: "", identity: "", untilMs: 0 };
 let sparkPairClockHistory = [];
 let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
 let platformVirtualSensorCache = {
@@ -943,8 +947,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
-
 
 
 

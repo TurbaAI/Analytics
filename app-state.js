@@ -63,6 +63,14 @@ function persistWorkspaceStore() {
   state.storageTone = workspaceStore.storageTone;
 }
 
+function persistLiveTelemetryHistory({ force = false } = {}) {
+  if (!liveTelemetryHistory.length) return;
+  const nowMs = Date.now();
+  if (!force && liveTelemetryLastPersistAt && nowMs - liveTelemetryLastPersistAt < LIVE_TELEMETRY_PERSIST_MS) return;
+  liveTelemetryLastPersistAt = nowMs;
+  persistWorkspaceStore();
+}
+
 function reconcileMachineInventory(feed) {
   if (!isIngestionFeed(feed)) return feed;
 
