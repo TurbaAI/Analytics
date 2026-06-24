@@ -112,8 +112,21 @@ const PI_FLEET_HOSTNAMES = Array.from({ length: 12 }, (_unused, index) => `pi${i
 const SPARK_PAIR_CLOCK_HISTORY_LIMIT = 180;
 const SPARK_PAIR_CLOCK_REFRESH_MS = 1000;
 const LIVE_TELEMETRY_LIMIT = 300;
+const LIVE_TELEMETRY_HOST_LIMIT = 24;
 const LIVE_TELEMETRY_ALERT_LIMIT = 5;
 const LIVE_TELEMETRY_RELATIONSHIP_WINDOW = 90;
+const LIVE_TELEMETRY_SERIES_COLORS = [
+  "#12805c",
+  "#2563eb",
+  "#b45309",
+  "#be123c",
+  "#7c3aed",
+  "#0891b2",
+  "#ca8a04",
+  "#db2777",
+  "#4f46e5",
+  "#0f766e"
+];
 const LIVE_COVARIANCE_METRICS = [
   { key: "cpu", label: "CPU load", shortLabel: "CPU" },
   { key: "gpu", label: "GPU utilization", shortLabel: "GPU" },
@@ -239,7 +252,7 @@ const DASHBOARD_BLOCKS = [
   { id: "savingsLedger", label: "Verified savings ledger", note: "Banked before/after recovered dollars and GPU-hours", defaultOn: true },
   { id: "liveAlerts", label: "Resource alerts", note: "Live relationship and pressure alerts", defaultOn: false },
   { id: "liveObservationLog", label: "Observation log", note: "Recent notable telemetry events", defaultOn: false },
-  { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: false },
+  { id: "liveTelemetryGraphs", label: "Rolling resource graphs", note: "CPU, RAM, GPU, and network history", defaultOn: true },
   { id: "eventTimeline", label: "Event timeline", note: "Operator event stream", defaultOn: false },
   { id: "demoLaunchpad", label: "Demo launchpad", note: "SPARK demo command shortcuts", defaultOn: false },
   { id: "autoDiscoveryDeployment", label: "Auto Discovery and Deployment", note: "Subnet discovery with credential-gated agent rollout", defaultOn: false },
@@ -268,7 +281,7 @@ let taskHistory = normalizeTaskHistoryStore(workspaceStore.taskHistory);
 let savingsLedger = normalizeSavingsLedgerStore(workspaceStore.savingsLedger);
 let actionExecutionHistory = normalizeActionExecutionStore(workspaceStore.actionExecutions);
 const initialDataBoundary = normalizeDataBoundary(workspaceStore.dataBoundary, activeIngestion);
-let liveTelemetryHistory = [];
+let liveTelemetryHistory = normalizeLiveTelemetryStore(workspaceStore.liveTelemetryHistory);
 let sparkPairClockHistory = [];
 let liveObservationClearState = { contextKey: "", clearedAtMs: 0 };
 let platformVirtualSensorCache = {
@@ -930,10 +943,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
-
-
-
 
 
 

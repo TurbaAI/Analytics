@@ -20,6 +20,7 @@ function loadWorkspaceStore(defaultIngestion) {
       taskHistory: normalizeTaskHistoryStore(persisted.taskHistory),
       savingsLedger: normalizeSavingsLedgerStore(persisted.savingsLedger),
       actionExecutions: normalizeActionExecutionStore(persisted.actionExecutions),
+      liveTelemetryHistory: normalizeLiveTelemetryStore(persisted.liveTelemetryHistory),
       storageLabel: "Loaded locally",
       storageTone: dataBoundary.kind === "demo" ? "watch" : "good"
     };
@@ -48,6 +49,7 @@ function persistWorkspaceStore() {
     savingsLedger,
     actionExecutions: actionExecutionHistory,
     machineInventory: machineInventoryArchive,
+    liveTelemetryHistory,
     dataBoundary: state.dataBoundary
   });
   const saved = writeWorkspaceStore(nextStore);
@@ -134,6 +136,81 @@ function normalizeMachineInventoryArchive(records = []) {
   return Array.from(byKey.values())
     .sort((left, right) => new Date(right.lastSeenAt).getTime() - new Date(left.lastSeenAt).getTime())
     .slice(0, MACHINE_INVENTORY_ARCHIVE_LIMIT);
+}
+
+function normalizeLiveTelemetryStore(records = []) {
+  if (!Array.isArray(records)) return [];
+
+  const byDedupeKey = new Map();
+  records.forEach((record) => {
+    const sample = normalizeLiveTelemetrySample(record);
+    if (!sample) return;
+    byDedupeKey.set(`${sample.hostKey}:${sample.timestampMs}`, sample);
+  });
+
+  const byHost = new Map();
+  Array.from(byDedupeKey.values()).forEach((sample) => {
+    if (!byHost.has(sample.hostKey)) byHost.set(sample.hostKey, []);
+    byHost.get(sample.hostKey).push(sample);
+  });
+
+  const retainedHostKeys = Array.from(byHost.entries())
+    .map(([hostKey, samples]) => ({
+      hostKey,
+      latestMs: Math.max(...samples.map((sample) => sample.timestampMs))
+    }))
+    .sort((left, right) => right.latestMs - left.latestMs || left.hostKey.localeCompare(right.hostKey))
+    .slice(0, LIVE_TELEMETRY_HOST_LIMIT)
+    .map((entry) => entry.hostKey);
+
+  return retainedHostKeys
+    .flatMap((hostKey) => byHost.get(hostKey)
+      .sort((left, right) => left.timestampMs - right.timestampMs)
+      .slice(-LIVE_TELEMETRY_LIMIT))
+    .sort((left, right) => left.timestampMs - right.timestampMs || left.hostKey.localeCompare(right.hostKey));
+}
+
+function normalizeLiveTelemetrySample(record) {
+  if (!isPlainObject(record)) return null;
+
+  const timestampMs = numeric(record.timestampMs, Number.NaN);
+  if (!Number.isFinite(timestampMs)) return null;
+
+  const host = firstString([
+    record.host,
+    record.hostname,
+    record.node,
+    record.hostKey
+  ]) || "host";
+  const hostKey = normalizeFleetHostId(record.hostKey || host);
+  if (!hostKey) return null;
+
+  return {
+    host,
+    hostKey,
+    timestampMs,
+    label: String(record.label || new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })),
+    cpu: telemetryStoreNumber(record.cpu),
+    ram: telemetryStoreNumber(record.ram),
+    disk: telemetryStoreNumber(record.disk),
+    dockerCpu: telemetryStoreNumber(record.dockerCpu),
+    gpu: telemetryStoreNullableNumber(record.gpu),
+    gpuMemory: telemetryStoreNullableNumber(record.gpuMemory),
+    gpuPower: telemetryStoreNullableNumber(record.gpuPower),
+    gpuTemperature: telemetryStoreNullableNumber(record.gpuTemperature),
+    memoryUsedBytes: telemetryStoreNumber(record.memoryUsedBytes),
+    networkUtilization: telemetryStoreNullableNumber(record.networkUtilization),
+    networkThroughputBps: telemetryStoreNullableNumber(record.networkThroughputBps)
+  };
+}
+
+function telemetryStoreNumber(value) {
+  return numeric(value, 0);
+}
+
+function telemetryStoreNullableNumber(value) {
+  const parsed = numeric(value, Number.NaN);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function machineInventoryContextForRun(run) {
@@ -264,6 +341,7 @@ function restoreWorkspaceStore(store, label) {
   taskHistory = normalizeTaskHistoryStore(store.taskHistory);
   savingsLedger = normalizeSavingsLedgerStore(store.savingsLedger);
   actionExecutionHistory = normalizeActionExecutionStore(store.actionExecutions);
+  liveTelemetryHistory = normalizeLiveTelemetryStore(store.liveTelemetryHistory);
   state.selectedKey = jobs[0]?.id || "";
   state.scope = "job";
   state.ingestLabel = label;
@@ -279,7 +357,7 @@ function restoreWorkspaceStore(store, label) {
   render();
 }
 
-function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], savingsLedger = [], actionExecutions = [], machineInventory = [], dataBoundary = null }) {
+function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = [], taskHistory = [], savingsLedger = [], actionExecutions = [], machineInventory = [], liveTelemetryHistory = [], dataBoundary = null }) {
   return {
     storageSchemaVersion: STORAGE_SCHEMA.version,
     ingestionSchemaVersion: ingestion.schemaVersion,
@@ -289,6 +367,7 @@ function createWorkspaceStore(ingestion, { savedAt, lastAnalysisAt, snapshots = 
     ingestion,
     baselines: buildBaselineStore(ingestion.runs),
     machineInventory: normalizeMachineInventoryArchive(machineInventory),
+    liveTelemetryHistory: normalizeLiveTelemetryStore(liveTelemetryHistory),
     snapshots: normalizeSnapshotStore(snapshots),
     taskHistory: normalizeTaskHistoryStore(taskHistory),
     savingsLedger: normalizeSavingsLedgerStore(savingsLedger),
@@ -861,7 +940,8 @@ function exportWorkspace({ redacted = false } = {}) {
     taskHistory,
     savingsLedger,
     actionExecutions: actionExecutionHistory,
-    machineInventory: machineInventoryArchive
+    machineInventory: machineInventoryArchive,
+    liveTelemetryHistory
   });
   const store = redacted ? redactWorkspaceStore(rawStore) : rawStore;
   const blob = new Blob([`${JSON.stringify(store, null, 2)}\n`], { type: "application/json" });
@@ -892,7 +972,8 @@ function exportEvidencePack() {
     taskHistory,
     savingsLedger,
     actionExecutions: actionExecutionHistory,
-    machineInventory: machineInventoryArchive
+    machineInventory: machineInventoryArchive,
+    liveTelemetryHistory
   });
   const plan = buildRedactionPlan(store);
   const markdown = buildEvidencePackMarkdown({
@@ -988,6 +1069,7 @@ function redactWorkspaceStore(store) {
   redacted.ingestion = redactIngestion(redacted.ingestion, plan);
   redacted.baselines = redactBaselineStore(redacted.baselines, plan);
   redacted.machineInventory = redactMachineInventoryArchive(redacted.machineInventory, plan);
+  redacted.liveTelemetryHistory = redactLiveTelemetryHistory(redacted.liveTelemetryHistory, plan);
   redacted.snapshots = redactSnapshots(redacted.snapshots, plan);
   redacted.taskHistory = redactTaskHistory(redacted.taskHistory, plan);
   redacted.savingsLedger = redactSavingsLedger(redacted.savingsLedger, plan);
@@ -1005,6 +1087,7 @@ function redactWorkspaceStore(store) {
     "Grafana dashboard and Explore links",
     "Redfish management-plane context",
     "machine inventory archive",
+    "live telemetry history",
     "savings ledger scope identifiers",
     "action execution external refs",
     "imported opportunity free text"
@@ -1037,6 +1120,19 @@ function redactMachineInventoryArchive(records = [], plan) {
 function redactMachineInventoryKey(value, plan) {
   if (!value) return undefined;
   return `machine-id:${mappedValue(plan.machineInventoryKeys, value, "machine")}`;
+}
+
+function redactLiveTelemetryHistory(records = [], plan) {
+  if (!Array.isArray(records)) return [];
+
+  return normalizeLiveTelemetryStore(records).map((sample) => {
+    const host = mappedValue(plan.liveTelemetryHosts, sample.host, "host");
+    return {
+      ...sample,
+      host,
+      hostKey: normalizeFleetHostId(host)
+    };
+  });
 }
 
 function redactEntities(entities, plan) {

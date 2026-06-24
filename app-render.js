@@ -1023,7 +1023,6 @@ function renderLiveResources(summary) {
 function renderAnalysisResourceFallback(summary, nodes) {
   const { panel, title, badge, grid, alerts, observationLog, graphs } = nodes;
   const analysis = analyzeAnalysisResourceRelationships(summary);
-  liveTelemetryHistory = [];
 
   panel.hidden = false;
   title.textContent = `${summary.label} resource signals`;
@@ -1141,7 +1140,6 @@ function renderFleetAggregateResources(summary, nodes) {
     ? `${overview.widestSpread.label}: ${overview.widestSpread.bestHost || "--"} vs ${overview.widestSpread.worstHost || "--"}`
     : "Spread learning";
 
-  liveTelemetryHistory = [];
   panel.hidden = false;
   title.textContent = "Fleet aggregate live resources";
   renderLiveResourceHeartbeatBadge(badge, ageSeconds);
@@ -1248,72 +1246,72 @@ function renderFleetAggregateGraphs(container, overview) {
   }
 
   const latestLabel = `${overview.hostCount} host cross-section`;
+  const fleetGraphCard = ({ valueKey, history: fallbackHistory = history, max, fallbackMax = 100, ...config }) => {
+    const series = fleetAggregateTelemetrySeries(overview, valueKey);
+    const seriesHistory = series.length ? fleetAggregateSeriesHistory(series) : fallbackHistory;
+    return liveTelemetryGraphCard({
+      ...config,
+      valueKey,
+      history: fallbackHistory,
+      series,
+      latestLabel: series.length ? `${series.length} host histories` : latestLabel,
+      max: max ?? adaptiveGraphMax(seriesHistory, valueKey, fallbackMax)
+    });
+  };
+
   container.replaceChildren(
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "Rank score",
       valueKey: "score",
-      history,
-      latestLabel,
       valueText: `${round(overview.averageHostScore)} avg`,
       note: "Composite host rank",
       max: 100,
       tone: grade(overview.averageHostScore, 58, 78).key
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "CPU",
       valueKey: "cpu",
-      history,
-      latestLabel,
       valueText: pct(overview.avgCpuUsagePct),
-      note: "Host CPU cross-section",
+      note: "Accumulated host CPU",
       max: 100,
       tone: inverseGrade(overview.avgCpuUsagePct, 70, 90).key
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "RAM",
       valueKey: "ram",
-      history,
-      latestLabel,
       valueText: pct(overview.avgMemoryUsedPct),
-      note: "Host memory cross-section",
+      note: "Accumulated host memory",
       max: 100,
       tone: inverseGrade(overview.avgMemoryUsedPct, 75, 90).key
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "GPU util",
       valueKey: "gpu",
-      history,
-      latestLabel,
       valueText: overview.gpuHostCount ? pct(overview.avgGpuUtilizationPct) : "unavailable",
       note: `${overview.gpuHostCount}/${overview.hostCount} hosts report GPU counters`,
       max: 100,
       tone: overview.gpuHostCount ? grade(overview.avgGpuUtilizationPct, 30, 70).key : "poor"
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "Network",
       valueKey: "networkThroughputBps",
-      history,
-      latestLabel,
       valueText: formatBytesPerSecond(overview.totalNetworkThroughputBps),
-      note: "Per-host throughput cross-section",
-      max: adaptiveGraphMax(history, "networkThroughputBps", 1),
+      note: "Accumulated per-host throughput",
+      fallbackMax: 1,
       tone: overview.networkIssueCount ? "watch" : "good"
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "Data lake",
       valueKey: "lakehouseUsedBytes",
       history: lakehouseHistory,
-      latestLabel,
       valueText: overview.lakehouseHostCount ? formatBytes(overview.totalLakehouseUsedBytes) : "not reported",
       note: "Lakehouse directory usage",
       max: adaptiveGraphMax(lakehouseHistory, "lakehouseUsedBytes", Math.max(1, overview.totalLakehouseUsedBytes)),
       tone: overview.lakehouseHostCount ? inverseGrade(overview.avgLakehouseDiskUsedPct, 75, 90).key : "watch"
     }),
-    liveTelemetryGraphCard({
+    fleetGraphCard({
       label: "Signature delta",
       valueKey: "signatureDelta",
-      history,
-      latestLabel,
       valueText: Number.isFinite(overview.signatureMedian) ? formatDecimal(overview.signatureMedian, 2) : "learning",
       note: "System-ID distance from fleet median",
       max: adaptiveGraphMax(history, "signatureDelta", 4),
@@ -1423,7 +1421,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   }
   if (kafkaBadge) kafkaBadge.textContent = cockpit.kafka.reachable ? "Reachable" : "Missing";
   if (confidenceDetailBadge) confidenceDetailBadge.textContent = cockpit.confidence.label;
-  if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : `${liveTelemetryHistory.length} samples`;
+  if (replayBadge) replayBadge.textContent = state.operatorReplay ? "Playing" : liveTelemetryReplaySampleLabel(cockpit);
   if (grafanaBadge) grafanaBadge.textContent = cockpit.grafana.links.length ? `${cockpit.grafana.links.length} links` : "No link";
   if (productReadinessBadge) {
     productReadinessBadge.textContent = cockpit.productReadiness.badge;
@@ -2236,17 +2234,18 @@ function operatorConfidenceNodes(confidence) {
 }
 
 function operatorReplayNodes(cockpit) {
+  const replaySamples = liveTelemetryReplaySamples(cockpit);
   const status = document.createElement("p");
   status.textContent = state.operatorReplay
-    ? `Replaying the latest ${liveTelemetryHistory.length} live telemetry samples.`
-    : `Ready to replay ${liveTelemetryHistory.length} captured live telemetry samples.`;
+    ? `Replaying the latest ${replaySamples.length} live telemetry samples.`
+    : `Ready to replay ${replaySamples.length} captured live telemetry samples.`;
 
   const controls = document.createElement("div");
   controls.className = "replay-controls";
   const toggle = document.createElement("button");
   toggle.type = "button";
   toggle.textContent = state.operatorReplay ? "Stop Replay" : "Replay Latest";
-  toggle.disabled = liveTelemetryHistory.length < 2;
+  toggle.disabled = replaySamples.length < 2;
   toggle.addEventListener("click", () => {
     state.operatorReplay = !state.operatorReplay;
     state.operatorReplayStartedAt = state.operatorReplay ? new Date() : null;
@@ -2260,9 +2259,19 @@ function operatorReplayNodes(cockpit) {
 
   const note = document.createElement("small");
   note.textContent = cockpit.generatedAt
-    ? `Latest live sample ${formatHostSampleAgeMilliseconds(cockpit.ageMilliseconds)} old. Replay is browser-local and uses the current session history.`
+    ? `Latest live sample ${formatHostSampleAgeMilliseconds(cockpit.ageMilliseconds)} old. Replay uses persisted local workspace history.`
     : "Replay will activate once live samples are collected.";
   return [status, controls, note];
+}
+
+function liveTelemetryReplaySamples(cockpit) {
+  return liveTelemetrySamplesForSummary(cockpit.summary, cockpit.machineContext);
+}
+
+function liveTelemetryReplaySampleLabel(cockpit) {
+  const samples = liveTelemetryReplaySamples(cockpit);
+  if (cockpit.summary?.isFleetAggregate) return `${samples.length} fleet samples`;
+  return `${samples.length} samples`;
 }
 
 function operatorGrafanaNodes(grafana) {

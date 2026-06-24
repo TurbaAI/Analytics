@@ -3866,6 +3866,54 @@ button.fleet-tile:focus-visible {
   fill: var(--amber);
 }
 
+.telemetry-series-line {
+  stroke-width: 2.25;
+  opacity: 0.9;
+}
+
+.telemetry-series-dot {
+  opacity: 0.95;
+}
+
+.telemetry-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  min-width: 0;
+  margin-top: -3px;
+}
+
+.telemetry-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 850;
+  line-height: 1.1;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+
+.telemetry-legend span::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--series-color, var(--amber));
+}
+
+.telemetry-legend .telemetry-legend-more {
+  color: var(--ink);
+}
+
+.telemetry-legend .telemetry-legend-more::before {
+  display: none;
+}
+
 .telemetry-empty {
   fill: var(--muted);
   font-size: 12px;

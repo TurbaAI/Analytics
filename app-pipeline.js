@@ -1245,6 +1245,7 @@ function buildRedactionPlan(store) {
   const sourceRuns = [...runs, ...machineInventoryRuns];
   const entities = ingestion.entities || {};
   const taskRecords = Array.isArray(store.taskHistory) ? store.taskHistory : [];
+  const telemetryRecords = Array.isArray(store.liveTelemetryHistory) ? store.liveTelemetryHistory : [];
   const plan = {
     entities: {},
     runs: buildValueMap(sourceRuns.map((run) => run.id), "run"),
@@ -1257,6 +1258,10 @@ function buildRedactionPlan(store) {
     ebpfExports: buildValueMap(sourceRuns.map((run) => run.sourceContext?.ebpfExportId), "ebpf-export"),
     hosts: buildValueMap(sourceRuns.map((run) => run.sourceContext?.host), "host"),
     hostnames: buildValueMap(sourceRuns.map((run) => run.sourceContext?.hostname), "host"),
+    liveTelemetryHosts: buildValueMap([
+      ...sourceRuns.map((run) => run.sourceContext?.hostname || run.sourceContext?.host || run.sourceContext?.node),
+      ...telemetryRecords.map((sample) => sample?.host)
+    ], "host"),
     nodes: buildValueMap(sourceRuns.map((run) => run.sourceContext?.node), "node"),
     networkAddresses: buildValueMap(flattenRunValues(sourceRuns, (run) => [
       run.sourceContext?.networkLocalAddress,
@@ -2195,9 +2200,9 @@ function buildBackgroundTasksState({ summary, machineContext, generatedAt, ageMi
       label: "Replay buffer",
       value: state.operatorReplay ? "playing" : `${liveTelemetryHistory.length} samples`,
       detail: liveTelemetryHistory.length
-        ? `Keeps up to ${LIVE_TELEMETRY_LIMIT} in-browser telemetry samples`
+        ? `Keeps up to ${LIVE_TELEMETRY_LIMIT} samples per host in the local workspace`
         : "Waiting for live samples before replay is useful",
-      cadence: "session local",
+      cadence: "workspace local",
       tone: liveTelemetryHistory.length >= 2 ? "good" : "watch"
     }
   ];
@@ -3628,16 +3633,17 @@ function buildPrincipalResourceMode(history) {
   };
 }
 
-function buildTelemetrySparkline(history, valueKey, max) {
+function buildTelemetrySparkline(history, valueKey, max, series = []) {
   const width = 260;
   const height = 78;
   const pad = 8;
   const innerWidth = width - pad * 2;
   const innerHeight = height - pad * 2;
+  const multiSeries = Array.isArray(series) && series.length > 0;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
   svg.setAttribute("role", "img");
-  svg.setAttribute("aria-label", `${valueKey} telemetry graph`);
+  svg.setAttribute("aria-label", multiSeries ? `${valueKey} telemetry graph by host` : `${valueKey} telemetry graph`);
 
   [0.25, 0.5, 0.75].forEach((ratio) => {
     const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -3650,29 +3656,40 @@ function buildTelemetrySparkline(history, valueKey, max) {
     svg.append(line);
   });
 
-  const validPoints = history
-    .map((sample, index) => {
-      const value = telemetryValue(sample, valueKey);
-      if (!Number.isFinite(value)) return null;
-      const x = pad + (history.length <= 1 ? innerWidth : (index / (history.length - 1)) * innerWidth);
-      const y = pad + innerHeight - (clamp(value, 0, max) / Math.max(max, 1)) * innerHeight;
-      return { x, y };
-    })
-    .filter(Boolean);
+  const graphSeries = multiSeries ? series : [{ history, label: "telemetry" }];
+  let plotted = 0;
+  graphSeries.forEach((entry) => {
+    const sourceHistory = Array.isArray(entry.history) ? entry.history : [];
+    const validPoints = sourceHistory
+      .map((sample, index) => {
+        const value = telemetryValue(sample, valueKey);
+        if (!Number.isFinite(value)) return null;
+        const x = pad + (sourceHistory.length <= 1 ? innerWidth : (index / (sourceHistory.length - 1)) * innerWidth);
+        const y = pad + innerHeight - (clamp(value, 0, max) / Math.max(max, 1)) * innerHeight;
+        return { x, y };
+      })
+      .filter(Boolean);
 
-  if (validPoints.length >= 2) {
-    const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    polyline.setAttribute("points", validPoints.map((point) => `${round(point.x)},${round(point.y)}`).join(" "));
-    polyline.setAttribute("class", "telemetry-line");
-    svg.append(polyline);
-  } else if (validPoints.length === 1) {
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    dot.setAttribute("cx", validPoints[0].x);
-    dot.setAttribute("cy", validPoints[0].y);
-    dot.setAttribute("r", 3);
-    dot.setAttribute("class", "telemetry-dot");
-    svg.append(dot);
-  } else {
+    if (validPoints.length >= 2) {
+      const polyline = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+      polyline.setAttribute("points", validPoints.map((point) => `${round(point.x)},${round(point.y)}`).join(" "));
+      polyline.setAttribute("class", multiSeries ? "telemetry-line telemetry-series-line" : "telemetry-line");
+      if (multiSeries && entry.color) polyline.style.stroke = entry.color;
+      svg.append(polyline);
+      plotted += 1;
+    } else if (validPoints.length === 1) {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", validPoints[0].x);
+      dot.setAttribute("cy", validPoints[0].y);
+      dot.setAttribute("r", multiSeries ? 2.5 : 3);
+      dot.setAttribute("class", multiSeries ? "telemetry-dot telemetry-series-dot" : "telemetry-dot");
+      if (multiSeries && entry.color) dot.style.fill = entry.color;
+      svg.append(dot);
+      plotted += 1;
+    }
+  });
+
+  if (!plotted) {
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", width / 2);
     text.setAttribute("y", height / 2 + 4);

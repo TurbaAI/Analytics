@@ -21,6 +21,7 @@ const checks = [
   { label: "fleet remediation", args: ["tests/fleet-remediation.test.js"] },
   { label: "productization tooling", args: ["tests/productization.test.js"] },
   { label: "live machine push agent", args: ["tests/live-machine-push-agent.test.js"] },
+  { label: "live telemetry history", args: ["tests/live-telemetry-history.test.js"] },
   { label: "auto discovery deployment", args: ["tests/auto-discover-deploy.test.js"] },
   { label: "system identification worker", args: ["tests/system-identification-worker.test.js"] },
   { label: "system characterization automation", args: ["tests/system-characterization-automation.test.js"] },

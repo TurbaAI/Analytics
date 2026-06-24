@@ -95,6 +95,7 @@ function replaceActiveIngestion(nextIngestion, label, dataBoundary = null, optio
   const retainedIngestion = reconcileMachineInventory(nextIngestion);
   activeIngestion = applyPersistedBaselines(retainedIngestion, buildBaselineStore(retainedIngestion.runs));
   jobs = normalizeIngestion(activeIngestion);
+  recordLiveTelemetrySamplesFromItems(jobs);
   state.scope = "job";
   state.selectedKey = resolveJobSelectionKey(previousKey, previousIdentity) || jobs[0]?.id || "";
   state.ingestLabel = label;
@@ -1106,6 +1107,7 @@ function resetWorkspace() {
   activeIngestion = applyPersistedBaselines(DEFAULT_INGESTION, buildBaselineStore(DEFAULT_INGESTION.runs));
   jobs = normalizeIngestion(activeIngestion);
   snapshotHistory = [];
+  liveTelemetryHistory = [];
   savingsLedger = [];
   actionExecutionHistory = [];
   state.scope = "job";
@@ -1775,6 +1777,59 @@ function fleetAggregateGraphRows(overview) {
     }));
 }
 
+function fleetAggregateTelemetrySeries(overview, valueKey) {
+  const rows = overview.rows
+    .slice()
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+
+  return rows
+    .map((row, index) => {
+      const hostKey = row.key || normalizeFleetHostId(row.host);
+      const history = liveTelemetrySamplesForHost(hostKey);
+      const fallback = fleetAggregateCurrentRowSample(row, valueKey);
+      const seriesHistory = history.some((sample) => Number.isFinite(telemetryValue(sample, valueKey)))
+        ? history
+        : fallback ? [fallback] : [];
+      if (!seriesHistory.length) return null;
+
+      return {
+        key: hostKey,
+        label: row.host,
+        color: liveTelemetrySeriesColor(index),
+        history: seriesHistory
+      };
+    })
+    .filter(Boolean);
+}
+
+function fleetAggregateCurrentRowSample(row, valueKey) {
+  const sample = {
+    host: row.host,
+    hostKey: row.key || normalizeFleetHostId(row.host),
+    timestampMs: Date.now(),
+    label: row.host,
+    score: row.score,
+    cpu: row.cpuUsagePct,
+    ram: row.memoryUsedPct,
+    gpu: row.gpuPresent ? row.gpuUtilizationPct : null,
+    disk: row.diskUsedPct,
+    lakehouseUsedBytes: Number.isFinite(row.lakehouseUsedBytes) ? row.lakehouseUsedBytes : null,
+    networkUtilization: row.networkUtilizationPct,
+    networkThroughputBps: row.networkThroughputBps,
+    signatureDelta: row.signatureDelta
+  };
+
+  return Number.isFinite(telemetryValue(sample, valueKey)) ? sample : null;
+}
+
+function fleetAggregateSeriesHistory(series) {
+  return series.flatMap((entry) => entry.history || []);
+}
+
+function liveTelemetrySeriesColor(index) {
+  return LIVE_TELEMETRY_SERIES_COLORS[index % LIVE_TELEMETRY_SERIES_COLORS.length];
+}
+
 function fleetAggregateLakehouseGraphRows(overview, history) {
   if (!overview.aggregateLakehouseRow) return history;
   return [
@@ -2154,9 +2209,7 @@ function executionIdleStreakSeconds(machineContext, row) {
   const context = machineContext?.context || {};
   const explicit = firstFinite(context.executionIdleStreakSeconds, context.gpuExecutionIdleStreakSeconds);
   if (Number.isFinite(explicit)) return explicit;
-  const hostKey = normalizeFleetHostId(machineContext?.host || context.hostname);
-  if (!hostKey || !liveTelemetryHistory.length) return 0;
-  const samples = liveTelemetryHistory.filter((sample) => normalizeFleetHostId(sample.host) === hostKey);
+  const samples = liveTelemetrySamplesForHost(machineContext);
   const last = samples[samples.length - 1];
   if (!last) return 0;
   let first = last;
@@ -2841,8 +2894,7 @@ function unitEconomicsFinancialPoint(model, sample) {
 }
 
 function unitEconomicsHistory(model) {
-  const hostSamples = liveTelemetryHistory
-    .filter((sample) => normalizeFleetHostId(sample.host) === model.hostKey)
+  const hostSamples = liveTelemetrySamplesForHost(model.hostKey)
     .slice(-24)
     .map((sample) => ({
       timestampMs: sample.timestampMs,
@@ -4759,22 +4811,118 @@ function latestDate(values) {
   return new Date(Math.max(...dates.map((date) => date.getTime())));
 }
 
+function liveTelemetrySamplesForHost(hostOrContext) {
+  const hostKey = liveTelemetryHostKey(hostOrContext);
+  if (!hostKey) return [];
+
+  return liveTelemetryHistory
+    .filter((sample) => (sample.hostKey || normalizeFleetHostId(sample.host)) === hostKey)
+    .sort((left, right) => left.timestampMs - right.timestampMs);
+}
+
+function liveTelemetryHostKey(hostOrContext) {
+  if (isPlainObject(hostOrContext)) {
+    return fleetHostKey(hostOrContext);
+  }
+
+  return normalizeFleetHostId(hostOrContext);
+}
+
+function liveTelemetrySamplesForSummary(summary, machineContext = summary ? machineDemoContext(summary) : null) {
+  if (summary?.isFleetAggregate) return liveTelemetryHistory.slice();
+  if (machineContext) return liveTelemetrySamplesForHost(machineContext);
+  return [];
+}
+
+function recordLiveTelemetrySamplesFromItems(items = []) {
+  if (!Array.isArray(items) || !items.length) return;
+
+  const samples = items
+    .filter(isMachineDemoItem)
+    .map(liveTelemetrySampleFromItem)
+    .filter(Boolean);
+  if (!samples.length) return;
+
+  liveTelemetryHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, ...samples]);
+}
+
+function liveTelemetrySampleFromItem(item) {
+  const context = item?.source?.context || {};
+  if (!isPlainObject(context)) return null;
+
+  const timestampMs = liveTelemetryTimestampMs(context);
+  if (!Number.isFinite(timestampMs)) return null;
+
+  const host = firstString([
+    context.hostname,
+    context.node,
+    context.host,
+    context.networkLocalAddress,
+    item.cluster,
+    item.name,
+    item.id
+  ]) || "host";
+  const hostKey = normalizeFleetHostId(host);
+  if (!hostKey) return null;
+
+  const memoryTotal = numeric(context.memoryTotalBytes, Number.NaN);
+  const memoryAvailable = numeric(context.memoryAvailableBytes, Number.NaN);
+  const gpuPresent = context.gpuPresent === true
+    || Boolean(context.gpuName)
+    || Number.isFinite(numeric(context.gpuUtilizationPct, Number.NaN))
+    || Number.isFinite(numeric(item.gpuUtil, Number.NaN));
+  const gpuPower = numeric(context.gpuPowerWatts, Number.NaN);
+  const gpuTemperature = numeric(context.gpuTemperatureC, Number.NaN);
+  const networkThroughput = maxFinite(context.networkRxBytesPerSecond, context.networkTxBytesPerSecond);
+
+  return {
+    host,
+    hostKey,
+    timestampMs,
+    label: new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+    cpu: clamp(numeric(context.cpuUsagePct, 0)),
+    ram: clamp(numeric(context.memoryUsedPct, 0)),
+    disk: clamp(numeric(context.diskUsedPct, 0)),
+    dockerCpu: clamp((Array.isArray(context.dockerContainers) ? context.dockerContainers : [])
+      .reduce((total, container) => total + numeric(container.cpuPct), 0)),
+    gpu: gpuPresent ? clamp(numeric(context.gpuUtilizationPct, numeric(item.gpuUtil, 0))) : null,
+    gpuMemory: gpuPresent ? clamp(numeric(context.gpuMemoryUsedPct, numeric(item.hbmCapacity, 0))) : null,
+    gpuPower: gpuPresent && gpuPower > 0 ? gpuPower : null,
+    gpuTemperature: gpuPresent && gpuTemperature > 0 ? gpuTemperature : null,
+    memoryUsedBytes: Number.isFinite(memoryTotal) && Number.isFinite(memoryAvailable)
+      ? Math.max(0, memoryTotal - memoryAvailable)
+      : 0,
+    networkUtilization: Number.isFinite(numeric(context.networkUtilizationPct, Number.NaN))
+      ? clamp(numeric(context.networkUtilizationPct, 0))
+      : null,
+    networkThroughputBps: Number.isFinite(networkThroughput) ? Math.max(0, networkThroughput) : null
+  };
+}
+
+function liveTelemetryTimestampMs(context = {}) {
+  const explicit = numeric(context.clockTimeUnixMs, Number.NaN);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const generatedAt = safeDate(context.generatedAt || context.machineInventoryLastSeenAt, null);
+  return generatedAt ? generatedAt.getTime() : Date.now();
+}
+
 function recordLiveTelemetrySample(machineContext, generatedAt) {
   const context = machineContext.context || {};
   const timestampMs = generatedAt instanceof Date && !Number.isNaN(generatedAt.getTime())
     ? generatedAt.getTime()
     : Date.now();
   const host = machineContext.host || "host";
-  const last = liveTelemetryHistory[liveTelemetryHistory.length - 1];
-  if (last && last.host !== host) {
-    liveTelemetryHistory = [];
-  }
+  const hostKey = fleetHostKey(machineContext) || normalizeFleetHostId(host);
+  const hostSamples = liveTelemetrySamplesForHost(hostKey);
+  const last = hostSamples[hostSamples.length - 1];
   if (last && last.host === host && last.timestampMs === timestampMs) {
-    return liveTelemetryHistory;
+    return hostSamples;
   }
 
-  liveTelemetryHistory.push({
+  liveTelemetryHistory = normalizeLiveTelemetryStore([...liveTelemetryHistory, {
     host,
+    hostKey,
     timestampMs,
     label: new Date(timestampMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
     cpu: clamp(machineContext.cpuUsagePct),
@@ -4788,13 +4936,9 @@ function recordLiveTelemetrySample(machineContext, generatedAt) {
     memoryUsedBytes: Math.max(0, numeric(context.memoryTotalBytes) - numeric(context.memoryAvailableBytes)),
     networkUtilization: Number.isFinite(machineContext.networkUtilizationPct) ? clamp(machineContext.networkUtilizationPct) : null,
     networkThroughputBps: Number.isFinite(machineContext.networkThroughputBps) ? Math.max(0, machineContext.networkThroughputBps) : null
-  });
+  }]);
 
-  if (liveTelemetryHistory.length > LIVE_TELEMETRY_LIMIT) {
-    liveTelemetryHistory = liveTelemetryHistory.slice(-LIVE_TELEMETRY_LIMIT);
-  }
-
-  return liveTelemetryHistory;
+  return liveTelemetrySamplesForHost(hostKey);
 }
 
 function analyzeLiveTelemetryRelationships(history, machineContext) {
@@ -6377,7 +6521,7 @@ function formatDecimal(value, digits) {
   return parsed.toFixed(digits);
 }
 
-function liveTelemetryGraphCard({ label, valueKey, history, latestLabel, valueText, note, max = 100, tone = "watch" }) {
+function liveTelemetryGraphCard({ label, valueKey, history, latestLabel, valueText, note, max = 100, tone = "watch", series = [] }) {
   const item = document.createElement("div");
   item.className = "live-telemetry-card";
   item.dataset.tone = tone;
@@ -6389,12 +6533,37 @@ function liveTelemetryGraphCard({ label, valueKey, history, latestLabel, valueTe
   valueEl.textContent = valueText;
   head.append(labelEl, valueEl);
 
-  const svg = buildTelemetrySparkline(history, valueKey, max);
+  const svg = buildTelemetrySparkline(history, valueKey, max, series);
   const noteEl = document.createElement("small");
   noteEl.textContent = `${note} | ${latestLabel}`;
 
-  item.append(head, svg, noteEl);
+  item.append(head, svg);
+  if (Array.isArray(series) && series.length) {
+    item.append(liveTelemetrySeriesLegend(series));
+  }
+  item.append(noteEl);
   return item;
+}
+
+function liveTelemetrySeriesLegend(series) {
+  const legend = document.createElement("div");
+  legend.className = "telemetry-legend";
+
+  series.slice(0, 6).forEach((entry) => {
+    const label = document.createElement("span");
+    label.style.setProperty("--series-color", entry.color || "currentColor");
+    label.textContent = entry.label || entry.key || "host";
+    legend.append(label);
+  });
+
+  if (series.length > 6) {
+    const remaining = document.createElement("span");
+    remaining.className = "telemetry-legend-more";
+    remaining.textContent = `+${series.length - 6}`;
+    legend.append(remaining);
+  }
+
+  return legend;
 }
 
 function adaptiveGraphMax(history, key, fallback) {
