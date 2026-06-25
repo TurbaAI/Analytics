@@ -28,6 +28,7 @@ const checks = [
   { label: "SPARK1 Kubernetes demo collector", args: ["tests/spark1-kubernetes-demo.test.js"] },
   { label: "SPARK1 Kafka manifests", args: ["tests/spark1-kafka.test.js"] },
   { label: "DGX Spark inference deployment", args: ["tests/dgx-spark-inference.test.js"] },
+  { label: "DGX fabric RMA mode", args: ["tests/dgx-fabric-rma.test.js"] },
   { label: "GB100 telemetry package", args: ["tests/gb100-telemetry.test.js"] },
   { label: "GB100 installer package", args: ["tests/gb100-installer.test.js"] },
   { label: "provider readiness", args: ["tests/provider-readiness.test.js"] },

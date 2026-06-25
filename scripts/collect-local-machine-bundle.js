@@ -1492,25 +1492,27 @@ function collectHardwareHealth({ host, gpu, docker, services, benchmark }) {
       suggestedAction: "restart-gpu-telemetry"
     }));
   }
-  if (finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0) > 0) {
+  const networkErrors = networkNewErrorCount(host.network);
+  const networkDrops = networkNewDropCount(host.network);
+  if (networkErrors > 0) {
     faults.push(hardwareFault({
       id: "network-errors",
       category: "network",
       severity: "medium",
       source: "procfs-netdev",
-      count: finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0),
-      detail: `${round(finite(host.network.rxErrors, 0), 0)} RX and ${round(finite(host.network.txErrors, 0), 0)} TX interface errors observed on ${host.network.iface || "primary interface"}.`,
+      count: networkErrors,
+      detail: `${round(finite(host.network.rxErrorsDelta, 0), 0)} new RX and ${round(finite(host.network.txErrorsDelta, 0), 0)} new TX interface errors observed on ${host.network.iface || "primary interface"}.`,
       suggestedAction: "inspect-network-link"
     }));
   }
-  if (finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0) > 0) {
+  if (networkDrops > 0) {
     faults.push(hardwareFault({
       id: "network-drops",
       category: "network",
       severity: "low",
       source: "procfs-netdev",
-      count: finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0),
-      detail: `${round(finite(host.network.rxDrops, 0), 0)} RX and ${round(finite(host.network.txDrops, 0), 0)} TX drops observed on ${host.network.iface || "primary interface"}.`,
+      count: networkDrops,
+      detail: `${round(finite(host.network.rxDropsDelta, 0), 0)} new RX and ${round(finite(host.network.txDropsDelta, 0), 0)} new TX drops observed on ${host.network.iface || "primary interface"}.`,
       suggestedAction: "inspect-network-link"
     }));
   }
@@ -1583,25 +1585,27 @@ function collectHardwareHealthFast({ host, gpu, docker, services, benchmark }) {
       suggestedAction: "inspect-cooling-power"
     }));
   }
-  if (finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0) > 0) {
+  const networkErrors = networkNewErrorCount(host.network);
+  const networkDrops = networkNewDropCount(host.network);
+  if (networkErrors > 0) {
     faults.push(hardwareFault({
       id: "network-errors",
       category: "network",
       severity: "medium",
       source: "procfs-netdev",
-      count: finite(host.network.rxErrors, 0) + finite(host.network.txErrors, 0),
-      detail: `${round(finite(host.network.rxErrors, 0), 0)} RX and ${round(finite(host.network.txErrors, 0), 0)} TX interface errors observed on ${host.network.iface || "primary interface"}.`,
+      count: networkErrors,
+      detail: `${round(finite(host.network.rxErrorsDelta, 0), 0)} new RX and ${round(finite(host.network.txErrorsDelta, 0), 0)} new TX interface errors observed on ${host.network.iface || "primary interface"}.`,
       suggestedAction: "inspect-network-link"
     }));
   }
-  if (finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0) > 0) {
+  if (networkDrops > 0) {
     faults.push(hardwareFault({
       id: "network-drops",
       category: "network",
       severity: "low",
       source: "procfs-netdev",
-      count: finite(host.network.rxDrops, 0) + finite(host.network.txDrops, 0),
-      detail: `${round(finite(host.network.rxDrops, 0), 0)} RX and ${round(finite(host.network.txDrops, 0), 0)} TX drops observed on ${host.network.iface || "primary interface"}.`,
+      count: networkDrops,
+      detail: `${round(finite(host.network.rxDropsDelta, 0), 0)} new RX and ${round(finite(host.network.txDropsDelta, 0), 0)} new TX drops observed on ${host.network.iface || "primary interface"}.`,
       suggestedAction: "inspect-network-link"
     }));
   }
@@ -1784,11 +1788,11 @@ function deriveMetrics({ host, gpu, docker, services, windowMinutes }) {
     networkUtilizationPct: optionalFinite(host.network.utilizationPct),
     networkRxBytesPerSecond: optionalFinite(host.network.rxBytesPerSecond),
     networkTxBytesPerSecond: optionalFinite(host.network.txBytesPerSecond),
-    networkWait: clamp(loadPressurePct * 0.15 + (host.network.txDrops > 0 ? 4 : 0), 0, 25),
+    networkWait: clamp(loadPressurePct * 0.15 + (networkNewDropCount(host.network) > 0 ? 4 : 0), 0, 25),
     storageWait: clamp(Math.max(0, diskUsedPct - 75) * 0.6, 0, 35),
     cpuPrep: clamp(Math.max(cpuBusyPct, dockerCpuPct) * 0.75, 0, 45),
     contentionPct: clamp(Math.max(loadPressurePct, dockerCpuPct), 0, 45),
-    latencyTail: clamp(loadPressurePct * 0.6 + (host.network.txDrops > 0 ? 6 : 0), 0, 35),
+    latencyTail: clamp(loadPressurePct * 0.6 + (networkNewDropCount(host.network) > 0 ? 6 : 0), 0, 35),
     noGpuProcess: gpu.present && gpu.processesObserved && !hasActiveGpuProcess
   };
 }
@@ -1909,7 +1913,7 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             gpusPerNode: Math.max(1, metrics.gpus)
           },
           reliability: {
-            noiseEvents: host.network.txDrops > 0 ? 1 : 0,
+            noiseEvents: networkNewDropCount(host.network) > 0 ? 1 : 0,
             contentionPct: round(metrics.contentionPct, 2),
             stepRegularity: metrics.noGpuProcess ? 100 : clamp(100 - metrics.latencyTail, 70, 100),
             latencyTail: round(metrics.latencyTail, 2)
@@ -1993,6 +1997,12 @@ function buildBundle({ runId, host, gpu, docker, services, metrics, hostUrl, gen
             networkTxDrops: round(host.network.txDrops, 0),
             networkRxErrors: round(host.network.rxErrors, 0),
             networkTxErrors: round(host.network.txErrors, 0),
+            networkRxDropsDelta: round(finite(host.network.rxDropsDelta, 0), 0),
+            networkTxDropsDelta: round(finite(host.network.txDropsDelta, 0), 0),
+            networkRxErrorsDelta: round(finite(host.network.rxErrorsDelta, 0), 0),
+            networkTxErrorsDelta: round(finite(host.network.txErrorsDelta, 0), 0),
+            networkCounterBaselineEstablished: Boolean(host.network.counterBaselineEstablished),
+            networkCounterResetObserved: Boolean(host.network.counterResetObserved),
             dockerContainers: docker.map((container) => ({
               name: container.name,
               image: container.image,
@@ -2517,15 +2527,21 @@ function bsdNetworkStats(iface) {
 }
 
 function withNetworkRates(current, previous) {
-  if (!current || !previous || current.iface !== previous.iface) {
+  if (!current) {
     return current;
+  }
+  const sameInterface = previous && current.iface === previous.iface;
+  const currentWithDeltas = withNetworkCounterDeltas(current, sameInterface ? previous : null);
+
+  if (!sameInterface) {
+    return currentWithDeltas;
   }
 
   const elapsedSeconds = (finite(current.collectedAtMs, 0) - finite(previous.collectedAtMs, 0)) / 1000;
   const rxDelta = finite(current.rxBytes, 0) - finite(previous.rxBytes, 0);
   const txDelta = finite(current.txBytes, 0) - finite(previous.txBytes, 0);
   if (elapsedSeconds <= 0 || rxDelta < 0 || txDelta < 0) {
-    return current;
+    return currentWithDeltas;
   }
 
   const rxBytesPerSecond = rxDelta / elapsedSeconds;
@@ -2534,7 +2550,7 @@ function withNetworkRates(current, previous) {
   const linkBytesPerSecond = linkSpeedMbps > 0 ? (linkSpeedMbps * 1000 * 1000) / 8 : 0;
 
   return {
-    ...current,
+    ...currentWithDeltas,
     linkSpeedMbps,
     rxBytesPerSecond,
     txBytesPerSecond,
@@ -2542,6 +2558,44 @@ function withNetworkRates(current, previous) {
       ? clamp((Math.max(rxBytesPerSecond, txBytesPerSecond) / linkBytesPerSecond) * 100, 0, 100)
       : undefined
   };
+}
+
+function withNetworkCounterDeltas(current, previous) {
+  const counterFields = ["rxDrops", "txDrops", "rxErrors", "txErrors"];
+  const hasBaseline = Boolean(previous)
+    && counterFields.every((field) => Number.isFinite(Number(previous[field])));
+  const deltas = {
+    rxDropsDelta: 0,
+    txDropsDelta: 0,
+    rxErrorsDelta: 0,
+    txErrorsDelta: 0
+  };
+  let counterResetObserved = false;
+
+  if (hasBaseline) {
+    for (const field of counterFields) {
+      const delta = finite(current[field], 0) - finite(previous[field], 0);
+      if (delta < 0) {
+        counterResetObserved = true;
+      }
+      deltas[`${field}Delta`] = Math.max(0, delta);
+    }
+  }
+
+  return {
+    ...current,
+    ...deltas,
+    counterBaselineEstablished: hasBaseline,
+    counterResetObserved
+  };
+}
+
+function networkNewDropCount(network) {
+  return finite(network?.rxDropsDelta, 0) + finite(network?.txDropsDelta, 0);
+}
+
+function networkNewErrorCount(network) {
+  return finite(network?.rxErrorsDelta, 0) + finite(network?.txErrorsDelta, 0);
 }
 
 function readNetworkRateCache(current) {
@@ -2570,7 +2624,11 @@ function writeNetworkRateCache(current) {
     collectedAtMs: current.collectedAtMs,
     linkSpeedMbps: current.linkSpeedMbps,
     rxBytes: current.rxBytes,
-    txBytes: current.txBytes
+    txBytes: current.txBytes,
+    rxDrops: current.rxDrops,
+    txDrops: current.txDrops,
+    rxErrors: current.rxErrors,
+    txErrors: current.txErrors
   };
   fs.mkdirSync(path.dirname(networkRateCachePath), { recursive: true });
   writeFileAtomic(networkRateCachePath, JSON.stringify(cache, null, 2));

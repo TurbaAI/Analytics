@@ -40,9 +40,11 @@ const full = p.analyzePrescriptive(opportunities, { predictive, effortBudget: 6,
 const mem = full.actions.find((a) => a.id === "mem");
 
 const js = {
+  forecast_model: rising.model,
   forecast_direction: rising.direction,
   forecast_trend: rising.trend,
   forecast_projection_count: rising.projections.length,
+  forecast_skill_gt_60: rising.forecastSkill > 60,
   regress_trend: regress.trend,
   ttt_will_cross: ttt.willCross,
   ttt_urgency: ttt.urgency,

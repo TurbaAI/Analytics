@@ -169,27 +169,17 @@ def linear_fit(ys: Sequence[float]) -> dict[str, float]:
 # ---------------------------------------------------------------------------
 
 
-def forecast_metric(points: Iterable[Any], *, horizon: int = 3, higher_is_better: bool = True,
-                    confidence_z: float = 1.2816, flat_threshold: float = 0.05) -> dict[str, Any]:
-    norm = normalize_series(points)
-    rows = norm["rows"]
-    horizon = max(1, int(horizon))
-    if len(rows) < 2:
-        return {
-            "ok": False,
-            "reason": "no-data" if not rows else "insufficient-data",
-            "count": len(rows),
-            "slope_per_period": 0.0,
-            "direction": "flat",
-            "trend": "flat",
-            "projections": [],
-            "confidence": 0,
-        }
-
+def _linear_forecast_from_rows(rows: Sequence[dict[str, Any]], *, horizon: int = 3, higher_is_better: bool = True,
+                               confidence_z: float = 1.2816, flat_threshold: float = 0.05) -> dict[str, Any]:
     ys = [r["y"] for r in rows]
     fit = linear_fit(ys)
     last_index = len(ys) - 1
     last_value = ys[last_index]
+    has_time = len(rows) > 1 and all(r.get("t") is not None for r in rows)
+    period_ms = None
+    if has_time:
+        gaps = [rows[i]["t"] - rows[i - 1]["t"] for i in range(1, len(rows))]
+        period_ms = _median(gaps) or None
 
     projections = []
     for step in range(1, horizon + 1):
@@ -197,8 +187,8 @@ def forecast_metric(points: Iterable[Any], *, horizon: int = 3, higher_is_better
         value = fit["intercept"] + fit["slope"] * idx
         spread = confidence_z * fit["residual_std"] * math.sqrt(1 + step / max(1, len(ys)))
         eta_ms = None
-        if norm["has_time"] and norm["period_ms"]:
-            eta_ms = rows[last_index]["t"] + step * norm["period_ms"]
+        if has_time and period_ms:
+            eta_ms = rows[last_index]["t"] + step * period_ms
         projections.append({
             "step": step,
             "value": _round(value, 2),
@@ -218,11 +208,13 @@ def forecast_metric(points: Iterable[Any], *, horizon: int = 3, higher_is_better
 
     return {
         "ok": True,
+        "model": "linear",
         "count": len(rows),
         "higher_is_better": higher_is_better,
         "last_value": _round(last_value, 2),
         "slope_per_period": _round(fit["slope"], 4),
         "r2": _round(fit["r2"], 3),
+        "fit_quality": _round(fit["r2"], 3),
         "residual_std": _round(fit["residual_std"], 3),
         "direction": direction,
         "trend": trend,
@@ -230,13 +222,237 @@ def forecast_metric(points: Iterable[Any], *, horizon: int = 3, higher_is_better
         "horizon": horizon,
         "projected_value": projections[-1]["value"],
         "projections": projections,
-        "period_ms": norm["period_ms"],
+        "period_ms": period_ms,
         "confidence": confidence,
+        "_fit": fit,
     }
 
 
+def _linear_baseline_for(forecast: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not forecast or not forecast.get("ok"):
+        return None
+    return {
+        "model": "linear",
+        "projected_value": forecast.get("projected_value"),
+        "slope_per_period": forecast.get("slope_per_period"),
+        "r2": forecast.get("r2"),
+        "residual_std": forecast.get("residual_std"),
+        "confidence": forecast.get("confidence"),
+    }
+
+
+def state_space_forecast_from_rows(rows: Sequence[dict[str, Any]], *, horizon: int = 3,
+                                   higher_is_better: bool = True, confidence_z: float = 1.2816,
+                                   flat_threshold: float = 0.05, damping: float = 0.98,
+                                   measurement_variance: float | None = None,
+                                   level_process_variance: float | None = None,
+                                   slope_process_variance: float | None = None,
+                                   level_process_noise: float = 0.08,
+                                   slope_process_noise: float = 0.025,
+                                   linear: dict[str, Any] | None = None) -> dict[str, Any]:
+    ys = [r["y"] for r in rows]
+    if len(ys) < 3:
+        return {"ok": False, "reason": "insufficient-state-space-data"}
+
+    damping = _clamp(_numeric(damping, 0.98), 0.5, 1)
+    fit = (linear or {}).get("_fit") or linear_fit(ys)
+    diffs = [ys[i] - ys[i - 1] for i in range(1, len(ys))]
+    avg_abs = abs(_mean(ys))
+    value_std = _stddev(ys) or 0.0
+    diff_std = _stddev(diffs) or 0.0
+    residual_std = fit.get("residual_std") or diff_std or value_std * 0.1 or avg_abs * 0.02 or 1.0
+    scale = max(residual_std, diff_std * 0.75, value_std * 0.05, avg_abs * 0.01, 1e-3)
+    base_variance = scale ** 2
+    measurement_var = max(1e-9, measurement_variance if measurement_variance is not None else base_variance)
+    process_level_var = max(1e-10, level_process_variance if level_process_variance is not None else base_variance * level_process_noise)
+    process_slope_var = max(1e-10, slope_process_variance if slope_process_variance is not None else base_variance * slope_process_noise)
+
+    level = ys[0]
+    slope = diffs[0] if diffs else fit.get("slope", 0.0)
+    p00 = base_variance * 4
+    p01 = 0.0
+    p10 = 0.0
+    p11 = base_variance
+    innovations: list[float] = []
+    naive_errors: list[float] = []
+
+    for i in range(1, len(ys)):
+        predicted_level = level + damping * slope
+        predicted_slope = damping * slope
+        pp00 = p00 + damping * p01 + damping * p10 + damping * damping * p11 + process_level_var
+        pp01 = damping * p01 + damping * damping * p11
+        pp10 = damping * p10 + damping * damping * p11
+        pp11 = damping * damping * p11 + process_slope_var
+        innovation = ys[i] - predicted_level
+        innovation_var = pp00 + measurement_var
+        k0 = 0.0 if innovation_var <= 0 else pp00 / innovation_var
+        k1 = 0.0 if innovation_var <= 0 else pp10 / innovation_var
+        innovations.append(innovation)
+        naive_errors.append(ys[i] - ys[i - 1])
+        level = predicted_level + k0 * innovation
+        slope = predicted_slope + k1 * innovation
+        p00 = max(1e-12, (1 - k0) * pp00)
+        p01 = (1 - k0) * pp01
+        p10 = pp10 - k1 * pp00
+        p11 = max(1e-12, pp11 - k1 * pp01)
+        off = (p01 + p10) / 2
+        p01 = off
+        p10 = off
+
+    rmse = math.sqrt(_mean([v ** 2 for v in innovations]))
+    naive_rmse = math.sqrt(_mean([v ** 2 for v in naive_errors]))
+    if naive_rmse > 1e-9:
+        forecast_skill = _clamp(1 - rmse / naive_rmse, 0, 1)
+    else:
+        forecast_skill = 1.0 if rmse <= scale else 0.0
+    fit_quality = _clamp(1 - rmse / max(value_std, scale, 1e-9), 0, 1)
+
+    last_index = len(ys) - 1
+    last_value = ys[last_index]
+    has_time = len(rows) > 1 and all(r.get("t") is not None for r in rows)
+    period_ms = None
+    if has_time:
+        gaps = [rows[i]["t"] - rows[i - 1]["t"] for i in range(1, len(rows))]
+        period_ms = _median(gaps) or None
+
+    f_level = level
+    f_slope = slope
+    fp00, fp01, fp10, fp11 = p00, p01, p10, p11
+    projections = []
+    for step in range(1, horizon + 1):
+        next_level = f_level + damping * f_slope
+        next_slope = damping * f_slope
+        n00 = fp00 + damping * fp01 + damping * fp10 + damping * damping * fp11 + process_level_var
+        n01 = damping * fp01 + damping * damping * fp11
+        n10 = damping * fp10 + damping * damping * fp11
+        n11 = damping * damping * fp11 + process_slope_var
+        f_level = next_level
+        f_slope = next_slope
+        fp00 = max(1e-12, n00)
+        fp01 = n01
+        fp10 = n10
+        fp11 = max(1e-12, n11)
+        predictive_std = math.sqrt(max(0.0, fp00 + measurement_var))
+        eta_ms = rows[last_index]["t"] + step * period_ms if has_time and period_ms else None
+        projections.append({
+            "step": step,
+            "value": _round(f_level, 2),
+            "lower": _round(f_level - confidence_z * predictive_std, 2),
+            "upper": _round(f_level + confidence_z * predictive_std, 2),
+            "eta_ms": eta_ms,
+        })
+
+    slope_raw = damping * slope
+    meaningful = abs(slope_raw) >= flat_threshold
+    rising = slope_raw > 0
+    direction = "flat" if not meaningful else ("rising" if rising else "falling")
+    improving = (rising if higher_is_better else not rising) if meaningful else None
+    trend = "flat" if direction == "flat" else ("improving" if improving else "regressing")
+    sample_factor = _clamp(len(rows) / 8, 0.45, 1)
+    uncertainty_ratio = math.sqrt(max(0.0, p00 + measurement_var)) / max(abs(last_value), scale, 1e-9)
+    confidence = _round(_clamp(
+        100 * (0.45 * forecast_skill + 0.25 * fit_quality + 0.3 * fit.get("r2", 0.0)) * sample_factor + 10 - uncertainty_ratio * 10,
+        0,
+        96,
+    ))
+
+    return {
+        "ok": True,
+        "model": "state-space",
+        "count": len(rows),
+        "higher_is_better": higher_is_better,
+        "last_value": _round(last_value, 2),
+        "slope_per_period": _round(slope_raw, 4),
+        "r2": (linear or {}).get("r2", _round(fit.get("r2", 0.0), 3)),
+        "fit_quality": _round(fit_quality, 3),
+        "forecast_skill": _round(forecast_skill * 100),
+        "residual_std": _round(rmse, 3),
+        "direction": direction,
+        "trend": trend,
+        "improving": improving is True,
+        "horizon": horizon,
+        "projected_value": projections[-1]["value"],
+        "projections": projections,
+        "period_ms": period_ms,
+        "confidence": confidence,
+        "baseline": _linear_baseline_for(linear),
+        "state": {
+            "level": _round(level, 3),
+            "slope": _round(slope, 4),
+            "damping": damping,
+            "measurement_std": _round(math.sqrt(measurement_var), 3),
+            "process_level_std": _round(math.sqrt(process_level_var), 3),
+            "process_slope_std": _round(math.sqrt(process_slope_var), 3),
+        },
+        "band_method": "kalman-predictive-variance",
+    }
+
+
+def forecast_metric(points: Iterable[Any], *, horizon: int = 3, higher_is_better: bool = True,
+                    confidence_z: float = 1.2816, flat_threshold: float = 0.05,
+                    model: str = "state-space", forecast_model: str | None = None,
+                    min_state_space_samples: int = 3, damping: float = 0.98,
+                    measurement_variance: float | None = None,
+                    level_process_variance: float | None = None,
+                    slope_process_variance: float | None = None,
+                    level_process_noise: float = 0.08,
+                    slope_process_noise: float = 0.025) -> dict[str, Any]:
+    norm = normalize_series(points)
+    rows = norm["rows"]
+    horizon = max(1, int(horizon))
+    selected_model = str(forecast_model or model or "state-space").lower()
+    if len(rows) < 2:
+        return {
+            "ok": False,
+            "reason": "no-data" if not rows else "insufficient-data",
+            "count": len(rows),
+            "model": selected_model,
+            "slope_per_period": 0.0,
+            "direction": "flat",
+            "trend": "flat",
+            "projections": [],
+            "confidence": 0,
+        }
+
+    linear = _linear_forecast_from_rows(
+        rows,
+        horizon=horizon,
+        higher_is_better=higher_is_better,
+        confidence_z=confidence_z,
+        flat_threshold=flat_threshold,
+    )
+    if selected_model == "linear" or len(rows) < max(3, int(min_state_space_samples)):
+        out = dict(linear)
+        out["baseline"] = _linear_baseline_for(linear)
+        out.pop("_fit", None)
+        return out
+
+    state_space = state_space_forecast_from_rows(
+        rows,
+        horizon=horizon,
+        higher_is_better=higher_is_better,
+        confidence_z=confidence_z,
+        flat_threshold=flat_threshold,
+        damping=damping,
+        measurement_variance=measurement_variance,
+        level_process_variance=level_process_variance,
+        slope_process_variance=slope_process_variance,
+        level_process_noise=level_process_noise,
+        slope_process_noise=slope_process_noise,
+        linear=linear,
+    )
+    if not state_space.get("ok"):
+        out = dict(linear)
+        out["baseline"] = _linear_baseline_for(linear)
+        out["fallback_reason"] = state_space.get("reason", "state-space-unavailable")
+        out.pop("_fit", None)
+        return out
+    return state_space
+
+
 def time_to_threshold(points: Iterable[Any], threshold: float, *, direction: str | None = None,
-                      flat_threshold: float = 1e-6) -> dict[str, Any]:
+                      flat_threshold: float = 1e-6, model: str = "state-space",
+                      forecast_model: str | None = None) -> dict[str, Any]:
     limit = _numeric(threshold, math.nan)
     norm = normalize_series(points)
     rows = norm["rows"]
@@ -244,11 +460,15 @@ def time_to_threshold(points: Iterable[Any], threshold: float, *, direction: str
         return {"ok": False, "reason": "insufficient-data", "will_cross": False, "confidence": 0}
 
     ys = [r["y"] for r in rows]
+    forecast = forecast_metric(points, horizon=1, model=model, forecast_model=forecast_model, flat_threshold=flat_threshold)
     fit = linear_fit(ys)
     last_value = ys[-1]
     direction = direction or ("above" if last_value <= limit else "below")
+    slope = _numeric(forecast.get("slope_per_period"), math.nan)
+    if not math.isfinite(slope):
+        slope = fit["slope"]
 
-    if abs(fit["slope"]) < flat_threshold:
+    if abs(slope) < flat_threshold:
         return {
             "ok": True,
             "will_cross": False,
@@ -256,11 +476,12 @@ def time_to_threshold(points: Iterable[Any], threshold: float, *, direction: str
             "last_value": _round(last_value, 2),
             "threshold": limit,
             "direction": direction,
-            "confidence": _round(_clamp(60 * fit["r2"], 0, 80)),
+            "model": forecast.get("model", "linear"),
+            "confidence": _round(_clamp(_numeric(forecast.get("confidence"), 60 * fit["r2"]), 0, 80)),
         }
 
-    periods = (limit - last_value) / fit["slope"]
-    moving_toward = fit["slope"] > 0 if direction == "above" else fit["slope"] < 0
+    periods = (limit - last_value) / slope
+    moving_toward = slope > 0 if direction == "above" else slope < 0
     will_cross = moving_toward and periods > 0
     periods_to_threshold = _round(periods, 2) if will_cross else None
 
@@ -291,12 +512,13 @@ def time_to_threshold(points: Iterable[Any], threshold: float, *, direction: str
         "direction": direction,
         "last_value": _round(last_value, 2),
         "threshold": limit,
-        "slope_per_period": _round(fit["slope"], 4),
+        "model": forecast.get("model", "linear"),
+        "slope_per_period": _round(slope, 4),
         "periods_to_threshold": periods_to_threshold,
         "eta_ms": eta_ms,
         "eta_days": eta_days,
         "urgency": urgency,
-        "confidence": confidence,
+        "confidence": _round(_clamp(min(confidence, _numeric(forecast.get("confidence"), confidence)), 0, 92)),
     }
 
 
@@ -406,14 +628,35 @@ def analyze_predictive(series: dict[str, Iterable[Any]], *, horizon: int = 3,
 
     for key, points in series.items():
         cfg = metric_opts.get(key, {})
-        higher_is_better = cfg.get("higher_is_better", True)
-        forecast = forecast_metric(points, horizon=horizon, higher_is_better=higher_is_better)
+        higher_is_better = cfg.get("higher_is_better", cfg.get("higherIsBetter", True))
+        forecast = forecast_metric(
+            points,
+            horizon=horizon,
+            higher_is_better=higher_is_better,
+            confidence_z=cfg.get("confidence_z", cfg.get("confidenceZ", 1.2816)),
+            flat_threshold=cfg.get("flat_threshold", cfg.get("flatThreshold", 0.05)),
+            model=cfg.get("model", "state-space"),
+            forecast_model=cfg.get("forecast_model", cfg.get("forecastModel")),
+            min_state_space_samples=cfg.get("min_state_space_samples", cfg.get("minStateSpaceSamples", 3)),
+            damping=cfg.get("damping", cfg.get("trendDamping", 0.98)),
+            measurement_variance=cfg.get("measurement_variance", cfg.get("measurementVariance")),
+            level_process_variance=cfg.get("level_process_variance", cfg.get("levelProcessVariance")),
+            slope_process_variance=cfg.get("slope_process_variance", cfg.get("slopeProcessVariance")),
+            level_process_noise=cfg.get("level_process_noise", cfg.get("levelProcessNoise", 0.08)),
+            slope_process_noise=cfg.get("slope_process_noise", cfg.get("slopeProcessNoise", 0.025)),
+        )
         anomalies = detect_anomalies(points, **(cfg.get("anomaly") or {}))
         risk = regression_risk_score(points, higher_is_better=higher_is_better)
         saturation = None
         threshold = cfg.get("threshold")
         if threshold is not None and math.isfinite(_numeric(threshold, math.nan)):
-            saturation = time_to_threshold(points, threshold, direction=cfg.get("direction"))
+            saturation = time_to_threshold(
+                points,
+                threshold,
+                direction=cfg.get("direction"),
+                model=cfg.get("model", "state-space"),
+                forecast_model=cfg.get("forecast_model", cfg.get("forecastModel")),
+            )
             if saturation["ok"] and saturation["will_cross"] and saturation["urgency"] in ("critical", "high"):
                 warnings.append({
                     "metric": key,

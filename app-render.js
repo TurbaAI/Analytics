@@ -163,6 +163,10 @@ function buildPredictivePanelNodes(el, predictive, series) {
     card.append(el("div", "predictive-metric-now", `now ${fc.lastValue} -> ${fc.projectedValue} in ${fc.horizon} snapshots`));
     const meta = el("div", "predictive-metric-meta");
     meta.append(el("span", "predictive-trend-pill", fc.trend));
+    if (fc.model) meta.append(el("span", "predictive-conf", fc.model));
+    if (Number.isFinite(Number(fc.forecastSkill))) {
+      meta.append(el("span", "predictive-conf", `skill ${round(fc.forecastSkill)}%`));
+    }
     meta.append(el("span", "predictive-conf", `conf ${fc.confidence}%`));
     if (metric.saturation && metric.saturation.ok && metric.saturation.willCross) {
       const sat = metric.saturation;

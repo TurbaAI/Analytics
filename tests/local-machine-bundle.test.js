@@ -118,6 +118,12 @@ assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxDrops, "numb
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxDrops, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxErrors, "number");
 assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxErrors, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxDropsDelta, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxDropsDelta, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkRxErrorsDelta, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkTxErrorsDelta, "number");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkCounterBaselineEstablished, "boolean");
+assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkCounterResetObserved, "boolean");
 if ("networkUtilizationPct" in bundle.ingestion.runs[0].sourceContext) {
   assert.equal(typeof bundle.ingestion.runs[0].sourceContext.networkUtilizationPct, "number");
 }
@@ -206,6 +212,8 @@ assert.ok(localCollectorSource.includes("TURBALANCE_DGX_INTERCONNECT_INTERFACE")
 assert.ok(localCollectorSource.includes("192.168.100."));
 assert.ok(localCollectorSource.includes("live-network-rate-cache.json"));
 assert.ok(localCollectorSource.includes("readNetworkRateCache"));
+assert.ok(localCollectorSource.includes("networkNewDropCount"));
+assert.ok(localCollectorSource.includes("networkCounterBaselineEstablished"));
 assert.ok(localCollectorSource.includes("TURBALANCE_LAKE_ROOT"));
 assert.ok(localCollectorSource.includes("lakehouseUsedBytes"));
 assert.ok(localCollectorSource.includes("collectBenchmarkSuite"));

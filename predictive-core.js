@@ -5,7 +5,7 @@
  * in analytics-core.js with:
  *
  *   Predictive
- *     - forecastMetric        linear (least-squares) projection + confidence band
+ *     - forecastMetric        state-space forecast + linear baseline/fallback
  *     - timeToThreshold       periods/ETA until a metric crosses a limit
  *     - detectAnomalies       robust (median/MAD) or z-score early warning
  *     - regressionRiskScore   0-100 risk that the next run regresses
@@ -151,32 +151,19 @@
     return { slope, intercept, r2, residualStd, n };
   }
 
-  /**
-   * Project a metric forward `horizon` periods with a confidence band.
-   * Returns slope, fit quality, projected points (with lower/upper), and a
-   * 0-100 confidence derived from fit quality and sample size.
-   */
-  function forecastMetric(points, options = {}) {
-    const { rows, hasTime, periodMs } = normalizeSeries(points);
+  function linearForecastFromRows(rows, options = {}) {
+    const hasTime = rows.length > 1 && rows.every((row) => Number.isFinite(row.t));
+    let periodMs = null;
+    if (hasTime) {
+      const gaps = [];
+      for (let i = 1; i < rows.length; i += 1) gaps.push(rows[i].t - rows[i - 1].t);
+      periodMs = median(gaps) || null;
+    }
+    const ys = rows.map((row) => row.y);
+    const fit = linearFit(ys);
     const horizon = Math.max(1, Math.trunc(numeric(options.horizon, 3)));
     const higherIsBetter = options.higherIsBetter !== false;
     const z = numeric(options.confidenceZ, 1.2816); // ~80% band by default
-
-    if (rows.length < 2) {
-      return {
-        ok: false,
-        reason: rows.length === 0 ? "no-data" : "insufficient-data",
-        count: rows.length,
-        slopePerPeriod: 0,
-        direction: "flat",
-        trend: "flat",
-        projections: [],
-        confidence: 0
-      };
-    }
-
-    const ys = rows.map((row) => row.y);
-    const fit = linearFit(ys);
     const lastIndex = ys.length - 1;
     const lastValue = ys[lastIndex];
 
@@ -200,18 +187,18 @@
     const direction = !meaningful ? "flat" : rising ? "rising" : "falling";
     const improving = !meaningful ? "flat" : (higherIsBetter ? rising : !rising);
     const trend = direction === "flat" ? "flat" : improving ? "improving" : "regressing";
-
-    // Confidence blends fit quality (r2) and sample size; thin series cap lower.
     const sampleFactor = clamp(rows.length / 8, 0.3, 1);
     const confidence = round(clamp(100 * fit.r2 * sampleFactor + 8, 0, 95));
 
     return {
       ok: true,
+      model: "linear",
       count: rows.length,
       higherIsBetter,
       lastValue: round(lastValue, 2),
       slopePerPeriod,
       r2: round(fit.r2, 3),
+      fitQuality: round(fit.r2, 3),
       residualStd: round(fit.residualStd, 3),
       direction,
       trend,
@@ -220,8 +207,213 @@
       projectedValue: projections[projections.length - 1].value,
       projections,
       periodMs,
-      confidence
+      confidence,
+      _fit: fit
     };
+  }
+
+  function linearBaselineFor(forecast) {
+    if (!forecast || !forecast.ok) return null;
+    return {
+      model: "linear",
+      projectedValue: forecast.projectedValue,
+      slopePerPeriod: forecast.slopePerPeriod,
+      r2: forecast.r2,
+      residualStd: forecast.residualStd,
+      confidence: forecast.confidence
+    };
+  }
+
+  function stateSpaceForecastFromRows(rows, options = {}, linear = null) {
+    const ys = rows.map((row) => row.y);
+    if (ys.length < 3) {
+      return { ok: false, reason: "insufficient-state-space-data" };
+    }
+    const horizon = Math.max(1, Math.trunc(numeric(options.horizon, 3)));
+    const higherIsBetter = options.higherIsBetter !== false;
+    const z = numeric(options.confidenceZ, 1.2816);
+    const damping = clamp(numeric(options.damping ?? options.trendDamping, 0.98), 0.5, 1);
+    const fit = linear?._fit || linearFit(ys);
+    const diffs = [];
+    for (let i = 1; i < ys.length; i += 1) diffs.push(ys[i] - ys[i - 1]);
+    const avgAbs = Math.abs(mean(ys));
+    const valueStd = stddev(ys) || 0;
+    const diffStd = stddev(diffs) || 0;
+    const residualStd = fit.residualStd || diffStd || valueStd * 0.1 || avgAbs * 0.02 || 1;
+    const scale = Math.max(residualStd, diffStd * 0.75, valueStd * 0.05, avgAbs * 0.01, 1e-3);
+    const baseVariance = scale ** 2;
+    const measurementVar = Math.max(1e-9, numeric(options.measurementVariance, baseVariance));
+    const processLevelVar = Math.max(1e-10, numeric(options.levelProcessVariance, baseVariance * numeric(options.levelProcessNoise, 0.08)));
+    const processSlopeVar = Math.max(1e-10, numeric(options.slopeProcessVariance, baseVariance * numeric(options.slopeProcessNoise, 0.025)));
+
+    let level = ys[0];
+    let slope = Number.isFinite(diffs[0]) ? diffs[0] : fit.slope;
+    let p00 = baseVariance * 4;
+    let p01 = 0;
+    let p10 = 0;
+    let p11 = baseVariance;
+    const innovations = [];
+    const naiveErrors = [];
+
+    for (let i = 1; i < ys.length; i += 1) {
+      const predictedLevel = level + damping * slope;
+      const predictedSlope = damping * slope;
+      const pp00 = p00 + damping * p01 + damping * p10 + damping * damping * p11 + processLevelVar;
+      const pp01 = damping * p01 + damping * damping * p11;
+      const pp10 = damping * p10 + damping * damping * p11;
+      const pp11 = damping * damping * p11 + processSlopeVar;
+      const innovation = ys[i] - predictedLevel;
+      const innovationVar = pp00 + measurementVar;
+      const k0 = innovationVar <= 0 ? 0 : pp00 / innovationVar;
+      const k1 = innovationVar <= 0 ? 0 : pp10 / innovationVar;
+
+      innovations.push(innovation);
+      naiveErrors.push(ys[i] - ys[i - 1]);
+      level = predictedLevel + k0 * innovation;
+      slope = predictedSlope + k1 * innovation;
+      p00 = Math.max(1e-12, (1 - k0) * pp00);
+      p01 = (1 - k0) * pp01;
+      p10 = pp10 - k1 * pp00;
+      p11 = Math.max(1e-12, pp11 - k1 * pp01);
+      const symmetricOffDiagonal = (p01 + p10) / 2;
+      p01 = symmetricOffDiagonal;
+      p10 = symmetricOffDiagonal;
+    }
+
+    const rmse = Math.sqrt(mean(innovations.map((v) => v ** 2)));
+    const naiveRmse = Math.sqrt(mean(naiveErrors.map((v) => v ** 2)));
+    const forecastSkill = naiveRmse > 1e-9
+      ? clamp(1 - rmse / naiveRmse, 0, 1)
+      : rmse <= scale ? 1 : 0;
+    const fitQuality = clamp(1 - rmse / Math.max(valueStd, scale, 1e-9), 0, 1);
+    const lastIndex = ys.length - 1;
+    const lastValue = ys[lastIndex];
+    const projections = [];
+    let fLevel = level;
+    let fSlope = slope;
+    let fp00 = p00;
+    let fp01 = p01;
+    let fp10 = p10;
+    let fp11 = p11;
+    const hasTime = rows.length > 1 && rows.every((row) => Number.isFinite(row.t));
+    let periodMs = null;
+    if (hasTime) {
+      const gaps = [];
+      for (let i = 1; i < rows.length; i += 1) gaps.push(rows[i].t - rows[i - 1].t);
+      periodMs = median(gaps) || null;
+    }
+
+    for (let step = 1; step <= horizon; step += 1) {
+      const nextLevel = fLevel + damping * fSlope;
+      const nextSlope = damping * fSlope;
+      const n00 = fp00 + damping * fp01 + damping * fp10 + damping * damping * fp11 + processLevelVar;
+      const n01 = damping * fp01 + damping * damping * fp11;
+      const n10 = damping * fp10 + damping * damping * fp11;
+      const n11 = damping * damping * fp11 + processSlopeVar;
+      fLevel = nextLevel;
+      fSlope = nextSlope;
+      fp00 = Math.max(1e-12, n00);
+      fp01 = n01;
+      fp10 = n10;
+      fp11 = Math.max(1e-12, n11);
+      const predictiveStd = Math.sqrt(Math.max(0, fp00 + measurementVar));
+      projections.push({
+        step,
+        value: round(fLevel, 2),
+        lower: round(fLevel - z * predictiveStd, 2),
+        upper: round(fLevel + z * predictiveStd, 2),
+        etaMs: hasTime && periodMs ? rows[lastIndex].t + step * periodMs : null
+      });
+    }
+
+    const slopePerPeriodRaw = damping * slope;
+    const slopePerPeriod = round(slopePerPeriodRaw, 4);
+    const meaningful = Math.abs(slopePerPeriodRaw) >= numeric(options.flatThreshold, 0.05);
+    const rising = slopePerPeriodRaw > 0;
+    const direction = !meaningful ? "flat" : rising ? "rising" : "falling";
+    const improving = !meaningful ? "flat" : (higherIsBetter ? rising : !rising);
+    const trend = direction === "flat" ? "flat" : improving ? "improving" : "regressing";
+    const sampleFactor = clamp(rows.length / 8, 0.45, 1);
+    const uncertaintyRatio = Math.sqrt(Math.max(0, p00 + measurementVar)) / Math.max(Math.abs(lastValue), scale, 1e-9);
+    const confidence = round(clamp(
+      100 * (0.45 * forecastSkill + 0.25 * fitQuality + 0.3 * fit.r2) * sampleFactor + 10 - uncertaintyRatio * 10,
+      0,
+      96
+    ));
+
+    return {
+      ok: true,
+      model: "state-space",
+      count: rows.length,
+      higherIsBetter,
+      lastValue: round(lastValue, 2),
+      slopePerPeriod,
+      r2: linear?.r2 ?? round(fit.r2, 3),
+      fitQuality: round(fitQuality, 3),
+      forecastSkill: round(forecastSkill * 100),
+      residualStd: round(rmse, 3),
+      direction,
+      trend,
+      improving: improving === true,
+      horizon,
+      projectedValue: projections[projections.length - 1].value,
+      projections,
+      periodMs,
+      confidence,
+      baseline: linearBaselineFor(linear),
+      state: {
+        level: round(level, 3),
+        slope: round(slope, 4),
+        damping,
+        measurementStd: round(Math.sqrt(measurementVar), 3),
+        processLevelStd: round(Math.sqrt(processLevelVar), 3),
+        processSlopeStd: round(Math.sqrt(processSlopeVar), 3)
+      },
+      bandMethod: "kalman-predictive-variance"
+    };
+  }
+
+  /**
+   * Project a metric forward `horizon` periods with a confidence band.
+   * Defaults to a local linear-trend state-space/Kalman forecast and keeps a
+   * least-squares linear baseline for auditability and fallback.
+   */
+  function forecastMetric(points, options = {}) {
+    const { rows } = normalizeSeries(points);
+    const horizon = Math.max(1, Math.trunc(numeric(options.horizon, 3)));
+    const higherIsBetter = options.higherIsBetter !== false;
+
+    if (rows.length < 2) {
+      return {
+        ok: false,
+        reason: rows.length === 0 ? "no-data" : "insufficient-data",
+        count: rows.length,
+        model: options.model || options.forecastModel || "state-space",
+        slopePerPeriod: 0,
+        direction: "flat",
+        trend: "flat",
+        projections: [],
+        confidence: 0
+      };
+    }
+
+    const linear = linearForecastFromRows(rows, { ...options, horizon, higherIsBetter });
+    const requestedModel = String(options.model || options.forecastModel || "state-space").toLowerCase();
+    const minStateSpaceSamples = Math.max(3, Math.trunc(numeric(options.minStateSpaceSamples, 3)));
+    if (requestedModel === "linear" || rows.length < minStateSpaceSamples) {
+      return { ...linear, baseline: linearBaselineFor(linear), _fit: undefined };
+    }
+
+    const stateSpace = stateSpaceForecastFromRows(rows, { ...options, horizon, higherIsBetter }, linear);
+    if (!stateSpace.ok) {
+      return {
+        ...linear,
+        baseline: linearBaselineFor(linear),
+        fallbackReason: stateSpace.reason || "state-space-unavailable",
+        _fit: undefined
+      };
+    }
+    return stateSpace;
   }
 
   /**
@@ -237,11 +429,17 @@
       return { ok: false, reason: "insufficient-data", willCross: false, confidence: 0 };
     }
     const ys = rows.map((row) => row.y);
+    const forecast = forecastMetric(points, {
+      ...options,
+      horizon: 1,
+      higherIsBetter: options.direction === "below"
+    });
     const fit = linearFit(ys);
+    const slope = Number.isFinite(forecast.slopePerPeriod) ? numeric(forecast.slopePerPeriod) : fit.slope;
     const lastValue = ys[ys.length - 1];
     const direction = options.direction || (lastValue <= limit ? "above" : "below");
 
-    if (Math.abs(fit.slope) < numeric(options.flatThreshold, 1e-6)) {
+    if (Math.abs(slope) < numeric(options.flatThreshold, 1e-6)) {
       return {
         ok: true,
         willCross: false,
@@ -249,12 +447,13 @@
         lastValue: round(lastValue, 2),
         threshold: limit,
         direction,
-        confidence: round(clamp(60 * fit.r2, 0, 80))
+        model: forecast.model || "linear",
+        confidence: round(clamp(numeric(forecast.confidence, 60 * fit.r2), 0, 80))
       };
     }
 
-    const periods = (limit - lastValue) / fit.slope;
-    const movingTowardLimit = direction === "above" ? fit.slope > 0 : fit.slope < 0;
+    const periods = (limit - lastValue) / slope;
+    const movingTowardLimit = direction === "above" ? slope > 0 : slope < 0;
     const willCross = movingTowardLimit && periods > 0;
     const periodsToThreshold = willCross ? round(periods, 2) : null;
 
@@ -283,12 +482,13 @@
       direction,
       lastValue: round(lastValue, 2),
       threshold: limit,
-      slopePerPeriod: round(fit.slope, 4),
+      model: forecast.model || "linear",
+      slopePerPeriod: round(slope, 4),
       periodsToThreshold,
       etaMs,
       etaDays,
       urgency,
-      confidence
+      confidence: round(clamp(Math.min(confidence, numeric(forecast.confidence, confidence)), 0, 92))
     };
   }
 
@@ -1038,6 +1238,7 @@
     median,
     normalizeSeries,
     linearFit,
+    stateSpaceForecastFromRows,
     // predictive
     forecastMetric,
     timeToThreshold,

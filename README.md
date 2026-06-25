@@ -47,6 +47,7 @@ It is pilot-ready for controlled customer evaluation. It is not yet a turnkey mu
 - **Live host bootstrap**: known desktop hosts such as `192.168.10.30` and `100.95.183.13` load `build/demo/live-machine-bundle.json` before the app scripts run, so the desktop view starts from live machine telemetry instead of stale fixture data.
 - **Machine and GPU updates**: the local bundle now captures GPU process ownership, thermal qualification, topology fingerprints, backend provenance, Docker/Ollama/procfs context, and unsupported-metric status rather than inventing missing counters.
 - **Operator views**: dashboard panels cover source heartbeat, fleet tiles, unit economics, product readiness, predictive/prescriptive guidance, resource alerts, rolling graphs, GPU exporter coverage, execution-idle proof, SPARK pair comparison, fleet comparison, System ID, and Benchmark Ladder evidence.
+- **State-space predictive engine**: predictive cards now use a local linear-trend state-space/Kalman forecast by default, keep a least-squares linear baseline for auditability, show forecast skill/confidence, and mirror the same math in the Python lakehouse lane.
 - **Mouse-enabled `turbatop`**: terminal operators can click bottom page tabs, click hosts, right-click or double-select for drill-in, use the mouse wheel for host selection, click footer/header controls for scope/sort/filter/pause/snapshot/help, and opt out with `--no-mouse` on terminals that do not support SGR mouse reporting.
 - **Fleet-aware terminal rendering**: `turbatop` now shows a web-cockpit-style text aggregate panel, pressure/GPU/CPU/RAM/network/status sort modes, scroll-aware host ranges, per-host trend sparklines, score-orbit and fleet-heat graphics, gradient gauges, colored signal severity, and live API plus bundle-fallback source labeling.
 - **OCP Benchmark Commons lane**: Benchmark Ladder L6 can export redacted `turba.ocp_benchmark_commons.v1` payloads for member-governed cross-hardware comparison, with proposal, Innovation Village, and internal presentation docs in `docs/`.
@@ -201,30 +202,168 @@ Useful `turbatop` controls:
 
 ## Mobile App Support
 
-The dashboard also has a Capacitor mobile shell under `mobile/capacitor` for Android and iOS. The mobile app bundles the same static cockpit UI and uses `mobile-config.js` to fetch live telemetry from the NUC-hosted bundle, so the native app stays aligned with the web dashboard.
+turbalance now has native mobile apps for both iPhone and Android under
+`mobile/capacitor`. The mobile apps read the same live telemetry bundle used by
+the web dashboard, present a phone-sized operator cockpit, and fall back to a
+local sample when the private controller endpoint is unavailable.
 
-![turbalance Analytics running in the iOS simulator](assets/turbalance-ios-capacitor-simulator.png)
+![turbalance Analytics native SwiftUI iPhone app running in the iOS simulator](assets/turbalance-ios-swift-simulator.png)
 
-Build or open the iOS app with Xcode:
+Current mobile telemetry endpoint:
+
+```text
+http://192.168.10.103:8000/build/demo/live-machine-bundle.json
+```
+
+For production distribution, use HTTPS and update both native clients:
+
+- iPhone: `mobile/capacitor/ios/App/App/TelemetryModels.swift`
+- Android: `mobile/capacitor/android/app/src/main/java/com/turbalance/analytics/MainActivity.java`
+
+Shared mobile capabilities:
+
+- Native cockpit pages for Cockpit, Hosts, Trends, Signals, Alerts, Report, and Ops
+- Live refresh from the NUC15/controller bundle at `192.168.10.103`
+- Local fallback sample when the private feed is unreachable
+- Local profile name and avatar/photo shown in the header
+- Customer report text with explanation of what is happening and next steps
+- Configurable threshold alerts for CPU, GPU, memory, disk, health, queue, and network
+- Branded turbalance wordmark and launcher icon assets
+
+### iPhone
+
+The iPhone app under `mobile/capacitor/ios/App` is a native SwiftUI app, not a
+desktop dashboard WebView. It uses:
+
+- Bundle identifier: `com.turbalance.analyticsApp`
+- Apple team: `TWFK4FAG36`
+- Main native files:
+  - `mobile/capacitor/ios/App/App/NativeAnalyticsView.swift`
+  - `mobile/capacitor/ios/App/App/TelemetryModels.swift`
+- Wordmark asset:
+  - `mobile/capacitor/ios/App/App/Assets.xcassets/TurbalanceWordmark.imageset/TurbalanceWordmark.png`
+- App icon:
+  - `mobile/capacitor/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png`
+
+Build or open the iPhone app with Xcode:
 
 ```sh
 cd mobile/capacitor
-npm install
-npm run sync
-npm run add:ios
+npm run build:ios:simulator
 npm run open:ios
 ```
 
-Build or open the Android app with Android Studio:
+Package or upload the iPhone app for TestFlight:
 
 ```sh
 cd mobile/capacitor
-npm install
-npm run sync:native
-npm run open:android
+npm run ios:check-signing
+npm run ios:testflight
 ```
 
-The current mobile config points at `http://100.95.183.13:8000/build/demo/live-machine-bundle.json`. For production mobile distribution, prefer an HTTPS endpoint and update `mobile/capacitor/mobile-config.js` before syncing native projects.
+The TestFlight command requires App Store Connect access in Xcode, or
+`ASC_KEY_PATH`, `ASC_KEY_ID`, and `ASC_ISSUER_ID` for an App Store Connect API
+key.
+
+For registered development devices only, export a development-signed IPA:
+
+```sh
+cd mobile/capacitor
+npm run ios:export:development
+```
+
+### Android
+
+The Android app under `mobile/capacitor/android` is now a native Java activity,
+not just the older Capacitor WebView shell. It keeps the existing Android package
+identifier:
+
+```text
+com.turbalance.analytics
+```
+
+Main Android files:
+
+- `mobile/capacitor/android/app/src/main/java/com/turbalance/analytics/MainActivity.java`
+- `mobile/capacitor/android/app/src/main/AndroidManifest.xml`
+- `mobile/capacitor/android/app/src/main/res/mipmap-*/ic_launcher*.png`
+- `mobile/capacitor/android/app/src/main/res/values/ic_launcher_background.xml`
+
+Android behavior:
+
+- Fetches the same live bundle from `192.168.10.103`
+- Uses cleartext HTTP for the current private lab controller
+- Requests `POST_NOTIFICATIONS` only when threshold alerts are enabled
+- Stores endpoint, profile name, avatar URI, cached bundle, and thresholds in
+  Android `SharedPreferences`
+- Opens the Android photo picker for the local profile image
+- Copies the customer report text through the Android clipboard
+
+Local Android build prerequisites:
+
+- JDK 21 for Capacitor 8 Android libraries
+- Android SDK platform/build tools for API 35
+- A local `android/local.properties` pointing Gradle at the SDK
+
+On this Mac the working paths are:
+
+```text
+JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+sdk.dir=/opt/homebrew/share/android-commandlinetools
+```
+
+If a fresh machine is missing the Android toolchain:
+
+```sh
+brew install openjdk@21
+brew install --cask android-commandlinetools
+
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+cd mobile/capacitor/android
+printf 'sdk.dir=/opt/homebrew/share/android-commandlinetools\n' > local.properties
+```
+
+Build the debug APK:
+
+```sh
+cd mobile/capacitor
+npm run build:android:debug
+```
+
+APK output:
+
+```text
+mobile/capacitor/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Install on a connected Android phone with USB debugging enabled:
+
+```sh
+cd mobile/capacitor
+adb devices
+npm run android:install
+```
+
+The build script defaults `JAVA_HOME` to Homebrew OpenJDK 21:
+
+```json
+"build:android:debug": "cd android && JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home} ./gradlew :app:assembleDebug",
+"android:install": "cd android && JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home} ./gradlew :app:installDebug"
+```
+
+Android Gradle notes:
+
+- `mobile/capacitor/android/build.gradle` aligns Kotlin artifacts to `1.8.22`
+  so Capacitor and AndroidX do not pull duplicate `kotlin-stdlib-jdk7/jdk8`
+  classes.
+- `mobile/capacitor/android/local.properties` is intentionally ignored by git
+  because it is machine-local SDK configuration.
+- The debug APK was verified with `npm run build:android:debug`.
 
 ## Product Appliance Workflow
 
@@ -380,7 +519,61 @@ Current operator surfaces include:
 - Light and dark modes
 - Observation Log that records interpreted events rather than raw one-second noise
 
-Known live hosts include `192.168.10.30` / `NUC14E`, `100.95.183.13` / `NUC15`, `192.168.10.20` / `SPARK1`, `192.168.10.21` / `SPARK2`, `pi1` through `pi12`, and optional lab targets such as `100.96.89.98` / `dgx-pat` when reachable.
+Known live hosts include `192.168.10.30` / `NUC14E`, `100.95.183.13` / `NUC15`, `192.168.10.20` / `SPARK1`, `192.168.10.21` / `SPARK2`, `pi1` through `pi12`, and the active DGX fabric nodes `DGX-jensen` / `DGX-lisa`. `DGX-pat` (`100.96.89.98`) is intentionally excluded while it is off-network for RMA.
+
+## Predictive And Prescriptive Methods
+
+The browser dashboard and lakehouse mirror now use an explainable state-space
+forecasting path rather than the older linear-only predictor.
+
+Primary implementation files:
+
+- `predictive-core.js`: browser and Node predictive/prescriptive engine
+- `services/platform_common/platform_common/predictive.py`: Python parity mirror
+  for durable lakehouse jobs
+- `app-render.js`: forecast-card labels for model, skill, and confidence
+- `tests/predictive-prescriptive.test.js`
+- `tests/predictive-python.test.js`
+- `tests/predictive_prescriptive_py.py`
+
+Forecast method:
+
+- Default model: local linear-trend **state-space/Kalman filter**
+- Hidden state: metric level plus metric slope
+- Transition: damped trend propagation with adaptive process noise
+- Observation: noisy scalar telemetry sample
+- Uncertainty band: Kalman predictive variance with the same default confidence
+  z-score used by the previous predictor
+- Forecast skill: one-step state-space error compared with a naive previous-value
+  baseline
+- Audit baseline: least-squares linear regression is still computed and returned
+  under `baseline`
+- Fallback: callers can force `model: "linear"`, and short/unsupported series
+  fall back to the linear predictor
+
+The dashboard currently forecasts the scoped metric series configured in
+`PREDICTIVE_METRIC_CONFIG`: useful compute, MFU, GPU utilization, wasted
+GPU-hours, cost per useful GPU-hour, cost per million requests, KV-cache
+pressure, latency tail, and queue wait. Saturation ETAs now use the state-space
+slope by default, so threshold warnings reflect the same online model shown in
+the forecast cards.
+
+The predictor remains intentionally explainable. It is not a black-box neural
+network and does not require model training or external inference services. For
+future larger history windows, the next upgrade path is to benchmark the
+state-space forecasts against PatchTST/iTransformer/MambaTS or time-series
+foundation-model forecasts while keeping this Kalman path as the trusted
+operator baseline.
+
+Focused validation:
+
+```sh
+node tests/predictive-prescriptive.test.js
+node tests/predictive-python.test.js
+node tests/static-page-wiring.test.js
+node --check predictive-core.js
+python3 -m py_compile services/platform_common/platform_common/predictive.py
+```
 
 ## Live Telemetry And Benchmarks
 

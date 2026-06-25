@@ -2,12 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CAPACITOR_DEBUG</key>
-	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-        <string>turbalance Analytics</string>
+	<string>turbalance Analytics</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -24,10 +22,41 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>100.95.183.13</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+			<key>192.168.10.103</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+			<key>192.168.10.30</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<false/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>turbalance Analytics connects to your local telemetry controller to load live fleet data.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIMainStoryboardFile</key>
-	<string>Main</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

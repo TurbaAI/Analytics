@@ -19,14 +19,21 @@ import predictive as p  # noqa: E402
 # --- forecastMetric --------------------------------------------------------
 rising = p.forecast_metric([60, 64, 69, 73, 78], horizon=3, higher_is_better=True)
 assert rising["ok"] is True
+assert rising["model"] == "state-space"
 assert rising["direction"] == "rising"
 assert rising["trend"] == "improving"
 assert len(rising["projections"]) == 3
 assert rising["projections"][2]["value"] > rising["last_value"]
+assert rising["band_method"] == "kalman-predictive-variance"
+assert rising["forecast_skill"] > 60
+assert rising["baseline"]["model"] == "linear"
 assert rising["confidence"] > 50
 
 regress = p.forecast_metric([10, 14, 19, 25, 31], higher_is_better=False, horizon=2)
 assert regress["trend"] == "regressing"
+linear = p.forecast_metric([60, 64, 69, 73, 78], horizon=3, model="linear")
+assert linear["model"] == "linear"
+assert linear["projected_value"] == rising["baseline"]["projected_value"]
 assert p.forecast_metric([])["ok"] is False
 
 # --- timeToThreshold -------------------------------------------------------
@@ -90,9 +97,11 @@ assert "Verify:" in remediation["text"]
 
 # --- canonical parity payload (discrete fields the Node test compares) -----
 parity = {
+    "forecast_model": rising["model"],
     "forecast_direction": rising["direction"],
     "forecast_trend": rising["trend"],
     "forecast_projection_count": len(rising["projections"]),
+    "forecast_skill_gt_60": rising["forecast_skill"] > 60,
     "regress_trend": regress["trend"],
     "ttt_will_cross": ttt["will_cross"],
     "ttt_urgency": ttt["urgency"],

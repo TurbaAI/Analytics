@@ -41,7 +41,7 @@ Use this checklist before sharing a turbalance Analytics demo build with neo-clo
 5. For `192.168.10.30`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with NUC14E and SPARK1 rows; use `?demo=sample` only when intentionally showing the canned provider fixture.
 6. For `192.168.10.20`, confirm `turbalance-live-machine-collector.service` is active, the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `SPARK1` row, and NVIDIA telemetry availability is reported exactly as observed.
 7. For `192.168.10.21`, confirm the fleet bundle includes either live telemetry from `user@192.168.10.21` or an explicit SSH unreachable observation; do not present missing SSH access as live resource telemetry.
-8. For `100.96.89.98`, confirm the dashboard auto-loads `build/demo/live-machine-bundle.json` with the standalone `DGX-pat` row and reports NVIDIA telemetry availability exactly as observed.
+8. Do not include `100.96.89.98` / `DGX-pat` while it is off-network for RMA; confirm the dashboard does not depend on that host for live demo readiness.
 
 ## Talk Track Readiness
 

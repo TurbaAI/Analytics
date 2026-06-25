@@ -22,6 +22,14 @@ allprojects {
         google()
         mavenCentral()
     }
+    configurations.configureEach {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'org.jetbrains.kotlin') {
+                details.useVersion '1.8.22'
+                details.because 'Align Kotlin stdlib artifacts pulled by Capacitor and AndroidX to avoid duplicate jdk7/jdk8 classes.'
+            }
+        }
+    }
 }
 
 task clean(type: Delete) {

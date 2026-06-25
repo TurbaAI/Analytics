@@ -4,15 +4,15 @@ Use this script for a five-minute walkthrough after local visual QA passes and G
 
 ## Setup
 
-1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.30:8000 --remote-machine user@192.168.10.20 --remote-machine user@192.168.10.21` on the NUC demo machine, run `sudo ./install.sh --mode static --prefix /opt/turbalance-analytics --with-systemd --live-machine --live-machine-host-url http://192.168.10.20:8000` on standalone `SPARK1`, or run `/home/user/.lmstudio/.internal/utils/node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://100.96.89.98:8000` on `DGX-pat`.
-2. Open `http://192.168.10.20:8000/` for the standalone `SPARK1` live-machine view, `http://100.96.89.98:8000/` for the standalone `DGX-pat` view, `http://192.168.10.30:8000/` for the NUC14E plus SPARK1 view, or the deployed Pages URL/local `index.html` for the static fixture view.
+1. Run `node scripts/prepare-demo.js --out-dir build/demo --host-url http://192.168.10.30:8000 --remote-machine user@192.168.10.20 --remote-machine user@192.168.10.21` on the NUC demo machine, or run `sudo ./install.sh --mode static --prefix /opt/turbalance-analytics --with-systemd --live-machine --live-machine-host-url http://192.168.10.20:8000` on standalone `SPARK1`.
+2. Open `http://192.168.10.20:8000/` for the standalone `SPARK1` live-machine view, `http://192.168.10.30:8000/` for the NUC14E plus SPARK1 view, or the deployed Pages URL/local `index.html` for the static fixture view.
 3. Confirm the status chips show the sample feed and local storage state.
 4. Keep `fixtures/external-source-bundle.json` ready for import.
 5. Keep `fixtures/neo-cloud-provider-bundle.json` ready for the provider walkthrough.
 6. Keep generated overlays from `build/demo/provider-overlay.json`, `build/demo/scheduler-overlay.json`, and `build/demo/ebpf-overlay.json` ready if the audience wants exporter mechanics. The manual commands are `node scripts/build-provider-overlay.js fixtures/provider-export-inputs`, `node scripts/build-scheduler-overlay.js fixtures/scheduler-export-inputs`, and `node scripts/build-ebpf-overlay.js fixtures/ebpf-export-inputs`.
 7. Keep `grafana/turbalance-provider-overview.json` ready if the audience wants the Grafana dashboard handoff template.
 8. Keep the generated all-lanes provider pilot bundle from `build/demo/provider-pilot-bundle.json` ready if the audience wants the full exporter flow. The manual command is `node scripts/build-provider-pilot-bundle.js fixtures/provider-pilot-export-inputs`.
-9. Keep `build/demo/live-machine-bundle.json` ready if the audience wants to inspect the actual live-machine telemetry bundle, including standalone `DGX-pat` when that is the active demo host.
+9. Keep `build/demo/live-machine-bundle.json` ready if the audience wants to inspect the actual live-machine telemetry bundle. Do not include standalone `DGX-pat` while `100.96.89.98` is off-network for RMA.
 10. Keep `build/demo/spark1-k8s-bundle.json` ready only when SPARK1 has a real `k3s` workload, NVIDIA Kubernetes GPU support, and Prometheus/DCGM evidence. The manual path is `kubectl apply -f ops/kubernetes/spark1-gpu-demo-job.yaml`, then `node scripts/collect-spark1-kubernetes-demo.js --out build/demo/spark1-k8s-bundle.json --prometheus-url http://127.0.0.1:9090`.
 11. Keep `build/demo/demo-readiness.md` ready for hardware, caveats, generated artifacts, and NVIDIA SM scheduler positioning.
 12. Keep the backend ingestion service ready if the audience wants signed upload, JWKS/JWT tenant mapping, tenant provisioning, token/key rotation, metrics, audit export, and retention mechanics.
@@ -49,7 +49,7 @@ Position the product as a browser-first operator review surface with an optional
 
 When showing `http://192.168.10.30:8000/`, position it as an observed lab fleet demo: NUC14E has the RTX 4090 and Ollama/Grafana/Netdata/node-exporter present, SPARK1 is a second Linux host, and `user@192.168.10.21` is an additional SSH-monitored host. NVIDIA telemetry availability and SSH reachability are reported exactly as observed. There is no active Kubernetes/DCGM/eBPF/scheduler/provider stack and no fabricated multi-node queue or billing/SLO overlay. The browser refreshes the live-machine bundle every 1 second while visible; if the RTX 4090 is idle, SPARK1 cannot expose GPU counters, or `192.168.10.21` is unreachable, say that plainly rather than turning it into a workload bottleneck. Use `?demo=sample` if you need to return to the seeded provider fixture.
 
-When showing `http://100.96.89.98:8000/`, position it as a standalone `DGX-pat` observation. If NVIDIA telemetry is unavailable because `nvidia-smi` cannot communicate with the driver, say that directly and use it to demonstrate turbalance's source-boundary behavior rather than pretending a GPU workload is measurable.
+`DGX-pat` (`100.96.89.98`) is off-network for RMA. Do not present it as an active demo or fleet telemetry source until it returns and the live-machine bundle is regenerated from that host.
 
 When showing `http://192.168.10.20:8000/`, position it as a standalone `SPARK1` observation with the same source-boundary rule. If NVIDIA telemetry is unavailable, say that plainly, then switch to `?demo=sample` to show the full provider analytics workflow.
 

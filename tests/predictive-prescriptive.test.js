@@ -10,17 +10,27 @@ const p = require("../predictive-core.js");
     { horizon: 3, higherIsBetter: true }
   );
   assert.equal(rising.ok, true);
+  assert.equal(rising.model, "state-space");
   assert.equal(rising.direction, "rising");
   assert.equal(rising.trend, "improving");
   assert.equal(rising.projections.length, 3);
   assert.ok(rising.projections[2].value > rising.lastValue, "should project upward");
   assert.ok(rising.projections[0].lower <= rising.projections[0].value, "band lower <= value");
   assert.ok(rising.projections[0].upper >= rising.projections[0].value, "band upper >= value");
+  assert.equal(rising.bandMethod, "kalman-predictive-variance");
+  assert.ok(rising.forecastSkill > 60, "clean state-space forecast should beat naive one-step baseline");
+  assert.equal(rising.baseline.model, "linear");
+  assert.ok(rising.baseline.projectedValue > rising.projectedValue, "linear baseline stays available for audit");
   assert.ok(rising.confidence > 50, "clean linear series should be confident");
 
   // higherIsBetter=false: a rising metric is regressing.
   const regress = p.forecastMetric([10, 14, 19, 25, 31], { higherIsBetter: false, horizon: 2 });
   assert.equal(regress.trend, "regressing");
+
+  // Linear remains available as an explicit baseline/fallback model.
+  const linear = p.forecastMetric([60, 64, 69, 73, 78], { horizon: 3, model: "linear" });
+  assert.equal(linear.model, "linear");
+  assert.equal(linear.projectedValue, rising.baseline.projectedValue);
 
   // Insufficient data is handled, not thrown.
   assert.equal(p.forecastMetric([]).ok, false);

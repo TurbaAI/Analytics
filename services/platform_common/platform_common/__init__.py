@@ -34,6 +34,7 @@ from .predictive import (
     optimize_action_plan,
     prescribe_actions,
     regression_risk_score,
+    state_space_forecast_from_rows,
     time_to_threshold,
 )
 from .observability import HttpRequestMetrics, OtlpHttpSpanExporter, install_request_observability, trace_id_from_traceparent
@@ -60,6 +61,7 @@ __all__ = [
     "optimize_action_plan",
     "prescribe_actions",
     "regression_risk_score",
+    "state_space_forecast_from_rows",
     "time_to_threshold",
     "alert_candidate_rows",
     "covariance_snapshot",

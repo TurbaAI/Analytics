@@ -931,14 +931,11 @@ function isKnownMachineDemoHost() {
     "spark1",
     "192.168.10.21",
     ...PI_FLEET_HOSTNAMES,
-    "192.168.10.27",
     "192.168.10.33",
     "192.168.10.38",
     "dgx-lisa",
     "192.168.10.42",
     "dgx-jensen",
-    "100.96.89.98",
-    "dgx-pat",
     "192.168.10.103",
     "100.95.183.13",
     "nuc15"
@@ -2032,10 +2029,7 @@ function liveNetworkDisplay(machineContext) {
   const linkText = Number.isFinite(machineContext.networkLinkSpeedMbps) && machineContext.networkLinkSpeedMbps > 0
     ? `${compactNumber.format(machineContext.networkLinkSpeedMbps)} Mbps link`
     : "link speed unavailable";
-  const issueCount = numeric(machineContext.networkRxDrops)
-    + numeric(machineContext.networkTxDrops)
-    + numeric(machineContext.networkRxErrors)
-    + numeric(machineContext.networkTxErrors);
+  const issueCount = networkCounterIssueCount(machineContext);
 
   return {
     value: hasPercent ? pct(machineContext.networkUtilizationPct) : throughput > 0 ? formatBytesPerSecond(throughput) : "learning",
@@ -2045,6 +2039,14 @@ function liveNetworkDisplay(machineContext) {
     percent: hasPercent ? machineContext.networkUtilizationPct : null,
     tone: issueCount > 0 ? "watch" : hasPercent ? inverseGrade(machineContext.networkUtilizationPct, 70, 88).key : "watch"
   };
+}
+
+function networkCounterIssueCount(machineContext) {
+  const deltaFields = ["networkRxDropsDelta", "networkTxDropsDelta", "networkRxErrorsDelta", "networkTxErrorsDelta"];
+  const rawFields = ["networkRxDrops", "networkTxDrops", "networkRxErrors", "networkTxErrors"];
+  const hasDeltaCounters = deltaFields.some((field) => Object.prototype.hasOwnProperty.call(machineContext || {}, field));
+  return (hasDeltaCounters ? deltaFields : rawFields)
+    .reduce((total, field) => total + numeric(machineContext?.[field]), 0);
 }
 
 function gb10MonitoringAvailable(item) {
@@ -3574,10 +3576,7 @@ function fleetCharacterizationMap(characterization) {
 function fleetHostSnapshot(machineContext, characterizationHost) {
   const context = machineContext.context || {};
   const sampleAgeMs = sparkPairSampleAgeMilliseconds(machineContext);
-  const networkIssueCount = numeric(machineContext.networkRxDrops)
-    + numeric(machineContext.networkTxDrops)
-    + numeric(machineContext.networkRxErrors)
-    + numeric(machineContext.networkTxErrors);
+  const networkIssueCount = networkCounterIssueCount(machineContext);
   const networkThroughputBps = Math.max(
     numeric(machineContext.networkRxBytesPerSecond, 0),
     numeric(machineContext.networkTxBytesPerSecond, 0)

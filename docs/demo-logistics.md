@@ -30,14 +30,7 @@ python3 -m http.server 8000 --bind 0.0.0.0
 
 Then open `http://192.168.10.30:8000/`. The app auto-loads `build/demo/live-machine-bundle.json` on that host and refreshes it every 1 second while the tab is visible. That bundle reflects the actual machine state for NUC14E, SPARK1, and the `user@192.168.10.21` monitored host: host OS counters, Docker state, reachable Grafana/Netdata/Ollama/node-exporter services, Ollama tokens-per-second and time-to-first-token telemetry when `/api/ps` reports an already-loaded model, NUC14E's RTX 4090 through `nvidia-smi`, and each remote host's current NVIDIA driver telemetry availability. If `user@192.168.10.21` is unavailable, the fleet bundle records an explicit SSH reachability observation instead of fabricating resource counters. It does not pretend Kubernetes, DCGM, eBPF, scheduler/admission, provider billing, or customer SLO exports are installed when they are not.
 
-For the standalone `DGX-pat` demo on `100.96.89.98`, run the local collector on that machine and serve the same static app:
-
-```sh
-/home/user/.lmstudio/.internal/utils/node scripts/collect-local-machine-bundle.js --out build/demo/live-machine-bundle.json --host-url http://100.96.89.98:8000
-python3 -m http.server 8000 --bind 0.0.0.0
-```
-
-Then open `http://100.96.89.98:8000/`. The app also auto-loads `build/demo/live-machine-bundle.json` on this host. Treat `DGX-pat` as a single observed Linux machine: if `nvidia-smi` is installed but cannot communicate with the NVIDIA driver, the dashboard should show NVIDIA telemetry unavailable instead of fabricating usable GPU counters.
+`DGX-pat` (`100.96.89.98`) is off-network for RMA. Do not include it in the live demo bundle or present it as an active standalone host until it returns and a fresh local collector run has been captured from that machine.
 
 For the standalone `SPARK1` demo on `192.168.10.20`, run the same local-host path:
 
@@ -141,7 +134,7 @@ No special hardware is required for the first demo. A laptop or small VM is enou
 
 The current `192.168.10.30` demo machine has one NVIDIA GeForce RTX 4090 and is useful for a realistic single-node workstation/edge-provider demo. `192.168.10.20` is included as `SPARK1`, a second observed Linux host, and `user@192.168.10.21` is included as an additional SSH-monitored host; if `nvidia-smi` cannot communicate with the NVIDIA driver on either remote, or SSH cannot reach `192.168.10.21`, the dashboard should show that source state rather than usable GPU capacity. These machines are not a multi-node neo-cloud cluster, so scheduler, topology, and queue behavior should be framed as host/fleet evidence unless provider staging exports are imported.
 
-The `100.96.89.98` machine is tracked as `DGX-pat` for a standalone host demo. It is useful as an observed AI operator workstation/server path, but it should be described only by the counters it exposes at demo time.
+The `100.96.89.98` machine is tracked as `DGX-pat`, but it is currently excluded from demos and fleet collection while off-network for RMA. When it returns, describe it only by the counters it exposes at demo time.
 
 The `192.168.10.20` machine can also be used as standalone `SPARK1`; this is useful when the demo should run directly on that host instead of through the NUC fleet collector.
 
