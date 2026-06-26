@@ -981,6 +981,14 @@ const AnalyticsMobileDefaults = {
   bundleUrl: "http://192.168.10.103:8000/build/demo/live-machine-bundle.json"
 };
 
+const TURBALANCE_QR_CENTER_LOGO = {
+  href: "assets/turbalance-qr-t.png?v=20260625",
+  width: 5.6,
+  height: 10,
+  badgeWidth: 7.4,
+  badgeHeight: 10.4
+};
+
 function mobilePairingPayload() {
   return mobilePairingBundleUrl();
 }
@@ -1003,8 +1011,27 @@ function turbalanceQrSvg(text, options = {}) {
     `<svg class="mobile-pairing-qr" viewBox="0 0 ${viewSize} ${viewSize}" width="${pixelSize}" height="${pixelSize}" role="img" aria-label="Mobile pairing QR code" xmlns="http://www.w3.org/2000/svg">`,
     `<rect width="${viewSize}" height="${viewSize}" fill="#ffffff"/>`,
     `<path fill="#132027" d="${path}"/>`,
+    turbalanceQrCenterLogoSvg(viewSize),
     `</svg>`
   ].join("");
+}
+
+function turbalanceQrCenterLogoSvg(viewSize) {
+  const logo = TURBALANCE_QR_CENTER_LOGO;
+  const badgeX = (viewSize - logo.badgeWidth) / 2;
+  const badgeY = (viewSize - logo.badgeHeight) / 2;
+  const imageX = (viewSize - logo.width) / 2;
+  const imageY = (viewSize - logo.height) / 2;
+  return [
+    `<g class="mobile-pairing-qr-brand" aria-hidden="true">`,
+    `<rect x="${formatQrUnit(badgeX)}" y="${formatQrUnit(badgeY)}" width="${logo.badgeWidth}" height="${logo.badgeHeight}" rx="1.1" fill="#ffffff"/>`,
+    `<image class="mobile-pairing-qr-logo" href="${logo.href}" x="${formatQrUnit(imageX)}" y="${formatQrUnit(imageY)}" width="${logo.width}" height="${logo.height}" preserveAspectRatio="xMidYMid meet"/>`,
+    `</g>`
+  ].join("");
+}
+
+function formatQrUnit(value) {
+  return Number(value).toFixed(3).replace(/\.?0+$/, "");
 }
 
 function turbalanceQrMatrix(text) {

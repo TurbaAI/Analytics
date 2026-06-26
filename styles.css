@@ -1478,6 +1478,14 @@ input[type="password"] {
   height: auto;
 }
 
+.mobile-pairing-qr path {
+  shape-rendering: crispEdges;
+}
+
+.mobile-pairing-qr-logo {
+  pointer-events: none;
+}
+
 .mobile-pairing-detail {
   display: grid;
   gap: 9px;
