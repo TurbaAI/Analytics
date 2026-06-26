@@ -19,7 +19,12 @@ import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
+import android.graphics.Paint;
+import android.graphics.Path;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -67,6 +72,7 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -233,6 +239,8 @@ public class MainActivity extends Activity {
             renderCockpit();
         } else if ("Hosts".equals(selectedPage)) {
             renderHosts();
+        } else if ("Topology".equals(selectedPage)) {
+            renderTopology();
         } else if ("Trends".equals(selectedPage)) {
             renderTrends();
         } else if ("Signals".equals(selectedPage)) {
@@ -338,7 +346,7 @@ public class MainActivity extends Activity {
     private void renderTabs() {
         tabRow.removeAllViews();
         selectedTabButton = null;
-        String[] pages = {"Cockpit", "Hosts", "Trends", "Signals", "Alerts", "Report", "Ops"};
+        String[] pages = {"Cockpit", "Hosts", "Topology", "Trends", "Signals", "Alerts", "Report", "Ops"};
         for (final String page : pages) {
             Button button = new Button(this);
             button.setAllCaps(false);
@@ -434,6 +442,39 @@ public class MainActivity extends Activity {
             });
             addCard(card);
         }
+    }
+
+    private void renderTopology() {
+        section("Topology", snapshot.hosts.size() + " mapped hosts");
+        if (snapshot.hosts.isEmpty()) {
+            content.addView(emptyPanel("Waiting for live fleet host rows before drawing topology."));
+            return;
+        }
+
+        LinearLayout map = panel("Fleet map", snapshot.freshnessLabel());
+        map.addView(new TopologyCanvasView(this, snapshot.hosts), new LinearLayout.LayoutParams(-1, dp(360)));
+        content.addView(map);
+        addGap(content, 12, false);
+
+        LinearLayout posture = panel("Topology posture", snapshot.observedHost);
+        LinearLayout row1 = horizontal();
+        row1.addView(metricTile("Healthy", String.valueOf(Math.max(0, snapshot.summary.hostCount - snapshot.summary.actionCount - snapshot.summary.watchCount)), "clean nodes", Tone.GOOD), weightLp());
+        addGap(row1, 10, true);
+        row1.addView(metricTile("Watch", String.valueOf(snapshot.summary.watchCount), "needs review", snapshot.summary.watchCount > 0 ? Tone.WATCH : Tone.GOOD), weightLp());
+        posture.addView(row1);
+        addGap(posture, 10, false);
+        LinearLayout row2 = horizontal();
+        row2.addView(metricTile("Action", String.valueOf(snapshot.summary.actionCount), "repair first", snapshot.summary.actionCount > 0 ? Tone.POOR : Tone.GOOD), weightLp());
+        addGap(row2, 10, true);
+        row2.addView(metricTile("Network", compact(snapshot.summary.totalNetworkMBps) + " MB/s", "aggregate throughput", Tone.WATCH), weightLp());
+        posture.addView(row2);
+        content.addView(posture);
+        addGap(content, 12, false);
+
+        List<String> services = topologyServiceTags(snapshot.hosts);
+        LinearLayout servicePanel = panel("Service groups", services.size() + " observed");
+        servicePanel.addView(text(services.isEmpty() ? "live-machine" : join(services, " | "), 13, C.TEXT, Typeface.BOLD));
+        content.addView(servicePanel);
     }
 
     private void renderTrends() {
@@ -1141,6 +1182,256 @@ public class MainActivity extends Activity {
 
     private LinearLayout.LayoutParams weightLp() {
         return new LinearLayout.LayoutParams(0, -2, 1);
+    }
+
+    private List<String> topologyServiceTags(List<Host> hosts) {
+        Set<String> tags = new HashSet<>();
+        for (Host host : hosts) {
+            for (String service : host.observedServices) {
+                String[] pieces = service.split(":");
+                String label = pieces.length > 0 ? pieces[0].trim() : service.trim();
+                if (!label.isEmpty()) tags.add(label);
+            }
+        }
+        List<String> result = new ArrayList<>(tags);
+        Collections.sort(result);
+        return result;
+    }
+
+    private final class TopologyCanvasView extends View {
+        private final List<Host> hosts;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF rect = new RectF();
+
+        TopologyCanvasView(Context context, List<Host> hosts) {
+            super(context);
+            this.hosts = new ArrayList<>(hosts);
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            int width = getWidth();
+            int height = getHeight();
+            rect.set(dp(2), dp(2), width - dp(2), height - dp(2));
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(C.TRACK);
+            canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(C.BORDER);
+            canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+
+            paint.setColor(withAlpha(C.BORDER, 115));
+            paint.setStrokeWidth(1);
+            for (float fraction : new float[] {0.24f, 0.42f, 0.60f, 0.78f}) {
+                float y = height * fraction;
+                canvas.drawLine(dp(16), y, width - dp(16), y, paint);
+            }
+
+            if (hosts.isEmpty()) {
+                drawCenteredText(canvas, "Waiting for fleet rows", width / 2f, height / 2f, 14, C.MUTED, Typeface.BOLD);
+                return;
+            }
+
+            Map<String, List<Host>> groups = topologyGroups();
+            List<String> activeGroups = new ArrayList<>();
+            for (String id : topologyGroupOrder()) {
+                List<Host> members = groups.get(id);
+                if (members != null && !members.isEmpty()) activeGroups.add(id);
+            }
+
+            float hubX = Math.max(dp(76), width * 0.18f);
+            float hubY = height * 0.52f;
+            List<TopologyPlacement> placements = topologyPlacements(activeGroups, groups, width, height);
+            for (TopologyPlacement placement : placements) {
+                drawTopologyLink(canvas, hubX, hubY, placement);
+            }
+            for (String id : activeGroups) {
+                float x = topologyGroupX(activeGroups.indexOf(id), activeGroups.size(), width);
+                drawCenteredText(canvas, topologyGroupLabel(id), x, dp(32), 12, C.TEXT, Typeface.BOLD);
+                drawCenteredText(canvas, topologyGroupDetail(id), x, dp(49), 10, C.MUTED, Typeface.BOLD);
+            }
+            drawTopologyHub(canvas, hubX, hubY);
+            for (TopologyPlacement placement : placements) {
+                drawTopologyNode(canvas, placement.host, placement.x, placement.y, placement.moreCount);
+            }
+        }
+
+        private Map<String, List<Host>> topologyGroups() {
+            Map<String, List<Host>> groups = new LinkedHashMap<>();
+            for (String id : topologyGroupOrder()) groups.put(id, new ArrayList<Host>());
+            for (Host host : hosts) groups.get(topologyGroupFor(host)).add(host);
+            return groups;
+        }
+
+        private List<String> topologyGroupOrder() {
+            List<String> order = new ArrayList<>();
+            order.add("controller");
+            order.add("gpu");
+            order.add("spark");
+            order.add("edge");
+            order.add("other");
+            return order;
+        }
+
+        private List<TopologyPlacement> topologyPlacements(List<String> activeGroups, Map<String, List<Host>> groups, int width, int height) {
+            List<TopologyPlacement> placements = new ArrayList<>();
+            for (int groupIndex = 0; groupIndex < activeGroups.size(); groupIndex++) {
+                String id = activeGroups.get(groupIndex);
+                List<Host> members = groups.get(id);
+                if (members == null) continue;
+                int shown = Math.min(4, members.size());
+                float stepY = shown >= 4 ? dp(72) : shown == 3 ? dp(86) : dp(96);
+                float startY = height * 0.52f - Math.max(0, shown - 1) * stepY / 2f;
+                float x = topologyGroupX(groupIndex, activeGroups.size(), width);
+                for (int i = 0; i < shown; i++) {
+                    placements.add(new TopologyPlacement(members.get(i), x, startY + i * stepY, 0));
+                }
+                int hidden = members.size() - shown;
+                if (hidden > 0) {
+                    placements.add(new TopologyPlacement(members.get(0), x, Math.min(height - dp(32), startY + shown * stepY), hidden));
+                }
+            }
+            return placements;
+        }
+
+        private float topologyGroupX(int index, int count, int width) {
+            float startX = count <= 3 ? width * 0.42f : width * 0.34f;
+            float endX = width - dp(72);
+            float step = count <= 1 ? 0 : (endX - startX) / Math.max(1, count - 1);
+            return Math.max(dp(150), Math.min(width - dp(70), startX + index * step));
+        }
+
+        private void drawTopologyLink(Canvas canvas, float hubX, float hubY, TopologyPlacement placement) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(3));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            paint.setColor(withAlpha(toneColor(placement.host.riskTone()), 160));
+            paint.setPathEffect(placement.host.riskTone() == Tone.GOOD ? null : new DashPathEffect(new float[] {dp(7), dp(6)}, 0));
+            Path path = new Path();
+            path.moveTo(hubX + dp(52), hubY);
+            path.cubicTo(hubX + dp(108), hubY, placement.x - dp(126), placement.y, placement.x - dp(72), placement.y);
+            canvas.drawPath(path, paint);
+            paint.setPathEffect(null);
+        }
+
+        private void drawTopologyHub(Canvas canvas, float x, float y) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(C.HEADER);
+            canvas.drawCircle(x, y, dp(52), paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(2));
+            paint.setColor(C.CYAN);
+            canvas.drawCircle(x, y, dp(52), paint);
+            drawCenteredText(canvas, "turbalance", x, y - dp(4), 12, Color.WHITE, Typeface.BOLD);
+            drawCenteredText(canvas, "collector", x, y + dp(15), 10, C.MUTED, Typeface.BOLD);
+        }
+
+        private void drawTopologyNode(Canvas canvas, Host host, float x, float y, int moreCount) {
+            int tone = host.riskTone();
+            int fill = tone == Tone.POOR ? C.RED_DARK : tone == Tone.WATCH ? C.AMBER_DARK : C.PANEL;
+            int stroke = toneColor(tone);
+            rect.set(x - dp(68), y - dp(26), x + dp(68), y + dp(26));
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(fill);
+            canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(stroke);
+            canvas.drawRoundRect(rect, dp(8), dp(8), paint);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(stroke);
+            canvas.drawCircle(x - dp(52), y - dp(7), dp(5), paint);
+
+            String title = moreCount > 0 ? "+" + moreCount + " more" : host.name;
+            String detail = moreCount > 0 ? topologyGroupLabel(topologyGroupFor(host)) : topologyNodeMeta(host);
+            drawLeftText(canvas, fitText(title, dp(90), 12, Typeface.BOLD), x - dp(39), y - dp(6), 12, Color.WHITE, Typeface.BOLD);
+            drawLeftText(canvas, fitText(detail, dp(94), 10, Typeface.BOLD), x - dp(39), y + dp(13), 10, C.MUTED, Typeface.BOLD);
+        }
+
+        private String topologyNodeMeta(Host host) {
+            if (host.hasGpuEvidence()) return "GPU " + pct(host.gpuPct);
+            if (!host.networkInterface.isEmpty()) return host.networkInterface;
+            return host.status;
+        }
+
+        private String fitText(String value, float maxWidth, int sp, int style) {
+            String text = value == null ? "" : value;
+            paint.setTextSize(sp(sp));
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, style));
+            if (paint.measureText(text) <= maxWidth) return text;
+            while (text.length() > 3 && paint.measureText(text + "...") > maxWidth) {
+                text = text.substring(0, text.length() - 1);
+            }
+            return text + "...";
+        }
+
+        private void drawCenteredText(Canvas canvas, String value, float x, float y, int sp, int color, int style) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.CENTER);
+            paint.setTextSize(sp(sp));
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, style));
+            paint.setColor(color);
+            canvas.drawText(value, x, y, paint);
+        }
+
+        private void drawLeftText(Canvas canvas, String value, float x, float y, int sp, int color, int style) {
+            paint.setStyle(Paint.Style.FILL);
+            paint.setTextAlign(Paint.Align.LEFT);
+            paint.setTextSize(sp(sp));
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT, style));
+            paint.setColor(color);
+            canvas.drawText(value, x, y, paint);
+        }
+
+        private float sp(int value) {
+            return value * getResources().getDisplayMetrics().scaledDensity;
+        }
+    }
+
+    private static final class TopologyPlacement {
+        final Host host;
+        final float x;
+        final float y;
+        final int moreCount;
+
+        TopologyPlacement(Host host, float x, float y, int moreCount) {
+            this.host = host;
+            this.x = x;
+            this.y = y;
+            this.moreCount = moreCount;
+        }
+    }
+
+    private String topologyGroupFor(Host host) {
+        String text = (host.name + " " + host.role + " " + host.gpuTopologySummary + " " + host.serviceSummary()).toLowerCase(Locale.US);
+        if (text.contains("nuc") || text.contains("controller") || text.contains("collector") || text.contains("grafana") || text.contains("prometheus")) return "controller";
+        if (text.contains("spark")) return "spark";
+        if (text.contains("dgx") || text.contains("gb10") || text.contains("h100") || text.contains("a100") || text.contains("nvidia") || host.hasGpuEvidence()) return "gpu";
+        if (text.contains("raspberry") || text.contains("edge") || text.matches(".*(^|[^a-z])pi\\d+.*")) return "edge";
+        return "other";
+    }
+
+    private String topologyGroupLabel(String id) {
+        if ("controller".equals(id)) return "Controller";
+        if ("gpu".equals(id)) return "DGX / GPU";
+        if ("spark".equals(id)) return "SPARK";
+        if ("edge".equals(id)) return "Pi / Edge";
+        return "Other";
+    }
+
+    private String topologyGroupDetail(String id) {
+        if ("controller".equals(id)) return "ingest and UI";
+        if ("gpu".equals(id)) return "accelerators";
+        if ("spark".equals(id)) return "demo peers";
+        if ("edge".equals(id)) return "field agents";
+        return "observed";
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
     }
 
     private GradientDrawable rounded(int bg, int stroke, int radius) {

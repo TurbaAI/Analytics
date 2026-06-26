@@ -1437,9 +1437,14 @@ input[type="password"] {
   grid-column: span 8;
 }
 
+.operator-card-topology {
+  grid-column: 1 / -1;
+}
+
 .event-timeline,
 .demo-launchpad,
 .mobile-pairing-panel,
+.fleet-topology-panel,
 .execution-idle-panel,
 .gpu-exporter-panel,
 .background-tasks-panel,
@@ -1546,6 +1551,233 @@ input[type="password"] {
   font-weight: 900;
 }
 
+.fleet-topology-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.fleet-topology-map {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(23, 54, 61, 0.14);
+  border-radius: 8px;
+  background: linear-gradient(180deg, #f9fffc 0%, #eef7f5 100%);
+}
+
+.fleet-topology-svg {
+  display: block;
+  width: 100%;
+  min-height: 310px;
+}
+
+.fleet-topology-backplane {
+  fill: url(#fleetTopologyBackplane);
+  stroke: rgba(31, 73, 80, 0.18);
+  stroke-width: 1.25;
+}
+
+.fleet-topology-grid-line {
+  fill: none;
+  stroke: rgba(72, 102, 110, 0.12);
+  stroke-width: 1;
+}
+
+.fleet-topology-link {
+  fill: none;
+  stroke: rgba(18, 116, 94, 0.46);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.fleet-topology-link[data-tone="watch"] {
+  stroke: rgba(183, 122, 22, 0.55);
+  stroke-dasharray: 8 7;
+}
+
+.fleet-topology-link[data-tone="poor"] {
+  stroke: rgba(184, 73, 59, 0.62);
+  stroke-dasharray: 5 7;
+}
+
+.fleet-topology-hub circle {
+  fill: #102f38;
+  stroke: rgba(73, 201, 173, 0.56);
+  stroke-width: 3;
+  filter: drop-shadow(0 14px 26px rgba(12, 36, 42, 0.26));
+}
+
+.fleet-topology-hub-label,
+.fleet-topology-hub-small {
+  fill: #f4fffb;
+  text-anchor: middle;
+}
+
+.fleet-topology-hub-label {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.fleet-topology-hub-small {
+  font-size: 11px;
+  font-weight: 800;
+  opacity: 0.74;
+}
+
+.fleet-topology-lane-title,
+.fleet-topology-lane-small {
+  text-anchor: middle;
+}
+
+.fleet-topology-lane-title {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.fleet-topology-lane-small {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.fleet-topology-node rect {
+  fill: rgba(255, 255, 255, 0.94);
+  stroke: rgba(50, 86, 94, 0.25);
+  stroke-width: 1.25;
+  filter: drop-shadow(0 8px 16px rgba(23, 43, 48, 0.13));
+}
+
+.fleet-topology-node[data-tone="watch"] rect {
+  stroke: rgba(183, 122, 22, 0.44);
+  fill: #fffaf0;
+}
+
+.fleet-topology-node[data-tone="poor"] rect {
+  stroke: rgba(184, 73, 59, 0.48);
+  fill: #fff5f4;
+}
+
+.fleet-topology-node[data-selected="true"] rect {
+  stroke: rgba(15, 172, 128, 0.84);
+  stroke-width: 2;
+}
+
+.fleet-topology-node[role="button"] {
+  cursor: pointer;
+}
+
+.fleet-topology-node-status {
+  fill: var(--green);
+}
+
+.fleet-topology-node[data-tone="watch"] .fleet-topology-node-status {
+  fill: var(--amber);
+}
+
+.fleet-topology-node[data-tone="poor"] .fleet-topology-node-status {
+  fill: var(--red);
+}
+
+.fleet-topology-node-label {
+  fill: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.fleet-topology-node-meta {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.fleet-topology-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+
+.fleet-topology-stat,
+.fleet-topology-groups,
+.fleet-topology-services,
+.fleet-topology-note {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(248, 251, 250, 0.9);
+}
+
+.fleet-topology-stat {
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+}
+
+.fleet-topology-stat strong {
+  font-size: 1.22rem;
+  line-height: 1;
+}
+
+.fleet-topology-stat span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.fleet-topology-stat[data-tone="good"] strong {
+  color: var(--green);
+}
+
+.fleet-topology-stat[data-tone="watch"] strong {
+  color: var(--amber);
+}
+
+.fleet-topology-stat[data-tone="poor"] strong {
+  color: var(--red);
+}
+
+.fleet-topology-groups,
+.fleet-topology-services {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 9px;
+}
+
+.fleet-topology-groups span,
+.fleet-topology-services span {
+  max-width: 100%;
+  padding: 5px 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--green-2);
+  color: var(--green);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-topology-services span {
+  background: rgba(53, 115, 228, 0.1);
+  color: var(--blue);
+}
+
+.fleet-topology-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 760;
+  line-height: 1.35;
+}
+
 @media (max-width: 680px) {
   .mobile-pairing-layout {
     grid-template-columns: 1fr;
@@ -1554,6 +1786,14 @@ input[type="password"] {
   .mobile-pairing-qr-frame {
     justify-self: center;
     width: min(220px, 100%);
+  }
+
+  .fleet-topology-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-topology-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -8070,6 +8310,11 @@ html[data-theme="dark"] .source-heartbeat-card,
 html[data-theme="dark"] .operator-card,
 html[data-theme="dark"] .confidence-meter,
 html[data-theme="dark"] .kafka-stream-summary > span,
+html[data-theme="dark"] .fleet-topology-map,
+html[data-theme="dark"] .fleet-topology-stat,
+html[data-theme="dark"] .fleet-topology-groups,
+html[data-theme="dark"] .fleet-topology-services,
+html[data-theme="dark"] .fleet-topology-note,
 html[data-theme="dark"] .fleet-tile,
 html[data-theme="dark"] .event-timeline-item,
 html[data-theme="dark"] .grafana-mini-links a,
@@ -8343,6 +8588,44 @@ html[data-theme="dark"] .panel-actions > span {
   border-color: rgba(73, 201, 173, 0.2);
   background: rgba(73, 201, 173, 0.14);
   color: var(--teal-ink);
+}
+
+html[data-theme="dark"] .fleet-topology-map {
+  background: linear-gradient(180deg, #121d1f 0%, #0f1719 100%);
+}
+
+html[data-theme="dark"] .fleet-topology-backplane {
+  fill: #10191b;
+  stroke: rgba(126, 236, 212, 0.18);
+}
+
+html[data-theme="dark"] .fleet-topology-grid-line {
+  stroke: rgba(190, 218, 221, 0.12);
+}
+
+html[data-theme="dark"] .fleet-topology-lane-title,
+html[data-theme="dark"] .fleet-topology-node-label {
+  fill: var(--ink);
+}
+
+html[data-theme="dark"] .fleet-topology-lane-small,
+html[data-theme="dark"] .fleet-topology-node-meta {
+  fill: var(--muted);
+}
+
+html[data-theme="dark"] .fleet-topology-node rect {
+  fill: rgba(25, 35, 37, 0.96);
+  stroke: rgba(126, 236, 212, 0.2);
+}
+
+html[data-theme="dark"] .fleet-topology-node[data-tone="watch"] rect {
+  fill: rgba(58, 43, 19, 0.94);
+  stroke: rgba(244, 183, 82, 0.42);
+}
+
+html[data-theme="dark"] .fleet-topology-node[data-tone="poor"] rect {
+  fill: rgba(58, 25, 30, 0.94);
+  stroke: rgba(239, 88, 102, 0.46);
 }
 
 html[data-theme="dark"] .analysis-stamp span[data-status="watch"],

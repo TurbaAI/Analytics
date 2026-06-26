@@ -6,6 +6,7 @@ import UserNotifications
 enum DashboardPage: String, CaseIterable, Identifiable {
     case cockpit = "Cockpit"
     case hosts = "Hosts"
+    case topology = "Topology"
     case trends = "Trends"
     case signals = "Signals"
     case notifications = "Alerts"

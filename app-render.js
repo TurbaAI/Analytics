@@ -1366,6 +1366,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const timelineBadge = document.querySelector("#eventTimelineBadge");
   const mobilePairingPanel = document.querySelector("#mobilePairingPanel");
   const mobilePairingBadge = document.querySelector("#mobilePairingBadge");
+  const fleetTopologyPanel = document.querySelector("#fleetTopologyPanel");
+  const fleetTopologyBadge = document.querySelector("#fleetTopologyBadge");
   const launchpad = document.querySelector("#demoLaunchpad");
   const autoDiscoveryDeploymentPanel = document.querySelector("#autoDiscoveryDeploymentPanel");
   const autoDiscoveryDeploymentBadge = document.querySelector("#autoDiscoveryDeploymentBadge");
@@ -1397,14 +1399,16 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !mobilePairingPanel || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !mobilePairingPanel || !fleetTopologyPanel || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
+  const topology = buildOperatorTopologyState(cockpit);
   if (!cockpit.visible) {
     panel.hidden = true;
     heartbeatStrip.replaceChildren();
     timeline.replaceChildren();
     mobilePairingPanel.replaceChildren();
+    fleetTopologyPanel.replaceChildren();
     launchpad.replaceChildren();
     autoDiscoveryDeploymentPanel.replaceChildren();
     executionIdleEnergyPanel.replaceChildren();
@@ -1431,6 +1435,10 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   confidenceBadge.dataset.tone = cockpit.confidence.score >= 80 ? "good" : cockpit.confidence.score >= 55 ? "watch" : "poor";
   if (timelineBadge) timelineBadge.textContent = `${cockpit.timeline.length} events`;
   if (mobilePairingBadge) mobilePairingBadge.textContent = "QR ready";
+  if (fleetTopologyBadge) {
+    fleetTopologyBadge.textContent = topology.badge;
+    fleetTopologyBadge.dataset.tone = topology.tone;
+  }
   if (autoDiscoveryDeploymentBadge) {
     autoDiscoveryDeploymentBadge.textContent = cockpit.autoDiscovery.badge;
     autoDiscoveryDeploymentBadge.dataset.tone = cockpit.autoDiscovery.tone;
@@ -1480,6 +1488,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   else timeline.replaceChildren();
   if (dashboardBlockEnabled("mobilePairing")) mobilePairingPanel.replaceChildren(...operatorMobilePairingNodes());
   else mobilePairingPanel.replaceChildren();
+  if (dashboardBlockEnabled("fleetTopology")) fleetTopologyPanel.replaceChildren(...operatorFleetTopologyNodes(topology));
+  else fleetTopologyPanel.replaceChildren();
   if (dashboardBlockEnabled("demoLaunchpad")) {
     renderOperatorLaunchpad(launchpad, cockpit.commands);
   } else {
@@ -1572,6 +1582,351 @@ function operatorMobilePairingNodes() {
   detail.append(endpointLabel, endpoint, actions, meta);
   wrapper.append(qr, detail);
   return [wrapper];
+}
+
+function buildOperatorTopologyState(cockpit) {
+  const contexts = typeof buildFleetMachineContexts === "function"
+    ? buildFleetMachineContexts(cockpit.summary, cockpit.machineContext)
+    : [];
+  const contextNodes = contexts.map(operatorTopologyNodeFromContext).filter(Boolean);
+  const tileNodes = (cockpit.fleet || []).map(operatorTopologyNodeFromTile).filter(Boolean);
+  const nodes = uniqueBy([...contextNodes, ...tileNodes], (node) => node.key || operatorTopologyHostKey(node.host));
+  nodes.forEach((node) => {
+    const tile = tileNodes.find((item) => item.key === node.key || operatorTopologyHostKey(item.host) === operatorTopologyHostKey(node.host));
+    if (!tile) return;
+    node.selectionKey = tile.selectionKey || node.selectionKey;
+    node.selected = tile.selected || node.selected;
+  });
+
+  nodes.sort((left, right) => {
+    const groupDelta = operatorTopologyGroupOrder(left.group) - operatorTopologyGroupOrder(right.group);
+    if (groupDelta) return groupDelta;
+    return fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true });
+  });
+
+  const groups = operatorTopologyGroups(nodes);
+  const actionCount = nodes.filter((node) => node.tone === "poor").length;
+  const watchCount = nodes.filter((node) => node.tone === "watch").length;
+  const services = unique(nodes.flatMap((node) => node.services || []).map(operatorTopologyServiceLabel).filter(Boolean)).slice(0, 7);
+  const tone = actionCount ? "poor" : watchCount ? "watch" : nodes.length ? "good" : "watch";
+  const badge = nodes.length ? `${nodes.length} ${nodes.length === 1 ? "host" : "hosts"}` : "Waiting";
+
+  return {
+    available: nodes.length > 0,
+    badge,
+    tone,
+    nodes,
+    groups,
+    services,
+    actionCount,
+    watchCount,
+    healthyCount: Math.max(0, nodes.length - actionCount - watchCount),
+    confidence: cockpit.confidence,
+    generatedAt: cockpit.generatedAt,
+    hostLabel: cockpit.hostLabel
+  };
+}
+
+function operatorTopologyNodeFromContext(machineContext, index) {
+  if (!machineContext) return null;
+  const context = machineContext.context || {};
+  const host = machineContext.host || context.hostname || context.node || `host-${index + 1}`;
+  const services = machineDemoServices(context.observedServices);
+  const gpu = machineContext.gpuModel || context.gpuName || "host telemetry";
+  const address = context.networkLocalAddress || context.hostAddress || context.primaryAddress || "";
+  const ageSeconds = context.generatedAt
+    ? Math.max(0, Math.round((Date.now() - safeDate(context.generatedAt, new Date()).getTime()) / 1000))
+    : null;
+  const health = numeric(context.hardwareHealthScore, Number.NaN);
+  const tone = Number.isFinite(health) && health < 60
+    ? "poor"
+    : machineContext.driverUnavailable || (ageSeconds !== null && ageSeconds > 180) || (Number.isFinite(health) && health < 80)
+      ? "watch"
+      : "good";
+  const status = Number.isFinite(health)
+    ? `Health ${pct(health)}`
+    : machineContext.driverUnavailable
+      ? "GPU telemetry blocked"
+      : machineContext.noGpu ? "Host telemetry" : machineContext.idle ? "GPU idle" : "Live";
+
+  return {
+    key: fleetHostKey(machineContext) || operatorTopologyHostKey(host),
+    selectionKey: "",
+    host,
+    gpu,
+    services,
+    address,
+    ageSeconds,
+    status,
+    tone,
+    selected: false,
+    group: operatorTopologyGroup({ host, gpu, services, context })
+  };
+}
+
+function operatorTopologyNodeFromTile(tile) {
+  if (!tile?.host) return null;
+  const services = Array.isArray(tile.services) ? tile.services : [];
+  return {
+    key: operatorTopologyHostKey(tile.host),
+    selectionKey: tile.key || "",
+    host: tile.host,
+    gpu: tile.gpu || "host telemetry",
+    services,
+    address: "",
+    ageSeconds: tile.age,
+    status: tile.status || "Observed",
+    tone: tile.tone || "watch",
+    selected: Boolean(tile.selected),
+    group: operatorTopologyGroup({ host: tile.host, gpu: tile.gpu, services, context: {} })
+  };
+}
+
+function operatorTopologyHostKey(value) {
+  if (typeof normalizeFleetHostId === "function") return normalizeFleetHostId(value);
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function operatorTopologyGroup({ host, gpu, services, context }) {
+  const haystack = [host, gpu, context?.role, context?.platform, ...(services || [])].join(" ").toLowerCase();
+  if (/nuc|controller|collector|grafana|prometheus|lakehouse|api/.test(haystack)) return "controller";
+  if (/spark/.test(haystack)) return "spark";
+  if (/dgx|gb10|h100|a100|rtx|nvidia|cuda|gpu/.test(haystack) && !/no nvidia|no gpu|host telemetry/.test(haystack)) return "gpu";
+  if (/(^|[^a-z])pi\d+|raspberry|edge/.test(haystack)) return "edge";
+  return "other";
+}
+
+function operatorTopologyGroups(nodes) {
+  const definitions = [
+    { id: "controller", label: "Controller", detail: "ingest and UI" },
+    { id: "gpu", label: "DGX / GPU", detail: "accelerators" },
+    { id: "spark", label: "SPARK", detail: "demo peers" },
+    { id: "edge", label: "Pi / Edge", detail: "field agents" },
+    { id: "other", label: "Other", detail: "observed hosts" }
+  ];
+  return definitions
+    .map((group) => ({
+      ...group,
+      nodes: nodes.filter((node) => node.group === group.id)
+    }))
+    .filter((group) => group.nodes.length);
+}
+
+function operatorTopologyGroupOrder(group) {
+  return { controller: 0, gpu: 1, spark: 2, edge: 3, other: 4 }[group] ?? 9;
+}
+
+function operatorTopologyServiceLabel(service) {
+  const label = String(service || "").split(":")[0].trim();
+  if (!label || label.length > 22) return label.slice(0, 22);
+  return label;
+}
+
+function operatorFleetTopologyNodes(topology) {
+  if (!topology.available) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = "Waiting for live fleet host rows before drawing topology.";
+    return [empty];
+  }
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "fleet-topology-layout";
+  const map = document.createElement("div");
+  map.className = "fleet-topology-map";
+  map.append(operatorFleetTopologySvg(topology));
+
+  const summary = document.createElement("div");
+  summary.className = "fleet-topology-summary";
+  summary.append(
+    operatorTopologyStat("Hosts", String(topology.nodes.length), topology.tone),
+    operatorTopologyStat("Healthy", String(topology.healthyCount), "good"),
+    operatorTopologyStat("Watch", String(topology.watchCount), topology.watchCount ? "watch" : "good"),
+    operatorTopologyStat("Action", String(topology.actionCount), topology.actionCount ? "poor" : "good")
+  );
+
+  const groups = document.createElement("div");
+  groups.className = "fleet-topology-groups";
+  topology.groups.forEach((group) => {
+    const pill = document.createElement("span");
+    pill.textContent = `${group.label} ${group.nodes.length}`;
+    groups.append(pill);
+  });
+
+  const services = document.createElement("div");
+  services.className = "fleet-topology-services";
+  const serviceTags = topology.services.length ? topology.services : ["live-machine"];
+  serviceTags.forEach((service) => {
+    const tag = document.createElement("span");
+    tag.textContent = service;
+    services.append(tag);
+  });
+
+  const note = document.createElement("p");
+  note.className = "fleet-topology-note";
+  note.textContent = topology.actionCount
+    ? "One or more nodes need attention before this fleet should be treated as customer-ready."
+    : topology.watchCount
+      ? "Topology is connected, with watch items driven by stale samples, reduced health, or blocked telemetry."
+      : "All mapped nodes are reporting cleanly in the current bundle.";
+
+  summary.append(groups, services, note);
+  wrapper.append(map, summary);
+  return [wrapper];
+}
+
+function operatorTopologyStat(label, value, tone) {
+  const item = document.createElement("div");
+  item.className = "fleet-topology-stat";
+  item.dataset.tone = tone;
+  const strong = document.createElement("strong");
+  strong.textContent = value;
+  const span = document.createElement("span");
+  span.textContent = label;
+  item.append(strong, span);
+  return item;
+}
+
+function operatorFleetTopologySvg(topology) {
+  const svg = svgNode("svg", {
+    class: "fleet-topology-svg",
+    viewBox: "0 0 860 420",
+    role: "img",
+    "aria-label": `Fleet topology with ${topology.nodes.length} hosts`
+  });
+  svg.append(operatorTopologyDefs());
+  svg.append(svgNode("rect", { class: "fleet-topology-backplane", x: 10, y: 10, width: 840, height: 400, rx: 22 }));
+  [96, 168, 240, 312].forEach((y) => svg.append(svgNode("path", {
+    class: "fleet-topology-grid-line",
+    d: `M36 ${y} H824`
+  })));
+
+  const hub = { x: 124, y: 210 };
+  const hubGroup = svgNode("g", { class: "fleet-topology-hub" });
+  hubGroup.append(svgNode("circle", { cx: hub.x, cy: hub.y, r: 54 }));
+  hubGroup.append(textNode("turbalance", hub.x, hub.y - 6, "fleet-topology-hub-label"));
+  hubGroup.append(textNode("collector", hub.x, hub.y + 16, "fleet-topology-hub-small"));
+  svg.append(hubGroup);
+
+  const positioned = operatorTopologyPositionedNodes(topology.groups);
+  positioned.forEach((item) => {
+    const link = svgNode("path", {
+      class: "fleet-topology-link",
+      "data-tone": item.node.tone,
+      d: `M${hub.x + 58} ${hub.y} C${hub.x + 150} ${hub.y}, ${item.x - 94} ${item.y}, ${item.x - 10} ${item.y}`
+    });
+    const title = svgNode("title");
+    title.textContent = `${item.node.host}: ${item.node.status}`;
+    link.append(title);
+    svg.append(link);
+  });
+
+  operatorTopologyPositionedGroups(topology.groups).forEach((group) => {
+    const label = svgNode("g", { class: "fleet-topology-lane-label" });
+    label.append(textNode(group.label, group.x, 48, "fleet-topology-lane-title"));
+    label.append(textNode(group.detail, group.x, 65, "fleet-topology-lane-small"));
+    svg.append(label);
+  });
+
+  positioned.forEach((item) => {
+    svg.append(operatorTopologySvgNode(item.node, item.x, item.y));
+  });
+
+  return svg;
+}
+
+function operatorTopologyDefs() {
+  const defs = svgNode("defs");
+  const gradient = svgNode("linearGradient", { id: "fleetTopologyBackplane", x1: "0", y1: "0", x2: "1", y2: "1" });
+  const start = svgNode("stop", { offset: "0%", "stop-color": "#f8fffc" });
+  const end = svgNode("stop", { offset: "100%", "stop-color": "#e7f3f2" });
+  gradient.append(start, end);
+  defs.append(gradient);
+  return defs;
+}
+
+function operatorTopologyPositionedGroups(groups) {
+  const visibleGroups = groups.slice(0, 5);
+  const startX = visibleGroups.length <= 3 ? 330 : 290;
+  const stepX = visibleGroups.length <= 1 ? 0 : (780 - startX) / Math.max(1, visibleGroups.length - 1);
+  return visibleGroups.map((group, index) => ({
+    ...group,
+    x: Math.round(startX + stepX * index)
+  }));
+}
+
+function operatorTopologyPositionedNodes(groups) {
+  return operatorTopologyPositionedGroups(groups).flatMap((group) => {
+    const shown = group.nodes.slice(0, 4);
+    const stepY = shown.length >= 4 ? 72 : shown.length === 3 ? 88 : 96;
+    const startY = 210 - ((shown.length - 1) * stepY) / 2;
+    const nodes = shown.map((node, index) => ({
+      node,
+      group,
+      x: group.x,
+      y: Math.round(startY + index * stepY)
+    }));
+    const hiddenCount = group.nodes.length - shown.length;
+    if (hiddenCount > 0) {
+      nodes.push({
+        node: {
+          host: `+${hiddenCount} more`,
+          gpu: group.label,
+          status: "Additional mapped hosts",
+          services: [],
+          tone: group.nodes.some((node) => node.tone === "poor") ? "poor" : group.nodes.some((node) => node.tone === "watch") ? "watch" : "good",
+          selected: false
+        },
+        group,
+        x: group.x,
+        y: Math.min(374, Math.round(startY + shown.length * stepY))
+      });
+    }
+    return nodes;
+  });
+}
+
+function operatorTopologySvgNode(node, x, y) {
+  const group = svgNode("g", {
+    class: "fleet-topology-node",
+    "data-tone": node.tone || "watch",
+    "data-selected": node.selected ? "true" : "false",
+    transform: `translate(${x - 76} ${y - 28})`
+  });
+  if (node.selectionKey) {
+    group.setAttribute("role", "button");
+    group.setAttribute("tabindex", "0");
+    group.setAttribute("aria-label", `Show ${node.host} telemetry`);
+    const select = () => {
+      state.scope = "job";
+      state.selectedKey = node.selectionKey;
+      render();
+    };
+    group.addEventListener("click", select);
+    group.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        select();
+      }
+    });
+  }
+
+  const title = svgNode("title");
+  title.textContent = `${node.host}: ${node.status}`;
+  group.append(title);
+  group.append(svgNode("rect", { x: 0, y: 0, width: 152, height: 56, rx: 12 }));
+  group.append(svgNode("circle", { class: "fleet-topology-node-status", cx: 18, cy: 20, r: 6 }));
+  const label = textNode(node.host, 32, 22, "fleet-topology-node-label");
+  const meta = textNode(operatorTopologyNodeMeta(node), 32, 41, "fleet-topology-node-meta");
+  group.append(label, meta);
+  return group;
+}
+
+function operatorTopologyNodeMeta(node) {
+  const age = Number.isFinite(node.ageSeconds) ? `${node.ageSeconds}s` : "";
+  const gpu = String(node.gpu || "").replace(/\s+/g, " ").trim();
+  const shortGpu = gpu.length > 22 ? `${gpu.slice(0, 21)}...` : gpu;
+  return [shortGpu || node.status, age].filter(Boolean).join(" | ");
 }
 
 function operatorSourceLabel(id) {

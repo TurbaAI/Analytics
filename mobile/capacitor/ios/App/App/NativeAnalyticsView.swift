@@ -31,6 +31,8 @@ struct TurbalanceNativeAppView: View {
                                 filter: $model.hostFilter,
                                 selectedHost: $model.selectedHost
                             )
+                        case .topology:
+                            TopologyView(snapshot: model.snapshot)
                         case .trends:
                             TrendsView(snapshot: model.snapshot, history: model.history)
                         case .signals:
@@ -477,6 +479,298 @@ private struct HostsView: View {
                 }
             }
         }
+    }
+}
+
+private struct TopologyView: View {
+    let snapshot: AnalyticsSnapshot
+    private let columns = [GridItem(.flexible()), GridItem(.flexible())]
+
+    private var nodes: [FleetTopologyNode] {
+        snapshot.hosts.map(FleetTopologyNode.init(host:))
+    }
+
+    private var serviceTags: [String] {
+        let tags = Set(snapshot.hosts.flatMap { host in
+            host.observedServices.map { service in
+                service.components(separatedBy: ":").first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? service
+            }
+        }.filter { !$0.isEmpty })
+        return Array(tags).sorted()
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            SectionHeader(title: "Topology", detail: "\(snapshot.summary.hostCount) mapped hosts")
+
+            NativePanel(title: "Fleet map", subtitle: snapshot.freshnessLabel) {
+                FleetTopologyMap(nodes: nodes)
+                    .frame(height: 360)
+            }
+
+            NativePanel(title: "Topology posture", subtitle: snapshot.observedHost) {
+                LazyVGrid(columns: columns, spacing: 8) {
+                    DetailMetric(title: "Healthy", value: "\(max(0, snapshot.summary.hostCount - snapshot.summary.actionCount - snapshot.summary.watchCount))", systemImage: "checkmark.seal.fill")
+                    DetailMetric(title: "Watch", value: "\(snapshot.summary.watchCount)", systemImage: "clock.badge.exclamationmark.fill")
+                    DetailMetric(title: "Action", value: "\(snapshot.summary.actionCount)", systemImage: "exclamationmark.triangle.fill")
+                    DetailMetric(title: "Network", value: "\(snapshot.summary.totalNetworkMBps.formattedCompact) MB/s", systemImage: "arrow.left.arrow.right")
+                }
+            }
+
+            NativePanel(title: "Service groups", subtitle: "\(serviceTags.count) observed") {
+                FlowLayout(items: serviceTags.isEmpty ? ["live-machine"] : serviceTags)
+            }
+        }
+    }
+}
+
+private enum FleetTopologyGroup: String, CaseIterable, Identifiable {
+    case controller
+    case gpu
+    case spark
+    case edge
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .controller:
+            return "Controller"
+        case .gpu:
+            return "DGX / GPU"
+        case .spark:
+            return "SPARK"
+        case .edge:
+            return "Pi / Edge"
+        case .other:
+            return "Other"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .controller:
+            return "ingest and UI"
+        case .gpu:
+            return "accelerators"
+        case .spark:
+            return "demo peers"
+        case .edge:
+            return "field agents"
+        case .other:
+            return "observed"
+        }
+    }
+}
+
+private struct FleetTopologyNode: Identifiable {
+    let id: String
+    let host: String
+    let subtitle: String
+    let meta: String
+    let services: [String]
+    let tone: SignalTone
+    let group: FleetTopologyGroup
+
+    init(host: HostSnapshot) {
+        self.id = host.id
+        self.host = host.name
+        self.subtitle = host.hasGpuEvidence ? host.role : (host.networkLocalAddress.isEmpty ? host.role : host.networkLocalAddress)
+        self.meta = host.hasGpuEvidence ? "GPU \(host.gpuPct.formattedPct)" : (host.networkInterface.isEmpty ? host.status : host.networkInterface)
+        self.services = host.observedServices
+        self.tone = host.riskTone
+        self.group = FleetTopologyNode.group(for: host)
+    }
+
+    private static func group(for host: HostSnapshot) -> FleetTopologyGroup {
+        let text = ([host.name, host.role, host.gpuTopologySummary] + host.observedServices).joined(separator: " ").lowercased()
+        if text.contains("nuc") || text.contains("controller") || text.contains("collector") || text.contains("grafana") || text.contains("prometheus") {
+            return .controller
+        }
+        if text.contains("spark") {
+            return .spark
+        }
+        if text.contains("dgx") || text.contains("gb10") || text.contains("h100") || text.contains("a100") || text.contains("nvidia") || host.hasGpuEvidence {
+            return .gpu
+        }
+        if text.contains("raspberry") || text.contains("edge") || text.range(of: #"(^|[^a-z])pi\d+"#, options: .regularExpression) != nil {
+            return .edge
+        }
+        return .other
+    }
+}
+
+private struct FleetTopologyPlacement: Identifiable {
+    let id: String
+    let node: FleetTopologyNode
+    let point: CGPoint
+}
+
+private struct FleetTopologyMap: View {
+    let nodes: [FleetTopologyNode]
+
+    private var groups: [(FleetTopologyGroup, [FleetTopologyNode])] {
+        FleetTopologyGroup.allCases.compactMap { group in
+            let members = nodes.filter { $0.group == group }
+            return members.isEmpty ? nil : (group, members)
+        }
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let hub = CGPoint(x: max(76, size.width * 0.18), y: size.height * 0.52)
+            let placements = placements(in: size)
+            let groupAnchors = anchors(in: size)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.95), AppColor.track.opacity(0.88)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(AppColor.line, lineWidth: 1)
+                    )
+
+                ForEach([0.24, 0.42, 0.60, 0.78], id: \.self) { fraction in
+                    Path { path in
+                        path.move(to: CGPoint(x: 18, y: size.height * fraction))
+                        path.addLine(to: CGPoint(x: size.width - 18, y: size.height * fraction))
+                    }
+                    .stroke(AppColor.line.opacity(0.45), lineWidth: 1)
+                }
+
+                ForEach(placements) { placement in
+                    Path { path in
+                        path.move(to: CGPoint(x: hub.x + 52, y: hub.y))
+                        path.addCurve(
+                            to: CGPoint(x: placement.point.x - 72, y: placement.point.y),
+                            control1: CGPoint(x: hub.x + 110, y: hub.y),
+                            control2: CGPoint(x: placement.point.x - 126, y: placement.point.y)
+                        )
+                    }
+                    .stroke(
+                        placement.node.tone.color.opacity(0.58),
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: placement.node.tone == .good ? [] : [7, 6])
+                    )
+                }
+
+                ForEach(groupAnchors, id: \.0.id) { entry in
+                    let group = entry.0
+                    let x = entry.1
+                    VStack(spacing: 2) {
+                        Text(group.label)
+                            .font(.caption.weight(.black))
+                            .foregroundColor(AppColor.ink)
+                        Text(group.detail)
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(AppColor.muted)
+                    }
+                    .frame(width: 104)
+                    .position(x: x, y: 34)
+                }
+
+                FleetTopologyHub()
+                    .position(hub)
+
+                ForEach(placements) { placement in
+                    FleetTopologyNodeBadge(node: placement.node)
+                        .position(placement.point)
+                }
+
+                if nodes.isEmpty {
+                    Text("Waiting for live fleet host rows.")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(AppColor.muted)
+                }
+            }
+        }
+    }
+
+    private func anchors(in size: CGSize) -> [(FleetTopologyGroup, CGFloat)] {
+        let visible = Array(groups.prefix(5))
+        guard !visible.isEmpty else { return [] }
+        let startX = visible.count <= 3 ? size.width * 0.42 : size.width * 0.34
+        let endX = size.width - 70
+        let step = visible.count <= 1 ? 0 : (endX - startX) / CGFloat(visible.count - 1)
+        return visible.enumerated().map { index, group in
+            (group.0, min(max(startX + CGFloat(index) * step, 150), size.width - 70))
+        }
+    }
+
+    private func placements(in size: CGSize) -> [FleetTopologyPlacement] {
+        let anchorMap = Dictionary(uniqueKeysWithValues: anchors(in: size).map { ($0.0, $0.1) })
+        return groups.prefix(5).flatMap { entry -> [FleetTopologyPlacement] in
+            let group = entry.0
+            let members = entry.1
+            let shown = Array(members.prefix(4))
+            let stepY: CGFloat = shown.count >= 4 ? 72 : shown.count == 3 ? 86 : 96
+            let startY = size.height * 0.52 - CGFloat(max(0, shown.count - 1)) * stepY / 2
+            return shown.enumerated().map { index, node in
+                FleetTopologyPlacement(
+                    id: node.id,
+                    node: node,
+                    point: CGPoint(x: anchorMap[group] ?? size.width * 0.62, y: startY + CGFloat(index) * stepY)
+                )
+            }
+        }
+    }
+}
+
+private struct FleetTopologyHub: View {
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(AppColor.header)
+                .overlay(Circle().stroke(AppColor.cyan.opacity(0.7), lineWidth: 2))
+                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 8)
+            VStack(spacing: 1) {
+                Text("turbalance")
+                    .font(.caption.weight(.black))
+                    .foregroundColor(.white)
+                Text("collector")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(AppColor.headerMuted)
+            }
+        }
+        .frame(width: 104, height: 104)
+    }
+}
+
+private struct FleetTopologyNodeBadge: View {
+    let node: FleetTopologyNode
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(node.tone.color)
+                .frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(node.host)
+                    .font(.caption.weight(.black))
+                    .foregroundColor(AppColor.ink)
+                    .lineLimit(1)
+                Text(node.meta)
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(AppColor.muted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .frame(width: 136, height: 52)
+        .background(node.tone.background.opacity(0.9))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(node.tone.color.opacity(0.35), lineWidth: 1)
+        )
     }
 }
 
@@ -1485,6 +1779,8 @@ private extension DashboardPage {
             return "rectangle.grid.2x2.fill"
         case .hosts:
             return "server.rack"
+        case .topology:
+            return "point.3.connected.trianglepath.dotted"
         case .trends:
             return "waveform.path.ecg"
         case .signals:
