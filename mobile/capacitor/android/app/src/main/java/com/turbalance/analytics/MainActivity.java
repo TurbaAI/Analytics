@@ -1245,8 +1245,12 @@ public class MainActivity extends Activity {
             float hubX = Math.max(dp(76), width * 0.18f);
             float hubY = height * 0.52f;
             List<TopologyPlacement> placements = topologyPlacements(activeGroups, groups, width, height);
+            List<TopologyConnection> networkConnections = topologyConnections(placements);
             for (TopologyPlacement placement : placements) {
                 drawTopologyLink(canvas, hubX, hubY, placement);
+            }
+            for (int i = 0; i < networkConnections.size(); i++) {
+                drawNetworkConnection(canvas, networkConnections.get(i), i);
             }
             for (String id : activeGroups) {
                 float x = topologyGroupX(activeGroups.indexOf(id), activeGroups.size(), width);
@@ -1297,6 +1301,79 @@ public class MainActivity extends Activity {
             return placements;
         }
 
+        private List<TopologyConnection> topologyConnections(List<TopologyPlacement> placements) {
+            List<TopologyConnection> connections = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+
+            Map<String, List<TopologyPlacement>> byGroup = new LinkedHashMap<>();
+            for (String id : topologyGroupOrder()) byGroup.put(id, new ArrayList<TopologyPlacement>());
+            for (TopologyPlacement placement : placements) {
+                if (placement.moreCount == 0) byGroup.get(topologyGroupFor(placement.host)).add(placement);
+            }
+
+            List<TopologyPlacement> controllers = byGroup.get("controller");
+            if (controllers != null && !controllers.isEmpty()) {
+                TopologyPlacement controller = controllers.get(0);
+                for (String id : topologyGroupOrder()) {
+                    if ("controller".equals(id)) continue;
+                    List<TopologyPlacement> members = byGroup.get(id);
+                    if (members != null && !members.isEmpty()) addTopologyConnection(connections, seen, controller, members.get(0), "control", "control plane", Tone.GOOD);
+                }
+            }
+
+            Map<String, List<TopologyPlacement>> bySegment = new LinkedHashMap<>();
+            for (TopologyPlacement placement : placements) {
+                if (placement.moreCount != 0) continue;
+                String segment = networkSegment(placement.host);
+                if (segment.isEmpty()) continue;
+                if (!bySegment.containsKey(segment)) bySegment.put(segment, new ArrayList<TopologyPlacement>());
+                bySegment.get(segment).add(placement);
+            }
+            for (Map.Entry<String, List<TopologyPlacement>> entry : bySegment.entrySet()) {
+                List<TopologyPlacement> members = entry.getValue();
+                Collections.sort(members, new Comparator<TopologyPlacement>() {
+                    @Override
+                    public int compare(TopologyPlacement a, TopologyPlacement b) {
+                        int group = topologyGroupOrder().indexOf(topologyGroupFor(a.host)) - topologyGroupOrder().indexOf(topologyGroupFor(b.host));
+                        if (group != 0) return group;
+                        return a.host.name.compareToIgnoreCase(b.host.name);
+                    }
+                });
+                for (int i = 1; i < members.size(); i++) addTopologyConnection(connections, seen, members.get(i - 1), members.get(i), "subnet", entry.getKey(), Tone.GOOD);
+            }
+
+            List<TopologyPlacement> fabric = new ArrayList<>();
+            for (TopologyPlacement placement : placements) {
+                if (placement.moreCount != 0) continue;
+                String group = topologyGroupFor(placement.host);
+                if ("spark".equals(group) || "gpu".equals(group) || highSpeedNode(placement.host)) fabric.add(placement);
+            }
+            Collections.sort(fabric, new Comparator<TopologyPlacement>() {
+                @Override
+                public int compare(TopologyPlacement a, TopologyPlacement b) {
+                    return a.host.name.compareToIgnoreCase(b.host.name);
+                }
+            });
+            for (int i = 1; i < fabric.size(); i++) addTopologyConnection(connections, seen, fabric.get(i - 1), fabric.get(i), "fabric", fabricLabel(fabric.get(i - 1).host, fabric.get(i).host), Tone.GOOD);
+
+            if (connections.isEmpty() && placements.size() > 1) {
+                for (int i = 1; i < placements.size(); i++) {
+                    if (placements.get(i - 1).moreCount == 0 && placements.get(i).moreCount == 0) addTopologyConnection(connections, seen, placements.get(i - 1), placements.get(i), "observed", "observed path", Tone.WATCH);
+                }
+            }
+            return connections.size() > 10 ? connections.subList(0, 10) : connections;
+        }
+
+        private void addTopologyConnection(List<TopologyConnection> connections, Set<String> seen, TopologyPlacement from, TopologyPlacement to, String kind, String label, int tone) {
+            if (from.host.id.equals(to.host.id)) return;
+            String left = from.host.id.compareTo(to.host.id) < 0 ? from.host.id : to.host.id;
+            String right = from.host.id.compareTo(to.host.id) < 0 ? to.host.id : from.host.id;
+            String key = left + "::" + right + ":" + kind;
+            if (seen.contains(key)) return;
+            seen.add(key);
+            connections.add(new TopologyConnection(from, to, kind, label, worstTone(tone, worstTone(from.host.riskTone(), to.host.riskTone()))));
+        }
+
         private float topologyGroupX(int index, int count, int width) {
             float startX = count <= 3 ? width * 0.42f : width * 0.34f;
             float endX = width - dp(72);
@@ -1315,6 +1392,36 @@ public class MainActivity extends Activity {
             path.cubicTo(hubX + dp(108), hubY, placement.x - dp(126), placement.y, placement.x - dp(72), placement.y);
             canvas.drawPath(path, paint);
             paint.setPathEffect(null);
+        }
+
+        private void drawNetworkConnection(Canvas canvas, TopologyConnection connection, int index) {
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth("fabric".equals(connection.kind) ? dp(3) : dp(2));
+            paint.setStrokeCap(Paint.Cap.ROUND);
+            int baseColor = "fabric".equals(connection.kind) ? Color.rgb(139, 92, 246) : C.BLUE;
+            paint.setColor(withAlpha(connection.tone == Tone.GOOD ? baseColor : toneColor(connection.tone), 165));
+            paint.setPathEffect(connection.tone == Tone.GOOD ? null : new DashPathEffect(new float[] {dp(7), dp(6)}, 0));
+            float fromX = connectionStartX(connection.from, connection.to);
+            float toX = connectionEndX(connection.from, connection.to);
+            float midX = (fromX + toX) / 2f;
+            Path path = new Path();
+            path.moveTo(fromX, connection.from.y);
+            path.cubicTo(midX, connection.from.y, midX, connection.to.y, toX, connection.to.y);
+            canvas.drawPath(path, paint);
+            paint.setPathEffect(null);
+            if (index < 5) {
+                drawCenteredText(canvas, fitText(connection.label, dp(86), 9, Typeface.BOLD), (connection.from.x + connection.to.x) / 2f, (connection.from.y + connection.to.y) / 2f - dp(8), 9, baseColor, Typeface.BOLD);
+            }
+        }
+
+        private float connectionStartX(TopologyPlacement from, TopologyPlacement to) {
+            if (Math.abs(from.x - to.x) < dp(8)) return from.x + dp(76);
+            return from.x < to.x ? from.x + dp(76) : from.x - dp(76);
+        }
+
+        private float connectionEndX(TopologyPlacement from, TopologyPlacement to) {
+            if (Math.abs(from.x - to.x) < dp(8)) return to.x + dp(76);
+            return from.x < to.x ? to.x - dp(76) : to.x + dp(76);
         }
 
         private void drawTopologyHub(Canvas canvas, float x, float y) {
@@ -1355,6 +1462,30 @@ public class MainActivity extends Activity {
             if (host.hasGpuEvidence()) return "GPU " + pct(host.gpuPct);
             if (!host.networkInterface.isEmpty()) return host.networkInterface;
             return host.status;
+        }
+
+        private String networkSegment(Host host) {
+            String[] pieces = host.networkLocalAddress == null ? new String[0] : host.networkLocalAddress.split("\\.");
+            if (pieces.length != 4) return "";
+            for (String piece : pieces) {
+                try {
+                    Integer.parseInt(piece);
+                } catch (Exception error) {
+                    return "";
+                }
+            }
+            return pieces[0] + "." + pieces[1] + "." + pieces[2] + ".0/24";
+        }
+
+        private boolean highSpeedNode(Host host) {
+            String iface = host.networkInterface == null ? "" : host.networkInterface.toLowerCase(Locale.US);
+            return host.networkLinkSpeedMbps >= 100000 || iface.contains("ib") || iface.contains("mlx") || iface.contains("cx") || iface.contains("np") || iface.contains("enp");
+        }
+
+        private String fabricLabel(Host left, Host right) {
+            double speed = Math.max(left.networkLinkSpeedMbps, right.networkLinkSpeedMbps);
+            if (speed >= 1000) return compact(speed / 1000) + "G fabric";
+            return "GPU fabric";
         }
 
         private String fitText(String value, float maxWidth, int sp, int style) {
@@ -1405,6 +1536,22 @@ public class MainActivity extends Activity {
         }
     }
 
+    private static final class TopologyConnection {
+        final TopologyPlacement from;
+        final TopologyPlacement to;
+        final String kind;
+        final String label;
+        final int tone;
+
+        TopologyConnection(TopologyPlacement from, TopologyPlacement to, String kind, String label, int tone) {
+            this.from = from;
+            this.to = to;
+            this.kind = kind;
+            this.label = label;
+            this.tone = tone;
+        }
+    }
+
     private String topologyGroupFor(Host host) {
         String text = (host.name + " " + host.role + " " + host.gpuTopologySummary + " " + host.serviceSummary()).toLowerCase(Locale.US);
         if (text.contains("nuc") || text.contains("controller") || text.contains("collector") || text.contains("grafana") || text.contains("prometheus")) return "controller";
@@ -1432,6 +1579,12 @@ public class MainActivity extends Activity {
 
     private static int withAlpha(int color, int alpha) {
         return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    private static int worstTone(int left, int right) {
+        if (left == Tone.POOR || right == Tone.POOR) return Tone.POOR;
+        if (left == Tone.WATCH || right == Tone.WATCH) return Tone.WATCH;
+        return Tone.GOOD;
     }
 
     private GradientDrawable rounded(int bg, int stroke, int radius) {

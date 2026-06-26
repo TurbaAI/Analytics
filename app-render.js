@@ -1605,6 +1605,7 @@ function buildOperatorTopologyState(cockpit) {
   });
 
   const groups = operatorTopologyGroups(nodes);
+  const connections = operatorTopologyConnections(nodes);
   const actionCount = nodes.filter((node) => node.tone === "poor").length;
   const watchCount = nodes.filter((node) => node.tone === "watch").length;
   const services = unique(nodes.flatMap((node) => node.services || []).map(operatorTopologyServiceLabel).filter(Boolean)).slice(0, 7);
@@ -1617,6 +1618,7 @@ function buildOperatorTopologyState(cockpit) {
     tone,
     nodes,
     groups,
+    connections,
     services,
     actionCount,
     watchCount,
@@ -1656,6 +1658,9 @@ function operatorTopologyNodeFromContext(machineContext, index) {
     gpu,
     services,
     address,
+    segment: operatorTopologyNetworkSegment(address),
+    networkInterface: context.networkInterface || "",
+    linkSpeedMbps: numeric(context.networkLinkSpeedMbps, Number.NaN),
     ageSeconds,
     status,
     tone,
@@ -1674,6 +1679,9 @@ function operatorTopologyNodeFromTile(tile) {
     gpu: tile.gpu || "host telemetry",
     services,
     address: "",
+    segment: "",
+    networkInterface: "",
+    linkSpeedMbps: Number.NaN,
     ageSeconds: tile.age,
     status: tile.status || "Observed",
     tone: tile.tone || "watch",
@@ -1722,6 +1730,93 @@ function operatorTopologyServiceLabel(service) {
   return label;
 }
 
+function operatorTopologyNetworkSegment(address) {
+  const ipv4 = String(address || "").trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!ipv4) return "";
+  return `${ipv4[1]}.${ipv4[2]}.${ipv4[3]}.0/24`;
+}
+
+function operatorTopologyConnections(nodes) {
+  const concrete = nodes.filter((node) => node.key && !node.host.startsWith("+"));
+  const connections = [];
+  const seen = new Set();
+  const add = (from, to, kind, label, tone = "good") => {
+    if (!from || !to || from.key === to.key) return;
+    const pair = [from.key, to.key].sort().join("::");
+    const key = `${pair}:${kind}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    connections.push({
+      id: key,
+      fromKey: from.key,
+      toKey: to.key,
+      fromHost: from.host,
+      toHost: to.host,
+      kind,
+      label,
+      tone: tone === "poor" ? "poor" : tone === "watch" ? "watch" : operatorTopologyWorstTone(from.tone, to.tone)
+    });
+  };
+
+  const controllers = concrete.filter((node) => node.group === "controller");
+  const controller = controllers[0];
+  if (controller) {
+    operatorTopologyGroups(concrete)
+      .filter((group) => group.id !== "controller")
+      .forEach((group) => {
+        const target = group.nodes[0];
+        add(controller, target, "control", "control plane", target.tone === "poor" ? "poor" : target.tone === "watch" ? "watch" : "good");
+      });
+  }
+
+  const bySegment = new Map();
+  concrete.forEach((node) => {
+    if (!node.segment) return;
+    if (!bySegment.has(node.segment)) bySegment.set(node.segment, []);
+    bySegment.get(node.segment).push(node);
+  });
+  bySegment.forEach((segmentNodes, segment) => {
+    segmentNodes
+      .sort((left, right) => operatorTopologyGroupOrder(left.group) - operatorTopologyGroupOrder(right.group)
+        || fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }))
+      .slice(0, 8)
+      .forEach((node, index, list) => {
+        if (index > 0) add(list[index - 1], node, "subnet", segment, "good");
+      });
+  });
+
+  const fabricNodes = concrete
+    .filter((node) => node.group === "spark" || node.group === "gpu" || operatorTopologyHighSpeedNode(node))
+    .sort((left, right) => fleetNaturalLabel(left.host).localeCompare(fleetNaturalLabel(right.host), undefined, { numeric: true }));
+  fabricNodes.slice(0, 6).forEach((node, index, list) => {
+    if (index > 0) add(list[index - 1], node, "fabric", operatorTopologyFabricLabel(list[index - 1], node), "good");
+  });
+
+  if (!connections.length && concrete.length > 1) {
+    concrete.slice(0, 8).forEach((node, index, list) => {
+      if (index > 0) add(list[index - 1], node, "observed", "observed path", "watch");
+    });
+  }
+
+  return connections.slice(0, 12);
+}
+
+function operatorTopologyWorstTone(left, right) {
+  if (left === "poor" || right === "poor") return "poor";
+  if (left === "watch" || right === "watch") return "watch";
+  return "good";
+}
+
+function operatorTopologyHighSpeedNode(node) {
+  return numeric(node.linkSpeedMbps, 0) >= 100000 || /ib|mlx|cx|np|npu|enp/i.test(node.networkInterface || "");
+}
+
+function operatorTopologyFabricLabel(left, right) {
+  const speed = Math.max(numeric(left.linkSpeedMbps, 0), numeric(right.linkSpeedMbps, 0));
+  if (speed >= 1000) return `${formatDecimal(speed / 1000, speed >= 100000 ? 0 : 1)}G fabric`;
+  return "GPU fabric";
+}
+
 function operatorFleetTopologyNodes(topology) {
   if (!topology.available) {
     const empty = document.createElement("div");
@@ -1762,6 +1857,23 @@ function operatorFleetTopologyNodes(topology) {
     services.append(tag);
   });
 
+  const network = document.createElement("div");
+  network.className = "fleet-topology-network";
+  const networkTitle = document.createElement("strong");
+  networkTitle.textContent = `${topology.connections.length} network ${topology.connections.length === 1 ? "link" : "links"}`;
+  network.append(networkTitle);
+  topology.connections.slice(0, 5).forEach((connection) => {
+    const row = document.createElement("span");
+    row.dataset.tone = connection.tone;
+    row.textContent = `${connection.fromHost} <-> ${connection.toHost} · ${connection.label}`;
+    network.append(row);
+  });
+  if (!topology.connections.length) {
+    const row = document.createElement("span");
+    row.textContent = "Waiting for network addresses or peer evidence.";
+    network.append(row);
+  }
+
   const note = document.createElement("p");
   note.className = "fleet-topology-note";
   note.textContent = topology.actionCount
@@ -1770,7 +1882,7 @@ function operatorFleetTopologyNodes(topology) {
       ? "Topology is connected, with watch items driven by stale samples, reduced health, or blocked telemetry."
       : "All mapped nodes are reporting cleanly in the current bundle.";
 
-  summary.append(groups, services, note);
+  summary.append(groups, network, services, note);
   wrapper.append(map, summary);
   return [wrapper];
 }
@@ -1821,6 +1933,29 @@ function operatorFleetTopologySvg(topology) {
     svg.append(link);
   });
 
+  operatorTopologyRenderableConnections(topology.connections, positioned).forEach((connection) => {
+    const path = svgNode("path", {
+      class: "fleet-topology-node-link",
+      "data-kind": connection.kind,
+      "data-tone": connection.tone,
+      d: operatorTopologyConnectionPath(connection.from, connection.to)
+    });
+    const title = svgNode("title");
+    title.textContent = `${connection.from.node.host} to ${connection.to.node.host}: ${connection.label}`;
+    path.append(title);
+    svg.append(path);
+
+    if (connection.index < 7) {
+      const label = textNode(
+        connection.label,
+        Math.round((connection.from.x + connection.to.x) / 2),
+        Math.round((connection.from.y + connection.to.y) / 2) - 8,
+        "fleet-topology-connection-label"
+      );
+      svg.append(label);
+    }
+  });
+
   operatorTopologyPositionedGroups(topology.groups).forEach((group) => {
     const label = svgNode("g", { class: "fleet-topology-lane-label" });
     label.append(textNode(group.label, group.x, 48, "fleet-topology-lane-title"));
@@ -1833,6 +1968,29 @@ function operatorFleetTopologySvg(topology) {
   });
 
   return svg;
+}
+
+function operatorTopologyRenderableConnections(connections, positioned) {
+  const byKey = new Map(positioned.filter((item) => item.node.key).map((item) => [item.node.key, item]));
+  return connections
+    .map((connection, index) => ({
+      ...connection,
+      index,
+      from: byKey.get(connection.fromKey),
+      to: byKey.get(connection.toKey)
+    }))
+    .filter((connection) => connection.from && connection.to);
+}
+
+function operatorTopologyConnectionPath(from, to) {
+  if (Math.abs(from.x - to.x) < 8) {
+    const sideX = from.x + 92;
+    return `M${from.x + 78} ${from.y} C${sideX} ${from.y}, ${sideX} ${to.y}, ${to.x + 78} ${to.y}`;
+  }
+  const fromSide = from.x < to.x ? from.x + 78 : from.x - 78;
+  const toSide = from.x < to.x ? to.x - 78 : to.x + 78;
+  const midX = (fromSide + toSide) / 2;
+  return `M${fromSide} ${from.y} C${midX} ${from.y}, ${midX} ${to.y}, ${toSide} ${to.y}`;
 }
 
 function operatorTopologyDefs() {

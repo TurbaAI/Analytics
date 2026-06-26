@@ -570,6 +570,9 @@ private struct FleetTopologyNode: Identifiable {
     let subtitle: String
     let meta: String
     let services: [String]
+    let address: String
+    let networkInterface: String
+    let linkSpeedMbps: Double
     let tone: SignalTone
     let group: FleetTopologyGroup
 
@@ -579,6 +582,9 @@ private struct FleetTopologyNode: Identifiable {
         self.subtitle = host.hasGpuEvidence ? host.role : (host.networkLocalAddress.isEmpty ? host.role : host.networkLocalAddress)
         self.meta = host.hasGpuEvidence ? "GPU \(host.gpuPct.formattedPct)" : (host.networkInterface.isEmpty ? host.status : host.networkInterface)
         self.services = host.observedServices
+        self.address = host.networkLocalAddress
+        self.networkInterface = host.networkInterface
+        self.linkSpeedMbps = host.networkLinkSpeedMbps
         self.tone = host.riskTone
         self.group = FleetTopologyNode.group(for: host)
     }
@@ -599,12 +605,36 @@ private struct FleetTopologyNode: Identifiable {
         }
         return .other
     }
+
+    var networkSegment: String {
+        let parts = address.split(separator: ".").map(String.init)
+        guard parts.count == 4, parts.allSatisfy({ Int($0) != nil }) else { return "" }
+        return "\(parts[0]).\(parts[1]).\(parts[2]).0/24"
+    }
+
+    var isHighSpeed: Bool {
+        linkSpeedMbps >= 100_000
+            || networkInterface.localizedCaseInsensitiveContains("ib")
+            || networkInterface.localizedCaseInsensitiveContains("mlx")
+            || networkInterface.localizedCaseInsensitiveContains("cx")
+            || networkInterface.localizedCaseInsensitiveContains("np")
+            || networkInterface.localizedCaseInsensitiveContains("enp")
+    }
 }
 
 private struct FleetTopologyPlacement: Identifiable {
     let id: String
     let node: FleetTopologyNode
     let point: CGPoint
+}
+
+private struct FleetTopologyConnection: Identifiable {
+    let id: String
+    let from: FleetTopologyPlacement
+    let to: FleetTopologyPlacement
+    let label: String
+    let tone: SignalTone
+    let kind: String
 }
 
 private struct FleetTopologyMap: View {
@@ -623,6 +653,7 @@ private struct FleetTopologyMap: View {
             let hub = CGPoint(x: max(76, size.width * 0.18), y: size.height * 0.52)
             let placements = placements(in: size)
             let groupAnchors = anchors(in: size)
+            let connections = networkConnections(placements)
 
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
@@ -659,6 +690,32 @@ private struct FleetTopologyMap: View {
                         placement.node.tone.color.opacity(0.58),
                         style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: placement.node.tone == .good ? [] : [7, 6])
                     )
+                }
+
+                ForEach(connections) { connection in
+                    Path { path in
+                        path.move(to: connectionStart(connection))
+                        path.addCurve(
+                            to: connectionEnd(connection),
+                            control1: CGPoint(x: (connection.from.point.x + connection.to.point.x) / 2, y: connection.from.point.y),
+                            control2: CGPoint(x: (connection.from.point.x + connection.to.point.x) / 2, y: connection.to.point.y)
+                        )
+                    }
+                    .stroke(
+                        connection.kind == "fabric" ? AppColor.violet.opacity(0.64) : connection.tone.color.opacity(0.62),
+                        style: StrokeStyle(lineWidth: connection.kind == "fabric" ? 3.5 : 2.5, lineCap: .round, dash: connection.tone == .good ? [] : [7, 6])
+                    )
+
+                    if connections.firstIndex(where: { $0.id == connection.id }) ?? 99 < 5 {
+                        Text(connection.label)
+                            .font(.system(size: 8, weight: .black))
+                            .foregroundColor(connection.kind == "fabric" ? AppColor.violet : AppColor.blue)
+                            .lineLimit(1)
+                            .position(
+                                x: (connection.from.point.x + connection.to.point.x) / 2,
+                                y: (connection.from.point.y + connection.to.point.y) / 2 - 10
+                            )
+                    }
                 }
 
                 ForEach(groupAnchors, id: \.0.id) { entry in
@@ -720,6 +777,99 @@ private struct FleetTopologyMap: View {
                 )
             }
         }
+    }
+
+    private func networkConnections(_ placements: [FleetTopologyPlacement]) -> [FleetTopologyConnection] {
+        var result: [FleetTopologyConnection] = []
+        var seen = Set<String>()
+
+        func add(_ from: FleetTopologyPlacement, _ to: FleetTopologyPlacement, kind: String, label: String, tone: SignalTone = .good) {
+            guard from.id != to.id else { return }
+            let pair = [from.id, to.id].sorted().joined(separator: "::")
+            let key = "\(pair):\(kind)"
+            guard !seen.contains(key) else { return }
+            seen.insert(key)
+            result.append(FleetTopologyConnection(
+                id: key,
+                from: from,
+                to: to,
+                label: label,
+                tone: tone == .good ? worstTone(from.node.tone, to.node.tone) : tone,
+                kind: kind
+            ))
+        }
+
+        let byGroup = Dictionary(grouping: placements, by: { $0.node.group })
+        if let controller = byGroup[.controller]?.first {
+            FleetTopologyGroup.allCases
+                .filter { $0 != .controller }
+                .compactMap { byGroup[$0]?.first }
+                .forEach { add(controller, $0, kind: "control", label: "control plane") }
+        }
+
+        let bySegment = Dictionary(grouping: placements.filter { !$0.node.networkSegment.isEmpty }, by: { $0.node.networkSegment })
+        bySegment.values.forEach { members in
+            let ordered = members.sorted { left, right in
+                if left.node.group != right.node.group {
+                    let leftIndex = FleetTopologyGroup.allCases.firstIndex(of: left.node.group) ?? 99
+                    let rightIndex = FleetTopologyGroup.allCases.firstIndex(of: right.node.group) ?? 99
+                    return leftIndex < rightIndex
+                }
+                return left.node.host.localizedStandardCompare(right.node.host) == .orderedAscending
+            }
+            ordered.enumerated().forEach { index, item in
+                if index > 0 {
+                    add(ordered[index - 1], item, kind: "subnet", label: item.node.networkSegment)
+                }
+            }
+        }
+
+        let fabric = placements
+            .filter { $0.node.group == .spark || $0.node.group == .gpu || $0.node.isHighSpeed }
+            .sorted { $0.node.host.localizedStandardCompare($1.node.host) == .orderedAscending }
+        fabric.enumerated().forEach { index, item in
+            if index > 0 {
+                add(fabric[index - 1], item, kind: "fabric", label: fabricLabel(fabric[index - 1].node, item.node))
+            }
+        }
+
+        if result.isEmpty && placements.count > 1 {
+            placements.enumerated().forEach { index, item in
+                if index > 0 {
+                    add(placements[index - 1], item, kind: "observed", label: "observed path", tone: .watch)
+                }
+            }
+        }
+
+        return Array(result.prefix(10))
+    }
+
+    private func connectionStart(_ connection: FleetTopologyConnection) -> CGPoint {
+        if abs(connection.from.point.x - connection.to.point.x) < 8 {
+            return CGPoint(x: connection.from.point.x + 72, y: connection.from.point.y)
+        }
+        return CGPoint(x: connection.from.point.x < connection.to.point.x ? connection.from.point.x + 72 : connection.from.point.x - 72, y: connection.from.point.y)
+    }
+
+    private func connectionEnd(_ connection: FleetTopologyConnection) -> CGPoint {
+        if abs(connection.from.point.x - connection.to.point.x) < 8 {
+            return CGPoint(x: connection.to.point.x + 72, y: connection.to.point.y)
+        }
+        return CGPoint(x: connection.from.point.x < connection.to.point.x ? connection.to.point.x - 72 : connection.to.point.x + 72, y: connection.to.point.y)
+    }
+
+    private func worstTone(_ left: SignalTone, _ right: SignalTone) -> SignalTone {
+        if left == .poor || right == .poor { return .poor }
+        if left == .watch || right == .watch { return .watch }
+        return .good
+    }
+
+    private func fabricLabel(_ left: FleetTopologyNode, _ right: FleetTopologyNode) -> String {
+        let speed = max(left.linkSpeedMbps, right.linkSpeedMbps)
+        if speed >= 1000 {
+            return "\(Double(speed / 1000).formattedCompact)G fabric"
+        }
+        return "GPU fabric"
     }
 }
 

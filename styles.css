@@ -1601,6 +1601,35 @@ input[type="password"] {
   stroke-dasharray: 5 7;
 }
 
+.fleet-topology-node-link {
+  fill: none;
+  stroke: rgba(53, 115, 228, 0.54);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+}
+
+.fleet-topology-node-link[data-kind="fabric"] {
+  stroke: rgba(124, 58, 237, 0.6);
+  stroke-width: 3.25;
+}
+
+.fleet-topology-node-link[data-tone="watch"] {
+  stroke: rgba(183, 122, 22, 0.58);
+  stroke-dasharray: 9 6;
+}
+
+.fleet-topology-node-link[data-tone="poor"] {
+  stroke: rgba(184, 73, 59, 0.66);
+  stroke-dasharray: 6 6;
+}
+
+.fleet-topology-connection-label {
+  fill: var(--blue);
+  text-anchor: middle;
+  font-size: 9px;
+  font-weight: 900;
+}
+
 .fleet-topology-hub circle {
   fill: #102f38;
   stroke: rgba(73, 201, 173, 0.56);
@@ -1703,6 +1732,7 @@ input[type="password"] {
 .fleet-topology-stat,
 .fleet-topology-groups,
 .fleet-topology-services,
+.fleet-topology-network,
 .fleet-topology-note {
   min-width: 0;
   border: 1px solid var(--line);
@@ -1741,12 +1771,51 @@ input[type="password"] {
 }
 
 .fleet-topology-groups,
+.fleet-topology-network,
 .fleet-topology-services {
   grid-column: 1 / -1;
+}
+
+.fleet-topology-groups,
+.fleet-topology-services {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   padding: 9px;
+}
+
+.fleet-topology-network {
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+}
+
+.fleet-topology-network strong {
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.fleet-topology-network span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 780;
+  line-height: 1.28;
+}
+
+.fleet-topology-network span[data-tone="good"] {
+  color: var(--green);
+}
+
+.fleet-topology-network span[data-tone="watch"] {
+  color: var(--amber);
+}
+
+.fleet-topology-network span[data-tone="poor"] {
+  color: var(--red);
 }
 
 .fleet-topology-groups span,
@@ -8314,6 +8383,7 @@ html[data-theme="dark"] .fleet-topology-map,
 html[data-theme="dark"] .fleet-topology-stat,
 html[data-theme="dark"] .fleet-topology-groups,
 html[data-theme="dark"] .fleet-topology-services,
+html[data-theme="dark"] .fleet-topology-network,
 html[data-theme="dark"] .fleet-topology-note,
 html[data-theme="dark"] .fleet-tile,
 html[data-theme="dark"] .event-timeline-item,
@@ -8601,6 +8671,18 @@ html[data-theme="dark"] .fleet-topology-backplane {
 
 html[data-theme="dark"] .fleet-topology-grid-line {
   stroke: rgba(190, 218, 221, 0.12);
+}
+
+html[data-theme="dark"] .fleet-topology-node-link {
+  stroke: rgba(96, 165, 250, 0.56);
+}
+
+html[data-theme="dark"] .fleet-topology-node-link[data-kind="fabric"] {
+  stroke: rgba(167, 139, 250, 0.64);
+}
+
+html[data-theme="dark"] .fleet-topology-connection-label {
+  fill: #93c5fd;
 }
 
 html[data-theme="dark"] .fleet-topology-lane-title,
