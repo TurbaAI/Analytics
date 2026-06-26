@@ -215,6 +215,12 @@ Current mobile telemetry endpoint:
 http://192.168.10.103:8000/build/demo/live-machine-bundle.json
 ```
 
+The web dashboard includes a **Mobile Pairing** cockpit block that renders an
+offline QR code for the direct live-bundle URL. Open the mobile app's **Ops**
+page, use **Scan QR** on iPhone or Android, and the app saves that endpoint and
+refreshes live telemetry. Android also offers **Paste pairing** as a fallback
+when the phone does not expose a QR scanner intent.
+
 For production distribution, use HTTPS and update both native clients:
 
 - iPhone: `mobile/capacitor/ios/App/App/TelemetryModels.swift`
@@ -224,6 +230,7 @@ Shared mobile capabilities:
 
 - Native cockpit pages for Cockpit, Hosts, Trends, Signals, Alerts, Report, and Ops
 - Live refresh from the NUC15/controller bundle at `192.168.10.103`
+- QR/paste endpoint pairing from the web dashboard's Mobile Pairing block
 - Local fallback sample when the private feed is unreachable
 - Local profile name and avatar/photo shown in the header
 - Customer report text with explanation of what is happening and next steps

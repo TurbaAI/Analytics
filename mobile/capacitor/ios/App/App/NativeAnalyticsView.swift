@@ -1,3 +1,4 @@
+import AVFoundation
 import Contacts
 import ContactsUI
 import PhotosUI
@@ -669,6 +670,7 @@ private struct CustomerReportView: View {
 
 private struct OpsView: View {
     @ObservedObject var model: AnalyticsViewModel
+    @State private var showingPairingScanner = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -693,6 +695,19 @@ private struct OpsView: View {
                         IconTextButton(title: "Reset", systemImage: "arrow.counterclockwise.circle.fill", color: AppColor.blue) {
                             model.resetEndpoint()
                         }
+                    }
+
+                    HStack(spacing: 10) {
+                        IconTextButton(title: "Scan QR", systemImage: "qrcode.viewfinder", color: AppColor.blue) {
+                            showingPairingScanner = true
+                        }
+                    }
+
+                    if !model.pairingStatusMessage.isEmpty {
+                        Label(model.pairingStatusMessage, systemImage: "link.circle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(AppColor.green)
+                            .lineLimit(2)
                     }
 
                     Toggle(isOn: Binding(
@@ -723,6 +738,164 @@ private struct OpsView: View {
                 }
             }
         }
+        .sheet(isPresented: $showingPairingScanner) {
+            PairingScannerSheet { payload in
+                model.applyPairingPayload(payload)
+            }
+        }
+    }
+}
+
+private struct PairingScannerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onScan: (String) -> Void
+
+    var body: some View {
+        NavigationView {
+            QRCodeScannerView { payload in
+                onScan(payload)
+                dismiss()
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .navigationTitle("Pairing QR")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct QRCodeScannerView: UIViewControllerRepresentable {
+    let onScan: (String) -> Void
+
+    func makeUIViewController(context: Context) -> QRScannerViewController {
+        let controller = QRScannerViewController()
+        controller.onScan = onScan
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: QRScannerViewController, context: Context) {
+    }
+}
+
+private final class QRScannerViewController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
+    var onScan: ((String) -> Void)?
+
+    private let session = AVCaptureSession()
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var didScan = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .black
+        configureCameraAccess()
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        previewLayer?.frame = view.bounds
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        startSessionIfReady()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if session.isRunning {
+            DispatchQueue.global(qos: .userInitiated).async { [session] in
+                session.stopRunning()
+            }
+        }
+    }
+
+    private func configureCameraAccess() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    granted ? self?.configureSession() : self?.showMessage("Camera access is required for QR pairing.")
+                }
+            }
+        default:
+            showMessage("Camera access is required for QR pairing.")
+        }
+    }
+
+    private func configureSession() {
+        guard previewLayer == nil else { return }
+        guard let device = AVCaptureDevice.default(for: .video),
+              let input = try? AVCaptureDeviceInput(device: device),
+              session.canAddInput(input) else {
+            showMessage("Camera is unavailable on this iPhone.")
+            return
+        }
+
+        session.addInput(input)
+        let output = AVCaptureMetadataOutput()
+        guard session.canAddOutput(output) else {
+            showMessage("QR scanner is unavailable.")
+            return
+        }
+
+        session.addOutput(output)
+        output.setMetadataObjectsDelegate(self, queue: .main)
+        output.metadataObjectTypes = [.qr]
+
+        let layer = AVCaptureVideoPreviewLayer(session: session)
+        layer.videoGravity = .resizeAspectFill
+        layer.frame = view.bounds
+        view.layer.insertSublayer(layer, at: 0)
+        previewLayer = layer
+        startSessionIfReady()
+    }
+
+    private func startSessionIfReady() {
+        guard previewLayer != nil, !session.isRunning else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [session] in
+            session.startRunning()
+        }
+    }
+
+    private func showMessage(_ message: String) {
+        view.subviews.forEach { $0.removeFromSuperview() }
+        let label = UILabel()
+        label.text = message
+        label.textColor = .white
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.font = .systemFont(ofSize: 16, weight: .semibold)
+        label.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
+            label.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
+            label.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
+    }
+
+    func metadataOutput(
+        _ output: AVCaptureMetadataOutput,
+        didOutput metadataObjects: [AVMetadataObject],
+        from connection: AVCaptureConnection
+    ) {
+        guard !didScan,
+              let code = metadataObjects
+                .compactMap({ $0 as? AVMetadataMachineReadableCodeObject })
+                .compactMap(\.stringValue)
+                .first else {
+            return
+        }
+        didScan = true
+        onScan?(code)
     }
 }
 

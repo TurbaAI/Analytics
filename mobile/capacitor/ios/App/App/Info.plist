@@ -53,6 +53,8 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>turbalance Analytics uses the camera to scan dashboard pairing QR codes.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>turbalance Analytics connects to your local telemetry controller to load live fleet data.</string>
 	<key>UILaunchStoryboardName</key>

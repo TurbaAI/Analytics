@@ -2,6 +2,7 @@ package com.turbalance.analytics;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ActivityNotFoundException;
 import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -11,6 +12,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -91,6 +93,7 @@ public class MainActivity extends Activity {
     private static final String NOTIFICATION_CHANNEL_ID = "turbalance_thresholds";
     private static final int REQUEST_PICK_PHOTO = 2001;
     private static final int REQUEST_NOTIFICATIONS = 2002;
+    private static final int REQUEST_SCAN_QR = 2003;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final List<HistoryPoint> history = new ArrayList<>();
@@ -169,6 +172,10 @@ public class MainActivity extends Activity {
             }
             prefs.edit().putString(KEY_PROFILE_IMAGE_URI, uri.toString()).apply();
             renderHeader();
+        } else if (requestCode == REQUEST_SCAN_QR && resultCode == RESULT_OK && data != null) {
+            String payload = data.getStringExtra("SCAN_RESULT");
+            if (payload == null) payload = data.getDataString();
+            applyPairingPayload(payload);
         }
     }
 
@@ -599,6 +606,27 @@ public class MainActivity extends Activity {
         });
         endpointButtons.addView(reset, weightLp());
         endpointPanel.addView(endpointButtons);
+        LinearLayout pairingButtons = horizontal();
+        Button scan = actionButton("Scan QR");
+        scan.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startQrScan();
+            }
+        });
+        pairingButtons.addView(scan, weightLp());
+        addGap(pairingButtons, 10, true);
+        Button paste = actionButton("Paste pairing");
+        paste.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showPairingPayloadDialog();
+            }
+        });
+        pairingButtons.addView(paste, weightLp());
+        LinearLayout.LayoutParams pairingLp = new LinearLayout.LayoutParams(-1, -2);
+        pairingLp.setMargins(0, dp(10), 0, 0);
+        endpointPanel.addView(pairingButtons, pairingLp);
         content.addView(endpointPanel);
         addGap(content, 12, false);
 
@@ -614,6 +642,107 @@ public class MainActivity extends Activity {
             state.addView(stateRow("NCCL", first.ncclRuntimeStatus.isEmpty() ? "n/a" : first.ncclRuntimeStatus));
         }
         content.addView(state);
+    }
+
+    private void startQrScan() {
+        Intent intent = new Intent("com.google.zxing.client.android.SCAN");
+        intent.putExtra("SCAN_MODE", "QR_CODE_MODE");
+        try {
+            startActivityForResult(intent, REQUEST_SCAN_QR);
+        } catch (ActivityNotFoundException error) {
+            showPairingPayloadDialog();
+        }
+    }
+
+    private void showPairingPayloadDialog() {
+        final EditText input = new EditText(this);
+        input.setSingleLine(false);
+        input.setInputType(InputType.TYPE_TEXT_VARIATION_URI | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        input.setTextColor(Color.WHITE);
+        input.setHintTextColor(C.MUTED);
+        input.setHint("http://192.168.10.103:8000/build/demo/live-machine-bundle.json");
+        input.setBackground(rounded(C.TRACK, C.BORDER, 7));
+        input.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+        new AlertDialog.Builder(this)
+            .setTitle("Pairing payload")
+            .setView(input)
+            .setPositiveButton("Connect", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    applyPairingPayload(input.getText().toString());
+                }
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void applyPairingPayload(String payload) {
+        String url = endpointUrlFromPairingPayload(payload);
+        if (url == null || url.trim().isEmpty()) {
+            Toast.makeText(this, "Pairing payload did not include a valid bundle URL", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        endpoint = url.trim();
+        prefs.edit().putString(KEY_ENDPOINT, endpoint).apply();
+        Toast.makeText(this, "Connected to " + endpointHostLabel(endpoint), Toast.LENGTH_SHORT).show();
+        render();
+        refresh(false);
+    }
+
+    private String endpointUrlFromPairingPayload(String payload) {
+        if (payload == null) return null;
+        String trimmed = payload.trim();
+        if (trimmed.isEmpty()) return null;
+
+        if (trimmed.startsWith("{")) {
+            try {
+                JSONObject object = new JSONObject(trimmed);
+                String[] keys = {"bundleUrl", "url", "endpoint", "bundle"};
+                for (String key : keys) {
+                    String value = object.optString(key, "");
+                    if (isValidEndpointUrl(value)) return value.trim();
+                }
+            } catch (JSONException ignored) {
+            }
+        }
+
+        try {
+            Uri uri = Uri.parse(trimmed);
+            if ("turbalance".equalsIgnoreCase(uri.getScheme())) {
+                String[] keys = {"bundle", "bundleUrl", "url", "endpoint"};
+                for (String key : keys) {
+                    String value = uri.getQueryParameter(key);
+                    if (isValidEndpointUrl(value)) return value.trim();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        return isValidEndpointUrl(trimmed) ? trimmed : null;
+    }
+
+    private boolean isValidEndpointUrl(String value) {
+        if (value == null) return false;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return false;
+        try {
+            Uri uri = Uri.parse(trimmed);
+            String scheme = uri.getScheme();
+            return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) && uri.getHost() != null;
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
+    private String endpointHostLabel(String value) {
+        try {
+            Uri uri = Uri.parse(value);
+            return uri.getHost() == null ? "live bundle" : uri.getHost();
+        } catch (Exception error) {
+            return "live bundle";
+        }
     }
 
     private void refresh(final boolean automatic) {

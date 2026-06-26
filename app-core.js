@@ -947,6 +947,316 @@ function mobileDashboardConfig() {
   return config && typeof config === "object" ? config : {};
 }
 
+function mobilePairingBundleUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const queryValue = String(params.get("mobileBundle") || params.get("bundleUrl") || "").trim();
+  const configuredValue = String(mobileDashboardConfig().bundleUrl || "build/demo/live-machine-bundle.json").trim();
+  const value = queryValue || configuredValue;
+  if (!value) return AnalyticsMobileDefaults.bundleUrl;
+  if (/^https?:\/\//i.test(value)) {
+    try {
+      return new URL(value).href;
+    } catch {
+      return AnalyticsMobileDefaults.bundleUrl;
+    }
+  }
+
+  if (window.location.protocol === "file:") return AnalyticsMobileDefaults.bundleUrl;
+
+  const cleanPath = value.replace(/^\/+/, "");
+  const host = window.location.hostname.toLowerCase();
+  const knownControllerHosts = ["192.168.10.103", "100.95.183.13", "nuc15"];
+  if (knownControllerHosts.includes(host) && (!window.location.port || window.location.port === "80")) {
+    return `${window.location.protocol}//${window.location.hostname}:8000/${cleanPath}`;
+  }
+
+  try {
+    return new URL(value, window.location.href).href;
+  } catch {
+    return AnalyticsMobileDefaults.bundleUrl;
+  }
+}
+
+const AnalyticsMobileDefaults = {
+  bundleUrl: "http://192.168.10.103:8000/build/demo/live-machine-bundle.json"
+};
+
+function mobilePairingPayload() {
+  return mobilePairingBundleUrl();
+}
+
+function turbalanceQrSvg(text, options = {}) {
+  const matrix = turbalanceQrMatrix(String(text || ""));
+  const quietZone = 4;
+  const moduleSize = Number.isFinite(options.moduleSize) ? Math.max(2, options.moduleSize) : 6;
+  const viewSize = matrix.length + quietZone * 2;
+  const pixelSize = viewSize * moduleSize;
+  let path = "";
+
+  matrix.forEach((row, y) => {
+    row.forEach((dark, x) => {
+      if (dark) path += `M${x + quietZone} ${y + quietZone}h1v1h-1z`;
+    });
+  });
+
+  return [
+    `<svg class="mobile-pairing-qr" viewBox="0 0 ${viewSize} ${viewSize}" width="${pixelSize}" height="${pixelSize}" role="img" aria-label="Mobile pairing QR code" xmlns="http://www.w3.org/2000/svg">`,
+    `<rect width="${viewSize}" height="${viewSize}" fill="#ffffff"/>`,
+    `<path fill="#132027" d="${path}"/>`,
+    `</svg>`
+  ].join("");
+}
+
+function turbalanceQrMatrix(text) {
+  const bytes = Array.from(new TextEncoder().encode(text));
+  const version = 5;
+  const size = 4 * version + 17;
+  const dataCodewords = 108;
+  const eccCodewords = 26;
+  if (bytes.length > 106) {
+    throw new Error("Pairing payload is too long for the embedded QR encoder.");
+  }
+
+  const modules = Array.from({ length: size }, () => Array(size).fill(false));
+  const reserved = Array.from({ length: size }, () => Array(size).fill(false));
+  const setFunction = (x, y, dark) => {
+    if (x < 0 || y < 0 || x >= size || y >= size) return;
+    modules[y][x] = Boolean(dark);
+    reserved[y][x] = true;
+  };
+
+  turbalanceQrDrawFinder(modules, reserved, 3, 3);
+  turbalanceQrDrawFinder(modules, reserved, size - 4, 3);
+  turbalanceQrDrawFinder(modules, reserved, 3, size - 4);
+  for (let i = 8; i < size - 8; i += 1) {
+    const dark = i % 2 === 0;
+    setFunction(i, 6, dark);
+    setFunction(6, i, dark);
+  }
+  turbalanceQrDrawAlignment(modules, reserved, 30, 30);
+  turbalanceQrDrawFormatBits(modules, reserved, 0);
+  setFunction(8, size - 8, true);
+
+  const data = turbalanceQrDataCodewords(bytes, dataCodewords);
+  const ecc = turbalanceQrReedSolomonRemainder(data, eccCodewords);
+  const codewords = data.concat(ecc);
+  const bits = [];
+  codewords.forEach((codeword) => {
+    for (let bit = 7; bit >= 0; bit -= 1) bits.push(((codeword >>> bit) & 1) !== 0);
+  });
+
+  let bitIndex = 0;
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right -= 1;
+    for (let vert = 0; vert < size; vert += 1) {
+      const upward = ((right + 1) & 2) === 0;
+      const y = upward ? size - 1 - vert : vert;
+      for (let j = 0; j < 2; j += 1) {
+        const x = right - j;
+        if (!reserved[y][x]) {
+          modules[y][x] = bitIndex < bits.length ? bits[bitIndex] : false;
+          bitIndex += 1;
+        }
+      }
+    }
+  }
+
+  let bestMask = 0;
+  let bestPenalty = Infinity;
+  let bestModules = modules;
+  for (let mask = 0; mask < 8; mask += 1) {
+    const candidate = modules.map((row) => row.slice());
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        if (!reserved[y][x] && turbalanceQrMask(mask, x, y)) {
+          candidate[y][x] = !candidate[y][x];
+        }
+      }
+    }
+    turbalanceQrDrawFormatBits(candidate, reserved, mask, false);
+    const penalty = turbalanceQrPenalty(candidate);
+    if (penalty < bestPenalty) {
+      bestPenalty = penalty;
+      bestMask = mask;
+      bestModules = candidate;
+    }
+  }
+  turbalanceQrDrawFormatBits(bestModules, reserved, bestMask, false);
+  return bestModules;
+}
+
+function turbalanceQrDrawFinder(modules, reserved, centerX, centerY) {
+  const size = modules.length;
+  for (let dy = -4; dy <= 4; dy += 1) {
+    for (let dx = -4; dx <= 4; dx += 1) {
+      const x = centerX + dx;
+      const y = centerY + dy;
+      if (x < 0 || y < 0 || x >= size || y >= size) continue;
+      const distance = Math.max(Math.abs(dx), Math.abs(dy));
+      const dark = distance === 3 || distance <= 1;
+      modules[y][x] = dark;
+      reserved[y][x] = true;
+    }
+  }
+}
+
+function turbalanceQrDrawAlignment(modules, reserved, centerX, centerY) {
+  for (let dy = -2; dy <= 2; dy += 1) {
+    for (let dx = -2; dx <= 2; dx += 1) {
+      const distance = Math.max(Math.abs(dx), Math.abs(dy));
+      modules[centerY + dy][centerX + dx] = distance !== 1;
+      reserved[centerY + dy][centerX + dx] = true;
+    }
+  }
+}
+
+function turbalanceQrDrawFormatBits(modules, reserved, mask, markReserved = true) {
+  const size = modules.length;
+  const formatData = (1 << 3) | mask;
+  let remainder = formatData << 10;
+  for (let bit = 14; bit >= 10; bit -= 1) {
+    if (((remainder >>> bit) & 1) !== 0) remainder ^= 0x537 << (bit - 10);
+  }
+  const bits = ((formatData << 10) | remainder) ^ 0x5412;
+  const set = (x, y, bitIndex) => {
+    modules[y][x] = ((bits >>> bitIndex) & 1) !== 0;
+    if (markReserved) reserved[y][x] = true;
+  };
+
+  for (let i = 0; i <= 5; i += 1) set(8, i, i);
+  set(8, 7, 6);
+  set(8, 8, 7);
+  set(7, 8, 8);
+  for (let i = 9; i < 15; i += 1) set(14 - i, 8, i);
+  for (let i = 0; i < 8; i += 1) set(size - 1 - i, 8, i);
+  for (let i = 8; i < 15; i += 1) set(8, size - 15 + i, i);
+  modules[size - 8][8] = true;
+  if (markReserved) reserved[size - 8][8] = true;
+}
+
+function turbalanceQrDataCodewords(bytes, dataCodewords) {
+  const bits = [];
+  const appendBits = (value, length) => {
+    for (let i = length - 1; i >= 0; i -= 1) bits.push(((value >>> i) & 1) !== 0);
+  };
+
+  appendBits(0x4, 4);
+  appendBits(bytes.length, 8);
+  bytes.forEach((byte) => appendBits(byte, 8));
+  const capacityBits = dataCodewords * 8;
+  appendBits(0, Math.min(4, capacityBits - bits.length));
+  while (bits.length % 8 !== 0) bits.push(false);
+
+  const codewords = [];
+  for (let i = 0; i < bits.length; i += 8) {
+    let value = 0;
+    for (let j = 0; j < 8; j += 1) value = (value << 1) | (bits[i + j] ? 1 : 0);
+    codewords.push(value);
+  }
+  for (let pad = 0; codewords.length < dataCodewords; pad += 1) {
+    codewords.push(pad % 2 === 0 ? 0xec : 0x11);
+  }
+  return codewords;
+}
+
+function turbalanceQrReedSolomonRemainder(data, degree) {
+  const divisor = turbalanceQrReedSolomonDivisor(degree);
+  const result = Array(degree).fill(0);
+  data.forEach((byte) => {
+    const factor = byte ^ result.shift();
+    result.push(0);
+    for (let i = 0; i < degree; i += 1) {
+      result[i] ^= turbalanceQrGfMultiply(divisor[i], factor);
+    }
+  });
+  return result;
+}
+
+function turbalanceQrReedSolomonDivisor(degree) {
+  const result = Array(degree).fill(0);
+  result[degree - 1] = 1;
+  let root = 1;
+  for (let i = 0; i < degree; i += 1) {
+    for (let j = 0; j < degree; j += 1) {
+      result[j] = turbalanceQrGfMultiply(result[j], root);
+      if (j + 1 < degree) result[j] ^= result[j + 1];
+    }
+    root = turbalanceQrGfMultiply(root, 0x02);
+  }
+  return result;
+}
+
+function turbalanceQrGfMultiply(x, y) {
+  let z = 0;
+  for (let i = 7; i >= 0; i -= 1) {
+    z = (z << 1) ^ ((z >>> 7) * 0x11d);
+    if (((y >>> i) & 1) !== 0) z ^= x;
+  }
+  return z & 0xff;
+}
+
+function turbalanceQrMask(mask, x, y) {
+  switch (mask) {
+    case 0: return (x + y) % 2 === 0;
+    case 1: return y % 2 === 0;
+    case 2: return x % 3 === 0;
+    case 3: return (x + y) % 3 === 0;
+    case 4: return (Math.floor(y / 2) + Math.floor(x / 3)) % 2 === 0;
+    case 5: return ((x * y) % 2 + (x * y) % 3) === 0;
+    case 6: return (((x * y) % 2 + (x * y) % 3) % 2) === 0;
+    case 7: return (((x + y) % 2 + (x * y) % 3) % 2) === 0;
+    default: return false;
+  }
+}
+
+function turbalanceQrPenalty(modules) {
+  const size = modules.length;
+  let penalty = 0;
+  const addRunPenalty = (line) => {
+    let runColor = line[0];
+    let runLength = 1;
+    for (let i = 1; i < line.length; i += 1) {
+      if (line[i] === runColor) {
+        runLength += 1;
+      } else {
+        if (runLength >= 5) penalty += runLength - 2;
+        runColor = line[i];
+        runLength = 1;
+      }
+    }
+    if (runLength >= 5) penalty += runLength - 2;
+  };
+
+  for (let y = 0; y < size; y += 1) addRunPenalty(modules[y]);
+  for (let x = 0; x < size; x += 1) addRunPenalty(modules.map((row) => row[x]));
+
+  for (let y = 0; y < size - 1; y += 1) {
+    for (let x = 0; x < size - 1; x += 1) {
+      const color = modules[y][x];
+      if (modules[y][x + 1] === color && modules[y + 1][x] === color && modules[y + 1][x + 1] === color) {
+        penalty += 3;
+      }
+    }
+  }
+
+  const pattern = "10111010000";
+  const reversePattern = "00001011101";
+  const linePenalty = (line) => {
+    const text = line.map((value) => (value ? "1" : "0")).join("");
+    for (let index = 0; index <= text.length - 11; index += 1) {
+      const chunk = text.slice(index, index + 11);
+      if (chunk === pattern || chunk === reversePattern) penalty += 40;
+    }
+  };
+  for (let y = 0; y < size; y += 1) linePenalty(modules[y]);
+  for (let x = 0; x < size; x += 1) linePenalty(modules.map((row) => row[x]));
+
+  const dark = modules.flat().filter(Boolean).length;
+  const total = size * size;
+  penalty += Math.floor(Math.abs(dark * 20 - total * 10) / total) * 10;
+  return penalty;
+}
+
 function sparkPairClockFeedUrl() {
   const params = new URLSearchParams(window.location.search);
   return parseImportUrl(params.get("clockFeed") || "build/demo/spark-clock-offset.json");

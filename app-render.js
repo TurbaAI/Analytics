@@ -1364,6 +1364,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const heartbeatStrip = document.querySelector("#sourceHeartbeatStrip");
   const timeline = document.querySelector("#eventTimeline");
   const timelineBadge = document.querySelector("#eventTimelineBadge");
+  const mobilePairingPanel = document.querySelector("#mobilePairingPanel");
+  const mobilePairingBadge = document.querySelector("#mobilePairingBadge");
   const launchpad = document.querySelector("#demoLaunchpad");
   const autoDiscoveryDeploymentPanel = document.querySelector("#autoDiscoveryDeploymentPanel");
   const autoDiscoveryDeploymentBadge = document.querySelector("#autoDiscoveryDeploymentBadge");
@@ -1395,13 +1397,14 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   const benchmarkLadderBadge = document.querySelector("#benchmarkLadderBadge");
   const characterizationPanel = document.querySelector("#systemCharacterizationPanel");
   const characterizationBadge = document.querySelector("#systemCharacterizationBadge");
-  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
+  if (!panel || !title || !confidenceBadge || !heartbeatStrip || !timeline || !mobilePairingPanel || !launchpad || !autoDiscoveryDeploymentPanel || !executionIdleEnergyPanel || !gpuExporterCoveragePanel || !backgroundTasksPanel || !kafkaPanel || !confidencePanel || !replayPanel || !grafanaPanel || !productReadinessPanel || !fleetTiles || !unitEconomicsPanel || !sparkPairComparePanel || !fleetComparisonPanel || !benchmarkLadderPanel || !characterizationPanel) return;
 
   const cockpit = buildOperatorCockpitContext(summary, classifier, opportunityEngine, schedulerSimulator);
   if (!cockpit.visible) {
     panel.hidden = true;
     heartbeatStrip.replaceChildren();
     timeline.replaceChildren();
+    mobilePairingPanel.replaceChildren();
     launchpad.replaceChildren();
     autoDiscoveryDeploymentPanel.replaceChildren();
     executionIdleEnergyPanel.replaceChildren();
@@ -1427,6 +1430,7 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   confidenceBadge.textContent = `Confidence ${pct(cockpit.confidence.score)}`;
   confidenceBadge.dataset.tone = cockpit.confidence.score >= 80 ? "good" : cockpit.confidence.score >= 55 ? "watch" : "poor";
   if (timelineBadge) timelineBadge.textContent = `${cockpit.timeline.length} events`;
+  if (mobilePairingBadge) mobilePairingBadge.textContent = "QR ready";
   if (autoDiscoveryDeploymentBadge) {
     autoDiscoveryDeploymentBadge.textContent = cockpit.autoDiscovery.badge;
     autoDiscoveryDeploymentBadge.dataset.tone = cockpit.autoDiscovery.tone;
@@ -1474,6 +1478,8 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   else heartbeatStrip.replaceChildren();
   if (dashboardBlockEnabled("eventTimeline")) timeline.replaceChildren(...cockpit.timeline.map(operatorTimelineItem));
   else timeline.replaceChildren();
+  if (dashboardBlockEnabled("mobilePairing")) mobilePairingPanel.replaceChildren(...operatorMobilePairingNodes());
+  else mobilePairingPanel.replaceChildren();
   if (dashboardBlockEnabled("demoLaunchpad")) {
     renderOperatorLaunchpad(launchpad, cockpit.commands);
   } else {
@@ -1511,6 +1517,61 @@ function renderOperatorCockpit(summary, classifier, opportunityEngine, scheduler
   else benchmarkLadderPanel.replaceChildren();
   if (dashboardBlockEnabled("systemCharacterization")) renderSystemCharacterizationPanel(characterizationPanel, platformVirtualSensorCache.systemIdentification);
   else characterizationPanel.replaceChildren();
+}
+
+function operatorMobilePairingNodes() {
+  const payload = mobilePairingPayload();
+  const bundleUrl = mobilePairingBundleUrl();
+  const wrapper = document.createElement("div");
+  wrapper.className = "mobile-pairing-layout";
+
+  const qr = document.createElement("div");
+  qr.className = "mobile-pairing-qr-frame";
+  try {
+    qr.innerHTML = turbalanceQrSvg(payload, { moduleSize: 5 });
+  } catch (error) {
+    const empty = document.createElement("div");
+    empty.className = "operator-empty";
+    empty.textContent = error.message || "QR unavailable.";
+    qr.append(empty);
+  }
+
+  const detail = document.createElement("div");
+  detail.className = "mobile-pairing-detail";
+  const endpointLabel = document.createElement("span");
+  endpointLabel.textContent = "Bundle URL";
+  const endpoint = document.createElement("strong");
+  endpoint.textContent = bundleUrl;
+  endpoint.title = bundleUrl;
+
+  const actions = document.createElement("div");
+  actions.className = "mobile-pairing-actions";
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.textContent = "Copy URL";
+  copy.addEventListener("click", async () => {
+    copy.disabled = true;
+    const copied = await copyTextToClipboard(payload);
+    copy.textContent = copied ? "Copied" : "Copy failed";
+    setIngestStatus(copied ? "Mobile pairing URL copied" : "Mobile pairing URL ready to copy", copied ? "good" : "watch");
+    window.setTimeout(() => {
+      copy.disabled = false;
+      copy.textContent = "Copy URL";
+    }, 1200);
+  });
+  actions.append(copy);
+
+  const meta = document.createElement("div");
+  meta.className = "mobile-pairing-meta";
+  const host = document.createElement("span");
+  host.textContent = window.location.hostname || "local";
+  const protocol = document.createElement("span");
+  protocol.textContent = "turbalance.connection.v1";
+  meta.append(host, protocol);
+
+  detail.append(endpointLabel, endpoint, actions, meta);
+  wrapper.append(qr, detail);
+  return [wrapper];
 }
 
 function operatorSourceLabel(id) {

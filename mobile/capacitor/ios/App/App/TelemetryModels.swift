@@ -395,6 +395,7 @@ final class AnalyticsViewModel: ObservableObject {
     @Published var notificationAuthorizationStatus: UNAuthorizationStatus = .notDetermined
     @Published var lastNotificationSummary = "No threshold notifications sent yet."
     @Published var reportCopyState = ""
+    @Published var pairingStatusMessage = ""
 
     static let defaultLiveBundleURLString = "http://192.168.10.103:8000/build/demo/live-machine-bundle.json"
 
@@ -501,12 +502,25 @@ final class AnalyticsViewModel: ObservableObject {
 
     func saveEndpoint() {
         UserDefaults.standard.set(endpointText.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.endpointDefaultsKey)
+        pairingStatusMessage = "Endpoint saved."
         Task { await refresh() }
     }
 
     func resetEndpoint() {
         endpointText = Self.defaultLiveBundleURLString
         saveEndpoint()
+    }
+
+    func applyPairingPayload(_ payload: String) {
+        guard let url = Self.endpointURL(from: payload) else {
+            pairingStatusMessage = "Pairing payload did not include a valid bundle URL."
+            return
+        }
+
+        endpointText = url.absoluteString
+        UserDefaults.standard.set(endpointText, forKey: Self.endpointDefaultsKey)
+        pairingStatusMessage = "Connected to \(url.host ?? "live bundle")."
+        Task { await refresh() }
     }
 
     func setAutoRefreshEnabled(_ enabled: Bool) {
@@ -688,6 +702,42 @@ final class AnalyticsViewModel: ObservableObject {
                 continuation.resume(returning: settings.authorizationStatus)
             }
         }
+    }
+
+    private static func endpointURL(from payload: String) -> URL? {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let data = trimmed.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            for key in ["bundleUrl", "url", "endpoint", "bundle"] {
+                if let value = object[key] as? String, let url = validatedEndpointURL(value) {
+                    return url
+                }
+            }
+        }
+
+        if let url = URL(string: trimmed),
+           let scheme = url.scheme?.lowercased(),
+           scheme == "turbalance",
+           let components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            for key in ["bundle", "bundleUrl", "url", "endpoint"] {
+                if let value = components.queryItems?.first(where: { $0.name == key })?.value,
+                   let endpoint = validatedEndpointURL(value) {
+                    return endpoint
+                }
+            }
+        }
+
+        return validatedEndpointURL(trimmed)
+    }
+
+    private static func validatedEndpointURL(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed), let scheme = url.scheme?.lowercased() else {
+            return nil
+        }
+        return ["http", "https"].contains(scheme) ? url : nil
     }
 }
 
