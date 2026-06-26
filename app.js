@@ -245,8 +245,8 @@ const DASHBOARD_BLOCK_STORAGE_KEY = "turba.dashboard.blocks.v1";
 const DASHBOARD_BLOCKS = [
   { id: "liveResources", label: "Live resource tiles", note: "Host CPU, RAM, GPU, Docker, disk, and service tiles", defaultOn: true },
   { id: "sourceHeartbeat", label: "Source heartbeat", note: "Compact source freshness strip", defaultOn: true },
-  { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
   { id: "mobilePairing", label: "Mobile pairing QR", note: "Direct mobile live-bundle connection", defaultOn: true },
+  { id: "fleetTiles", label: "Fleet tiles", note: "One-card-per-host fleet status", defaultOn: true },
   { id: "unitEconomics", label: "Unit economics cards", note: "CAPEX, depreciation, OPEX, utilization, and profit/loss by host", defaultOn: true },
   { id: "inferenceEconomics", label: "Inference economics", note: "Cost per token/request, KV-cache pressure, batch efficiency, and latency/cost tradeoff", defaultOn: true },
   { id: "productReadiness", label: "Product readiness", note: "Customer hardening and supportability gates", defaultOn: true },
@@ -948,7 +948,6 @@ const PREDICTIVE_METRIC_CONFIG = {
 // Forecasts + saturation/anomaly/regression-risk early warning, plus a ranked,
 // forecast-driven prescriptive action plan. Fully guarded so a missing module,
 // panel, or history simply renders an empty/among-friends state and never throws.
-
 
 
 
